@@ -98,7 +98,7 @@ Do not start with Prisma unless the team already strongly prefers it. Supabase's
 
 ```bash
 # Core app
-npx create-next-app@latest english-speaking-practice --typescript --eslint --app
+npx create-next-app@latest coco-english --typescript --eslint --app
 
 # UI and styling
 npm install tailwindcss @tailwindcss/postcss postcss
