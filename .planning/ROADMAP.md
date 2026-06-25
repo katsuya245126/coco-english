@@ -51,7 +51,18 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
   3. Student can enter through a class code or QR/link, reuse a remembered class, select their name, and unlock homework with a 4-digit PIN.
   4. Student sees clear wrong-PIN, no-homework, and expired/closed-homework states.
   5. Teacher cannot access another teacher's classes, missions, assignments, or student attempts.
-**Plans**: TBD
+**Plans**: 4 plans
+
+**Wave 1**
+- [ ] `02-01-PLAN.md` — Teacher auth walking slice: @supabase/ssr clients, session middleware, RLS migration (+ schema push), teacher signup/verify/login/logout, profile bootstrap, protected dashboard shell.
+
+**Wave 2**
+- [ ] `02-02-PLAN.md` — Class management slice: create/edit/archive classes, stable join code generation/reset, and join-code/link/QR share dialog (RLS-bound).
+- [ ] `02-03-PLAN.md` — Roster + PIN slice: bulk-paste/edit/archive students and auto-generated 4-digit PIN generation/reset (hash-only, server-side pepper).
+
+**Wave 3**
+- [ ] `02-04-PLAN.md` — Student access slice: class-code/QR/link entry, remembered-class context, typed-name + PIN unlock, no-homework home shell, generic mismatch errors, and cross-teacher RLS isolation proof.
+
 **UI hint**: yes
 
 ### Phase 3: Manual Mission Assignment
@@ -156,7 +167,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Data, Privacy, and Workflow Foundation | 1/1 | Complete | 2026-06-25 |
-| 2. Teacher Classroom Access | 0/TBD | Not started | - |
+| 2. Teacher Classroom Access | 0/4 | Not started | - |
 | 3. Manual Mission Assignment | 0/TBD | Not started | - |
 | 4. Guided Student Attempt Loop | 0/TBD | Not started | - |
 | 5. Voice Capture and Evidence Storage | 0/TBD | Not started | - |
