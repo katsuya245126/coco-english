@@ -147,27 +147,75 @@ Explicitly excluded from current planning to prevent scope creep.
 
 ## Traceability
 
-Roadmap mapping is created in `ROADMAP.md`.
+Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly one phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DATA-01 through DATA-05 | TBD | Pending |
-| AUTH-01 through AUTH-04 | TBD | Pending |
-| CLASS-01 through CLASS-04 | TBD | Pending |
-| STUD-01 through STUD-05 | TBD | Pending |
-| MISS-01 through MISS-05 | TBD | Pending |
-| ASGN-01 through ASGN-05 | TBD | Pending |
-| FLOW-01 through FLOW-07 | TBD | Pending |
-| AUDIO-01 through AUDIO-05 | TBD | Pending |
-| AI-01 through AI-06 | TBD | Pending |
-| REV-01 through REV-06 | TBD | Pending |
-| CHAR-01 through CHAR-04 | TBD | Pending |
-| PILOT-01 through PILOT-04 | TBD | Pending |
+| DATA-01 | Phase 1 | Pending |
+| DATA-02 | Phase 1 | Pending |
+| DATA-03 | Phase 1 | Pending |
+| DATA-04 | Phase 1 | Pending |
+| DATA-05 | Phase 1 | Pending |
+| AUTH-01 | Phase 2 | Pending |
+| AUTH-02 | Phase 2 | Pending |
+| AUTH-03 | Phase 2 | Pending |
+| AUTH-04 | Phase 2 | Pending |
+| CLASS-01 | Phase 2 | Pending |
+| CLASS-02 | Phase 2 | Pending |
+| CLASS-03 | Phase 2 | Pending |
+| CLASS-04 | Phase 2 | Pending |
+| STUD-01 | Phase 2 | Pending |
+| STUD-02 | Phase 2 | Pending |
+| STUD-03 | Phase 2 | Pending |
+| STUD-04 | Phase 2 | Pending |
+| STUD-05 | Phase 2 | Pending |
+| MISS-01 | Phase 3 | Pending |
+| MISS-02 | Phase 6 | Pending |
+| MISS-03 | Phase 6 | Pending |
+| MISS-04 | Phase 3 | Pending |
+| MISS-05 | Phase 6 | Pending |
+| ASGN-01 | Phase 3 | Pending |
+| ASGN-02 | Phase 3 | Pending |
+| ASGN-03 | Phase 3 | Pending |
+| ASGN-04 | Phase 1 | Pending |
+| ASGN-05 | Phase 7 | Pending |
+| FLOW-01 | Phase 4 | Pending |
+| FLOW-02 | Phase 4 | Pending |
+| FLOW-03 | Phase 5 | Pending |
+| FLOW-04 | Phase 4 | Pending |
+| FLOW-05 | Phase 4 | Pending |
+| FLOW-06 | Phase 4 | Pending |
+| FLOW-07 | Phase 4 | Pending |
+| AUDIO-01 | Phase 5 | Pending |
+| AUDIO-02 | Phase 5 | Pending |
+| AUDIO-03 | Phase 5 | Pending |
+| AUDIO-04 | Phase 5 | Pending |
+| AUDIO-05 | Phase 5 | Pending |
+| AI-01 | Phase 6 | Pending |
+| AI-02 | Phase 6 | Pending |
+| AI-03 | Phase 6 | Pending |
+| AI-04 | Phase 6 | Pending |
+| AI-05 | Phase 6 | Pending |
+| AI-06 | Phase 4 | Pending |
+| REV-01 | Phase 7 | Pending |
+| REV-02 | Phase 7 | Pending |
+| REV-03 | Phase 7 | Pending |
+| REV-04 | Phase 7 | Pending |
+| REV-05 | Phase 5 | Pending |
+| REV-06 | Phase 7 | Pending |
+| CHAR-01 | Phase 4 | Pending |
+| CHAR-02 | Phase 4 | Pending |
+| CHAR-03 | Phase 4 | Pending |
+| CHAR-04 | Phase 4 | Pending |
+| PILOT-01 | Phase 4 | Pending |
+| PILOT-02 | Phase 5 | Pending |
+| PILOT-03 | Phase 7 | Pending |
+| PILOT-04 | Phase 7 | Pending |
 
 **Coverage:**
 - v1 requirements: 60 total
-- Mapped to phases: 0
-- Unmapped: 60 pending roadmap
+- Mapped to phases: 60
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-25*
