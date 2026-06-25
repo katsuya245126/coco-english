@@ -1,4 +1,6 @@
 import { requireTeacherProfile } from "@/server/auth/teacher-profile";
+import { listClassesForTeacher } from "@/server/classroom/class-service";
+import { ClassList } from "@/components/teacher/ClassList";
 
 // Per-user authenticated page: never statically cache (Supabase SSR caching
 // warning). The guard redirects unauthenticated users to /auth/login and
@@ -7,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function TeacherDashboardPage() {
   const profile = await requireTeacherProfile();
+  const classes = await listClassesForTeacher({ teacherId: profile.id });
 
   return (
     <div
@@ -57,58 +60,7 @@ export default async function TeacherDashboardPage() {
           padding: 32,
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 32,
-          }}
-        >
-          <h1 style={{ fontSize: 28, fontWeight: 600, lineHeight: 1.2, margin: 0 }}>
-            Classes
-          </h1>
-          <button
-            type="button"
-            style={{
-              padding: "10px 16px",
-              background: "#2563EB",
-              color: "#FFFFFF",
-              border: "none",
-              borderRadius: 6,
-              fontSize: 16,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            Create class
-          </button>
-        </div>
-
-        <section
-          aria-label="Class list"
-          style={{
-            background: "#FFFFFF",
-            border: "1px solid #E5E7EB",
-            borderRadius: 8,
-            padding: 48,
-            textAlign: "center",
-          }}
-        >
-          <h2 style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.25, margin: 0 }}>
-            No classes yet
-          </h2>
-          <p
-            style={{
-              fontSize: 16,
-              lineHeight: 1.5,
-              color: "#4B5563",
-              margin: "8px 0 0",
-            }}
-          >
-            Create your first class to add students and share a join code.
-          </p>
-        </section>
+        <ClassList classes={classes} />
       </main>
     </div>
   );
