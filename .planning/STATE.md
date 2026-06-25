@@ -6,7 +6,7 @@ current_phase: 02
 current_phase_name: teacher-classroom-access
 status: executing
 stopped_at: Phase 2 planned (4 plans, verification passed).
-last_updated: "2026-06-25T15:49:25.028Z"
+last_updated: "2026-06-25T15:50:21.995Z"
 last_activity: 2026-06-25
 last_activity_desc: Phase 02 execution started
 progress:
@@ -57,6 +57,7 @@ Progress: [#---------] 14%
 *Updated after each plan completion*
 | Phase 02 P01 | 13min | 4 tasks | 27 files |
 | Phase 02 P02 | 14min | 3 tasks | 12 files |
+| Phase 02 P03 | 7min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,8 @@ Recent decisions affecting current work:
 - [Phase 1 Context]: Use full workflow skeleton, immutable assignment snapshots, class-scoped students, server-owned status transitions, missed-status job, audited teacher overrides, 30-day audio retention, and explicit demo-vs-real data mode.
 - [Phase 1 Execution]: Implemented Next.js/Supabase foundation, server-owned assignment status rules, RLS-enabled schema posture, and env-aware smoke verification.
 - [Phase ?]: RLS ownership rooted in teacher_profiles.auth_user_id = auth.uid() via SECURITY DEFINER helpers; @supabase/ssr cookie clients with getClaims() server gating; service-role stays server-only (02-01)
+- [Phase 02]: 02-03: Student PINs hashed with node:crypto scrypt (per-PIN salt + server-only PIN_HASH_PEPPER); only pin_hash stored, cleartext shown once.
+- [Phase 02]: 02-03: Persist normalizeRosterName output as students.display_name so DB lower(display_name) active-name unique index matches the app-level dedup key.
 
 ### Pending Todos
 
@@ -91,6 +94,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-25T15:49:05.447Z
+Last session: 2026-06-25T15:50:02.768Z
 Stopped at: Phase 2 planned (4 plans, verification passed).
 Resume file: .planning/phases/02-teacher-classroom-access/02-01-PLAN.md
