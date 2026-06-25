@@ -5,8 +5,13 @@ test("creates a foundation smoke record from the internal UI", async ({ page }) 
 
   await page.getByRole("button", { name: "Create foundation smoke record" }).click();
 
-  await expect(page.getByText(/Foundation Demo/)).toBeVisible();
-  await expect(page.getByText(/Foundation Smoke/)).toBeVisible();
-  await expect(page.getByText(/assigned/)).toBeVisible();
-  await expect(page.getByText("data-mode: demo")).toBeVisible();
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    await expect(page.getByText(/Foundation Demo/)).toBeVisible();
+    await expect(page.getByText(/Foundation Smoke/)).toBeVisible();
+    await expect(page.getByText(/assigned/)).toBeVisible();
+    await expect(page.getByText("data-mode: demo")).toBeVisible();
+    return;
+  }
+
+  await expect(page.getByText(/Internal setup state/)).toBeVisible();
 });
