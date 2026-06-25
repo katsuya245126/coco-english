@@ -22,8 +22,8 @@ See: .planning/PROJECT.md (updated 2026-06-25)
 
 Phase: 1 of 7 (Data, Privacy, and Workflow Foundation)
 Plan: TBD in current phase
-Status: Ready to plan
-Last activity: 2026-06-25 - Created MVP roadmap and initialized project state.
+Status: Context gathered; ready to plan
+Last activity: 2026-06-25 - Gathered Phase 1 context for data, privacy, and workflow foundation.
 
 Progress: [----------] 0%
 
@@ -56,6 +56,7 @@ Recent decisions affecting current work:
 - [Roadmap]: Use a 7-phase vertical MVP sequence driven by classroom homework risk and requirement coverage.
 - [Roadmap]: Build manual mission assignment before AI generation so teacher control and snapshots exist first.
 - [Roadmap]: Add audio before AI evaluation so recording, storage, and teacher playback can be verified independently.
+- [Phase 1 Context]: Use full workflow skeleton, immutable assignment snapshots, class-scoped students, server-owned status transitions, missed-status job, audited teacher overrides, 30-day audio retention, and explicit demo-vs-real data mode.
 
 ### Pending Todos
 
@@ -78,5 +79,5 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-06-25 00:00
-Stopped at: Roadmap created; next step is planning Phase 1.
-Resume file: None
+Stopped at: Phase 1 context gathered.
+Resume file: .planning/phases/01-data-privacy-and-workflow-foundation/01-CONTEXT.md
