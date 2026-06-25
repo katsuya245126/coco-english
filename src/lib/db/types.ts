@@ -10,29 +10,59 @@ export type Database = {
   public: {
     Tables: {
       teacher_profiles: {
-        Row: { id: string; display_name: string | null };
-        Insert: { id?: string; display_name?: string | null };
-        Update: { display_name?: string | null };
+        Row: {
+          id: string;
+          auth_user_id: string | null;
+          display_name: string | null;
+        };
+        Insert: {
+          id?: string;
+          auth_user_id?: string | null;
+          display_name?: string | null;
+        };
+        Update: {
+          auth_user_id?: string | null;
+          display_name?: string | null;
+        };
+        Relationships: [];
       };
       classes: {
         Row: {
           id: string;
           teacher_id: string;
           name: string;
+          join_code: string | null;
           data_mode: "demo" | "real";
+          archived_at: string | null;
         };
         Insert: {
           id?: string;
           teacher_id: string;
           name: string;
+          join_code?: string | null;
           data_mode: "demo" | "real";
+          archived_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["classes"]["Insert"]>;
+        Relationships: [];
       };
       students: {
-        Row: { id: string; class_id: string; display_name: string };
-        Insert: { id?: string; class_id: string; display_name: string };
+        Row: {
+          id: string;
+          class_id: string;
+          display_name: string;
+          pin_hash: string | null;
+          archived_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          class_id: string;
+          display_name: string;
+          pin_hash?: string | null;
+          archived_at?: string | null;
+        };
         Update: Partial<Database["public"]["Tables"]["students"]["Insert"]>;
+        Relationships: [];
       };
       missions: {
         Row: {
@@ -52,6 +82,7 @@ export type Database = {
           character_id: string;
         };
         Update: Partial<Database["public"]["Tables"]["missions"]["Insert"]>;
+        Relationships: [];
       };
       mission_turn_templates: {
         Row: { id: string; mission_id: string; turn_order: number };
@@ -66,6 +97,7 @@ export type Database = {
         Update: Partial<
           Database["public"]["Tables"]["mission_turn_templates"]["Insert"]
         >;
+        Relationships: [];
       };
       assignments: {
         Row: {
@@ -85,6 +117,7 @@ export type Database = {
           due_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["assignments"]["Insert"]>;
+        Relationships: [];
       };
       assignment_students: {
         Row: {
@@ -108,6 +141,7 @@ export type Database = {
         Update: Partial<
           Database["public"]["Tables"]["assignment_students"]["Insert"]
         >;
+        Relationships: [];
       };
       assignment_status_events: {
         Row: { id: string; assignment_student_id: string };
@@ -122,6 +156,7 @@ export type Database = {
           metadata?: Json;
         };
         Update: never;
+        Relationships: [];
       };
     };
     Views: Record<string, never>;

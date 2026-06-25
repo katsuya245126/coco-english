@@ -15,6 +15,9 @@ const eslintConfig = [
       "coverage/**",
       "test-results/**",
       "playwright-report/**",
+      // Sandbox/agent worktrees are gitignored, generated checkouts; never lint
+      // their generated next-env.d.ts and build output.
+      ".claude/**",
     ],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
