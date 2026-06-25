@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 2
-current_phase_name: Teacher Classroom Access
-status: ready_to_execute
+current_phase: 02
+current_phase_name: teacher-classroom-access
+status: executing
 stopped_at: Phase 2 planned (4 plans, verification passed).
-last_updated: "2026-06-25T08:51:08.080Z"
+last_updated: "2026-06-25T15:17:53.941Z"
 last_activity: 2026-06-25
-last_activity_desc: Planned and verified Phase 2 (4 plans across 3 waves).
+last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 7
   completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  total_plans: 5
+  completed_plans: 2
   percent: 14
 ---
 
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-25)
 
 **Core value:** Students must complete useful spoken English practice outside class, and teachers must be able to verify that it happened.
-**Current focus:** Phase 2: Teacher Classroom Access
+**Current focus:** Phase 02 — teacher-classroom-access
 
 ## Current Position
 
-Phase: 2 of 7 (Teacher Classroom Access)
-Plan: 4 plans (02-01..02-04) across 3 waves; verification passed
-Status: Phase 2 planned; ready to execute (/gsd-execute-phase 2)
-Last activity: 2026-06-25 - Planned and verified Phase 2 (4 plans, 3 waves).
+Phase: 02 (teacher-classroom-access) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-06-25 — Phase 02 execution started
 
 Progress: [#---------] 14%
 
@@ -55,6 +55,7 @@ Progress: [#---------] 14%
 - Trend: Initial foundation complete
 
 *Updated after each plan completion*
+| Phase 02 P01 | 13min | 4 tasks | 27 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,7 @@ Recent decisions affecting current work:
 - [Roadmap]: Add audio before AI evaluation so recording, storage, and teacher playback can be verified independently.
 - [Phase 1 Context]: Use full workflow skeleton, immutable assignment snapshots, class-scoped students, server-owned status transitions, missed-status job, audited teacher overrides, 30-day audio retention, and explicit demo-vs-real data mode.
 - [Phase 1 Execution]: Implemented Next.js/Supabase foundation, server-owned assignment status rules, RLS-enabled schema posture, and env-aware smoke verification.
+- [Phase ?]: RLS ownership rooted in teacher_profiles.auth_user_id = auth.uid() via SECURITY DEFINER helpers; @supabase/ssr cookie clients with getClaims() server gating; service-role stays server-only (02-01)
 
 ### Pending Todos
 
@@ -88,6 +90,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-25 17:16
+Last session: 2026-06-25T15:17:36.881Z
 Stopped at: Phase 2 planned (4 plans, verification passed).
 Resume file: .planning/phases/02-teacher-classroom-access/02-01-PLAN.md

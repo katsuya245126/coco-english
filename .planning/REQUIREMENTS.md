@@ -17,10 +17,10 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 
 ### Teacher Account
 
-- [ ] **AUTH-01**: Teacher can create an account with email and password.
-- [ ] **AUTH-02**: Teacher can log in and stay logged in across browser refresh.
-- [ ] **AUTH-03**: Teacher can log out.
-- [ ] **AUTH-04**: Teacher can access only their own classes, missions, assignments, and student attempts.
+- [x] **AUTH-01**: Teacher can create an account with email and password.
+- [x] **AUTH-02**: Teacher can log in and stay logged in across browser refresh.
+- [x] **AUTH-03**: Teacher can log out.
+- [x] **AUTH-04**: Teacher can access only their own classes, missions, assignments, and student attempts.
 
 ### Classes And Roster
 
@@ -156,10 +156,10 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 | DATA-03 | Phase 1 | Complete |
 | DATA-04 | Phase 1 | Complete |
 | DATA-05 | Phase 1 | Complete |
-| AUTH-01 | Phase 2 | Pending |
-| AUTH-02 | Phase 2 | Pending |
-| AUTH-03 | Phase 2 | Pending |
-| AUTH-04 | Phase 2 | Pending |
+| AUTH-01 | Phase 2 | Complete |
+| AUTH-02 | Phase 2 | Complete |
+| AUTH-03 | Phase 2 | Complete |
+| AUTH-04 | Phase 2 | Complete |
 | CLASS-01 | Phase 2 | Pending |
 | CLASS-02 | Phase 2 | Pending |
 | CLASS-03 | Phase 2 | Pending |
@@ -213,6 +213,7 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 | PILOT-04 | Phase 7 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 60 total
 - Mapped to phases: 60
 - Unmapped: 0

@@ -7,6 +7,7 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
 ## Phases
 
 **Phase Numbering:**
+
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
@@ -21,115 +22,146 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
 ## Phase Details
 
 ### Phase 1: Data, Privacy, and Workflow Foundation
+
 **Goal**: The app has a trustworthy source of truth for teacher-linked homework, child voice metadata, status ownership, retention fields, and real-vs-demo data boundaries.
 **Mode:** mvp
 **Depends on**: Nothing (first phase)
 **Requirements**: DATA-01, DATA-02, DATA-03, DATA-04, DATA-05, ASGN-04
 **Success Criteria** (what must be TRUE):
+
   1. System stores the core classroom, mission, assignment, attempt, turn, transcript, and audio metadata needed for the homework loop.
   2. System owns and records assignment status transitions instead of trusting client-side state.
   3. System can distinguish demo/sample data from real student data.
   4. System records short-clip audio metadata and retention fields without requiring full-session recordings.
+
 **Plans**:
 
 **Wave 1**
+
 - `01-PLAN.md` — Walking skeleton and source-of-truth foundation: Next.js/Supabase scaffold, full workflow schema skeleton, server-owned status transitions, retention/demo boundaries, and smoke verification.
 
 **Cross-cutting constraints:**
+
 - Server-owned status transitions must write audit events.
 - Demo/sample data must remain distinguishable from real class data.
 - Audio is modeled as short per-turn clip metadata with retention/deletion fields, not full-session recordings.
 
 ### Phase 2: Teacher Classroom Access
+
 **Goal**: Teachers can securely set up a class and students can access their own homework through a low-friction class code, roster name, and PIN flow.
 **Mode:** mvp
 **Depends on**: Phase 1
 **Requirements**: AUTH-01, AUTH-02, AUTH-03, AUTH-04, CLASS-01, CLASS-02, CLASS-03, CLASS-04, STUD-01, STUD-02, STUD-03, STUD-04, STUD-05
 **Success Criteria** (what must be TRUE):
+
   1. Teacher can create an account, stay logged in across refreshes, and log out.
   2. Teacher can create a class, manage its roster, and create or reset student PINs.
   3. Student can enter through a class code or QR/link, reuse a remembered class, select their name, and unlock homework with a 4-digit PIN.
   4. Student sees clear wrong-PIN, no-homework, and expired/closed-homework states.
   5. Teacher cannot access another teacher's classes, missions, assignments, or student attempts.
-**Plans**: 4 plans
+
+**Plans**: 1/4 plans executed
+
+- [x] 02-01-PLAN.md
+- [ ] 02-02-PLAN.md
+- [ ] 02-03-PLAN.md
+- [ ] 02-04-PLAN.md
 
 **Wave 1**
+
 - [ ] `02-01-PLAN.md` — Teacher auth walking slice: @supabase/ssr clients, session middleware, RLS migration (+ schema push), teacher signup/verify/login/logout, profile bootstrap, protected dashboard shell.
 
 **Wave 2**
+
 - [ ] `02-02-PLAN.md` — Class management slice: create/edit/archive classes, stable join code generation/reset, and join-code/link/QR share dialog (RLS-bound).
 - [ ] `02-03-PLAN.md` — Roster + PIN slice: bulk-paste/edit/archive students and auto-generated 4-digit PIN generation/reset (hash-only, server-side pepper).
 
 **Wave 3**
+
 - [ ] `02-04-PLAN.md` — Student access slice: class-code/QR/link entry, remembered-class context, typed-name + PIN unlock, no-homework home shell, generic mismatch errors, and cross-teacher RLS isolation proof.
 
 **UI hint**: yes
 
 ### Phase 3: Manual Mission Assignment
+
 **Goal**: Teachers can create a complete mission by hand, assign it to a class, and produce stable per-student homework records.
 **Mode:** mvp
 **Depends on**: Phase 2
 **Requirements**: MISS-01, MISS-04, ASGN-01, ASGN-02, ASGN-03
 **Success Criteria** (what must be TRUE):
+
   1. Teacher can create a mission with target pattern, topic, level, required turns, due date, questions, target-form examples, and hints.
   2. Mission records a `characterId` while using the default v1 buddy.
   3. Teacher can assign a mission to a class and create one homework record per active student.
   4. Assigned homework uses a snapshot so later mission edits do not unexpectedly change existing student work.
+
 **Plans**: TBD
 **UI hint**: yes
 
 ### Phase 4: Guided Student Attempt Loop
+
 **Goal**: Students can move through the assigned speaking mission with a supportive buddy, meaning-first correction, required repetition, hints, and deterministic completion.
 **Mode:** mvp
 **Depends on**: Phase 3
 **Requirements**: FLOW-01, FLOW-02, FLOW-04, FLOW-05, FLOW-06, FLOW-07, AI-06, CHAR-01, CHAR-02, CHAR-03, CHAR-04, PILOT-01
 **Success Criteria** (what must be TRUE):
+
   1. Student can see assigned homework and start the mission on common phone and tablet browser sizes.
   2. Buddy asks short classroom-safe questions tied to the assigned mission and cannot continue into open-ended private chat.
   3. System shows a better target-form sentence after the student's original answer and requires a repeat attempt.
   4. Student can reveal progressive hints in order: target pattern, word bank, then full example.
   5. Mission completes only after the required number of turns and repeat attempts are satisfied.
+
 **Plans**: TBD
 **UI hint**: yes
 
 ### Phase 5: Voice Capture and Evidence Storage
+
 **Goal**: Students can answer and repeat by voice, the app stores short evidence clips with transcript records, and teachers can play clips only when needed.
 **Mode:** mvp
 **Depends on**: Phase 4
 **Requirements**: FLOW-03, AUDIO-01, AUDIO-02, AUDIO-03, AUDIO-04, AUDIO-05, REV-05, PILOT-02
 **Success Criteria** (what must be TRUE):
+
   1. Student can record original answers and repeat attempts as short audio clips.
   2. Student sees understandable microphone permission, recording, upload retry, and upload failure states.
   3. System stores transcript text, audio reference, clip metadata, and processing status for each mission turn.
   4. Teacher can play short audio clips on demand from attempt details without making audio the default review path.
+
 **Plans**: TBD
 **UI hint**: yes
 
 ### Phase 6: AI Mission and Turn Intelligence
+
 **Goal**: AI accelerates mission creation and turn evaluation while structured validation, confidence handling, and server rules keep outcomes reliable.
 **Mode:** mvp
 **Depends on**: Phase 5
 **Requirements**: MISS-02, MISS-03, MISS-05, AI-01, AI-02, AI-03, AI-04, AI-05
 **Success Criteria** (what must be TRUE):
+
   1. Teacher can generate a draft mission from target pattern, topic, level, required turns, and due date.
   2. Teacher can preview and edit the generated mission before assignment.
   3. System rejects generated mission output that does not match the strict mission schema.
   4. System evaluates meaning, target-pattern attempt, improved target-form sentence, and repeat closeness for each turn.
   5. System routes low-confidence, failed-schema, or ambiguous AI results to teacher review instead of pretending certainty.
+
 **Plans**: TBD
 **UI hint**: yes
 
 ### Phase 7: Teacher Review and Pilot Readiness
+
 **Goal**: Teachers can quickly verify class completion, handle exceptions, and run the MVP with basic operational visibility and retention/deletion support.
 **Mode:** mvp
 **Depends on**: Phase 6
 **Requirements**: ASGN-05, REV-01, REV-02, REV-03, REV-04, REV-06, PILOT-03, PILOT-04
 **Success Criteria** (what must be TRUE):
+
   1. Teacher dashboard shows completed, not started, missed, needs retry, and teacher review buckets.
   2. Teacher can scan each student's status, attempt count, submitted time, and highest hint level used.
   3. Teacher can open attempt details showing original transcript, improved sentence, repeat transcript, target-pattern result, hint usage, and attempt count.
   4. Teacher can manually mark an attempt complete, needs retry, or teacher review.
   5. System marks overdue incomplete homework as missed and logs completion, audio processing, transcription, AI evaluation, and retention/deletion activity.
+
 **Plans**: TBD
 **UI hint**: yes
 
@@ -167,7 +199,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Data, Privacy, and Workflow Foundation | 1/1 | Complete | 2026-06-25 |
-| 2. Teacher Classroom Access | 0/4 | Not started | - |
+| 2. Teacher Classroom Access | 1/4 | In Progress|  |
 | 3. Manual Mission Assignment | 0/TBD | Not started | - |
 | 4. Guided Student Attempt Loop | 0/TBD | Not started | - |
 | 5. Voice Capture and Evidence Storage | 0/TBD | Not started | - |
