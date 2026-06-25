@@ -19,8 +19,9 @@ type DialogState =
   | { kind: "archive"; classId: string; name: string };
 
 // Class-list surface (UI-SPEC "Teacher Dashboard"): repeated rows (not nested
-// cards) with name, roster count, join code, Share join link, Show QR code, edit,
-// and archive. Row height stays stable across hover/focus. No homework buckets,
+// cards) with name (links to roster), roster count (links to roster), join code,
+// a single Share action (dialog holds both the join link and QR), edit, and
+// archive. Row height stays stable across hover/focus. No homework buckets,
 // review tabs, mission counts, or completion charts (D-03).
 export function ClassList({ classes }: ClassListProps) {
   const [dialog, setDialog] = useState<DialogState>({ kind: "none" });
@@ -112,8 +113,13 @@ export function ClassList({ classes }: ClassListProps) {
               }}
             >
               <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: 16, fontWeight: 600, margin: 0, color: "#111827" }}>
-                  {classItem.name}
+                <p style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>
+                  <Link
+                    href={`/teacher/classes/${classItem.id}`}
+                    style={{ color: "#111827", textDecoration: "none" }}
+                  >
+                    {classItem.name}
+                  </Link>
                 </p>
                 <p style={{ fontSize: 14, color: "#4B5563", margin: "4px 0 0" }}>
                   <Link
@@ -148,21 +154,7 @@ export function ClassList({ classes }: ClassListProps) {
                   }
                   style={secondaryButtonStyle}
                 >
-                  Share join link
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setDialog({
-                      kind: "share",
-                      classId: classItem.id,
-                      name: classItem.name,
-                      joinCode: classItem.joinCode,
-                    })
-                  }
-                  style={secondaryButtonStyle}
-                >
-                  Show QR code
+                  Share
                 </button>
                 <button
                   type="button"
