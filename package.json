@@ -9,8 +9,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:schema": "vitest run tests/schema/foundation-schema.test.ts",
+    "test:rls": "vitest run tests/schema/classroom-access-schema.test.ts",
     "test:db:smoke": "vitest run tests/server/foundation-smoke.test.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:auth:e2e": "playwright test tests/e2e/teacher-auth.spec.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
