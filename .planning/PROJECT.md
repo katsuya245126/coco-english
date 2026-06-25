@@ -47,6 +47,10 @@ Students must complete useful spoken English practice outside class, and teacher
 - Long-form free chat — guided missions reduce AI drift and keep practice tied to teacher goals.
 - Parent accounts — not needed to validate teacher-linked homework.
 
+### Future Options
+
+- School SSO, LMS/Google Classroom-style integrations, and textbook/unit mission libraries are not required for v1, but the project should avoid choices that make them unnecessarily hard to add later.
+
 ## Context
 
 The product grew from a visual-novel/anime-classroom idea where learners speak English with characters. The stronger first wedge is teacher-linked speaking homework: the teacher assigns a short AI speaking mission after class, based on the English target taught that day.
@@ -72,6 +76,7 @@ Source planning docs:
 - **AI behavior**: Keep conversations guided by teacher target language, short follow-ups, and concrete completion rules.
 - **Privacy and cost**: Store short per-turn audio clips rather than long session recordings; use limited audio retention such as 30 or 60 days.
 - **Product flexibility**: Keep character assignment replaceable through `characterId`, even though v1 ships with one default buddy.
+- **Future integrations**: Do not build school SSO, LMS integrations, or textbook/unit libraries now; keep core data clean enough that they can be added later if demand appears.
 
 ## Key Decisions
 

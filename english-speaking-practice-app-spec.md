@@ -269,5 +269,6 @@ The MVP should not include:
 - Numerical grading.
 - Long-form free chat.
 - Parent accounts.
+- School SSO, LMS or Google Classroom-style sync, or textbook/unit mission libraries.
 
 These can be considered after the teacher-linked speaking homework loop is validated.

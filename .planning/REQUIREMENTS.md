@@ -122,6 +122,12 @@ Deferred until the teacher-linked speaking homework loop is validated.
 - **REVV2-01**: Teacher can filter review by target pattern, hint usage, or retry reason.
 - **REVV2-02**: Teacher can see lightweight class-level trends after enough real usage exists.
 
+### Optional Integrations And Libraries
+
+- **INTV2-01**: App can support school SSO if a future school customer requires it.
+- **INTV2-02**: App can support LMS or Google Classroom-style assignment sync if teacher pilots show that it reduces setup work.
+- **INTV2-03**: App can support textbook/unit-aligned mission libraries if teachers repeatedly ask for reusable curriculum-linked content.
+
 ## Out of Scope
 
 Explicitly excluded from current planning to prevent scope creep.
@@ -137,6 +143,7 @@ Explicitly excluded from current planning to prevent scope creep.
 | Parent accounts | Not required to validate teacher assignment and completion workflow. |
 | Leaderboards or social features | Adds motivation mechanics before the core practice loop is proven. |
 | Live autonomous voice agent | Short turn-based recording is simpler, safer, and enough for the MVP. |
+| School SSO, LMS sync, and textbook/unit libraries | Possible later, but not required for the first classroom homework loop. |
 
 ## Traceability
 
