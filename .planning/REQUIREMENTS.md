@@ -9,11 +9,11 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 
 ### Data And Privacy
 
-- [ ] **DATA-01**: System stores teacher, class, student, mission, assignment, attempt, turn, transcript, and audio metadata in a relational schema.
-- [ ] **DATA-02**: System keeps assignment status transitions server-owned and auditable.
-- [ ] **DATA-03**: System stores only short per-turn audio clips, not full-session recordings.
-- [ ] **DATA-04**: System records audio retention fields so clips can expire or be deleted later.
-- [ ] **DATA-05**: System separates demo/sample data from real student data.
+- [x] **DATA-01**: System stores teacher, class, student, mission, assignment, attempt, turn, transcript, and audio metadata in a relational schema.
+- [x] **DATA-02**: System keeps assignment status transitions server-owned and auditable.
+- [x] **DATA-03**: System stores only short per-turn audio clips, not full-session recordings.
+- [x] **DATA-04**: System records audio retention fields so clips can expire or be deleted later.
+- [x] **DATA-05**: System separates demo/sample data from real student data.
 
 ### Teacher Account
 
@@ -50,7 +50,7 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 - [ ] **ASGN-01**: Teacher can assign a mission to a class.
 - [ ] **ASGN-02**: Assigned mission is snapshotted so later mission edits do not change existing homework unexpectedly.
 - [ ] **ASGN-03**: System creates per-student assignment records when homework is assigned.
-- [ ] **ASGN-04**: Assignment statuses include assigned, started, completed, missed, needs retry, and teacher review.
+- [x] **ASGN-04**: Assignment statuses include assigned, started, completed, missed, needs retry, and teacher review.
 - [ ] **ASGN-05**: System can mark homework missed when the due date passes without completion.
 
 ### Student Speaking Mission
@@ -151,11 +151,11 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DATA-01 | Phase 1 | Pending |
-| DATA-02 | Phase 1 | Pending |
-| DATA-03 | Phase 1 | Pending |
-| DATA-04 | Phase 1 | Pending |
-| DATA-05 | Phase 1 | Pending |
+| DATA-01 | Phase 1 | Complete |
+| DATA-02 | Phase 1 | Complete |
+| DATA-03 | Phase 1 | Complete |
+| DATA-04 | Phase 1 | Complete |
+| DATA-05 | Phase 1 | Complete |
 | AUTH-01 | Phase 2 | Pending |
 | AUTH-02 | Phase 2 | Pending |
 | AUTH-03 | Phase 2 | Pending |
@@ -177,7 +177,7 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 | ASGN-01 | Phase 3 | Pending |
 | ASGN-02 | Phase 3 | Pending |
 | ASGN-03 | Phase 3 | Pending |
-| ASGN-04 | Phase 1 | Pending |
+| ASGN-04 | Phase 1 | Complete |
 | ASGN-05 | Phase 7 | Pending |
 | FLOW-01 | Phase 4 | Pending |
 | FLOW-02 | Phase 4 | Pending |
@@ -219,4 +219,4 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 
 ---
 *Requirements defined: 2026-06-25*
-*Last updated: 2026-06-25 after initial definition*
+*Last updated: 2026-06-25 after Phase 1 execution*

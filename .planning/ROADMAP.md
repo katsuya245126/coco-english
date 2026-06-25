@@ -10,7 +10,7 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: Data, Privacy, and Workflow Foundation** - Establish the relational source of truth, server-owned statuses, privacy boundaries, and demo-data separation.
+- [x] **Phase 1: Data, Privacy, and Workflow Foundation** - Establish the relational source of truth, server-owned statuses, privacy boundaries, and demo-data separation.
 - [ ] **Phase 2: Teacher Classroom Access** - Teachers can manage classes and rosters, and students can enter homework without email/password accounts.
 - [ ] **Phase 3: Manual Mission Assignment** - Teachers can manually create a mission and assign immutable homework to every student in a class.
 - [ ] **Phase 4: Guided Student Attempt Loop** - Students can complete the mission flow with classroom-safe buddy prompts, recasts, repeats, hints, and completion rules.
@@ -155,7 +155,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Data, Privacy, and Workflow Foundation | 0/1 | Planned | - |
+| 1. Data, Privacy, and Workflow Foundation | 1/1 | Complete | 2026-06-25 |
 | 2. Teacher Classroom Access | 0/TBD | Not started | - |
 | 3. Manual Mission Assignment | 0/TBD | Not started | - |
 | 4. Guided Student Attempt Loop | 0/TBD | Not started | - |

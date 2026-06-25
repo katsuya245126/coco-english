@@ -21,7 +21,8 @@ Students must complete useful spoken English practice outside class, and teacher
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] DATA-01 through DATA-05 validated in Phase 1: relational workflow schema, server-owned status audit path, short audio metadata, retention fields, and demo/real data boundary.
+- [x] ASGN-04 validated in Phase 1: assignment statuses include assigned, started, completed, missed, needs retry, and teacher review.
 
 ### Active
 
@@ -90,6 +91,8 @@ Source planning docs:
 | Store transcripts and short audio clips per speaking turn | Speaking verification needs audio, but teacher review must remain fast. | — Pending |
 | Use completion/review states instead of numerical grades | Early product value is accountability and practice, not grading precision. | — Pending |
 | Keep missions guided rather than open-ended free chat | Reduces AI drift and keeps practice tied to teacher-provided target English. | — Pending |
+| Use class-level demo/real data mode copied to assignments | Students are class-scoped, and assignment-level copies simplify later audit and retention queries. | Validated in Phase 1 |
+| Keep assignment status transitions server-owned and audited | Client UI, jobs, and future AI should provide requests or evidence, while app code owns final state changes. | Validated in Phase 1 |
 
 ## Evolution
 
@@ -110,4 +113,4 @@ This document evolves at phase transitions and milestone boundaries.
 5. Update Context with current state, feedback, and metrics.
 
 ---
-*Last updated: 2026-06-25 after initialization*
+*Last updated: 2026-06-25 after Phase 1 execution*
