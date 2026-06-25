@@ -24,10 +24,10 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 
 ### Classes And Roster
 
-- [ ] **CLASS-01**: Teacher can create and edit a class.
-- [ ] **CLASS-02**: Teacher can add, edit, archive, and remove students from a class roster.
-- [ ] **CLASS-03**: Teacher can create or reset each student's 4-digit PIN.
-- [ ] **CLASS-04**: Class has a join code and QR/link form for student access.
+- [x] **CLASS-01**: Teacher can create and edit a class.
+- [x] **CLASS-02**: Teacher can add, edit, archive, and remove students from a class roster.
+- [x] **CLASS-03**: Teacher can create or reset each student's 4-digit PIN.
+- [x] **CLASS-04**: Class has a join code and QR/link form for student access.
 
 ### Student Access
 
@@ -160,10 +160,10 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 | AUTH-02 | Phase 2 | Complete |
 | AUTH-03 | Phase 2 | Complete |
 | AUTH-04 | Phase 2 | Complete |
-| CLASS-01 | Phase 2 | Pending |
-| CLASS-02 | Phase 2 | Pending |
-| CLASS-03 | Phase 2 | Pending |
-| CLASS-04 | Phase 2 | Pending |
+| CLASS-01 | Phase 2 | Complete |
+| CLASS-02 | Phase 2 | Complete |
+| CLASS-03 | Phase 2 | Complete |
+| CLASS-04 | Phase 2 | Complete |
 | STUD-01 | Phase 2 | Pending |
 | STUD-02 | Phase 2 | Pending |
 | STUD-03 | Phase 2 | Pending |

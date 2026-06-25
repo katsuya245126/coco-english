@@ -60,11 +60,11 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
   4. Student sees clear wrong-PIN, no-homework, and expired/closed-homework states.
   5. Teacher cannot access another teacher's classes, missions, assignments, or student attempts.
 
-**Plans**: 1/4 plans executed
+**Plans**: 3/4 plans executed
 
 - [x] 02-01-PLAN.md
-- [ ] 02-02-PLAN.md
-- [ ] 02-03-PLAN.md
+- [x] 02-02-PLAN.md
+- [x] 02-03-PLAN.md
 - [ ] 02-04-PLAN.md
 
 **Wave 1**
@@ -199,7 +199,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Data, Privacy, and Workflow Foundation | 1/1 | Complete | 2026-06-25 |
-| 2. Teacher Classroom Access | 1/4 | In Progress|  |
+| 2. Teacher Classroom Access | 3/4 | In Progress|  |
 | 3. Manual Mission Assignment | 0/TBD | Not started | - |
 | 4. Guided Student Attempt Loop | 0/TBD | Not started | - |
 | 5. Voice Capture and Evidence Storage | 0/TBD | Not started | - |
