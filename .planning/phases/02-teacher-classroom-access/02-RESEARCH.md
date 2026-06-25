@@ -444,22 +444,25 @@ export function parseRosterPaste(input: string) {
 | A3 | Join codes should use a 6-character uppercase non-ambiguous alphabet. | Code Examples | If collision/readability constraints differ, planner should adjust generator length/alphabet and tests. |
 | A4 | Student unlock can return a Phase 2 shell/session without durable student session table. | Architecture Patterns | Later phases may require a `student_sessions` table before assignment attempts begin. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should Phase 2 persist student session records now or only return a shell state?**
    - What we know: Phase 2 must not create student Auth accounts and must require PIN each visit. [VERIFIED: .planning/phases/02-teacher-classroom-access/02-CONTEXT.md]
    - What's unclear: Later phases may need auditable student sessions for attempts and device markers. [ASSUMED]
    - Recommendation: For MVP Phase 2, implement a short-lived signed cookie or narrow shell state and leave a clearly named `student_sessions` migration hook only if tests need it. [ASSUMED]
+   - **RESOLVED (2026-06-25):** Return a narrow shell state only — no `student_sessions` table in Phase 2. The device remembers class context locally (D-12) and PIN is re-entered each visit (D-13/D-17); a short-lived signed unlock state is sufficient. Auditable student sessions are deferred to the later attempts/audio phase. Reflected in plan 02-04 (student access slice — no session-persistence migration).
 
 2. **How strict should typed roster-name matching be?**
    - What we know: Student should type their name; generic errors must not expose which tuple field failed. [VERIFIED: .planning/phases/02-teacher-classroom-access/02-CONTEXT.md]
    - What's unclear: Real class rosters may have duplicate names or Korean/English spacing variants. [ASSUMED]
    - Recommendation: Normalize trim/case/inner whitespace, block duplicate normalized active names per class, and surface duplicate issues to teachers during roster import. [ASSUMED]
+   - **RESOLVED (2026-06-25):** Adopt the recommendation. Normalize trim + case-fold + collapse inner whitespace; enforce a unique normalized active-name constraint per class; surface duplicate/blank-name issues to the teacher at roster import. Implemented via `normalizeRosterName` in plan 02-03 (roster + PIN slice) and the active-roster uniqueness check in `tests/schema/classroom-access-schema.test.ts`.
 
 3. **Can local Supabase Auth email confirmation be tested in this workspace?**
    - What we know: Supabase docs say local CLI captures emails with Mailpit, but `supabase` CLI was not available and `npx supabase --version` hung in this sandbox. [CITED: https://supabase.com/docs/guides/auth/passwords] [VERIFIED: local command]
    - What's unclear: Executor may have local Docker/Supabase available outside this sandbox. [ASSUMED]
    - Recommendation: Plan env-aware integration tests with schema/unit fallback plus a manual checkpoint for Mailpit/email confirmation if CLI is unavailable. [VERIFIED: .planning/phases/01-data-privacy-and-workflow-foundation/01-SUMMARY.md]
+   - **RESOLVED (2026-06-25):** Treat as env-dependent. Plan env-aware integration tests that fall back to schema/unit tests when Supabase env/CLI is absent, plus a manual checkpoint for Mailpit/email confirmation (captured in 02-VALIDATION.md § Manual-Only Verifications and the `autonomous: false` checkpoint in plan 02-01). The schema-push task carries a non-TTY workaround and manual fallback.
 
 ## Environment Availability
 
