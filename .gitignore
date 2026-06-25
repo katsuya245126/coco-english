@@ -9,3 +9,6 @@ playwright-report/
 
 # Local Claude Code agent/session files
 .claude/
+
+# Supabase CLI local cache (linked project ref, pooler URL, version stamps)
+supabase/.temp/
