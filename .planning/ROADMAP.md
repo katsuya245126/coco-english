@@ -30,7 +30,15 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
   2. System owns and records assignment status transitions instead of trusting client-side state.
   3. System can distinguish demo/sample data from real student data.
   4. System records short-clip audio metadata and retention fields without requiring full-session recordings.
-**Plans**: TBD
+**Plans**:
+
+**Wave 1**
+- `01-PLAN.md` — Walking skeleton and source-of-truth foundation: Next.js/Supabase scaffold, full workflow schema skeleton, server-owned status transitions, retention/demo boundaries, and smoke verification.
+
+**Cross-cutting constraints:**
+- Server-owned status transitions must write audit events.
+- Demo/sample data must remain distinguishable from real class data.
+- Audio is modeled as short per-turn clip metadata with retention/deletion fields, not full-session recordings.
 
 ### Phase 2: Teacher Classroom Access
 **Goal**: Teachers can securely set up a class and students can access their own homework through a low-friction class code, roster name, and PIN flow.
@@ -147,7 +155,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Data, Privacy, and Workflow Foundation | 0/TBD | Not started | - |
+| 1. Data, Privacy, and Workflow Foundation | 0/1 | Planned | - |
 | 2. Teacher Classroom Access | 0/TBD | Not started | - |
 | 3. Manual Mission Assignment | 0/TBD | Not started | - |
 | 4. Guided Student Attempt Loop | 0/TBD | Not started | - |
