@@ -6,7 +6,7 @@ This app is a teacher-linked AI speaking homework tool for elementary-level ESL 
 
 Teachers assign short speaking missions based on the English target language taught in class. Students complete the mission after class by speaking with a recurring supportive classmate character. Teachers can then check who completed the homework, who missed it, and what each student said.
 
-The MVP should prove the core homework loop before investing heavily in visual novel systems, large character casts, or full LMS features.
+The MVP should prove the core homework loop before investing heavily in visual novel systems or large character casts.
 
 ## Core Users
 
@@ -266,11 +266,8 @@ The MVP should not include:
 - Large character cast.
 - Romance or dating mechanics.
 - Student email/password account management.
-- Full LMS replacement features.
 - Numerical grading.
 - Long-form free chat.
 - Parent accounts.
-- School SSO.
-- Textbook marketplace or large prebuilt content library.
 
 These can be considered after the teacher-linked speaking homework loop is validated.

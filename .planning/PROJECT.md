@@ -43,12 +43,9 @@ Students must complete useful spoken English practice outside class, and teacher
 - Large character cast — start with one recurring buddy to keep MVP scope small.
 - Romance or dating mechanics — not appropriate for the classroom use case.
 - Student email/password account management — too much friction for elementary learners.
-- Full LMS replacement features — the app should focus on speaking homework.
 - Numerical grading — completion and simple review states are enough for v1.
 - Long-form free chat — guided missions reduce AI drift and keep practice tied to teacher goals.
 - Parent accounts — not needed to validate teacher-linked homework.
-- School SSO — useful later, but too heavy for MVP validation.
-- Textbook marketplace or large prebuilt content library — defer until assignment and completion behavior is proven.
 
 ## Context
 
