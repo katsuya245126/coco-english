@@ -113,6 +113,110 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
     );
   });
 
+  it("preserves stored snapshot after live mission edit (D-05, D-06, D-14)", () => {
+    // Capture the snapshot at assign-time, then mutate the source mission data.
+    // The snapshot is a frozen copy — editing the live mission afterwards must NOT
+    // change the previously stored snapshot object.
+    const snapshotAtAssign = buildMissionSnapshot({
+      mission: missionRow,
+      turns: turnRows,
+    });
+
+    // Deep-clone to simulate what the RPC stored
+    const storedSnapshot = JSON.parse(JSON.stringify(snapshotAtAssign));
+
+    // Simulate live mission edit: title, topic, and turn prompt change
+    const editedMission = {
+      ...missionRow,
+      title: "Edited Food Opinions",
+      topic: "Cooking",
+    };
+    const editedTurns = [
+      {
+        ...turnRows[0],
+        prompt: "What cooking do you enjoy?",
+        target_example: "I enjoy baking bread.",
+      },
+    ];
+
+    // Build a new snapshot for the edited mission (what a *future* assignment
+    // would capture), and confirm it differs from the stored one.
+    const freshSnapshot = buildMissionSnapshot({
+      mission: editedMission,
+      turns: editedTurns,
+    });
+
+    // The stored snapshot must NOT have changed
+    expect(storedSnapshot.title).toBe("Food likes");
+    expect(storedSnapshot.topic).toBe("Food");
+    expect(storedSnapshot.turns[0].prompt).toBe("What food do you like?");
+
+    // The fresh snapshot reflects the edit
+    expect(freshSnapshot.title).toBe("Edited Food Opinions");
+    expect(freshSnapshot.topic).toBe("Cooking");
+    expect(freshSnapshot.turns[0].prompt).toBe("What cooking do you enjoy?");
+
+    // Confirm they are structurally different
+    expect(storedSnapshot).not.toEqual(freshSnapshot);
+  });
+
+  it("exposes active assignment count for D-15 edit-after-assign notice", async () => {
+    // getMissionForTeacher should return activeAssignmentCount so the edit
+    // page can display: "This mission has N active assignment(s)..."
+    const { getMissionForTeacher } = await import(
+      "@/server/mission/mission-service"
+    );
+
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === "missions") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  maybeSingle: vi.fn(async () => ({
+                    data: missionRow,
+                    error: null,
+                  })),
+                })),
+              })),
+            })),
+          };
+        }
+        if (table === "mission_turn_templates") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                order: vi.fn(async () => ({
+                  data: turnRows,
+                  error: null,
+                })),
+              })),
+            })),
+          };
+        }
+        // assignments table — return 2 rows to simulate active assignments
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(async () => ({
+              data: [{ id: "a1" }, { id: "a2" }],
+              error: null,
+            })),
+          })),
+        };
+      }),
+    };
+    mockSupabase = supabase;
+
+    const result = await getMissionForTeacher({
+      teacherId: "teacher-1",
+      missionId: missionRow.id,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.activeAssignmentCount).toBe(2);
+  });
+
   it("lists only classes with active students as assignable (D-08)", async () => {
     const supabase = {
       from: vi.fn((table: string) => {
