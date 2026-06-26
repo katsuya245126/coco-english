@@ -47,9 +47,9 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 
 ### Assignment
 
-- [ ] **ASGN-01**: Teacher can assign a mission to a class.
-- [ ] **ASGN-02**: Assigned mission is snapshotted so later mission edits do not change existing homework unexpectedly.
-- [ ] **ASGN-03**: System creates per-student assignment records when homework is assigned.
+- [x] **ASGN-01**: Teacher can assign a mission to a class.
+- [x] **ASGN-02**: Assigned mission is snapshotted so later mission edits do not change existing homework unexpectedly.
+- [x] **ASGN-03**: System creates per-student assignment records when homework is assigned.
 - [x] **ASGN-04**: Assignment statuses include assigned, started, completed, missed, needs retry, and teacher review.
 - [ ] **ASGN-05**: System can mark homework missed when the due date passes without completion.
 
@@ -174,9 +174,9 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 | MISS-03 | Phase 6 | Pending |
 | MISS-04 | Phase 3 | Complete |
 | MISS-05 | Phase 6 | Pending |
-| ASGN-01 | Phase 3 | Pending |
-| ASGN-02 | Phase 3 | Pending |
-| ASGN-03 | Phase 3 | Pending |
+| ASGN-01 | Phase 3 | Complete |
+| ASGN-02 | Phase 3 | Complete |
+| ASGN-03 | Phase 3 | Complete |
 | ASGN-04 | Phase 1 | Complete |
 | ASGN-05 | Phase 7 | Pending |
 | FLOW-01 | Phase 4 | Pending |

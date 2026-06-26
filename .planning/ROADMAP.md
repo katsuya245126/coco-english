@@ -13,7 +13,7 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
 
 - [x] **Phase 1: Data, Privacy, and Workflow Foundation** - Establish the relational source of truth, server-owned statuses, privacy boundaries, and demo-data separation.
 - [x] **Phase 2: Teacher Classroom Access** - Teachers can manage classes and rosters, and students can enter homework without email/password accounts. (completed 2026-06-26)
-- [ ] **Phase 3: Manual Mission Assignment** - Teachers can manually create a mission and assign immutable homework to every student in a class.
+- [x] **Phase 3: Manual Mission Assignment** - Teachers can manually create a mission and assign immutable homework to every student in a class. (completed 2026-06-26)
 - [ ] **Phase 4: Guided Student Attempt Loop** - Students can complete the mission flow with classroom-safe buddy prompts, recasts, repeats, hints, and completion rules.
 - [ ] **Phase 5: Voice Capture and Evidence Storage** - Students record short per-turn clips, transcripts and clip metadata are stored, and teachers can play audio on demand.
 - [ ] **Phase 6: AI Mission and Turn Intelligence** - AI generates validated mission drafts and evaluates student turns with structured, bounded, reviewable outputs.
@@ -95,11 +95,11 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
   3. Teacher can assign a mission to a class and create one homework record per active student.
   4. Assigned homework uses a snapshot so later mission edits do not unexpectedly change existing student work.
 
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans complete
 
 - [x] 03-01-PLAN.md
 - [x] 03-02-PLAN.md
-- [ ] 03-03-PLAN.md
+- [x] 03-03-PLAN.md
 
 **Wave 1**
 
@@ -217,7 +217,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 |-------|----------------|--------|-----------|
 | 1. Data, Privacy, and Workflow Foundation | 1/1 | Complete | 2026-06-25 |
 | 2. Teacher Classroom Access | 4/4 | Complete    | 2026-06-26 |
-| 3. Manual Mission Assignment | 2/3 | In Progress|  |
+| 3. Manual Mission Assignment | 3/3 | Complete   | 2026-06-26 |
 | 4. Guided Student Attempt Loop | 0/TBD | Not started | - |
 | 5. Voice Capture and Evidence Storage | 0/TBD | Not started | - |
 | 6. AI Mission and Turn Intelligence | 0/TBD | Not started | - |
