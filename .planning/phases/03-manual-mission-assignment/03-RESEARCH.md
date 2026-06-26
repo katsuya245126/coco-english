@@ -605,7 +605,7 @@ export async function assignMissionToClass(input: {
 | A3 | Turn authoring works better with controlled state than useFieldArray in this codebase | Standard Stack / Patterns | Medium -- if the form grows very complex (drag-to-reorder, nested validation), useFieldArray might be worth the pattern break |
 | A4 | The assign RPC function should use SECURITY DEFINER with explicit ownership checks | Architecture Patterns (Pattern 2) | Low -- this is the established pattern from migration 0002's ownership helpers |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Mission create vs. mission update turn handling**
    - What we know: Create inserts all turns fresh. Edit must handle added/removed/reordered turns.
