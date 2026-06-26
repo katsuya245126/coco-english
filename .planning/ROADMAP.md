@@ -95,7 +95,11 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
   3. Teacher can assign a mission to a class and create one homework record per active student.
   4. Assigned homework uses a snapshot so later mission edits do not unexpectedly change existing student work.
 
-**Plans**: 3 plans
+**Plans**: 1/3 plans executed
+
+- [x] 03-01-PLAN.md
+- [ ] 03-02-PLAN.md
+- [ ] 03-03-PLAN.md
 
 **Wave 1**
 
@@ -108,6 +112,7 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
 **Wave 3**
 
 - [ ] `03-03-PLAN.md` — Integrated workflow verification: Classes/Missions navigation, edit-after-assign notice, snapshot stability proof, and full Phase 3 verification.
+
 **UI hint**: yes
 
 ### Phase 4: Guided Student Attempt Loop
@@ -212,7 +217,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 |-------|----------------|--------|-----------|
 | 1. Data, Privacy, and Workflow Foundation | 1/1 | Complete | 2026-06-25 |
 | 2. Teacher Classroom Access | 4/4 | Complete    | 2026-06-26 |
-| 3. Manual Mission Assignment | 0/TBD | Not started | - |
+| 3. Manual Mission Assignment | 1/3 | In Progress|  |
 | 4. Guided Student Attempt Loop | 0/TBD | Not started | - |
 | 5. Voice Capture and Evidence Storage | 0/TBD | Not started | - |
 | 6. AI Mission and Turn Intelligence | 0/TBD | Not started | - |
