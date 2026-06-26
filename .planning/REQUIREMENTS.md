@@ -31,11 +31,11 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 
 ### Student Access
 
-- [ ] **STUD-01**: Student can join a class by entering a class code or opening a QR/link.
-- [ ] **STUD-02**: Student device remembers the selected class after first access.
-- [ ] **STUD-03**: Student can select their name from the class roster.
-- [ ] **STUD-04**: Student can enter a 4-digit PIN to access their homework.
-- [ ] **STUD-05**: Student sees clear wrong-PIN, no-homework, and expired/closed-homework states.
+- [x] **STUD-01**: Student can join a class by entering a class code or opening a QR/link.
+- [x] **STUD-02**: Student device remembers the selected class after first access.
+- [x] **STUD-03**: Student can select their name from the class roster.
+- [x] **STUD-04**: Student can enter a 4-digit PIN to access their homework.
+- [x] **STUD-05**: Student sees clear wrong-PIN, no-homework, and expired/closed-homework states.
 
 ### Mission Authoring
 
@@ -164,11 +164,11 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 | CLASS-02 | Phase 2 | Complete |
 | CLASS-03 | Phase 2 | Complete |
 | CLASS-04 | Phase 2 | Complete |
-| STUD-01 | Phase 2 | Pending |
-| STUD-02 | Phase 2 | Pending |
-| STUD-03 | Phase 2 | Pending |
-| STUD-04 | Phase 2 | Pending |
-| STUD-05 | Phase 2 | Pending |
+| STUD-01 | Phase 2 | Complete |
+| STUD-02 | Phase 2 | Complete |
+| STUD-03 | Phase 2 | Complete |
+| STUD-04 | Phase 2 | Complete |
+| STUD-05 | Phase 2 | Complete |
 | MISS-01 | Phase 3 | Pending |
 | MISS-02 | Phase 6 | Pending |
 | MISS-03 | Phase 6 | Pending |

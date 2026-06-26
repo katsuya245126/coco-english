@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 02
 current_phase_name: teacher-classroom-access
 status: executing
-stopped_at: Phase 2 planned (4 plans, verification passed).
-last_updated: "2026-06-25T15:50:21.995Z"
-last_activity: 2026-06-25
-last_activity_desc: Phase 02 execution started
+stopped_at: Phase 2 fully executed — all 4 plans complete (02-01..02-04); phase verification pending.
+last_updated: "2026-06-26T00:35:43.274Z"
+last_activity: 2026-06-26
+last_activity_desc: Phase 02 execution complete (02-04 student access — final plan)
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
   percent: 14
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-25)
 
 ## Current Position
 
-Phase: 02 (teacher-classroom-access) — EXECUTING
-Plan: 3 of 4
-Status: Ready to execute
-Last activity: 2026-06-25 — Phase 02 execution started
+Phase: 02 (teacher-classroom-access) — ALL PLANS EXECUTED (verification pending)
+Plan: 4 of 4 complete (02-01 auth/RLS, 02-02 class management, 02-03 roster/PIN, 02-04 student access)
+Status: Phase 2 execution complete; awaiting phase verification + human-verify walkthroughs
+Last activity: 2026-06-26 — Phase 02 execution complete (02-04 student access, final plan)
 
 Progress: [#---------] 14%
 
@@ -58,6 +58,7 @@ Progress: [#---------] 14%
 | Phase 02 P01 | 13min | 4 tasks | 27 files |
 | Phase 02 P02 | 14min | 3 tasks | 12 files |
 | Phase 02 P03 | 7min | 2 tasks | 12 files |
+| Phase 02 P04 | 25min | 5 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,9 @@ Recent decisions affecting current work:
 - [Phase ?]: RLS ownership rooted in teacher_profiles.auth_user_id = auth.uid() via SECURITY DEFINER helpers; @supabase/ssr cookie clients with getClaims() server gating; service-role stays server-only (02-01)
 - [Phase 02]: 02-03: Student PINs hashed with node:crypto scrypt (per-PIN salt + server-only PIN_HASH_PEPPER); only pin_hash stored, cleartext shown once.
 - [Phase 02]: 02-03: Persist normalizeRosterName output as students.display_name so DB lower(display_name) active-name unique index matches the app-level dedup key.
+- [Phase ?]: 02-04: App-owned student access uses the server-only service-role client (students have no auth session); confined server-only, never imported into a client module.
+- [Phase ?]: 02-04: Every student-unlock failure returns one identical generic_mismatch value (D-16 non-enumeration).
+- [Phase ?]: 02-04: Remembered class stored id-keyed in localStorage separate from the live join code (D-18); PIN re-entered every visit via a short-lived HttpOnly cookie (D-13/D-17, no student auth account).
 
 ### Pending Todos
 
@@ -94,6 +98,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-25T15:50:02.768Z
+Last session: 2026-06-26T00:34:16.649Z
 Stopped at: Phase 2 planned (4 plans, verification passed).
 Resume file: .planning/phases/02-teacher-classroom-access/02-01-PLAN.md
