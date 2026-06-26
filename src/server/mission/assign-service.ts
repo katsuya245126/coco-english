@@ -113,9 +113,9 @@ export async function assignMissionToClass(input: {
 
   const row = Array.isArray(assigned.data) ? assigned.data[0] : assigned.data;
   return {
-    assignmentId: row.assignment_id,
-    activeStudentCount: row.active_student_count,
-    className: row.class_name,
+    assignmentId: row.out_assignment_id,
+    activeStudentCount: row.out_active_student_count,
+    className: row.out_class_name,
   };
 }
 

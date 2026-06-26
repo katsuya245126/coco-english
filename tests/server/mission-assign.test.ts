@@ -68,9 +68,9 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
   it("calls the RPC with server-built snapshot, optional D-04 due date, and no browser snapshot input", async () => {
     const rpc = vi.fn(async () => ({
       data: {
-        assignment_id: "assignment-1",
-        active_student_count: 2,
-        class_name: "Blue Class",
+        out_assignment_id: "assignment-1",
+        out_active_student_count: 2,
+        out_class_name: "Blue Class",
       },
       error: null,
     }));

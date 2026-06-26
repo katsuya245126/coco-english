@@ -196,9 +196,9 @@ export type Database = {
           p_due_at?: string | null;
         };
         Returns: {
-          assignment_id: string;
-          active_student_count: number;
-          class_name: string;
+          out_assignment_id: string;
+          out_active_student_count: number;
+          out_class_name: string;
         }[];
       };
     };
