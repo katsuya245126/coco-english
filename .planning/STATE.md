@@ -4,11 +4,11 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 03
 current_phase_name: manual-mission-assignment
-status: executing
-stopped_at: Phase 3 plan 02 complete; plan 03 ready
-last_updated: "2026-06-26T07:12:35.948Z"
+status: verified
+stopped_at: Phase 3 complete — UAT 5/5 pass (1 blocker fixed in-session)
+last_updated: "2026-06-26T17:30:00.000Z"
 last_activity: 2026-06-26
-last_activity_desc: Phase 03 plan 02 closed out; migration 202606250005 applied remotely
+last_activity_desc: Phase 03 UAT complete (5/5); fixed assign RPC ambiguous-column blocker (migration 202606260001)
 progress:
   total_phases: 7
   completed_phases: 3
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-25)
 
 ## Current Position
 
-Phase: 03 (manual-mission-assignment) — EXECUTING
-Plan: 3 of 3
-Status: 03-02 complete (assignment flow); 03-03 ready to execute
-Last activity: 2026-06-26 — Phase 03 plan 02 closed out; migration 202606250005 applied remotely
+Phase: 03 (manual-mission-assignment) — VERIFIED ✓
+Plan: 3 of 3 complete
+Status: UAT complete — 5/5 pass. 1 blocker found+fixed in-session (assign RPC ambiguous column, migration 202606260001). 1 cosmetic gap open (no save-confirmation message; see 03-UAT.md). Ready for Phase 4.
+Last activity: 2026-06-26 — Phase 03 UAT complete; assign blocker fixed
 
 Progress: [###-------] 33%
 
