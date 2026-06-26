@@ -129,7 +129,25 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
   4. Student can reveal progressive hints in order: target pattern, word bank, then full example.
   5. Mission completes only after the required number of turns and repeat attempts are satisfied.
 
-**Plans**: TBD
+**Plans**: 5 plans
+
+**Wave 1**
+
+- [ ] `04-01-PLAN.md` — Swap-isolated foundation units: character-profile module (Coco), placeholder-eval shape, Phase 4 style tokens + db types, and the 4 Wave 0 test scaffolds (AI-06 structural test green).
+
+**Wave 2**
+
+- [ ] `04-02-PLAN.md` — Student home assignment-list slice: SSR service-role read with read-time Start/Continue/Done/Closed badges, mobile-first list, launch-to-mission.
+- [ ] `04-03-PLAN.md` — Mission-flow backend: start/resume, answer, repeat, hint service + server actions; deterministic completion helper; ownership-gated, audited, no AI call.
+
+**Wave 3**
+
+- [ ] `04-04-PLAN.md` — Mission-flow UI slice: SSR route + client step machine, buddy question, improved sentence + required repeat, in-order progressive hints (one screen per step).
+
+**Wave 4**
+
+- [ ] `04-05-PLAN.md` — Resume + deterministic server-owned audited completion + completion/transition screens; full mission walk green e2e on phone/tablet.
+
 **UI hint**: yes
 
 ### Phase 5: Voice Capture and Evidence Storage
@@ -218,7 +236,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 1. Data, Privacy, and Workflow Foundation | 1/1 | Complete | 2026-06-25 |
 | 2. Teacher Classroom Access | 4/4 | Complete    | 2026-06-26 |
 | 3. Manual Mission Assignment | 3/3 | Complete   | 2026-06-26 |
-| 4. Guided Student Attempt Loop | 0/TBD | Not started | - |
+| 4. Guided Student Attempt Loop | 0/5 | Not started | - |
 | 5. Voice Capture and Evidence Storage | 0/TBD | Not started | - |
 | 6. AI Mission and Turn Intelligence | 0/TBD | Not started | - |
 | 7. Teacher Review and Pilot Readiness | 0/TBD | Not started | - |
