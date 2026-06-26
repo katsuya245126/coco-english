@@ -240,11 +240,11 @@ The card contains:
 
 3. **Answer input area** (below hint area, 16px top margin):
    - Label "Your answer" (Label, 14px, weight 600, `#111827`, 8px bottom margin)
-   - Text input (full width, 44px min height, 16px font, 1px `#D1D5DB` border, 6px radius, `10px 12px` padding)
+   - Text input (full width, 44px min height, 16px font, 1px `#D1D5DB` border, 8px radius, `8px 12px` padding)
    - Validation error "Type an answer before submitting." (14px, `#B42318`, 8px top margin, hidden unless empty submit attempted)
 
 4. **Submit button** (below input, 16px top margin):
-   - "Submit answer" (primary button: full width, 44px min height, `#2563EB` background, `#FFFFFF` text, 16px, weight 600, 6px radius)
+   - "Submit answer" (primary button: full width, 44px min height, `#2563EB` background, `#FFFFFF` text, 16px, weight 600, 8px radius)
 
 #### Step 2: Improved Sentence + Required Repeat
 
