@@ -1,10 +1,11 @@
 ---
 phase: 02
 slug: teacher-classroom-access
-status: draft
+status: validated
 nyquist_compliant: true
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-06-25
+updated: 2026-06-26
 ---
 
 # Phase 02 — Validation Strategy
