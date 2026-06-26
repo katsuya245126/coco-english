@@ -1,0 +1,100 @@
+import { z } from "zod";
+
+export const DEFAULT_CHARACTER_ID = "default-buddy";
+
+export const missionLevelSchema = z.enum([
+  "beginner",
+  "elementary",
+  "intermediate",
+]);
+
+export type MissionLevel = z.infer<typeof missionLevelSchema>;
+
+export const hintLadderSchema = z.object({
+  tier1: z
+    .string()
+    .trim()
+    .min(1, "Hint 1: Target pattern is required."),
+  tier2: z.string().trim().min(1, "Hint 2: Word bank is required."),
+  tier3: z.string().trim().min(1, "Hint 3: Full example is required."),
+});
+
+export type HintLadder = z.infer<typeof hintLadderSchema>;
+
+export const missionTurnInputSchema = z.object({
+  prompt: z.string().trim().min(1, "Buddy question is required."),
+  targetExample: z
+    .string()
+    .trim()
+    .min(1, "Target-form example is required."),
+  hintLadder: hintLadderSchema,
+});
+
+export type MissionTurnInput = z.infer<typeof missionTurnInputSchema>;
+
+export const missionFormSchema = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .min(1, "Mission title is required.")
+      .max(120, "Mission title is too long."),
+    targetPattern: z
+      .string()
+      .trim()
+      .min(1, "Target pattern is required.")
+      .max(160, "Target pattern is too long."),
+    topic: z
+      .string()
+      .trim()
+      .min(1, "Topic is required.")
+      .max(120, "Topic is too long."),
+    level: missionLevelSchema,
+    requiredTurns: z.coerce
+      .number()
+      .int("Required turns must be a whole number.")
+      .min(1, "Add at least one turn.")
+      .max(12, "Use 12 or fewer turns."),
+    characterId: z
+      .string()
+      .trim()
+      .min(1)
+      .default(DEFAULT_CHARACTER_ID),
+    turns: z.array(missionTurnInputSchema).min(1, "Add at least one turn."),
+  })
+  .refine((value) => value.requiredTurns === value.turns.length, {
+    path: ["requiredTurns"],
+    message: "Required turns must match the number of authored turns.",
+  });
+
+export type MissionFormInput = z.infer<typeof missionFormSchema>;
+
+export const missionSnapshotTurnSchema = missionTurnInputSchema.extend({
+  turnOrder: z.number().int().min(1),
+});
+
+export type MissionSnapshotTurn = z.infer<typeof missionSnapshotTurnSchema>;
+
+export const missionSnapshotSchema = z
+  .object({
+    missionId: z.string().uuid("Invalid mission reference."),
+    title: z.string().trim().min(1),
+    targetPattern: z.string().trim().min(1),
+    topic: z.string().trim().min(1),
+    level: missionLevelSchema,
+    requiredTurns: z.number().int().min(1),
+    characterId: z.string().trim().min(1).default(DEFAULT_CHARACTER_ID),
+    turns: z.array(missionSnapshotTurnSchema).min(1),
+  })
+  .refine((value) => value.requiredTurns === value.turns.length, {
+    path: ["requiredTurns"],
+    message: "Snapshot required turns must match turn count.",
+  });
+
+export type MissionSnapshot = z.infer<typeof missionSnapshotSchema>;
+
+export const missionIdSchema = z.object({
+  missionId: z.string().uuid("Invalid mission reference."),
+});
+
+export type MissionIdInput = z.infer<typeof missionIdSchema>;

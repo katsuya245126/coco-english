@@ -69,7 +69,13 @@ export type Database = {
           id: string;
           teacher_id: string;
           title: string;
+          target_pattern: string;
+          topic: string;
+          level: string;
+          required_turns: number;
           character_id: string;
+          created_at: string;
+          updated_at: string;
         };
         Insert: {
           id?: string;
@@ -80,12 +86,23 @@ export type Database = {
           level: string;
           required_turns: number;
           character_id: string;
+          created_at?: string;
+          updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["missions"]["Insert"]>;
         Relationships: [];
       };
       mission_turn_templates: {
-        Row: { id: string; mission_id: string; turn_order: number };
+        Row: {
+          id: string;
+          mission_id: string;
+          turn_order: number;
+          prompt: string;
+          target_example: string;
+          hint_ladder: Json;
+          created_at: string;
+          updated_at: string;
+        };
         Insert: {
           id?: string;
           mission_id: string;
@@ -93,6 +110,8 @@ export type Database = {
           prompt: string;
           target_example: string;
           hint_ladder?: Json;
+          created_at?: string;
+          updated_at?: string;
         };
         Update: Partial<
           Database["public"]["Tables"]["mission_turn_templates"]["Insert"]
@@ -105,7 +124,12 @@ export type Database = {
           class_id: string;
           mission_id: string;
           title: string;
+          mission_snapshot: Json;
           data_mode: "demo" | "real";
+          assigned_at: string;
+          due_at: string | null;
+          created_at: string;
+          updated_at: string;
         };
         Insert: {
           id?: string;
@@ -115,6 +139,9 @@ export type Database = {
           mission_snapshot: Json;
           data_mode: "demo" | "real";
           due_at?: string | null;
+          assigned_at?: string;
+          created_at?: string;
+          updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["assignments"]["Insert"]>;
         Relationships: [];

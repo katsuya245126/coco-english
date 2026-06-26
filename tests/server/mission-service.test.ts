@@ -1,5 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
-import { createMission, updateMission } from "@/server/mission/mission-service";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+let mockSupabase: unknown;
+
+vi.mock("@/lib/supabase/server-auth", () => ({
+  createSupabaseServerClient: async () => mockSupabase,
+}));
+
+const { createMission, updateMission } = await import(
+  "@/server/mission/mission-service"
+);
 
 const completeInput = {
   teacherId: "teacher-1",
@@ -23,6 +32,10 @@ const completeInput = {
 };
 
 describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("writes D-01 mission and ordered turn rows without a separate questions table", async () => {
     const missionId = "mission-1";
     const calls: Array<{ table: string; payload: unknown }> = [];
@@ -30,6 +43,9 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
       from: vi.fn((table: string) => ({
         insert: vi.fn((payload: unknown) => {
           calls.push({ table, payload });
+          if (table === "mission_turn_templates") {
+            return { error: null };
+          }
           return {
             select: vi.fn(() => ({
               single: vi.fn(async () => ({
@@ -52,10 +68,7 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
         }),
       })),
     };
-
-    vi.doMock("@/lib/supabase/server-auth", () => ({
-      createSupabaseServerClient: async () => supabase,
-    }));
+    mockSupabase = supabase;
 
     await createMission(completeInput);
 
