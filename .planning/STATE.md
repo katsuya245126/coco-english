@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 03
-current_phase_name: manual-mission-assignment
-status: verified
-stopped_at: Phase 4 context gathered
-last_updated: "2026-06-26T15:24:53.109Z"
-last_activity: 2026-06-26
-last_activity_desc: Phase 03 UAT complete; assign blocker fixed
+current_phase: 04
+current_phase_name: guided-student-attempt-loop
+status: planned
+stopped_at: Phase 4 planned — ready to execute
+last_updated: "2026-06-27T00:00:00.000Z"
+last_activity: 2026-06-27
+last_activity_desc: Phase 04 planned — 5 plans in 4 waves, verification passed
 progress:
   total_phases: 7
   completed_phases: 3
@@ -24,14 +24,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-25)
 
 **Core value:** Students must complete useful spoken English practice outside class, and teachers must be able to verify that it happened.
-**Current focus:** Phase 03 — manual-mission-assignment
+**Current focus:** Phase 04 — guided-student-attempt-loop
 
 ## Current Position
 
-Phase: 03 (manual-mission-assignment) — VERIFIED ✓
-Plan: 3 of 3 complete
-Status: UAT complete — 5/5 pass. 1 blocker found+fixed in-session (assign RPC ambiguous column, migration 202606260001). 1 cosmetic gap open (no save-confirmation message; see 03-UAT.md). Ready for Phase 4.
-Last activity: 2026-06-26 — Phase 03 UAT complete; assign blocker fixed
+Phase: 04 (guided-student-attempt-loop) — PLANNED ✓ (ready to execute)
+Plan: 0 of 5 complete
+Status: Planned — 5 plans across 4 waves (MVP vertical-slice). Plan-checker passed all 12 dimensions; 12/12 requirements + 14/14 decisions covered. Research/patterns/validation artifacts committed. Next: /gsd-execute-phase 4.
+Last activity: 2026-06-27 — Phase 04 planned; verification passed
+Prior: Phase 03 VERIFIED — UAT 5/5; assign RPC ambiguous-column blocker fixed (migration 202606260001). 1 cosmetic gap open (no save-confirmation; see 03-UAT.md).
 
 Progress: [###-------] 33%
 
@@ -103,6 +104,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-26T15:24:53.101Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-guided-student-attempt-loop/04-CONTEXT.md
+Last session: 2026-06-26T15:35:03.067Z
+Stopped at: Phase 4 UI-SPEC approved
+Resume file: .planning/phases/04-guided-student-attempt-loop/04-UI-SPEC.md
