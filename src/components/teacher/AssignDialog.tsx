@@ -88,6 +88,7 @@ export function AssignDialog({
               id="assign-class"
               value={classId}
               onChange={(event) => setClassId(event.target.value)}
+              aria-describedby={selectedClass ? "assign-student-count" : undefined}
               style={inputStyle}
             >
               {classes.map((classItem) => (
@@ -98,7 +99,7 @@ export function AssignDialog({
               ))}
             </select>
             {selectedClass ? (
-              <p style={{ fontSize: 14, color: "#4B5563", margin: "8px 0 16px" }}>
+              <p id="assign-student-count" style={{ fontSize: 14, color: "#4B5563", margin: "8px 0 16px" }}>
                 {selectedClass.activeStudentCount} active student(s) will receive homework
               </p>
             ) : null}
@@ -111,9 +112,10 @@ export function AssignDialog({
               type="date"
               value={dueAt}
               onChange={(event) => setDueAt(event.target.value)}
+              aria-describedby="due-at-help"
               style={inputStyle}
             />
-            <p style={{ fontSize: 14, color: "#4B5563", margin: "8px 0 0" }}>
+            <p id="due-at-help" style={{ fontSize: 14, color: "#4B5563", margin: "8px 0 0" }}>
               Leave blank for no deadline. Students can complete anytime.
             </p>
           </>

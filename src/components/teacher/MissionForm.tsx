@@ -167,7 +167,9 @@ function Field(props: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  error?: string;
 }) {
+  const errorId = `${props.id}-error`;
   return (
     <div style={{ marginTop: 16 }}>
       <label htmlFor={props.id} style={labelStyle}>
@@ -178,8 +180,15 @@ function Field(props: {
         name={props.name}
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
+        aria-invalid={props.error ? true : undefined}
+        aria-describedby={props.error ? errorId : undefined}
         style={inputStyle}
       />
+      {props.error ? (
+        <p id={errorId} role="alert" style={fieldErrorStyle}>
+          {props.error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -249,6 +258,12 @@ const errorStyle: React.CSSProperties = {
   fontSize: 14,
   color: "#B42318",
   margin: 0,
+};
+
+const fieldErrorStyle: React.CSSProperties = {
+  fontSize: 14,
+  color: "#B42318",
+  margin: "8px 0 0",
 };
 
 const noticeStyle: React.CSSProperties = {

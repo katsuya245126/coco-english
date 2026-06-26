@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AssignableClass } from "@/server/mission/assign-service";
 import type { TeacherMission } from "@/server/mission/mission-service";
 import { AssignDialog } from "@/components/teacher/AssignDialog";
@@ -16,6 +16,13 @@ export function MissionList({ missions, assignableClasses }: MissionListProps) {
     null,
   );
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Auto-dismiss success message after 5 seconds (UI-SPEC requirement)
+  useEffect(() => {
+    if (!success) return;
+    const timer = setTimeout(() => setSuccess(null), 5000);
+    return () => clearTimeout(timer);
+  }, [success]);
 
   return (
     <div>
