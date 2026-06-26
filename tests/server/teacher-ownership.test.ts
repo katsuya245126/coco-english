@@ -41,8 +41,22 @@ describe("cross-teacher RLS isolation (AUTH-04)", () => {
       const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
       const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
+      // supabase-js constructs a RealtimeClient eagerly, which needs a global
+      // WebSocket. Node < 22 has none, and this test only does DB queries (no
+      // realtime), so provide an inert transport stub to satisfy the constructor
+      // without pulling in the `ws` package or ever opening a socket.
+      const noRealtime = {
+        realtime: {
+          transport: class {
+            constructor() {}
+            close() {}
+          } as unknown as never,
+        },
+      };
+
       const admin = createClient(url, serviceKey, {
         auth: { persistSession: false, autoRefreshToken: false },
+        ...noRealtime,
       });
 
       const stamp = Date.now();
@@ -134,6 +148,7 @@ describe("cross-teacher RLS isolation (AUTH-04)", () => {
       // --- Authenticate as teacher A (RLS active via anon-key user client). ---
       const aClient = createClient(url, anonKey, {
         auth: { persistSession: false, autoRefreshToken: false },
+        ...noRealtime,
       });
       const signIn = await aClient.auth.signInWithPassword({
         email: emailA,
