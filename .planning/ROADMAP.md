@@ -48,7 +48,7 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
 
 ### Phase 2: Teacher Classroom Access
 
-**Goal**: Teachers can securely set up a class and students can access their own homework through a low-friction class code, roster name, and PIN flow.
+**Goal**: As a student, I want to enter my class through a code or QR link, reuse a remembered class, pick my name, and unlock with a 4-digit PIN, so that I can reach my homework without an email or password account.
 **Mode:** mvp
 **Depends on**: Phase 1
 **Requirements**: AUTH-01, AUTH-02, AUTH-03, AUTH-04, CLASS-01, CLASS-02, CLASS-03, CLASS-04, STUD-01, STUD-02, STUD-03, STUD-04, STUD-05

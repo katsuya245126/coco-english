@@ -1,8 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { resolveClassAction } from "@/app/join/actions";
+import {
+  resolveClassAction,
+  resolveRememberedClassAction,
+} from "@/app/join/actions";
 import { PinForm } from "@/components/student/PinForm";
+import { clearRememberedClass } from "@/components/student/remembered-class";
 import { RememberedClassBanner } from "@/components/student/RememberedClassBanner";
 import {
   bodyStyle,
@@ -43,6 +47,32 @@ export function JoinForm({ initialClass, showRemembered }: JoinFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // "Use this class" on the remembered-class banner. Resolves by the stored
+  // IMMUTABLE class id (D-18) so a join-code reset never strands the device:
+  // the server returns the CURRENT live code, and we jump straight to the
+  // name + PIN step with it. If the class no longer resolves (archived/deleted),
+  // we clear the stale remembered entry and fall back to manual entry — never
+  // revealing why (D-16).
+  async function handleUseRemembered(classId: string) {
+    setSubmitting(true);
+    setError(null);
+
+    const result = await resolveRememberedClassAction(classId);
+    setSubmitting(false);
+
+    if (result.ok) {
+      setResolved({
+        classId: result.class.classId,
+        className: result.class.className,
+        joinCode: result.class.joinCode,
+      });
+      return;
+    }
+
+    clearRememberedClass();
+    setError(GENERIC_MISMATCH_COPY);
+  }
+
   async function handleResolve(event: React.FormEvent) {
     event.preventDefault();
     setSubmitting(true);
@@ -82,9 +112,7 @@ export function JoinForm({ initialClass, showRemembered }: JoinFormProps) {
       </p>
 
       {showRemembered ? (
-        <RememberedClassBanner
-          onUse={(displayCode) => setCode(displayCode)}
-        />
+        <RememberedClassBanner onUse={handleUseRemembered} />
       ) : null}
 
       <form onSubmit={handleResolve} noValidate>

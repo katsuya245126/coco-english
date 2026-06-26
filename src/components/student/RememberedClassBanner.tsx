@@ -13,10 +13,11 @@ import {
 } from "@/components/student/styles";
 
 type RememberedClassBannerProps = {
-  // Called with the remembered display code so the parent can prefill the code
-  // field. The student still types their name + PIN (D-13/D-17) — using the
-  // banner only prefills the class code, it never unlocks homework.
-  onUse: (displayCode: string) => void;
+  // Called with the remembered class's IMMUTABLE id (D-18), so the parent can
+  // resolve the CURRENT join code by id — never the cached, possibly-stale code.
+  // The student still types their name + PIN (D-13/D-17); the banner only routes
+  // to the class, it never unlocks homework.
+  onUse: (classId: string) => void;
 };
 
 // Remembered-class banner (STUD-02, D-12, D-18).
@@ -55,7 +56,7 @@ export function RememberedClassBanner({ onUse }: RememberedClassBannerProps) {
       <button
         type="button"
         style={secondaryButtonStyle}
-        onClick={() => onUse(remembered.displayCode)}
+        onClick={() => onUse(remembered.classId)}
       >
         Use this class
       </button>

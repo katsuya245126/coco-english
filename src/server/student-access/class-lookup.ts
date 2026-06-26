@@ -56,3 +56,39 @@ export async function resolveClassByJoinCode(
     joinCode: data.join_code,
   };
 }
+
+// Resolve a class by its immutable id for a REMEMBERED device (STUD-02, D-18).
+//
+// A device that already remembered a class keys on the stable class id, never on
+// the join code. When a teacher resets the join code, this path lets the device
+// come back: it looks the class up by id and returns the CURRENT join code, so
+// the device is handed a fresh, valid code instead of the stale one it cached.
+// Like resolveClassByJoinCode it returns context for ACTIVE classes only and
+// returns null for unknown OR archived ids without revealing which.
+export async function resolveClassById(
+  rawClassId: string,
+): Promise<StudentClassContext | null> {
+  const classId = rawClassId.trim();
+  if (classId.length === 0) {
+    return null;
+  }
+
+  const supabase = createSupabaseServiceClient();
+
+  const { data, error } = await supabase
+    .from("classes")
+    .select("id, name, join_code, archived_at")
+    .eq("id", classId)
+    .is("archived_at", null)
+    .maybeSingle();
+
+  if (error || !data || !data.join_code) {
+    return null;
+  }
+
+  return {
+    classId: data.id,
+    className: data.name,
+    joinCode: data.join_code,
+  };
+}

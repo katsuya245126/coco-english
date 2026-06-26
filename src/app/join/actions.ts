@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import { studentUnlockSchema } from "@/domain/classroom/student-access-schemas";
 import {
+  resolveClassById,
   resolveClassByJoinCode,
   type StudentClassContext,
 } from "@/server/student-access/class-lookup";
@@ -132,6 +133,27 @@ export async function resolveClassAction(
   }
 
   const context = await resolveClassByJoinCode(rawJoinCode);
+  if (!context) {
+    return { ok: false };
+  }
+
+  return { ok: true, class: context };
+}
+
+// Resolve a REMEMBERED class by its stored immutable id (STUD-02, D-18). The
+// remembered device keys on the class id, never on the cached join code, so a
+// teacher's join-code reset does not strand it: this returns the CURRENT live
+// code. On success the join UI jumps straight to the name + PIN step with the
+// fresh code; on failure (class archived/deleted) the UI clears the stale
+// remembered entry and falls back to manual entry — never revealing why.
+export async function resolveRememberedClassAction(
+  classId: string,
+): Promise<ResolveClassResult> {
+  if (typeof classId !== "string" || classId.trim().length === 0) {
+    return { ok: false };
+  }
+
+  const context = await resolveClassById(classId);
   if (!context) {
     return { ok: false };
   }
