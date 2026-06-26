@@ -95,7 +95,19 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
   3. Teacher can assign a mission to a class and create one homework record per active student.
   4. Assigned homework uses a snapshot so later mission edits do not unexpectedly change existing student work.
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+**Wave 1**
+
+- [ ] `03-01-PLAN.md` — Manual mission authoring slice: schemas, server actions, create/edit builder UI, required-turn validation, and default buddy character id.
+
+**Wave 2**
+
+- [ ] `03-02-PLAN.md` — Assign-to-class slice: full mission snapshot, atomic assignment RPC, per-active-student homework rows, assign dialog, and schema push gate.
+
+**Wave 3**
+
+- [ ] `03-03-PLAN.md` — Integrated workflow verification: Classes/Missions navigation, edit-after-assign notice, snapshot stability proof, and full Phase 3 verification.
 **UI hint**: yes
 
 ### Phase 4: Guided Student Attempt Loop
