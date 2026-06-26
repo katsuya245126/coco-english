@@ -187,7 +187,21 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      assign_mission_to_class: {
+        Args: {
+          p_class_id: string;
+          p_mission_id: string;
+          p_mission_snapshot: Json;
+          p_due_at?: string | null;
+        };
+        Returns: {
+          assignment_id: string;
+          active_student_count: number;
+          class_name: string;
+        }[];
+      };
+    };
     Enums: {
       data_mode: "demo" | "real";
       assignment_student_status:

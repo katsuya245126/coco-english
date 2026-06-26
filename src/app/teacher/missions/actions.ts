@@ -2,7 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { requireTeacherProfile } from "@/server/auth/teacher-profile";
-import { missionFormSchema, missionIdSchema } from "@/domain/mission/schemas";
+import {
+  assignMissionSchema,
+  missionFormSchema,
+  missionIdSchema,
+} from "@/domain/mission/schemas";
+import { assignMissionToClass } from "@/server/mission/assign-service";
 import {
   createMission,
   updateMission,
@@ -13,6 +18,10 @@ const GENERIC_FAILURE =
 
 export type MissionActionResult =
   | { ok: true; missionId: string }
+  | { ok: false; error: string };
+
+export type AssignMissionActionResult =
+  | { ok: true; className: string; activeStudentCount: number }
   | { ok: false; error: string };
 
 function parseTurns(value: FormDataEntryValue | null): unknown {
@@ -90,6 +99,42 @@ export async function updateMissionAction(
     revalidatePath("/teacher/missions");
     revalidatePath(`/teacher/missions/${mission.id}`);
     return { ok: true, missionId: mission.id };
+  } catch {
+    return { ok: false, error: GENERIC_FAILURE };
+  }
+}
+
+export async function assignMissionAction(
+  formData: FormData,
+): Promise<AssignMissionActionResult> {
+  const profile = await requireTeacherProfile();
+  const dueDate = formData.get("dueAt");
+  const parsed = assignMissionSchema.safeParse({
+    missionId: formData.get("missionId"),
+    classId: formData.get("classId"),
+    dueAt:
+      typeof dueDate === "string" && dueDate.length > 0
+        ? new Date(`${dueDate}T23:59:59.000Z`).toISOString()
+        : null,
+  });
+
+  if (!parsed.success) {
+    return { ok: false, error: GENERIC_FAILURE };
+  }
+
+  try {
+    const result = await assignMissionToClass({
+      teacherId: profile.id,
+      missionId: parsed.data.missionId,
+      classId: parsed.data.classId,
+      dueAt: parsed.data.dueAt,
+    });
+    revalidatePath("/teacher/missions");
+    return {
+      ok: true,
+      className: result.className,
+      activeStudentCount: result.activeStudentCount,
+    };
   } catch {
     return { ok: false, error: GENERIC_FAILURE };
   }

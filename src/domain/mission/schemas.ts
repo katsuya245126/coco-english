@@ -98,3 +98,18 @@ export const missionIdSchema = z.object({
 });
 
 export type MissionIdInput = z.infer<typeof missionIdSchema>;
+
+export const assignMissionSchema = z.object({
+  missionId: z.string().uuid("Invalid mission reference."),
+  classId: z.string().uuid("Invalid class reference."),
+  dueAt: z
+    .union([
+      z.string().trim().datetime({ offset: true }),
+      z.literal(""),
+      z.null(),
+      z.undefined(),
+    ])
+    .transform((value) => (value ? value : null)),
+});
+
+export type AssignMissionInput = z.infer<typeof assignMissionSchema>;

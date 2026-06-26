@@ -1,6 +1,7 @@
 import { requireTeacherProfile } from "@/server/auth/teacher-profile";
 import { listClassesForTeacher } from "@/server/classroom/class-service";
 import { ClassList } from "@/components/teacher/ClassList";
+import Link from "next/link";
 
 // Per-user authenticated page: never statically cache (Supabase SSR caching
 // warning). The guard redirects unauthenticated users to /auth/login and
@@ -35,22 +36,36 @@ export default async function TeacherDashboardPage() {
         <span style={{ fontSize: 14, fontWeight: 600, color: "#4B5563" }}>
           {profile.display_name ?? "Teacher"}
         </span>
-        <form action="/auth/logout" method="post">
-          <button
-            type="submit"
-            style={{
-              background: "none",
-              border: "1px solid #D1D5DB",
-              borderRadius: 6,
-              padding: "6px 12px",
-              fontSize: 14,
-              cursor: "pointer",
-              color: "#111827",
-            }}
+        <nav style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <Link
+            href="/teacher"
+            style={{ color: "#2563EB", textDecoration: "none", fontSize: 14, fontWeight: 600 }}
           >
-            Log out
-          </button>
-        </form>
+            Classes
+          </Link>
+          <Link
+            href="/teacher/missions"
+            style={{ color: "#2563EB", textDecoration: "none", fontSize: 14, fontWeight: 600 }}
+          >
+            Missions
+          </Link>
+          <form action="/auth/logout" method="post">
+            <button
+              type="submit"
+              style={{
+                background: "none",
+                border: "1px solid #D1D5DB",
+                borderRadius: 6,
+                padding: "6px 12px",
+                fontSize: 14,
+                cursor: "pointer",
+                color: "#111827",
+              }}
+            >
+              Log out
+            </button>
+          </form>
+        </nav>
       </header>
 
       <main

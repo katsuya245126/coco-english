@@ -115,20 +115,38 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
 
   it("lists only classes with active students as assignable (D-08)", async () => {
     const supabase = {
-      from: vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            is: vi.fn(() => ({
-              order: vi.fn(async () => ({
+      from: vi.fn((table: string) => {
+        if (table === "classes") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                is: vi.fn(() => ({
+                  order: vi.fn(async () => ({
+                    data: [
+                      { id: "class-1", name: "Has students" },
+                      { id: "class-2", name: "Empty class" },
+                    ],
+                    error: null,
+                  })),
+                })),
+              })),
+            })),
+          };
+        }
+        return {
+          select: vi.fn(() => ({
+            in: vi.fn(() => ({
+              is: vi.fn(async () => ({
                 data: [
-                  { id: "class-1", name: "Has students", roster_count: 2 },
+                  { class_id: "class-1" },
+                  { class_id: "class-1" },
                 ],
                 error: null,
               })),
             })),
           })),
-        })),
-      })),
+        };
+      }),
     };
     mockSupabase = supabase;
 
