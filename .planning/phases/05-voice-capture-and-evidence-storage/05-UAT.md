@@ -1,7 +1,7 @@
 ---
 phase: 05
 slug: voice-capture-and-evidence-storage
-status: blocked
+status: partial
 created: 2026-06-27
 last_updated: 2026-06-27
 ---
@@ -34,16 +34,16 @@ Phase 05 complete until every required row is `Pass` or explicitly
 | UAT-05-06 | Android Chrome retry states | Android phone, Chrome version not recorded | Deny microphone once or force upload/transcription failure if available, then retry. | Denied/failed state uses child-friendly copy and allows retry without technical error strings. | Pass | John + executor / 2026-06-27 | Product/QA | Retry behavior passed on Android Chrome. Gap closure changed denied copy to "Ask a grown-up to turn on the mic, then record again." and verified with `npx tsc --noEmit` plus source scan. |
 | UAT-05-07 | Upload/transcription failure state | Android Chrome or controlled failure path | Force a failed upload or failed transcription response during original or repeat recording. | Student stays on the recorder; copy says "We could not save that recording. Try again." or "We could not hear that clearly. Record again."; no fake transcript is shown. | Pass | John / 2026-06-27 | Product/QA | Android Chrome failure/retry flow passed. |
 | UAT-05-08 | Teacher transcript-first evidence page | Desktop browser with teacher login | Open `/teacher/evidence/[attemptId]` for the tested attempt from the teacher class UI. | Student name, mission title, attempt status/submitted time, and transcripts are visible before any native audio controls. | Pass | John + executor / 2026-06-27 | Product/QA | Gap closure added `Review evidence` links on teacher-owned class pages and verified navigation with `npx playwright test tests/e2e/teacher-audio-evidence.spec.ts`. Transcript-first source assertions still pass. |
-| UAT-05-09 | Teacher on-demand audio playback and no autoplay | Desktop browser with teacher login | On the teacher evidence page, confirm no `<audio controls>` is visible initially. Click "Load audio" for original and repeat clips. | "Preparing audio..." appears while loading; native audio controls appear only after click; audio does not autoplay; object keys are not displayed. | Pending | John / 2026-06-27 | Product/QA | No longer blocked by discoverability. Automated Playwright no-autoplay/on-demand coverage passes; keep pending until a logged-in desktop playback check is completed or explicitly risk-accepted. |
+| UAT-05-09 | Teacher on-demand audio playback and no autoplay | Desktop browser with teacher login | On the teacher evidence page, confirm no `<audio controls>` is visible initially. Click "Load audio" for original and repeat clips. | "Preparing audio..." appears while loading; native audio controls appear only after click; audio does not autoplay; object keys are not displayed. | Pass | John / 2026-06-27 | Product/QA | Verified: no audio player initially visible, audio loads on-demand after click, no autoplay. Required FK disambiguation fix (25afe7db) for createSignedAudioUrlForTeacher query. |
 
 ## Summary
 
 total: 9
-passed: 6
+passed: 7
 issues: 0
-pending: 1
+pending: 0
 deferred: 3
-blocked: 1
+blocked: 0
 
 ## Risk Acceptance
 
