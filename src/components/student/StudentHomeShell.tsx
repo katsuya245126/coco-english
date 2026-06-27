@@ -8,29 +8,29 @@ import {
   headingStyle,
   secondaryButtonStyle,
 } from "@/components/student/styles";
+import { AssignmentListItem } from "@/components/student/AssignmentListItem";
+import type { StudentAssignmentListItem } from "@/server/student-access/assignment-list";
 
 // Verbatim UI-SPEC copy.
 const NO_HOMEWORK_HEADING = "No homework yet";
 const NO_HOMEWORK_BODY =
   "You are signed in for this class. Your teacher has not assigned speaking homework yet.";
-const CLOSED_PLACEHOLDER =
-  "This homework is not open right now. Ask your teacher what to do next.";
 
 type StudentHomeShellProps = {
   className: string;
   displayName: string;
+  assignments: StudentAssignmentListItem[];
 };
 
-// Phase 2 student home shell (STUD-05, D-14).
+// Student home shell (STUD-05, D-14, FLOW-01).
 //
-// Shows ONLY class/name context, the no-homework state, and a reserved
-// closed/expired placeholder. It deliberately contains NONE of: mission cards,
-// recording controls, buddy chat, progress rings, scores, leaderboards, or
-// review feedback (all out of scope for Phase 2). A small action returns the
-// student to join entry / switches class.
+// Renders the student's assignment list with per-item badge states, or falls
+// back to the "No homework yet" empty state when no assignments exist (D-13).
+// The assignment list is passed from the SSR page; no client-side data fetching.
 export function StudentHomeShell({
   className,
   displayName,
+  assignments,
 }: StudentHomeShellProps) {
   const router = useRouter();
 
@@ -39,6 +39,8 @@ export function StudentHomeShell({
     router.push("/join");
   }
 
+  const hasAssignments = assignments.length > 0;
+
   return (
     <div>
       <h1 style={displayTitleStyle}>{className}</h1>
@@ -46,26 +48,40 @@ export function StudentHomeShell({
         Signed in as <strong>{displayName}</strong>
       </p>
 
-      <section
-        aria-live="polite"
-        style={{
-          background: "#F7F8FA",
-          border: "1px solid #E5E7EB",
-          borderRadius: 8,
-          padding: 24,
-          marginBottom: 16,
-        }}
-      >
-        <h2 style={headingStyle}>{NO_HOMEWORK_HEADING}</h2>
-        <p style={{ ...bodyStyle, marginBottom: 0 }}>{NO_HOMEWORK_BODY}</p>
-      </section>
-
-      {/* Reserved closed/expired placeholder — hidden until a future phase has
-          assignment state to render. Kept in the DOM (visually hidden) so the
-          copy contract is established now. */}
-      <p hidden data-testid="closed-expired-placeholder">
-        {CLOSED_PLACEHOLDER}
-      </p>
+      {hasAssignments ? (
+        <section aria-live="polite">
+          <h2 style={{ ...headingStyle, marginBottom: 8 }}>Your homework</h2>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              marginBottom: 16,
+            }}
+          >
+            {assignments.map((item) => (
+              <AssignmentListItem
+                key={item.assignmentStudentId}
+                item={item}
+              />
+            ))}
+          </div>
+        </section>
+      ) : (
+        <section
+          aria-live="polite"
+          style={{
+            background: "#F7F8FA",
+            border: "1px solid #E5E7EB",
+            borderRadius: 8,
+            padding: 24,
+            marginBottom: 16,
+          }}
+        >
+          <h2 style={headingStyle}>{NO_HOMEWORK_HEADING}</h2>
+          <p style={{ ...bodyStyle, marginBottom: 0 }}>{NO_HOMEWORK_BODY}</p>
+        </section>
+      )}
 
       <button
         type="button"
