@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 04
-current_phase_name: guided-student-attempt-loop
-status: verifying
-stopped_at: Completed 04-04-PLAN.md
-last_updated: "2026-06-27T01:50:18.061Z"
+current_phase: 05
+current_phase_name: voice-capture-and-evidence-storage
+status: ready
+stopped_at: Phase 04 verified (UAT 3/3 + 1 fixed)
+last_updated: "2026-06-27T11:55:00.000Z"
 last_activity: 2026-06-27
-last_activity_desc: Phase 04 execution started
+last_activity_desc: Phase 04 verified complete; advanced to Phase 05
 progress:
   total_phases: 7
   completed_phases: 4
@@ -24,17 +24,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-25)
 
 **Core value:** Students must complete useful spoken English practice outside class, and teachers must be able to verify that it happened.
-**Current focus:** Phase 04 — guided-student-attempt-loop
+**Current focus:** Phase 05 — voice-capture-and-evidence-storage
 
 ## Current Position
 
-Phase: 04 (guided-student-attempt-loop) — EXECUTING
-Plan: 5 of 5
-Status: Phase complete — ready for verification
-Last activity: 2026-06-27 — Phase 04 execution started
-Prior: Phase 03 VERIFIED — UAT 5/5; assign RPC ambiguous-column blocker fixed (migration 202606260001). 1 cosmetic gap open (no save-confirmation; see 03-UAT.md).
+Phase: 05 (voice-capture-and-evidence-storage) — NOT STARTED (next to plan)
+Status: Ready to plan — depends on Phase 04 (complete)
+Last activity: 2026-06-27 — Phase 04 verified complete
+Prior: Phase 04 VERIFIED — UAT 3/3 pass + 1 cosmetic issue FIXED (progress bar reached 100% on final turn, f8c19fb7). Landing page at / shipped (409f62e9). Open backlog: teacher edit/reschedule of existing assignment (Phase 03 gap, no edit path → duplicate assignment).
 
-Progress: [###-------] 33%
+Progress: [####------] 57%
 
 ## Performance Metrics
 
