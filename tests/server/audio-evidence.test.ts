@@ -181,23 +181,21 @@ describe("teacher audio evidence service", () => {
       attemptStatus: "completed",
       submittedAt: "2026-06-27T07:02:00Z",
       completedAt: "2026-06-27T07:02:00Z",
-      turns: [
+    });
+    expect(evidence?.turns[0]).toMatchObject({
+      turnOrder: 1,
+      originalTranscript: "I wake up at seven.",
+      repeatTranscript: "I wake up at seven.",
+      audioClips: [
         {
-          turnOrder: 1,
-          originalTranscript: "I wake up at seven.",
-          repeatTranscript: "I wake up at seven.",
-          audioClips: [
-            {
-              id: "clip-1",
-              clipKind: "original_answer",
-              processingStatus: "transcribed",
-            },
-            {
-              id: "clip-2",
-              clipKind: "repeat_attempt",
-              processingStatus: "transcribed",
-            },
-          ],
+          id: "clip-1",
+          clipKind: "original_answer",
+          processingStatus: "transcribed",
+        },
+        {
+          id: "clip-2",
+          clipKind: "repeat_attempt",
+          processingStatus: "transcribed",
         },
       ],
     });
