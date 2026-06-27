@@ -161,8 +161,12 @@ export function VoiceRecorderControl({
         durationMs,
       });
       setState("success");
-    } catch {
-      setErrorMessage("We could not save that recording. Try again.");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error && error.message
+          ? error.message
+          : "We could not save that recording. Try again.",
+      );
       setState("failure");
     }
   }
@@ -208,7 +212,7 @@ export function VoiceRecorderControl({
       return "Recording...";
     }
     if (isProcessing) {
-      return "Saving your voice...";
+      return "Listening to your answer...";
     }
     if (state === "success") {
       return "Listening to your answer...";

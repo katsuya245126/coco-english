@@ -14,6 +14,7 @@ import { useState, useEffect } from "react";
 import type { MissionSnapshotTurn } from "@/domain/mission/schemas";
 import {
   startAttemptAction,
+  completeMissionAction,
   revealHintAction,
 } from "@/app/student/missions/[assignmentStudentId]/actions";
 import {
@@ -37,6 +38,7 @@ type FlowState = {
   step: FlowStep;
   hintLevel: number;
   originalTranscript: string | null;
+  repeatTranscript: string | null;
 };
 
 export type CharacterProfileLines = {
@@ -77,6 +79,7 @@ export function MissionFlowShell({
     step: "question",
     hintLevel: 0,
     originalTranscript: null,
+    repeatTranscript: null,
   });
 
   const [attemptId, setAttemptId] = useState<string | null>(initialAttemptId);
@@ -114,7 +117,7 @@ export function MissionFlowShell({
     recording: RecordedVoiceClip | RepeatVoiceClip;
     aid: string;
     clipKind: "original_answer" | "repeat_attempt";
-  }) {
+  }): Promise<string> {
     const formData = new FormData();
     formData.set("file", input.recording.blob, `${input.clipKind}.webm`);
     formData.set("attemptId", input.aid);
@@ -132,11 +135,21 @@ export function MissionFlowShell({
     );
 
     const payload = (await response.json().catch(() => null)) as
-      | { ok?: boolean }
+      | { ok?: boolean; transcript?: string; error?: string }
       | null;
-    if (!response.ok || payload?.ok !== true) {
+    if (
+      !response.ok ||
+      payload?.ok !== true ||
+      typeof payload.transcript !== "string" ||
+      payload.transcript.trim().length === 0
+    ) {
+      if (payload?.error === "transcription_failed_retryable") {
+        throw new Error("We could not hear that clearly. Record again.");
+      }
       throw new Error("audio_upload_failed");
     }
+
+    return payload.transcript;
   }
 
   async function handleSubmitOriginalVoice(recording: RecordedVoiceClip) {
@@ -149,7 +162,7 @@ export function MissionFlowShell({
       throw new Error("attempt_start_failed");
     }
 
-    await uploadVoiceClip({
+    const transcript = await uploadVoiceClip({
       recording,
       aid,
       clipKind: "original_answer",
@@ -158,7 +171,8 @@ export function MissionFlowShell({
     setFlow((prev) => ({
       ...prev,
       step: "repeat",
-      originalTranscript: null,
+      originalTranscript: transcript,
+      repeatTranscript: null,
     }));
   }
 
@@ -170,15 +184,28 @@ export function MissionFlowShell({
       throw new Error("attempt_start_failed");
     }
 
-    await uploadVoiceClip({
+    const transcript = await uploadVoiceClip({
       recording,
       aid,
       clipKind: "repeat_attempt",
     });
 
     const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
+    if (isFinalTurn) {
+      const result = await completeMissionAction({
+        assignmentStudentId,
+        attemptId: aid,
+        requiredTurns,
+      });
+      if (!result.ok) {
+        setActionError("Something went wrong. Try again, or ask your teacher for help.");
+        throw new Error("mission_complete_failed");
+      }
+    }
+
     setFlow((prev) => ({
       ...prev,
+      repeatTranscript: transcript,
       step: isFinalTurn ? "complete" : "transition",
     }));
   }
@@ -208,6 +235,7 @@ export function MissionFlowShell({
         step: "question",
         hintLevel: 0,
         originalTranscript: null,
+        repeatTranscript: null,
       });
     }
   }
@@ -249,6 +277,18 @@ export function MissionFlowShell({
             {actionError}
           </p>
         )}
+
+        {(flow.step === "transition" || flow.step === "complete") &&
+          flow.repeatTranscript && (
+            <div style={{ margin: "0 0 16px" }}>
+              <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
+                Your repeat:
+              </p>
+              <p style={{ fontSize: 16, color: "#111827", margin: 0, lineHeight: 1.5 }}>
+                {flow.repeatTranscript}
+              </p>
+            </div>
+          )}
 
         {flow.step === "question" && currentTurn && (
           <StepBuddyQuestion

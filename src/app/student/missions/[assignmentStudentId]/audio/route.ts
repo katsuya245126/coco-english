@@ -64,6 +64,7 @@ export async function POST(request: Request, context: RouteContext) {
       ok: true,
       audioClipId: result.audioClipId,
       processingStatus: result.processingStatus,
+      transcript: result.transcript,
     });
   }
 
@@ -73,6 +74,13 @@ export async function POST(request: Request, context: RouteContext) {
 
   if (result.error === "invalid_audio") {
     return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
+  }
+
+  if (result.error === "transcription_failed_retryable") {
+    return NextResponse.json(
+      { ok: false, error: "transcription_failed_retryable" },
+      { status: 502 },
+    );
   }
 
   return NextResponse.json(
