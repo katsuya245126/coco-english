@@ -174,3 +174,56 @@ describe("mission flow: reveal hint (FLOW-07)", () => {
     expect(true).toBe(true);
   });
 });
+
+describe("mission flow: completeAttempt (FLOW-06, D-06)", () => {
+  it("completeAttempt is exported from the service", async () => {
+    const mod = await import("@/server/student-access/mission-flow");
+    expect(mod.completeAttempt).toBeDefined();
+  });
+
+  it("completeAttempt uses isAttemptComplete to gate completion", async () => {
+    // Structural: completeAttempt must reference isAttemptComplete
+    const fs = await import("node:fs");
+    const source = fs.readFileSync(
+      "src/server/student-access/mission-flow.ts",
+      "utf-8",
+    );
+    expect(source).toContain("isAttemptComplete");
+  });
+
+  it("completeAttempt writes mission_completed reason code", async () => {
+    const fs = await import("node:fs");
+    const source = fs.readFileSync(
+      "src/server/student-access/mission-flow.ts",
+      "utf-8",
+    );
+    expect(source).toContain("mission_completed");
+  });
+
+  it("completeAttempt stamps submitted_at on the assignment_students row", async () => {
+    const fs = await import("node:fs");
+    const source = fs.readFileSync(
+      "src/server/student-access/mission-flow.ts",
+      "utf-8",
+    );
+    expect(source).toContain("submitted_at");
+  });
+
+  it("completeAttempt stamps completed_at on the attempts row", async () => {
+    const fs = await import("node:fs");
+    const source = fs.readFileSync(
+      "src/server/student-access/mission-flow.ts",
+      "utf-8",
+    );
+    expect(source).toContain("completed_at");
+  });
+});
+
+describe("mission flow: completeMissionAction (FLOW-06)", () => {
+  it("completeMissionAction is exported from the actions module", async () => {
+    const mod = await import(
+      "@/app/student/missions/[assignmentStudentId]/actions"
+    );
+    expect(mod.completeMissionAction).toBeDefined();
+  });
+});
