@@ -55,7 +55,7 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 
 ### Student Speaking Mission
 
-- [ ] **FLOW-01**: Student can see assigned homework and start a mission.
+- [x] **FLOW-01**: Student can see assigned homework and start a mission.
 - [x] **FLOW-02**: Buddy asks short classroom-safe questions tied to the assigned mission.
 - [ ] **FLOW-03**: Student answers each mission turn by voice.
 - [ ] **FLOW-04**: System shows a better target-form sentence after the original answer.
@@ -98,7 +98,7 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 
 ### Pilot Readiness
 
-- [ ] **PILOT-01**: System has a mobile-responsive student flow for common phone/tablet browser sizes.
+- [x] **PILOT-01**: System has a mobile-responsive student flow for common phone/tablet browser sizes.
 - [ ] **PILOT-02**: System includes basic microphone permission and recording failure handling.
 - [ ] **PILOT-03**: System includes basic logging for assignment completion, audio processing, transcription, and AI evaluation failures.
 - [ ] **PILOT-04**: System includes a basic retention/deletion path for stored audio clips.
@@ -179,7 +179,7 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 | ASGN-03 | Phase 3 | Complete |
 | ASGN-04 | Phase 1 | Complete |
 | ASGN-05 | Phase 7 | Pending |
-| FLOW-01 | Phase 4 | Pending |
+| FLOW-01 | Phase 4 | Complete |
 | FLOW-02 | Phase 4 | Complete |
 | FLOW-03 | Phase 5 | Pending |
 | FLOW-04 | Phase 4 | Pending |
@@ -207,7 +207,7 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 | CHAR-02 | Phase 4 | Complete |
 | CHAR-03 | Phase 4 | Complete |
 | CHAR-04 | Phase 4 | Complete |
-| PILOT-01 | Phase 4 | Pending |
+| PILOT-01 | Phase 4 | Complete |
 | PILOT-02 | Phase 5 | Pending |
 | PILOT-03 | Phase 7 | Pending |
 | PILOT-04 | Phase 7 | Pending |
