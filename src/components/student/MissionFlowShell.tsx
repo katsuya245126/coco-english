@@ -110,8 +110,36 @@ export function MissionFlowShell({
     return null;
   }
 
+  async function uploadVoiceClip(input: {
+    recording: RecordedVoiceClip | RepeatVoiceClip;
+    aid: string;
+    clipKind: "original_answer" | "repeat_attempt";
+  }) {
+    const formData = new FormData();
+    formData.set("file", input.recording.blob, `${input.clipKind}.webm`);
+    formData.set("attemptId", input.aid);
+    formData.set("turnOrder", String(currentTurn.turnOrder));
+    formData.set("clipKind", input.clipKind);
+    formData.set("durationMs", String(input.recording.durationMs));
+    formData.set("mimeType", input.recording.mimeType);
+
+    const response = await fetch(
+      `/student/missions/${assignmentStudentId}/audio`,
+      {
+        method: "POST",
+        body: formData,
+      },
+    );
+
+    const payload = (await response.json().catch(() => null)) as
+      | { ok?: boolean }
+      | null;
+    if (!response.ok || payload?.ok !== true) {
+      throw new Error("audio_upload_failed");
+    }
+  }
+
   async function handleSubmitOriginalVoice(recording: RecordedVoiceClip) {
-    void recording;
     setActionError(null);
     // Dismiss resume notice on first submit (D-04)
     setShowResumeNotice(false);
@@ -121,6 +149,12 @@ export function MissionFlowShell({
       throw new Error("attempt_start_failed");
     }
 
+    await uploadVoiceClip({
+      recording,
+      aid,
+      clipKind: "original_answer",
+    });
+
     setFlow((prev) => ({
       ...prev,
       step: "repeat",
@@ -129,13 +163,18 @@ export function MissionFlowShell({
   }
 
   async function handleSubmitRepeatVoice(recording: RepeatVoiceClip) {
-    void recording;
     setActionError(null);
 
     const aid = await ensureAttempt();
     if (!aid) {
       throw new Error("attempt_start_failed");
     }
+
+    await uploadVoiceClip({
+      recording,
+      aid,
+      clipKind: "repeat_attempt",
+    });
 
     const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
     setFlow((prev) => ({
