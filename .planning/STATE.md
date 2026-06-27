@@ -4,17 +4,17 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 05
 current_phase_name: voice-capture-and-evidence-storage
-status: ready
-stopped_at: Phase 04 verified (UAT 3/3 + 1 fixed)
-last_updated: "2026-06-27T11:55:00.000Z"
+status: executing
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-06-27T06:23:43.710Z"
 last_activity: 2026-06-27
-last_activity_desc: Phase 04 verified complete; advanced to Phase 05
+last_activity_desc: Completed 05-01 browser recorder foundation
 progress:
   total_phases: 7
   completed_phases: 4
-  total_plans: 13
-  completed_plans: 13
-  percent: 57
+  total_plans: 17
+  completed_plans: 14
+  percent: 82
 ---
 
 # Project State
@@ -28,12 +28,13 @@ See: .planning/PROJECT.md (updated 2026-06-25)
 
 ## Current Position
 
-Phase: 05 (voice-capture-and-evidence-storage) — NOT STARTED (next to plan)
-Status: Ready to plan — depends on Phase 04 (complete)
-Last activity: 2026-06-27 — Phase 04 verified complete
+Phase: 05 (voice-capture-and-evidence-storage) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-06-27 — Completed 05-01 browser recorder foundation
 Prior: Phase 04 VERIFIED — UAT 3/3 pass + 1 cosmetic issue FIXED (progress bar reached 100% on final turn, f8c19fb7). Landing page at / shipped (409f62e9). Open backlog: teacher edit/reschedule of existing assignment (Phase 03 gap, no edit path → duplicate assignment).
 
-Progress: [####------] 57%
+Progress: [████████░░] 82%
 
 ## Performance Metrics
 
@@ -66,6 +67,7 @@ Progress: [####------] 57%
 | Phase 04 P03 | 5min | 3 tasks | 4 files |
 | Phase 04 P04 | 8min | 3 tasks | 6 files |
 | Phase 04 P05 | 8min | 3 tasks | 7 files |
+| Phase 05 P01 | 9min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -99,6 +101,8 @@ Recent decisions affecting current work:
 - [Phase ?]: 04-05: completeAttempt re-derives completeness server-side via isAttemptComplete; client cannot force completion (T-04-15)
 - [Phase ?]: 04-05: Completion audit event only written when conditional UPDATE succeeds (Pitfall 3 idempotency; no duplicate events)
 - [Phase ?]: 04-05: Resume notice auto-dismisses after 5s or first answer submit, whichever comes first (D-04)
+- [Phase ?]: 05-01: Upload/transcription remain later Phase 5 work; recorder callbacks pass Blob metadata without fake transcripts.
+- [Phase ?]: 05-01: Browser recorder capability is runtime-detected with getUserMedia, MediaRecorder, and MIME support probing.
 
 ### Pending Todos
 
@@ -119,6 +123,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-27T01:48:28Z
-Stopped at: Completed 04-05-PLAN.md
+Last session: 2026-06-27T06:23:23.802Z
+Stopped at: Completed 05-01-PLAN.md
 Resume file: None

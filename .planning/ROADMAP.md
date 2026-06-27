@@ -169,7 +169,36 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
   3. System stores transcript text, audio reference, clip metadata, and processing status for each mission turn.
   4. Teacher can play short audio clips on demand from attempt details without making audio the default review path.
 
-**Plans**: TBD
+**Plans**: 1/4 plans executed
+
+- [x] 05-01-PLAN.md
+- [ ] 05-02-PLAN.md
+- [ ] 05-03-PLAN.md
+- [ ] 05-04-PLAN.md
+
+**Wave 1**
+
+- [x] `05-01-PLAN.md` - Browser recorder foundation: capability detection, short per-turn recording UI, permission/failure states, and replacement of typed original/repeat controls.
+
+**Wave 2**
+
+- [ ] `05-02-PLAN.md` - Private audio storage and metadata: `student-audio` bucket migration, blocking schema push, upload route, `audio_clips` persistence, and upload retry UI.
+
+**Wave 3**
+
+- [ ] `05-03-PLAN.md` - Transcription integration: server-only OpenAI adapter, transcript writes to `attempt_turns`, processing-status transitions, and transcript-gated student progression.
+
+**Wave 4**
+
+- [ ] `05-04-PLAN.md` - Teacher evidence playback and pilot checks: transcript-first attempt evidence page, signed on-demand audio URLs, and required iOS Safari / Android Chrome device verification.
+
+**Cross-cutting constraints:**
+
+- Audio clips remain short per-turn evidence clips, not full-session recordings.
+- Student audio upload and teacher playback must verify ownership before Storage or DB access.
+- Audio is private by default; playback uses short-lived signed URLs only.
+- Mobile microphone support requires real-device verification before Phase 5 closeout.
+
 **UI hint**: yes
 
 ### Phase 6: AI Mission and Turn Intelligence
@@ -243,6 +272,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 2. Teacher Classroom Access | 4/4 | Complete    | 2026-06-26 |
 | 3. Manual Mission Assignment | 3/3 | Complete   | 2026-06-26 |
 | 4. Guided Student Attempt Loop | 5/5 | Complete   | 2026-06-27 |
-| 5. Voice Capture and Evidence Storage | 0/TBD | Not started | - |
+| 5. Voice Capture and Evidence Storage | 1/4 | In Progress|  |
 | 6. AI Mission and Turn Intelligence | 0/TBD | Not started | - |
 | 7. Teacher Review and Pilot Readiness | 0/TBD | Not started | - |

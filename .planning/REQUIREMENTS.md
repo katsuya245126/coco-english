@@ -57,7 +57,7 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 
 - [x] **FLOW-01**: Student can see assigned homework and start a mission.
 - [x] **FLOW-02**: Buddy asks short classroom-safe questions tied to the assigned mission.
-- [ ] **FLOW-03**: Student answers each mission turn by voice.
+- [x] **FLOW-03**: Student answers each mission turn by voice.
 - [x] **FLOW-04**: System shows a better target-form sentence after the original answer.
 - [x] **FLOW-05**: Student must repeat the improved target-form sentence by voice.
 - [x] **FLOW-06**: Mission completes after the required number of speaking turns and repeat attempts are satisfied.
@@ -65,9 +65,9 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 
 ### Audio And Transcription
 
-- [ ] **AUDIO-01**: System records short audio clips for original answers.
-- [ ] **AUDIO-02**: System records short audio clips for repeat attempts.
-- [ ] **AUDIO-03**: System uploads audio with retry and failure states understandable to elementary learners.
+- [x] **AUDIO-01**: System records short audio clips for original answers.
+- [x] **AUDIO-02**: System records short audio clips for repeat attempts.
+- [x] **AUDIO-03**: System uploads audio with retry and failure states understandable to elementary learners.
 - [ ] **AUDIO-04**: System transcribes original answers and repeat attempts.
 - [ ] **AUDIO-05**: System stores transcript text, audio reference, clip metadata, and processing status for each turn.
 
@@ -99,7 +99,7 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 ### Pilot Readiness
 
 - [x] **PILOT-01**: System has a mobile-responsive student flow for common phone/tablet browser sizes.
-- [ ] **PILOT-02**: System includes basic microphone permission and recording failure handling.
+- [x] **PILOT-02**: System includes basic microphone permission and recording failure handling.
 - [ ] **PILOT-03**: System includes basic logging for assignment completion, audio processing, transcription, and AI evaluation failures.
 - [ ] **PILOT-04**: System includes a basic retention/deletion path for stored audio clips.
 
@@ -181,14 +181,14 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 | ASGN-05 | Phase 7 | Pending |
 | FLOW-01 | Phase 4 | Complete |
 | FLOW-02 | Phase 4 | Complete |
-| FLOW-03 | Phase 5 | Pending |
+| FLOW-03 | Phase 5 | Complete |
 | FLOW-04 | Phase 4 | Complete |
 | FLOW-05 | Phase 4 | Complete |
 | FLOW-06 | Phase 4 | Complete |
 | FLOW-07 | Phase 4 | Complete |
-| AUDIO-01 | Phase 5 | Pending |
-| AUDIO-02 | Phase 5 | Pending |
-| AUDIO-03 | Phase 5 | Pending |
+| AUDIO-01 | Phase 5 | Complete |
+| AUDIO-02 | Phase 5 | Complete |
+| AUDIO-03 | Phase 5 | Complete |
 | AUDIO-04 | Phase 5 | Pending |
 | AUDIO-05 | Phase 5 | Pending |
 | AI-01 | Phase 6 | Pending |
@@ -208,7 +208,7 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 | CHAR-03 | Phase 4 | Complete |
 | CHAR-04 | Phase 4 | Complete |
 | PILOT-01 | Phase 4 | Complete |
-| PILOT-02 | Phase 5 | Pending |
+| PILOT-02 | Phase 5 | Complete |
 | PILOT-03 | Phase 7 | Pending |
 | PILOT-04 | Phase 7 | Pending |
 
