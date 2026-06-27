@@ -135,7 +135,7 @@ export async function getAttemptEvidenceForTeacher(input: {
         status,
         started_at,
         completed_at,
-        assignment_students!inner(
+        assignment_students!attempts_assignment_student_id_fkey!inner(
           status,
           submitted_at,
           students!inner(display_name),
@@ -221,7 +221,7 @@ export async function createSignedAudioUrlForTeacher(input: {
         deleted_at,
         attempt_turns!inner(
           attempts!inner(
-            assignment_students!inner(
+            assignment_students!attempts_assignment_student_id_fkey!inner(
               assignments!inner(
                 classes!inner(teacher_id)
               )
