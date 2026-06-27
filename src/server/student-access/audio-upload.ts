@@ -9,6 +9,8 @@
 
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/db/types";
+import { buildPlaceholderEvaluation } from "@/domain/flow/evaluation";
+import { transcribeAudioFile } from "@/server/audio/transcription";
 
 const DEFAULT_AUDIO_BUCKET = "student-audio";
 
@@ -30,7 +32,8 @@ export type UploadAttemptAudioClipResult =
   | {
       ok: true;
       audioClipId: string;
-      processingStatus: "uploaded";
+      processingStatus: "transcribed";
+      transcript: string;
     }
   | {
       ok: false;
@@ -38,9 +41,14 @@ export type UploadAttemptAudioClipResult =
         | "not_found"
         | "invalid_audio"
         | "upload_failed_retryable"
+        | "transcription_failed_retryable"
         | "db_error";
       retryable: boolean;
     };
+
+export type UploadAttemptAudioClipDeps = {
+  transcribeAudioFile?: typeof transcribeAudioFile;
+};
 
 function getStudentAudioBucketId() {
   return process.env.STUDENT_AUDIO_BUCKET || DEFAULT_AUDIO_BUCKET;
@@ -85,6 +93,7 @@ function isValidInput(input: UploadAttemptAudioClipInput) {
 
 export async function uploadAttemptAudioClip(
   input: UploadAttemptAudioClipInput,
+  deps: UploadAttemptAudioClipDeps = {},
 ): Promise<UploadAttemptAudioClipResult> {
   if (!isValidInput(input)) {
     return { ok: false, error: "invalid_audio", retryable: false };
@@ -185,6 +194,67 @@ export async function uploadAttemptAudioClip(
       };
     }
 
+    const transcribe = deps.transcribeAudioFile ?? transcribeAudioFile;
+    const transcription = await transcribe({
+      file: input.file,
+      mimeType: input.mimeType,
+    });
+
+    if (!transcription.ok) {
+      await supabase
+        .from("audio_clips")
+        .update({
+          object_key: objectKey,
+          mime_type: input.mimeType,
+          duration_ms: input.durationMs,
+          byte_size: input.byteSize,
+          processing_status: "failed",
+        })
+        .eq("id", audioClip.id);
+
+      return {
+        ok: false,
+        error: "transcription_failed_retryable",
+        retryable: true,
+      };
+    }
+
+    const transcript = transcription.text;
+    const turnWrite =
+      input.clipKind === "original_answer"
+        ? await supabase.from("attempt_turns").upsert(
+            {
+              attempt_id: input.attemptId,
+              turn_order: input.turnOrder,
+              original_transcript: transcript,
+              target_attempted: true,
+              evaluation: buildPlaceholderEvaluation(),
+            },
+            { onConflict: "attempt_id,turn_order" },
+          )
+        : await supabase
+            .from("attempt_turns")
+            .update({
+              repeat_transcript: transcript,
+              repeat_accepted: true,
+            })
+            .eq("id", turn.id);
+
+    if (turnWrite.error) {
+      await supabase
+        .from("audio_clips")
+        .update({
+          object_key: objectKey,
+          mime_type: input.mimeType,
+          duration_ms: input.durationMs,
+          byte_size: input.byteSize,
+          processing_status: "failed",
+        })
+        .eq("id", audioClip.id);
+
+      return { ok: false, error: "db_error", retryable: true };
+    }
+
     const { error: updateError } = await supabase
       .from("audio_clips")
       .update({
@@ -192,7 +262,7 @@ export async function uploadAttemptAudioClip(
         mime_type: input.mimeType,
         duration_ms: input.durationMs,
         byte_size: input.byteSize,
-        processing_status: "uploaded",
+        processing_status: "transcribed",
       })
       .eq("id", audioClip.id);
 
@@ -203,7 +273,8 @@ export async function uploadAttemptAudioClip(
     return {
       ok: true,
       audioClipId: audioClip.id,
-      processingStatus: "uploaded",
+      processingStatus: "transcribed",
+      transcript,
     };
   } catch {
     return { ok: false, error: "db_error", retryable: true };

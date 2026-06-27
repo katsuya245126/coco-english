@@ -21,6 +21,37 @@ type Operation = {
   filters: Array<[string, unknown]>;
 };
 
+function audioInput(overrides: {
+  turnOrder?: number;
+  clipKind?: Database["public"]["Enums"]["audio_clip_kind"];
+  body?: string;
+} = {}) {
+  const body = overrides.body ?? "voice";
+
+  return {
+    studentId: "student-1",
+    assignmentStudentId: "as-1",
+    attemptId: "attempt-1",
+    turnOrder: overrides.turnOrder ?? 1,
+    clipKind: overrides.clipKind ?? "original_answer",
+    file: new Blob([body], { type: "audio/webm" }),
+    mimeType: "audio/webm",
+    durationMs: 1200,
+    byteSize: body.length,
+  };
+}
+
+function successfulTranscriber(text: string) {
+  return vi.fn(async () => ({ ok: true as const, text }));
+}
+
+function failedTranscriber() {
+  return vi.fn(async () => ({
+    ok: false as const,
+    error: "transcription_failed" as const,
+  }));
+}
+
 function createMockSupabase(options: {
   assignmentFound?: boolean;
   attemptFound?: boolean;
@@ -150,22 +181,16 @@ describe("uploadAttemptAudioClip", () => {
       "@/server/student-access/audio-upload"
     );
 
-    const result = await uploadAttemptAudioClip({
-      studentId: "student-1",
-      assignmentStudentId: "as-1",
-      attemptId: "attempt-1",
-      turnOrder: 1,
-      clipKind: "original_answer",
-      file: new Blob(["voice"], { type: "audio/webm" }),
-      mimeType: "audio/webm",
-      durationMs: 1200,
-      byteSize: 5,
+    const transcribe = successfulTranscriber("I like apples.");
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: transcribe,
     });
 
     expect(result).toEqual({
       ok: true,
       audioClipId: "clip-1",
-      processingStatus: "uploaded",
+      processingStatus: "transcribed",
+      transcript: "I like apples.",
     });
 
     const assignmentLookup = mockSupabase.operations.find(
@@ -178,23 +203,23 @@ describe("uploadAttemptAudioClip", () => {
       ]),
     );
     expect(mockSupabase.storage.from).toHaveBeenCalledWith("student-audio");
+    expect(transcribe).toHaveBeenCalledWith({
+      file: expect.any(Blob),
+      mimeType: "audio/webm",
+    });
   });
 
-  it("writes pending and uploaded processing_status metadata", async () => {
+  it("writes pending and transcribed processing_status metadata", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    await uploadAttemptAudioClip({
-      studentId: "student-1",
-      assignmentStudentId: "as-1",
-      attemptId: "attempt-1",
+    await uploadAttemptAudioClip(audioInput({
       turnOrder: 2,
       clipKind: "repeat_attempt",
-      file: new Blob(["repeat"], { type: "audio/webm" }),
-      mimeType: "audio/webm",
-      durationMs: 900,
-      byteSize: 6,
+      body: "repeat",
+    }), {
+      transcribeAudioFile: successfulTranscriber("I like apples very much."),
     });
 
     const clipInsert = mockSupabase.operations.find(
@@ -214,10 +239,62 @@ describe("uploadAttemptAudioClip", () => {
     expect(clipUpdate?.payload).toMatchObject({
       object_key: expect.stringContaining("as-1/attempt-1/2/repeat_attempt-clip-1"),
       mime_type: "audio/webm",
-      duration_ms: 900,
+      duration_ms: 1200,
       byte_size: 6,
-      processing_status: "uploaded",
+      processing_status: "transcribed",
     });
+  });
+
+  it("writes original_transcript through the original answer path", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I want pizza."),
+    });
+
+    const transcriptWrite = mockSupabase.operations.find(
+      (operation) =>
+        operation.table === "attempt_turns" &&
+        operation.action === "upsert" &&
+        typeof operation.payload === "object" &&
+        operation.payload !== null &&
+        "original_transcript" in operation.payload,
+    );
+
+    expect(transcriptWrite?.payload).toMatchObject({
+      original_transcript: "I want pizza.",
+      target_attempted: true,
+      evaluation: expect.objectContaining({
+        version: "placeholder-v1",
+      }),
+    });
+  });
+
+  it("writes repeat_transcript and repeat_accepted through the repeat path", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    await uploadAttemptAudioClip(audioInput({ clipKind: "repeat_attempt" }), {
+      transcribeAudioFile: successfulTranscriber("I want pizza, please."),
+    });
+
+    const transcriptWrite = mockSupabase.operations.find(
+      (operation) =>
+        operation.table === "attempt_turns" &&
+        operation.action === "update" &&
+        typeof operation.payload === "object" &&
+        operation.payload !== null &&
+        "repeat_transcript" in operation.payload,
+    );
+
+    expect(transcriptWrite?.payload).toMatchObject({
+      repeat_transcript: "I want pizza, please.",
+      repeat_accepted: true,
+    });
+    expect(transcriptWrite?.filters).toContainEqual(["id", "turn-1"]);
   });
 
   it("marks the clip failed and returns retryable when storage upload fails", async () => {
@@ -228,16 +305,9 @@ describe("uploadAttemptAudioClip", () => {
       "@/server/student-access/audio-upload"
     );
 
-    const result = await uploadAttemptAudioClip({
-      studentId: "student-1",
-      assignmentStudentId: "as-1",
-      attemptId: "attempt-1",
-      turnOrder: 1,
-      clipKind: "original_answer",
-      file: new Blob(["voice"], { type: "audio/webm" }),
-      mimeType: "audio/webm",
-      durationMs: 1200,
-      byteSize: 5,
+    const transcribe = successfulTranscriber("should not run");
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: transcribe,
     });
 
     expect(result).toEqual({
@@ -254,6 +324,42 @@ describe("uploadAttemptAudioClip", () => {
             "failed",
       ),
     ).toBe(true);
+    expect(transcribe).not.toHaveBeenCalled();
+  });
+
+  it("marks the clip failed when transcription fails and does not write transcript fields", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: failedTranscriber(),
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "transcription_failed_retryable",
+      retryable: true,
+    });
+    expect(
+      mockSupabase.operations.some(
+        (operation) =>
+          operation.table === "audio_clips" &&
+          operation.action === "update" &&
+          (operation.payload as { processing_status?: string }).processing_status ===
+            "failed",
+      ),
+    ).toBe(true);
+    expect(
+      mockSupabase.operations.some(
+        (operation) =>
+          operation.table === "attempt_turns" &&
+          typeof operation.payload === "object" &&
+          operation.payload !== null &&
+          ("original_transcript" in operation.payload ||
+            "repeat_transcript" in operation.payload),
+      ),
+    ).toBe(false);
   });
 
   it("does not upload when assignment ownership does not match", async () => {
@@ -263,15 +369,8 @@ describe("uploadAttemptAudioClip", () => {
     );
 
     const result = await uploadAttemptAudioClip({
+      ...audioInput(),
       studentId: "other-student",
-      assignmentStudentId: "as-1",
-      attemptId: "attempt-1",
-      turnOrder: 1,
-      clipKind: "original_answer",
-      file: new Blob(["voice"], { type: "audio/webm" }),
-      mimeType: "audio/webm",
-      durationMs: 1200,
-      byteSize: 5,
     });
 
     expect(result).toEqual({
