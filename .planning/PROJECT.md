@@ -1,8 +1,10 @@
-# English Speaking Practice App
+# Coco English
 
 ## What This Is
 
-This is a teacher-linked AI speaking homework app for elementary-level ESL learners. Teachers assign short speaking missions based on the target English taught in class, and students complete those missions after class by speaking with a recurring supportive classmate character.
+**Coco English** is a teacher-linked AI speaking homework app for elementary-level ESL learners. Teachers assign short speaking missions based on the target English taught in class, and students complete those missions after class by speaking with a recurring supportive classmate character named **Coco**.
+
+**Naming:** Full name *Coco English* (teacher-facing / marketing / app store). Short form *Coco* (what students see and say in-app). The recurring buddy character is also named *Coco*. The name is chosen to be easy for Korean/ESL learners to pronounce, warm for kids, and credible to teachers.
 
 The app helps teachers close the practice gap between classes: students get more spoken English reps, and teachers can check who completed homework, who missed it, and what each student said.
 
@@ -93,6 +95,7 @@ Source planning docs:
 | Keep missions guided rather than open-ended free chat | Reduces AI drift and keeps practice tied to teacher-provided target English. | — Pending |
 | Use class-level demo/real data mode copied to assignments | Students are class-scoped, and assignment-level copies simplify later audit and retention queries. | Validated in Phase 1 |
 | Keep assignment status transitions server-owned and audited | Client UI, jobs, and future AI should provide requests or evidence, while app code owns final state changes. | Validated in Phase 1 |
+| Name the product and buddy "Coco" (full name: Coco English) | Easy for Korean/ESL kids to pronounce, warm for students, descriptive enough for teachers; buddy and app share one identity. Movie ("Coco") overlap judged low-risk in a different category. | Decided 2026-06-25 |
 
 ## Evolution
 
