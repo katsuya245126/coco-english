@@ -139,7 +139,7 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
 
 **Wave 1**
 
-- [ ] `04-01-PLAN.md` — Swap-isolated foundation units: character-profile module (Coco), placeholder-eval shape, Phase 4 style tokens + db types, and the 4 Wave 0 test scaffolds (AI-06 structural test green).
+- [x] `04-01-PLAN.md` — Swap-isolated foundation units: character-profile module (Coco), placeholder-eval shape, Phase 4 style tokens + db types, and the 4 Wave 0 test scaffolds (AI-06 structural test green). (completed 2026-06-27)
 
 **Wave 2**
 
