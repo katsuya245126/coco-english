@@ -143,26 +143,30 @@ describe("completion helpers: nextUnfinishedTurnOrder (D-06)", () => {
 });
 
 describe("mission flow: start attempt (FLOW-01)", () => {
-  it("startAttempt creates an attempt and transitions assigned -> started", () => {
-    expect(startAttempt).toBeDefined();
+  it("startOrResumeAttempt is exported from the service", async () => {
+    const mod = await import("@/server/student-access/mission-flow");
+    expect(mod.startOrResumeAttempt).toBeDefined();
   });
 });
 
 describe("mission flow: submit answer (FLOW-05)", () => {
-  it("submitAnswer writes original_transcript and placeholder evaluation", () => {
-    expect(submitAnswer).toBeDefined();
+  it("recordAnswer is exported from the service", async () => {
+    const mod = await import("@/server/student-access/mission-flow");
+    expect(mod.recordAnswer).toBeDefined();
   });
 });
 
 describe("mission flow: submit repeat (FLOW-05)", () => {
-  it("submitRepeat writes repeat_transcript and sets repeat_accepted", () => {
-    expect(submitRepeat).toBeDefined();
+  it("recordRepeat is exported from the service", async () => {
+    const mod = await import("@/server/student-access/mission-flow");
+    expect(mod.recordRepeat).toBeDefined();
   });
 });
 
 describe("mission flow: reveal hint (FLOW-07)", () => {
-  it("hint reveal is record-only and never changes completion", () => {
-    expect(revealHint).toBeDefined();
+  it("recordHintReveal is exported from the service", async () => {
+    const mod = await import("@/server/student-access/mission-flow");
+    expect(mod.recordHintReveal).toBeDefined();
   });
 
   it("hints reveal strictly in order tier1 -> tier2 -> tier3", () => {
