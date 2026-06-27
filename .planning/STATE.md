@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 05
-current_phase_name: voice-capture-and-evidence-storage
-status: executing
-stopped_at: Completed 05-05-PLAN.md
-last_updated: "2026-06-27T08:42:08.296Z"
+current_phase: 06
+current_phase_name: ai-mission-and-turn-intelligence
+status: ready
+stopped_at: Phase 05 verified complete (UAT 9/9)
+last_updated: "2026-06-27T18:30:00.000Z"
 last_activity: 2026-06-27
-last_activity_desc: Completed 05-05 gap closure
+last_activity_desc: Phase 05 verified complete; advanced to Phase 06
 progress:
   total_phases: 7
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 18
-  completed_plans: 17
-  percent: 94
+  completed_plans: 18
+  percent: 71
 ---
 
 # Project State
@@ -24,17 +24,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-25)
 
 **Core value:** Students must complete useful spoken English practice outside class, and teachers must be able to verify that it happened.
-**Current focus:** Phase 05 — voice-capture-and-evidence-storage
+**Current focus:** Phase 06 — ai-mission-and-turn-intelligence
 
 ## Current Position
 
-Phase: 05 (voice-capture-and-evidence-storage) — EXECUTING
-Plan: 5 of 5
-Status: Completed 05-05 gap closure; Phase 05 remains in progress pending manual UAT
-Last activity: 2026-06-27 — Completed 05-05 gap closure
-Prior: Phase 04 VERIFIED — UAT 3/3 pass + 1 cosmetic issue FIXED (progress bar reached 100% on final turn, f8c19fb7). Landing page at / shipped (409f62e9). Open backlog: teacher edit/reschedule of existing assignment (Phase 03 gap, no edit path → duplicate assignment).
+Phase: 06 (ai-mission-and-turn-intelligence) — NOT STARTED (next to plan)
+Status: Ready to plan — depends on Phase 05 (complete)
+Last activity: 2026-06-27 — Phase 05 verified complete
+Prior: Phase 05 VERIFIED — UAT 9/9 pass. FK disambiguation fix for evidence queries (25afe7db). Gap closure: teacher evidence navigation added, mic-denied copy made child-friendly. iOS Safari + Android Chrome + desktop teacher evidence all verified on real devices.
 
-Progress: [█████████░] 94%
+Progress: [█████-----] 71%
 
 ## Performance Metrics
 

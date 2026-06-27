@@ -1,7 +1,7 @@
 ---
 phase: 05
 slug: voice-capture-and-evidence-storage
-status: partial
+status: complete
 created: 2026-06-27
 last_updated: 2026-06-27
 ---
@@ -26,9 +26,9 @@ Phase 05 complete until every required row is `Pass` or explicitly
 
 | ID | Requirement | Device / Browser | Steps | Expected Result | Status | Tester / Date | Owner | Follow-up / Notes |
 |----|-------------|------------------|-------|-----------------|--------|---------------|-------|-------------------|
-| UAT-05-01 | iOS Safari microphone prompt and original answer recording | iPhone, iOS Safari version pending | Open assigned mission over HTTPS or localhost. Start original answer recording, allow microphone prompt, stop recording. | Permission prompt appears; recording starts/stops; "Saving your voice..." and "Listening to your answer..." states are understandable; original transcript appears before progression. | Deferred | John / 2026-06-27 | Product/QA | iPhone not available. Must test before closeout or explicitly risk-accept. |
-| UAT-05-02 | iOS Safari repeat recording | iPhone, iOS Safari version pending | Continue to improved sentence. Record repeat attempt, stop recording, wait for transcript. | Repeat transcript appears; flow continues only after repeat transcript is available; active recorder stays visible on 375px viewport. | Deferred | John / 2026-06-27 | Product/QA | iPhone not available. Must test before closeout or explicitly risk-accept. |
-| UAT-05-03 | iOS Safari retry states | iPhone, iOS Safari version pending | Deny microphone once or force upload/transcription failure if available, then retry. | Denied/failed state uses child-friendly copy and allows retry without technical error strings. | Deferred | John / 2026-06-27 | Product/QA | iPhone not available. Must test before closeout or explicitly risk-accept. |
+| UAT-05-01 | iOS Safari microphone prompt and original answer recording | iPhone, iOS Safari | Open assigned mission over HTTPS or localhost. Start original answer recording, allow microphone prompt, stop recording. | Permission prompt appears; recording starts/stops; "Saving your voice..." and "Listening to your answer..." states are understandable; original transcript appears before progression. | Pass | John / 2026-06-27 | Product/QA | iOS Safari recording and transcription passed. |
+| UAT-05-02 | iOS Safari repeat recording | iPhone, iOS Safari | Continue to improved sentence. Record repeat attempt, stop recording, wait for transcript. | Repeat transcript appears; flow continues only after repeat transcript is available; active recorder stays visible on 375px viewport. | Pass | John / 2026-06-27 | Product/QA | iOS Safari repeat recording, transcription, and flow progression passed. |
+| UAT-05-03 | iOS Safari retry states | iPhone, iOS Safari | Deny microphone once or force upload/transcription failure if available, then retry. | Denied/failed state uses child-friendly copy and allows retry without technical error strings. | Pass | John / 2026-06-27 | Product/QA | iOS Safari mic-denied copy passed. |
 | UAT-05-04 | Android Chrome microphone prompt and original answer recording | Android phone, Chrome version not recorded | Open assigned mission over HTTPS or localhost. Start original answer recording, allow microphone prompt, stop recording. | Permission prompt appears; recording starts/stops; "Saving your voice..." and "Listening to your answer..." states are understandable; original transcript appears before progression. | Pass | John / 2026-06-27 | Product/QA | Android Chrome recording and transcription passed. |
 | UAT-05-05 | Android Chrome repeat recording | Android phone, Chrome version not recorded | Continue to improved sentence. Record repeat attempt, stop recording, wait for transcript. | Repeat transcript appears; flow continues only after repeat transcript is available; active recorder stays visible on 375px viewport. | Pass | John / 2026-06-27 | Product/QA | Android Chrome repeat recording, transcription, and flow progression passed. |
 | UAT-05-06 | Android Chrome retry states | Android phone, Chrome version not recorded | Deny microphone once or force upload/transcription failure if available, then retry. | Denied/failed state uses child-friendly copy and allows retry without technical error strings. | Pass | John + executor / 2026-06-27 | Product/QA | Retry behavior passed on Android Chrome. Gap closure changed denied copy to "Ask a grown-up to turn on the mic, then record again." and verified with `npx tsc --noEmit` plus source scan. |
@@ -39,10 +39,10 @@ Phase 05 complete until every required row is `Pass` or explicitly
 ## Summary
 
 total: 9
-passed: 7
+passed: 9
 issues: 0
 pending: 0
-deferred: 3
+deferred: 0
 blocked: 0
 
 ## Risk Acceptance
