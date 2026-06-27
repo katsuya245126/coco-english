@@ -128,7 +128,7 @@ export function VoiceRecorderControl({
         (error.name === "NotAllowedError" || error.name === "SecurityError");
       if (isPermissionError) {
         setErrorMessage(
-          "Microphone permission is blocked. Allow the microphone, then try again.",
+          "Ask a grown-up to turn on the mic, then record again.",
         );
         setState("permission-denied");
       } else {
@@ -199,7 +199,7 @@ export function VoiceRecorderControl({
     if (state === "permission-denied") {
       return (
         errorMessage ??
-        "Microphone permission is blocked. Allow the microphone, then try again."
+        "Ask a grown-up to turn on the mic, then record again."
       );
     }
     if (state === "failure") {
