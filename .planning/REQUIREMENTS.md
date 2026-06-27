@@ -55,13 +55,13 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 
 ### Student Speaking Mission
 
-- [ ] **FLOW-01**: Student can see assigned homework and start a mission.
-- [ ] **FLOW-02**: Buddy asks short classroom-safe questions tied to the assigned mission.
+- [x] **FLOW-01**: Student can see assigned homework and start a mission.
+- [x] **FLOW-02**: Buddy asks short classroom-safe questions tied to the assigned mission.
 - [ ] **FLOW-03**: Student answers each mission turn by voice.
-- [ ] **FLOW-04**: System shows a better target-form sentence after the original answer.
-- [ ] **FLOW-05**: Student must repeat the improved target-form sentence by voice.
-- [ ] **FLOW-06**: Mission completes after the required number of speaking turns and repeat attempts are satisfied.
-- [ ] **FLOW-07**: Student can reveal progressive hints: target pattern, word bank, then full example.
+- [x] **FLOW-04**: System shows a better target-form sentence after the original answer.
+- [x] **FLOW-05**: Student must repeat the improved target-form sentence by voice.
+- [x] **FLOW-06**: Mission completes after the required number of speaking turns and repeat attempts are satisfied.
+- [x] **FLOW-07**: Student can reveal progressive hints: target pattern, word bank, then full example.
 
 ### Audio And Transcription
 
@@ -78,7 +78,7 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 - [ ] **AI-03**: System produces a better target-form sentence for understandable answers.
 - [ ] **AI-04**: System evaluates whether the repeat attempt is close enough for the mission level.
 - [ ] **AI-05**: System routes low-confidence, failed-schema, or ambiguous evaluations to teacher review instead of pretending certainty.
-- [ ] **AI-06**: System keeps AI responses bounded to the assigned mission and blocks open-ended private chat.
+- [x] **AI-06**: System keeps AI responses bounded to the assigned mission and blocks open-ended private chat.
 
 ### Teacher Review
 
@@ -91,14 +91,14 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 
 ### Character And Safety
 
-- [ ] **CHAR-01**: MVP uses one recurring supportive classmate buddy.
-- [ ] **CHAR-02**: Buddy tone is friendly, simple, encouraging, and classroom-safe.
-- [ ] **CHAR-03**: Buddy does not use romance, dating mechanics, harsh correction, complex jokes, or long off-topic chatting.
-- [ ] **CHAR-04**: Character profile is separated from mission logic so the app can support more characters later.
+- [x] **CHAR-01**: MVP uses one recurring supportive classmate buddy.
+- [x] **CHAR-02**: Buddy tone is friendly, simple, encouraging, and classroom-safe.
+- [x] **CHAR-03**: Buddy does not use romance, dating mechanics, harsh correction, complex jokes, or long off-topic chatting.
+- [x] **CHAR-04**: Character profile is separated from mission logic so the app can support more characters later.
 
 ### Pilot Readiness
 
-- [ ] **PILOT-01**: System has a mobile-responsive student flow for common phone/tablet browser sizes.
+- [x] **PILOT-01**: System has a mobile-responsive student flow for common phone/tablet browser sizes.
 - [ ] **PILOT-02**: System includes basic microphone permission and recording failure handling.
 - [ ] **PILOT-03**: System includes basic logging for assignment completion, audio processing, transcription, and AI evaluation failures.
 - [ ] **PILOT-04**: System includes a basic retention/deletion path for stored audio clips.
@@ -179,13 +179,13 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 | ASGN-03 | Phase 3 | Complete |
 | ASGN-04 | Phase 1 | Complete |
 | ASGN-05 | Phase 7 | Pending |
-| FLOW-01 | Phase 4 | Pending |
-| FLOW-02 | Phase 4 | Pending |
+| FLOW-01 | Phase 4 | Complete |
+| FLOW-02 | Phase 4 | Complete |
 | FLOW-03 | Phase 5 | Pending |
-| FLOW-04 | Phase 4 | Pending |
-| FLOW-05 | Phase 4 | Pending |
-| FLOW-06 | Phase 4 | Pending |
-| FLOW-07 | Phase 4 | Pending |
+| FLOW-04 | Phase 4 | Complete |
+| FLOW-05 | Phase 4 | Complete |
+| FLOW-06 | Phase 4 | Complete |
+| FLOW-07 | Phase 4 | Complete |
 | AUDIO-01 | Phase 5 | Pending |
 | AUDIO-02 | Phase 5 | Pending |
 | AUDIO-03 | Phase 5 | Pending |
@@ -196,18 +196,18 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 | AI-03 | Phase 6 | Pending |
 | AI-04 | Phase 6 | Pending |
 | AI-05 | Phase 6 | Pending |
-| AI-06 | Phase 4 | Pending |
+| AI-06 | Phase 4 | Complete |
 | REV-01 | Phase 7 | Pending |
 | REV-02 | Phase 7 | Pending |
 | REV-03 | Phase 7 | Pending |
 | REV-04 | Phase 7 | Pending |
 | REV-05 | Phase 5 | Pending |
 | REV-06 | Phase 7 | Pending |
-| CHAR-01 | Phase 4 | Pending |
-| CHAR-02 | Phase 4 | Pending |
-| CHAR-03 | Phase 4 | Pending |
-| CHAR-04 | Phase 4 | Pending |
-| PILOT-01 | Phase 4 | Pending |
+| CHAR-01 | Phase 4 | Complete |
+| CHAR-02 | Phase 4 | Complete |
+| CHAR-03 | Phase 4 | Complete |
+| CHAR-04 | Phase 4 | Complete |
+| PILOT-01 | Phase 4 | Complete |
 | PILOT-02 | Phase 5 | Pending |
 | PILOT-03 | Phase 7 | Pending |
 | PILOT-04 | Phase 7 | Pending |

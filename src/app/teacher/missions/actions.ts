@@ -16,6 +16,9 @@ import {
 const GENERIC_FAILURE =
   "We could not save the mission. Check the highlighted fields and try again.";
 
+const ASSIGN_FAILURE =
+  "We could not assign this mission. Please try again.";
+
 export type MissionActionResult =
   | { ok: true; missionId: string }
   | { ok: false; error: string };
@@ -119,7 +122,7 @@ export async function assignMissionAction(
   });
 
   if (!parsed.success) {
-    return { ok: false, error: GENERIC_FAILURE };
+    return { ok: false, error: ASSIGN_FAILURE };
   }
 
   try {
@@ -136,6 +139,6 @@ export async function assignMissionAction(
       activeStudentCount: result.activeStudentCount,
     };
   } catch {
-    return { ok: false, error: GENERIC_FAILURE };
+    return { ok: false, error: ASSIGN_FAILURE };
   }
 }

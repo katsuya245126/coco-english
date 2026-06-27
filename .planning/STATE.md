@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 03
-current_phase_name: manual-mission-assignment
-status: executing
-stopped_at: Phase 3 plan 02 complete; plan 03 ready
-last_updated: "2026-06-26T07:12:35.948Z"
-last_activity: 2026-06-26
-last_activity_desc: Phase 03 plan 02 closed out; migration 202606250005 applied remotely
+current_phase: 05
+current_phase_name: voice-capture-and-evidence-storage
+status: ready
+stopped_at: Phase 04 verified (UAT 3/3 + 1 fixed)
+last_updated: "2026-06-27T11:55:00.000Z"
+last_activity: 2026-06-27
+last_activity_desc: Phase 04 verified complete; advanced to Phase 05
 progress:
   total_phases: 7
-  completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
-  percent: 43
+  completed_phases: 4
+  total_plans: 13
+  completed_plans: 13
+  percent: 57
 ---
 
 # Project State
@@ -24,16 +24,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-25)
 
 **Core value:** Students must complete useful spoken English practice outside class, and teachers must be able to verify that it happened.
-**Current focus:** Phase 03 — manual-mission-assignment
+**Current focus:** Phase 05 — voice-capture-and-evidence-storage
 
 ## Current Position
 
-Phase: 03 (manual-mission-assignment) — EXECUTING
-Plan: 3 of 3
-Status: 03-02 complete (assignment flow); 03-03 ready to execute
-Last activity: 2026-06-26 — Phase 03 plan 02 closed out; migration 202606250005 applied remotely
+Phase: 05 (voice-capture-and-evidence-storage) — NOT STARTED (next to plan)
+Status: Ready to plan — depends on Phase 04 (complete)
+Last activity: 2026-06-27 — Phase 04 verified complete
+Prior: Phase 04 VERIFIED — UAT 3/3 pass + 1 cosmetic issue FIXED (progress bar reached 100% on final turn, f8c19fb7). Landing page at / shipped (409f62e9). Open backlog: teacher edit/reschedule of existing assignment (Phase 03 gap, no edit path → duplicate assignment).
 
-Progress: [###-------] 33%
+Progress: [####------] 57%
 
 ## Performance Metrics
 
@@ -61,6 +61,11 @@ Progress: [###-------] 33%
 | Phase 02 P03 | 7min | 2 tasks | 12 files |
 | Phase 02 P04 | 25min | 5 tasks | 17 files |
 | Phase 03 P03-03 | 7min | 3 tasks | 6 files |
+| Phase 04 P01 | 4min | 3 tasks | 9 files |
+| Phase 04 P02 | 3min | 3 tasks | 4 files |
+| Phase 04 P03 | 5min | 3 tasks | 4 files |
+| Phase 04 P04 | 8min | 3 tasks | 6 files |
+| Phase 04 P05 | 8min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -83,6 +88,17 @@ Recent decisions affecting current work:
 - [Phase 03]: 03-02: Mission assignment is one atomic SECURITY DEFINER RPC (assign_mission_to_class, migration 202606250005) — assignment row + per-active-student rows + assigned status events in a single transaction (T-03-07).
 - [Phase 03]: 03-02: Mission snapshot is assembled and validated server-side via missionSnapshotSchema before the RPC; the browser only passes mission id, class id, and optional due date (T-03-04). RPC verifies caller owns both class and mission before any insert (T-03-05).
 - [Phase ?]: 03-03: Global focus-visible rings via root layout style block; aria-describedby wiring for field errors and help text; success auto-dismiss after 5 seconds.
+- [Phase ?]: 04-01: Character profile uses DEFAULT_CHARACTER_ID import (no duplicate literal); placeholder evaluation version 'placeholder-v1' as const for Phase 6 swap detection
+- [Phase ?]: 04-02: Read-time display status (start/continue/done/closed) computed from due_at + DB status without mutating rows (D-14)
+- [Phase ?]: 04-03: Completion helpers key flow control on transcript + repeat_accepted only; evaluation field never read (D-06 isolation for Phase 6 swap)
+- [Phase ?]: 04-03: GREATEST semantics for hint rollup via Math.max in app code (Supabase JS lacks SQL GREATEST in update)
+- [Phase ?]: 04-03: Service functions accept studentId param from action layer; service-role logic stays isolated from cookie reads
+- [Phase ?]: 04-04: Resume position computed SSR-side from existing attempt turns; 0-based startingTurnIndex passed to shell
+- [Phase ?]: 04-04: Lazy attempt creation via ensureAttempt pattern -- startAttemptAction called only on first answer submit
+- [Phase ?]: 04-04: HintRevealer uses display:none/block with aria-hidden for consistent disclosure DOM structure
+- [Phase ?]: 04-05: completeAttempt re-derives completeness server-side via isAttemptComplete; client cannot force completion (T-04-15)
+- [Phase ?]: 04-05: Completion audit event only written when conditional UPDATE succeeds (Pitfall 3 idempotency; no duplicate events)
+- [Phase ?]: 04-05: Resume notice auto-dismisses after 5s or first answer submit, whichever comes first (D-04)
 
 ### Pending Todos
 
@@ -103,6 +119,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-26T07:11:58.387Z
-Stopped at: Phase 3 planned
-Resume file: .planning/phases/03-manual-mission-assignment/03-01-PLAN.md
+Last session: 2026-06-27T01:48:28Z
+Stopped at: Completed 04-05-PLAN.md
+Resume file: None

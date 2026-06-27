@@ -97,3 +97,108 @@ export const errorTextStyle: CSSProperties = {
   color: "#B42318",
   margin: "8px 0 0",
 };
+
+// ─── Phase 4: Step card + buddy + improved sentence + hint tokens ───
+
+export const stepCardStyle: CSSProperties = {
+  background: "#FFFFFF",
+  border: "1px solid #D1D5DB",
+  borderRadius: 8,
+  padding: 24,
+  boxSizing: "border-box",
+};
+
+export const buddyCardStyle: CSSProperties = {
+  background: "#EFF6FF",
+  border: "1px solid #BFDBFE",
+  borderRadius: 8,
+  padding: 16,
+  boxSizing: "border-box",
+};
+
+export const improvedSentenceCardStyle: CSSProperties = {
+  background: "#F0FDF4",
+  border: "1px solid #BBF7D0",
+  borderRadius: 8,
+  padding: 16,
+  boxSizing: "border-box",
+};
+
+export const hintCardStyle: CSSProperties = {
+  background: "#FFFFFF",
+  border: "1px solid #E5E7EB",
+  borderRadius: 8,
+  padding: 12,
+  boxSizing: "border-box",
+};
+
+// ─── Phase 4: Progress bar tokens ───
+
+export const progressTrackStyle: CSSProperties = {
+  height: 4,
+  background: "#E5E7EB",
+  borderRadius: 9999,
+  width: "100%",
+  overflow: "hidden",
+};
+
+export const progressFillStyle: CSSProperties = {
+  height: "100%",
+  background: "#2563EB",
+  borderRadius: 9999,
+  transition: "width 0.3s ease",
+};
+
+// ─── Phase 4: Resume notice ───
+
+export const resumeNoticeStyle: CSSProperties = {
+  background: "#F7F8FA",
+  border: "1px solid #E5E7EB",
+  borderRadius: 8,
+  padding: 12,
+  boxSizing: "border-box",
+};
+
+// ─── Phase 4: Status badge tokens ───
+
+export const statusBadgeBaseStyle: CSSProperties = {
+  borderRadius: 9999,
+  paddingTop: 4,
+  paddingBottom: 4,
+  paddingLeft: 12,
+  paddingRight: 12,
+  fontSize: 14,
+  fontWeight: 600,
+  lineHeight: 1.4,
+  display: "inline-block",
+  textAlign: "center",
+  whiteSpace: "nowrap",
+};
+
+export const badgeStartStyle: CSSProperties = {
+  ...statusBadgeBaseStyle,
+  background: "#2563EB",
+  color: "#FFFFFF",
+  border: "none",
+};
+
+export const badgeContinueStyle: CSSProperties = {
+  ...statusBadgeBaseStyle,
+  background: "#FFFFFF",
+  color: "#2563EB",
+  border: "1px solid #2563EB",
+};
+
+export const badgeDoneStyle: CSSProperties = {
+  ...statusBadgeBaseStyle,
+  background: "#F0FDF4",
+  color: "#177245",
+  border: "1px solid #BBF7D0",
+};
+
+export const badgeClosedStyle: CSSProperties = {
+  ...statusBadgeBaseStyle,
+  background: "#F7F8FA",
+  color: "#6B7280",
+  border: "1px solid #E5E7EB",
+};

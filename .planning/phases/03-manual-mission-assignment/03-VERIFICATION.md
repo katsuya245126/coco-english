@@ -1,10 +1,11 @@
 ---
 phase: 03-manual-mission-assignment
-verified: 2026-06-26T16:20:00Z
-status: human_needed
+verified: 2026-06-26T17:30:00Z
+status: verified
 score: 4/4 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
+human_verification_result: "All 5 human-verification items passed via /gsd-verify-work (03-UAT.md). One blocker found and fixed in-session: assign_mission_to_class RPC raised 'column reference assignment_id is ambiguous' (migration 202606260001). One cosmetic gap remains open: no save-confirmation message after mission save (see 03-UAT.md Gaps)."
 human_verification:
   - test: "Open /teacher/missions/new in a browser. Fill in title, target pattern, topic, select a level, author 2 turns with prompts, target examples, and all 3 hint tiers. Click Save mission. Verify the edit page loads with the saved content."
     expected: "All fields persist. The edit page shows the saved mission with both turns intact. Level is the selected value. No due date field appears on the mission form."
@@ -26,8 +27,8 @@ human_verification:
 # Phase 3: Manual Mission Assignment Verification Report
 
 **Phase Goal:** Teachers can create a complete mission by hand, assign it to a class, and produce stable per-student homework records.
-**Verified:** 2026-06-26T16:20:00Z
-**Status:** human_needed
+**Verified:** 2026-06-26T17:30:00Z
+**Status:** verified (human UAT complete — 5/5 pass; 1 blocker fixed in-session, 1 cosmetic gap open)
 **Re-verification:** No -- initial verification
 
 ## User Flow Coverage
