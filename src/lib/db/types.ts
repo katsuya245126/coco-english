@@ -234,3 +234,45 @@ export type Database = {
     CompositeTypes: Record<string, never>;
   };
 };
+
+// ─── Phase 4 row types (mirror foundation schema columns) ───
+
+export type AttemptRow = {
+  id: string;
+  assignment_student_id: string;
+  status: Database["public"]["Enums"]["attempt_status"];
+  started_at: string;
+  completed_at: string | null;
+  needs_review_reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AttemptTurnRow = {
+  id: string;
+  attempt_id: string;
+  mission_turn_template_id: string | null;
+  turn_order: number;
+  original_transcript: string | null;
+  improved_sentence: string | null;
+  repeat_transcript: string | null;
+  evaluation: Json;
+  target_attempted: boolean | null;
+  repeat_accepted: boolean | null;
+  hint_level_used: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AssignmentStudentRow = {
+  id: string;
+  assignment_id: string;
+  student_id: string;
+  status: Database["public"]["Enums"]["assignment_student_status"];
+  attempt_count: number;
+  submitted_at: string | null;
+  highest_hint_level: number;
+  latest_attempt_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
