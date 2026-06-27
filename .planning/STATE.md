@@ -4,17 +4,17 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 04
 current_phase_name: guided-student-attempt-loop
-status: executing
+status: verifying
 stopped_at: Completed 04-04-PLAN.md
-last_updated: "2026-06-27T01:36:04.796Z"
+last_updated: "2026-06-27T01:50:18.061Z"
 last_activity: 2026-06-27
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 7
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 13
-  completed_plans: 12
-  percent: 43
+  completed_plans: 13
+  percent: 57
 ---
 
 # Project State
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-06-25)
 
 Phase: 04 (guided-student-attempt-loop) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-27 — Phase 04 execution started
 Prior: Phase 03 VERIFIED — UAT 5/5; assign RPC ambiguous-column blocker fixed (migration 202606260001). 1 cosmetic gap open (no save-confirmation; see 03-UAT.md).
 
@@ -66,6 +66,7 @@ Progress: [###-------] 33%
 | Phase 04 P02 | 3min | 3 tasks | 4 files |
 | Phase 04 P03 | 5min | 3 tasks | 4 files |
 | Phase 04 P04 | 8min | 3 tasks | 6 files |
+| Phase 04 P05 | 8min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 04-04: Resume position computed SSR-side from existing attempt turns; 0-based startingTurnIndex passed to shell
 - [Phase ?]: 04-04: Lazy attempt creation via ensureAttempt pattern -- startAttemptAction called only on first answer submit
 - [Phase ?]: 04-04: HintRevealer uses display:none/block with aria-hidden for consistent disclosure DOM structure
+- [Phase ?]: 04-05: completeAttempt re-derives completeness server-side via isAttemptComplete; client cannot force completion (T-04-15)
+- [Phase ?]: 04-05: Completion audit event only written when conditional UPDATE succeeds (Pitfall 3 idempotency; no duplicate events)
+- [Phase ?]: 04-05: Resume notice auto-dismisses after 5s or first answer submit, whichever comes first (D-04)
 
 ### Pending Todos
 
@@ -116,6 +120,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-27T01:36:04.788Z
-Stopped at: Completed 04-04-PLAN.md
+Last session: 2026-06-27T01:48:28Z
+Stopped at: Completed 04-05-PLAN.md
 Resume file: None

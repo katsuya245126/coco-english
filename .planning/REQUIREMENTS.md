@@ -60,7 +60,7 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 - [ ] **FLOW-03**: Student answers each mission turn by voice.
 - [x] **FLOW-04**: System shows a better target-form sentence after the original answer.
 - [x] **FLOW-05**: Student must repeat the improved target-form sentence by voice.
-- [ ] **FLOW-06**: Mission completes after the required number of speaking turns and repeat attempts are satisfied.
+- [x] **FLOW-06**: Mission completes after the required number of speaking turns and repeat attempts are satisfied.
 - [x] **FLOW-07**: Student can reveal progressive hints: target pattern, word bank, then full example.
 
 ### Audio And Transcription
@@ -184,7 +184,7 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 | FLOW-03 | Phase 5 | Pending |
 | FLOW-04 | Phase 4 | Complete |
 | FLOW-05 | Phase 4 | Complete |
-| FLOW-06 | Phase 4 | Pending |
+| FLOW-06 | Phase 4 | Complete |
 | FLOW-07 | Phase 4 | Complete |
 | AUDIO-01 | Phase 5 | Pending |
 | AUDIO-02 | Phase 5 | Pending |

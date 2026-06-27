@@ -14,7 +14,7 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
 - [x] **Phase 1: Data, Privacy, and Workflow Foundation** - Establish the relational source of truth, server-owned statuses, privacy boundaries, and demo-data separation.
 - [x] **Phase 2: Teacher Classroom Access** - Teachers can manage classes and rosters, and students can enter homework without email/password accounts. (completed 2026-06-26)
 - [x] **Phase 3: Manual Mission Assignment** - Teachers can manually create a mission and assign immutable homework to every student in a class. (completed 2026-06-26)
-- [ ] **Phase 4: Guided Student Attempt Loop** - Students can complete the mission flow with classroom-safe buddy prompts, recasts, repeats, hints, and completion rules.
+- [x] **Phase 4: Guided Student Attempt Loop** - Students can complete the mission flow with classroom-safe buddy prompts, recasts, repeats, hints, and completion rules. (completed 2026-06-27)
 - [ ] **Phase 5: Voice Capture and Evidence Storage** - Students record short per-turn clips, transcripts and clip metadata are stored, and teachers can play audio on demand.
 - [ ] **Phase 6: AI Mission and Turn Intelligence** - AI generates validated mission drafts and evaluates student turns with structured, bounded, reviewable outputs.
 - [ ] **Phase 7: Teacher Review and Pilot Readiness** - Teachers can scan status buckets, review attempts, override outcomes, and run the MVP safely in a pilot.
@@ -129,13 +129,13 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
   4. Student can reveal progressive hints in order: target pattern, word bank, then full example.
   5. Mission completes only after the required number of turns and repeat attempts are satisfied.
 
-**Plans**: 4/5 plans executed
+**Plans**: 5/5 plans complete
 
 - [x] 04-01-PLAN.md
 - [x] 04-02-PLAN.md
 - [x] 04-03-PLAN.md
 - [x] 04-04-PLAN.md
-- [ ] 04-05-PLAN.md
+- [x] 04-05-PLAN.md
 
 **Wave 1**
 
@@ -242,7 +242,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 1. Data, Privacy, and Workflow Foundation | 1/1 | Complete | 2026-06-25 |
 | 2. Teacher Classroom Access | 4/4 | Complete    | 2026-06-26 |
 | 3. Manual Mission Assignment | 3/3 | Complete   | 2026-06-26 |
-| 4. Guided Student Attempt Loop | 4/5 | In Progress|  |
+| 4. Guided Student Attempt Loop | 5/5 | Complete   | 2026-06-27 |
 | 5. Voice Capture and Evidence Storage | 0/TBD | Not started | - |
 | 6. AI Mission and Turn Intelligence | 0/TBD | Not started | - |
 | 7. Teacher Review and Pilot Readiness | 0/TBD | Not started | - |
