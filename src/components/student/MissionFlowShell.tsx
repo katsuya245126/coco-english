@@ -10,17 +10,23 @@
  * All buddy/sentence text comes from snapshot + static profile — no AI client.
  */
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import type { MissionSnapshotTurn } from "@/domain/mission/schemas";
 import {
   startAttemptAction,
   submitAnswerAction,
   submitRepeatAction,
   revealHintAction,
+  completeMissionAction,
 } from "@/app/student/missions/[assignmentStudentId]/actions";
-import { displayTitleStyle } from "@/components/student/styles";
+import {
+  displayTitleStyle,
+  resumeNoticeStyle,
+} from "@/components/student/styles";
 import { StepBuddyQuestion } from "@/components/student/StepBuddyQuestion";
 import { StepImprovedRepeat } from "@/components/student/StepImprovedRepeat";
+import { StepTurnTransition } from "@/components/student/StepTurnTransition";
+import { StepMissionComplete } from "@/components/student/StepMissionComplete";
 import { TurnProgressBar } from "@/components/student/TurnProgressBar";
 
 // ─── Types ───
@@ -78,6 +84,15 @@ export function MissionFlowShell({
   const [isPending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
 
+  // ─── Resume notice (D-04) ───
+  const [showResumeNotice, setShowResumeNotice] = useState(isResume);
+
+  useEffect(() => {
+    if (!showResumeNotice) return;
+    const timer = setTimeout(() => setShowResumeNotice(false), 5000);
+    return () => clearTimeout(timer);
+  }, [showResumeNotice]);
+
   const currentTurn = turns[flow.turnIndex];
   // 1-based turn number for display
   const currentTurnNumber = flow.turnIndex + 1;
@@ -99,6 +114,8 @@ export function MissionFlowShell({
 
   function handleSubmitAnswer(answer: string) {
     setActionError(null);
+    // Dismiss resume notice on first submit (D-04)
+    setShowResumeNotice(false);
     startTransition(async () => {
       const aid = await ensureAttempt();
       if (!aid) return;
@@ -139,10 +156,31 @@ export function MissionFlowShell({
       });
 
       if (result.ok) {
-        setFlow((prev) => ({
-          ...prev,
-          step: "transition",
-        }));
+        // Determine next step: final turn triggers completion, otherwise transition
+        const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
+
+        if (isFinalTurn) {
+          // Call server-owned completion (FLOW-06, D-06)
+          const completeResult = await completeMissionAction({
+            assignmentStudentId,
+            attemptId: aid,
+            requiredTurns,
+          });
+
+          if (completeResult.ok) {
+            setFlow((prev) => ({
+              ...prev,
+              step: "complete",
+            }));
+          } else {
+            setActionError("Something went wrong. Try again, or ask your teacher for help.");
+          }
+        } else {
+          setFlow((prev) => ({
+            ...prev,
+            step: "transition",
+          }));
+        }
       } else {
         setActionError("Something went wrong. Try again, or ask your teacher for help.");
       }
@@ -175,12 +213,6 @@ export function MissionFlowShell({
         hintLevel: 0,
         originalAnswer: "",
       });
-    } else {
-      // All turns done -- show completion placeholder (wired in plan 05).
-      setFlow((prev) => ({
-        ...prev,
-        step: "complete",
-      }));
     }
   }
 
@@ -191,6 +223,28 @@ export function MissionFlowShell({
       {/* Page header */}
       <h1 style={displayTitleStyle}>{missionTitle}</h1>
       <TurnProgressBar current={currentTurnNumber} total={requiredTurns} />
+
+      {/* Resume notice (D-04) */}
+      {showResumeNotice && (
+        <div
+          style={{
+            ...resumeNoticeStyle,
+            marginTop: 16,
+            marginBottom: 0,
+          }}
+        >
+          <p
+            style={{
+              fontSize: 16,
+              color: "#4B5563",
+              margin: 0,
+              lineHeight: 1.5,
+            }}
+          >
+            Welcome back! Picking up where you left off.
+          </p>
+        </div>
+      )}
 
       {/* Step card area */}
       <div style={{ marginTop: 24 }} aria-live="polite">
@@ -224,41 +278,17 @@ export function MissionFlowShell({
         )}
 
         {flow.step === "transition" && (
-          <div style={{ textAlign: "center", padding: 24 }}>
-            <p style={{ fontSize: 16, color: "#177245", margin: "0 0 16px" }}>
-              {characterProfile.turnTransition}
-            </p>
-            <button
-              type="button"
-              style={{
-                width: "100%",
-                minHeight: 44,
-                padding: "12px 16px",
-                background: "#2563EB",
-                color: "#FFFFFF",
-                border: "none",
-                borderRadius: 6,
-                fontSize: 16,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-              onClick={handleNextTurn}
-            >
-              Next turn
-            </button>
-          </div>
+          <StepTurnTransition
+            transitionMessage={characterProfile.turnTransition}
+            onNextTurn={handleNextTurn}
+          />
         )}
 
         {flow.step === "complete" && (
-          <div style={{ textAlign: "center", padding: 24 }}>
-            <h2 style={{ fontSize: 28, fontWeight: 600, color: "#111827", margin: 0 }}>
-              {characterProfile.completionHeading}
-            </h2>
-            <p style={{ fontSize: 16, color: "#4B5563", margin: "8px 0 0" }}>
-              {characterProfile.completionBody}
-            </p>
-            {/* Back-to-homework button wired in plan 05 */}
-          </div>
+          <StepMissionComplete
+            completionHeading={characterProfile.completionHeading}
+            completionBody={characterProfile.completionBody}
+          />
         )}
       </div>
     </div>
