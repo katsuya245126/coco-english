@@ -132,6 +132,40 @@ export const hintCardStyle: CSSProperties = {
   boxSizing: "border-box",
 };
 
+// ─── Phase 5: Voice recorder tokens ───
+
+export const recorderPanelStyle: CSSProperties = {
+  background: "#FFFFFF",
+  border: "1px solid #D1D5DB",
+  borderRadius: 8,
+  padding: 16,
+  boxSizing: "border-box",
+};
+
+export const recorderRecordingStyle: CSSProperties = {
+  ...recorderPanelStyle,
+  background: "#FEF2F2",
+  border: "1px solid #FCA5A5",
+};
+
+export const recorderProcessingStyle: CSSProperties = {
+  ...recorderPanelStyle,
+  background: "#FFFBEB",
+  border: "1px solid #FDE68A",
+};
+
+export const recorderSuccessStyle: CSSProperties = {
+  ...recorderPanelStyle,
+  background: "#F0FDF4",
+  border: "1px solid #BBF7D0",
+};
+
+export const recorderErrorStyle: CSSProperties = {
+  ...recorderPanelStyle,
+  background: "#FEF2F2",
+  border: "1px solid #FCA5A5",
+};
+
 // ─── Phase 4: Progress bar tokens ───
 
 export const progressTrackStyle: CSSProperties = {

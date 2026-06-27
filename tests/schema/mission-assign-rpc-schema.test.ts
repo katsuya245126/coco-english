@@ -54,7 +54,9 @@ describe("assign_mission_to_class ambiguous-column fix migration", () => {
     expect(sql).toMatch(/out_active_student_count\s+integer/i);
     expect(sql).toMatch(/out_class_name\s+text/i);
     // The bare OUT name `assignment_id` must NOT appear as a RETURNS TABLE column.
-    expect(sql).not.toMatch(/returns\s+table\s*\([^)]*\bassignment_id\s+uuid/is);
+    expect(sql).not.toMatch(
+      /returns\s+table\s*\([^)]*\bassignment_id\s+uuid/i,
+    );
     // Grant must be re-issued after the drop.
     expect(sql).toMatch(
       /grant\s+execute\s+on\s+function\s+public\.assign_mission_to_class/i,

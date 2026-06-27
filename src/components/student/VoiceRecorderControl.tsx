@@ -1,0 +1,289 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import {
+  canUseBrowserRecorder,
+  getSupportedAudioMimeType,
+  MAX_RECORDING_MS,
+} from "@/domain/audio/recorder";
+import {
+  primaryButtonStyle,
+  recorderErrorStyle,
+  recorderPanelStyle,
+  recorderProcessingStyle,
+  recorderRecordingStyle,
+  recorderSuccessStyle,
+  secondaryButtonStyle,
+} from "@/components/student/styles";
+
+export type VoiceRecordingMetadata = {
+  mimeType: string;
+  durationMs: number;
+};
+
+type RecorderMode = "original" | "repeat";
+type RecorderState =
+  | "ready"
+  | "waiting-permission"
+  | "recording"
+  | "processing"
+  | "unsupported"
+  | "permission-denied"
+  | "failure"
+  | "success";
+
+type VoiceRecorderControlProps = {
+  mode: RecorderMode;
+  disabled?: boolean;
+  onRecorded: (
+    blob: Blob,
+    metadata: VoiceRecordingMetadata,
+  ) => void | Promise<void>;
+};
+
+const readyCopy: Record<RecorderMode, string> = {
+  original: "Tap record and answer Coco.",
+  repeat: "Tap record and repeat the sentence.",
+};
+
+export function VoiceRecorderControl({
+  mode,
+  disabled = false,
+  onRecorded,
+}: VoiceRecorderControlProps) {
+  const [state, setState] = useState<RecorderState>("ready");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
+  const startedAtRef = useRef<number>(0);
+  const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (
+      !canUseBrowserRecorder({
+        navigator: window.navigator,
+        MediaRecorder: window.MediaRecorder,
+      })
+    ) {
+      setState("unsupported");
+    }
+
+    return () => {
+      clearStopTimer();
+      stopStream();
+    };
+  }, []);
+
+  const isProcessing = disabled || state === "processing";
+  const isError =
+    state === "unsupported" ||
+    state === "permission-denied" ||
+    state === "failure";
+
+  async function startRecording() {
+    if (disabled || state === "unsupported") return;
+
+    setErrorMessage(null);
+    setState("waiting-permission");
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = getSupportedAudioMimeType(window.MediaRecorder);
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+
+      chunksRef.current = [];
+      streamRef.current = stream;
+      recorderRef.current = recorder;
+      startedAtRef.current = Date.now();
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        void handleRecorderStop(recorder.mimeType || mimeType);
+      };
+
+      recorder.onerror = () => {
+        clearStopTimer();
+        stopStream();
+        setErrorMessage("We could not save that recording. Try again.");
+        setState("failure");
+      };
+
+      recorder.start();
+      setState("recording");
+      stopTimerRef.current = setTimeout(() => {
+        stopRecording();
+      }, MAX_RECORDING_MS);
+    } catch (error) {
+      stopStream();
+      const isPermissionError =
+        error instanceof DOMException &&
+        (error.name === "NotAllowedError" || error.name === "SecurityError");
+      if (isPermissionError) {
+        setErrorMessage(
+          "Microphone permission is blocked. Allow the microphone, then try again.",
+        );
+        setState("permission-denied");
+      } else {
+        setErrorMessage("We could not save that recording. Try again.");
+        setState("failure");
+      }
+    }
+  }
+
+  function stopRecording() {
+    clearStopTimer();
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop();
+    }
+  }
+
+  async function handleRecorderStop(mimeType: string) {
+    const durationMs = Math.min(Date.now() - startedAtRef.current, MAX_RECORDING_MS);
+    const blob = new Blob(chunksRef.current, {
+      type: mimeType,
+    });
+
+    stopStream();
+    setState("processing");
+
+    try {
+      await onRecorded(blob, {
+        mimeType,
+        durationMs,
+      });
+      setState("success");
+    } catch {
+      setErrorMessage("We could not save that recording. Try again.");
+      setState("failure");
+    }
+  }
+
+  function clearStopTimer() {
+    if (stopTimerRef.current) {
+      clearTimeout(stopTimerRef.current);
+      stopTimerRef.current = null;
+    }
+  }
+
+  function stopStream() {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    recorderRef.current = null;
+  }
+
+  function panelStyleForState() {
+    if (state === "recording") return recorderRecordingStyle;
+    if (isProcessing) return recorderProcessingStyle;
+    if (state === "success") return recorderSuccessStyle;
+    if (isError) return recorderErrorStyle;
+    return recorderPanelStyle;
+  }
+
+  function statusText() {
+    if (state === "unsupported") {
+      return "Recording does not work in this browser. Try another browser or ask your teacher.";
+    }
+    if (state === "permission-denied") {
+      return (
+        errorMessage ??
+        "Microphone permission is blocked. Allow the microphone, then try again."
+      );
+    }
+    if (state === "failure") {
+      return errorMessage ?? "We could not save that recording. Try again.";
+    }
+    if (state === "waiting-permission") {
+      return "Waiting for microphone permission...";
+    }
+    if (state === "recording") {
+      return "Recording...";
+    }
+    if (isProcessing) {
+      return "Saving your voice...";
+    }
+    if (state === "success") {
+      return "Listening to your answer...";
+    }
+    return readyCopy[mode];
+  }
+
+  function actionLabel() {
+    if (state === "recording") return "Stop recording";
+    if (isError) return "Record again";
+    if (state === "success") {
+      return mode === "original" ? "See the better sentence" : "Continue";
+    }
+    return "Start recording";
+  }
+
+  function handleAction() {
+    if (state === "recording") {
+      stopRecording();
+      return;
+    }
+    if (state === "success" || isProcessing || state === "waiting-permission") {
+      return;
+    }
+    void startRecording();
+  }
+
+  return (
+    <div style={panelStyleForState()}>
+      <p
+        style={{
+          fontSize: 14,
+          fontWeight: 600,
+          lineHeight: 1.4,
+          color: "#4B5563",
+          margin: "0 0 8px",
+        }}
+      >
+        {state === "waiting-permission"
+          ? "Your browser will ask to use the microphone."
+          : mode === "original"
+            ? "Your answer"
+            : "Your repeat"}
+      </p>
+
+      <p
+        aria-live="polite"
+        role={isError ? "alert" : undefined}
+        style={{
+          fontSize: 16,
+          lineHeight: 1.5,
+          color: isError ? "#B42318" : "#111827",
+          margin: "0 0 16px",
+        }}
+      >
+        {statusText()}
+      </p>
+
+      <button
+        type="button"
+        style={{
+          ...(state === "recording" || isError
+            ? secondaryButtonStyle
+            : primaryButtonStyle),
+          opacity: disabled || state === "waiting-permission" ? 0.7 : 1,
+          cursor:
+            disabled || state === "waiting-permission" || state === "success"
+              ? "not-allowed"
+              : "pointer",
+        }}
+        onClick={handleAction}
+        disabled={disabled || state === "waiting-permission" || state === "success"}
+      >
+        {isProcessing ? "Saving your voice..." : actionLabel()}
+      </button>
+    </div>
+  );
+}
