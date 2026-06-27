@@ -170,6 +170,98 @@ export type Database = {
         >;
         Relationships: [];
       };
+      attempts: {
+        Row: {
+          id: string;
+          assignment_student_id: string;
+          status: Database["public"]["Enums"]["attempt_status"];
+          started_at: string;
+          completed_at: string | null;
+          needs_review_reason: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          assignment_student_id: string;
+          status?: Database["public"]["Enums"]["attempt_status"];
+          started_at?: string;
+          completed_at?: string | null;
+          needs_review_reason?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["attempts"]["Insert"]>;
+        Relationships: [];
+      };
+      attempt_turns: {
+        Row: {
+          id: string;
+          attempt_id: string;
+          mission_turn_template_id: string | null;
+          turn_order: number;
+          original_transcript: string | null;
+          improved_sentence: string | null;
+          repeat_transcript: string | null;
+          evaluation: Json;
+          target_attempted: boolean | null;
+          repeat_accepted: boolean | null;
+          hint_level_used: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          attempt_id: string;
+          mission_turn_template_id?: string | null;
+          turn_order: number;
+          original_transcript?: string | null;
+          improved_sentence?: string | null;
+          repeat_transcript?: string | null;
+          evaluation?: Json;
+          target_attempted?: boolean | null;
+          repeat_accepted?: boolean | null;
+          hint_level_used?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["attempt_turns"]["Insert"]>;
+        Relationships: [];
+      };
+      audio_clips: {
+        Row: {
+          id: string;
+          attempt_turn_id: string;
+          clip_kind: Database["public"]["Enums"]["audio_clip_kind"];
+          object_key: string | null;
+          mime_type: string | null;
+          duration_ms: number | null;
+          byte_size: number | null;
+          processing_status: Database["public"]["Enums"]["audio_processing_status"];
+          audio_expires_at: string;
+          deleted_at: string | null;
+          deleted_reason: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          attempt_turn_id: string;
+          clip_kind: Database["public"]["Enums"]["audio_clip_kind"];
+          object_key?: string | null;
+          mime_type?: string | null;
+          duration_ms?: number | null;
+          byte_size?: number | null;
+          processing_status?: Database["public"]["Enums"]["audio_processing_status"];
+          audio_expires_at?: string;
+          deleted_at?: string | null;
+          deleted_reason?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["audio_clips"]["Insert"]>;
+        Relationships: [];
+      };
       assignment_status_events: {
         Row: { id: string; assignment_student_id: string };
         Insert: {
