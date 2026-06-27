@@ -1,70 +1,60 @@
 "use client";
 
 /**
- * Step 2: Improved sentence + required repeat (FLOW-04, FLOW-05, D-03).
+ * Step 2: Improved sentence + required voice repeat (FLOW-04, FLOW-05, D-03).
  *
- * Shows the student's original answer (read-only), the improved target-form
+ * Shows the student's original transcript when available, the improved target-form
  * sentence from the snapshot (never generated — FLOW-04), the repeat
- * instruction, and a labeled text input for the required repeat.
+ * instruction, and a reusable voice recorder control for the required repeat.
  * All text is rendered as React text nodes (no raw innerHTML — V5, T-04-13).
  * No AI client import (AI-06).
  */
 
-import { useState, useId } from "react";
 import {
   stepCardStyle,
   improvedSentenceCardStyle,
-  labelStyle,
-  inputStyle,
-  primaryButtonStyle,
-  errorTextStyle,
 } from "@/components/student/styles";
+import {
+  VoiceRecorderControl,
+  type VoiceRecordingMetadata,
+} from "@/components/student/VoiceRecorderControl";
+
+export type RepeatVoiceClip = VoiceRecordingMetadata & {
+  blob: Blob;
+};
 
 type StepImprovedRepeatProps = {
-  originalAnswer: string;
+  originalTranscript: string | null;
   improvedSentenceIntro: string;
   targetExample: string;
   repeatInstruction: string;
-  onSubmitRepeat: (repeat: string) => void;
+  onVoiceRecorded: (recording: RepeatVoiceClip) => void | Promise<void>;
   isSubmitting: boolean;
 };
 
 export function StepImprovedRepeat({
-  originalAnswer,
+  originalTranscript,
   improvedSentenceIntro,
   targetExample,
   repeatInstruction,
-  onSubmitRepeat,
+  onVoiceRecorded,
   isSubmitting,
 }: StepImprovedRepeatProps) {
-  const [repeat, setRepeat] = useState("");
-  const [showError, setShowError] = useState(false);
-  const errorId = useId();
-
-  function handleSubmit() {
-    const trimmed = repeat.trim();
-    if (trimmed.length === 0) {
-      setShowError(true);
-      return;
-    }
-    setShowError(false);
-    onSubmitRepeat(trimmed);
-  }
-
   return (
     <div style={stepCardStyle} aria-live="polite">
-      {/* Student's original answer (read-only) */}
-      <div>
-        <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
-          Your answer:
-        </p>
-        <p style={{ fontSize: 16, color: "#111827", margin: 0, lineHeight: 1.5 }}>
-          {originalAnswer}
-        </p>
-      </div>
+      {originalTranscript && (
+        <div>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
+            We heard:
+          </p>
+          <p style={{ fontSize: 16, color: "#111827", margin: 0, lineHeight: 1.5 }}>
+            {originalTranscript}
+          </p>
+        </div>
+      )}
 
       {/* Improved sentence area */}
-      <div style={{ ...improvedSentenceCardStyle, marginTop: 16 }}>
+      <div style={{ ...improvedSentenceCardStyle, marginTop: originalTranscript ? 16 : 0 }}>
         <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
           {improvedSentenceIntro}
         </p>
@@ -78,45 +68,18 @@ export function StepImprovedRepeat({
         {repeatInstruction}
       </p>
 
-      {/* Repeat input area */}
+      {/* Repeat recorder area */}
       <div>
-        <label htmlFor="repeat-input" style={labelStyle}>
-          Your repeat
-        </label>
-        <input
-          id="repeat-input"
-          type="text"
-          style={inputStyle}
-          placeholder="Type the sentence above"
-          value={repeat}
-          onChange={(e) => {
-            setRepeat(e.target.value);
-            if (showError) setShowError(false);
-          }}
+        <VoiceRecorderControl
+          mode="repeat"
           disabled={isSubmitting}
-          aria-describedby={showError ? errorId : undefined}
+          onRecorded={(blob, metadata) =>
+            onVoiceRecorded({
+              blob,
+              ...metadata,
+            })
+          }
         />
-        {showError && (
-          <p id={errorId} style={errorTextStyle} role="alert">
-            Type the sentence before submitting.
-          </p>
-        )}
-      </div>
-
-      {/* Submit button */}
-      <div style={{ marginTop: 16 }}>
-        <button
-          type="button"
-          style={{
-            ...primaryButtonStyle,
-            opacity: isSubmitting ? 0.7 : 1,
-            cursor: isSubmitting ? "not-allowed" : "pointer",
-          }}
-          onClick={handleSubmit}
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? "Submitting..." : "Submit repeat"}
-        </button>
       </div>
     </div>
   );

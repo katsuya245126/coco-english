@@ -1,25 +1,28 @@
 "use client";
 
 /**
- * Step 1: Buddy question + student answer input + hint area (FLOW-02, CHAR-01/02).
+ * Step 1: Buddy question + student voice answer + hint area (FLOW-02, CHAR-01/02).
  *
  * Renders the buddy speech card with the snapshot turn prompt, the hint area
- * (HintRevealer from Task 3), and a labeled text input with validation error.
+ * (HintRevealer), and a reusable voice recorder control.
  * All text is rendered as React text nodes (no raw innerHTML — V5, T-04-13).
  * No AI client import (AI-06).
  */
 
-import { useState, useId } from "react";
 import type { HintLadder } from "@/domain/mission/schemas";
 import {
   stepCardStyle,
   buddyCardStyle,
-  labelStyle,
-  inputStyle,
-  primaryButtonStyle,
-  errorTextStyle,
 } from "@/components/student/styles";
 import { HintRevealer } from "@/components/student/HintRevealer";
+import {
+  VoiceRecorderControl,
+  type VoiceRecordingMetadata,
+} from "@/components/student/VoiceRecorderControl";
+
+export type RecordedVoiceClip = VoiceRecordingMetadata & {
+  blob: Blob;
+};
 
 type StepBuddyQuestionProps = {
   questionLabel: string;
@@ -27,7 +30,7 @@ type StepBuddyQuestionProps = {
   hintLadder: HintLadder;
   hintLevel: number;
   onRevealHint: (nextLevel: number) => void;
-  onSubmitAnswer: (answer: string) => void;
+  onVoiceRecorded: (recording: RecordedVoiceClip) => void | Promise<void>;
   isSubmitting: boolean;
 };
 
@@ -37,23 +40,9 @@ export function StepBuddyQuestion({
   hintLadder,
   hintLevel,
   onRevealHint,
-  onSubmitAnswer,
+  onVoiceRecorded,
   isSubmitting,
 }: StepBuddyQuestionProps) {
-  const [answer, setAnswer] = useState("");
-  const [showError, setShowError] = useState(false);
-  const errorId = useId();
-
-  function handleSubmit() {
-    const trimmed = answer.trim();
-    if (trimmed.length === 0) {
-      setShowError(true);
-      return;
-    }
-    setShowError(false);
-    onSubmitAnswer(trimmed);
-  }
-
   return (
     <div style={stepCardStyle} aria-live="polite">
       {/* Buddy speech area */}
@@ -75,45 +64,18 @@ export function StepBuddyQuestion({
         />
       </div>
 
-      {/* Answer input area */}
+      {/* Answer recorder area */}
       <div style={{ marginTop: 16 }}>
-        <label htmlFor="answer-input" style={labelStyle}>
-          Your answer
-        </label>
-        <input
-          id="answer-input"
-          type="text"
-          style={inputStyle}
-          placeholder="Type your answer here"
-          value={answer}
-          onChange={(e) => {
-            setAnswer(e.target.value);
-            if (showError) setShowError(false);
-          }}
+        <VoiceRecorderControl
+          mode="original"
           disabled={isSubmitting}
-          aria-describedby={showError ? errorId : undefined}
+          onRecorded={(blob, metadata) =>
+            onVoiceRecorded({
+              blob,
+              ...metadata,
+            })
+          }
         />
-        {showError && (
-          <p id={errorId} style={errorTextStyle} role="alert">
-            Type an answer before submitting.
-          </p>
-        )}
-      </div>
-
-      {/* Submit button */}
-      <div style={{ marginTop: 16 }}>
-        <button
-          type="button"
-          style={{
-            ...primaryButtonStyle,
-            opacity: isSubmitting ? 0.7 : 1,
-            cursor: isSubmitting ? "not-allowed" : "pointer",
-          }}
-          onClick={handleSubmit}
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? "Submitting..." : "Submit answer"}
-        </button>
       </div>
     </div>
   );

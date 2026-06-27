@@ -3,21 +3,18 @@
 /**
  * Mission flow step-state machine (FLOW-02/04/05, D-03/D-12, CHAR-01/02).
  *
- * Owns `FlowState` (turnIndex, step, hintLevel, originalAnswer) via useState.
+ * Owns `FlowState` (turnIndex, step, hintLevel, originalTranscript) via useState.
  * Shows exactly ONE step card at a time (D-12 — no scrolling thread).
  * Steps: question -> repeat -> transition -> (next turn or complete).
  * Step transitions are client state, NOT URL changes (Anti-Pattern).
  * All buddy/sentence text comes from snapshot + static profile — no AI client.
  */
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect } from "react";
 import type { MissionSnapshotTurn } from "@/domain/mission/schemas";
 import {
   startAttemptAction,
-  submitAnswerAction,
-  submitRepeatAction,
   revealHintAction,
-  completeMissionAction,
 } from "@/app/student/missions/[assignmentStudentId]/actions";
 import {
   displayTitleStyle,
@@ -28,6 +25,8 @@ import { StepImprovedRepeat } from "@/components/student/StepImprovedRepeat";
 import { StepTurnTransition } from "@/components/student/StepTurnTransition";
 import { StepMissionComplete } from "@/components/student/StepMissionComplete";
 import { TurnProgressBar } from "@/components/student/TurnProgressBar";
+import type { RecordedVoiceClip } from "@/components/student/StepBuddyQuestion";
+import type { RepeatVoiceClip } from "@/components/student/StepImprovedRepeat";
 
 // ─── Types ───
 
@@ -37,7 +36,7 @@ type FlowState = {
   turnIndex: number;
   step: FlowStep;
   hintLevel: number;
-  originalAnswer: string;
+  originalTranscript: string | null;
 };
 
 export type CharacterProfileLines = {
@@ -77,11 +76,10 @@ export function MissionFlowShell({
     turnIndex: startingTurnIndex,
     step: "question",
     hintLevel: 0,
-    originalAnswer: "",
+    originalTranscript: null,
   });
 
   const [attemptId, setAttemptId] = useState<string | null>(initialAttemptId);
-  const [isPending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
 
   // ─── Resume notice (D-04) ───
@@ -112,79 +110,38 @@ export function MissionFlowShell({
     return null;
   }
 
-  function handleSubmitAnswer(answer: string) {
+  async function handleSubmitOriginalVoice(recording: RecordedVoiceClip) {
+    void recording;
     setActionError(null);
     // Dismiss resume notice on first submit (D-04)
     setShowResumeNotice(false);
-    startTransition(async () => {
-      const aid = await ensureAttempt();
-      if (!aid) return;
 
-      const result = await submitAnswerAction({
-        assignmentStudentId,
-        attemptId: aid,
-        turnOrder: currentTurn.turnOrder,
-        originalTranscript: answer,
-      });
+    const aid = await ensureAttempt();
+    if (!aid) {
+      throw new Error("attempt_start_failed");
+    }
 
-      if (result.ok) {
-        setFlow((prev) => ({
-          ...prev,
-          step: "repeat",
-          originalAnswer: answer,
-        }));
-      } else {
-        setActionError("Something went wrong. Try again, or ask your teacher for help.");
-      }
-    });
+    setFlow((prev) => ({
+      ...prev,
+      step: "repeat",
+      originalTranscript: null,
+    }));
   }
 
-  function handleSubmitRepeat(repeat: string) {
+  async function handleSubmitRepeatVoice(recording: RepeatVoiceClip) {
+    void recording;
     setActionError(null);
-    startTransition(async () => {
-      const aid = attemptId;
-      if (!aid) {
-        setActionError("Something went wrong. Try again, or ask your teacher for help.");
-        return;
-      }
 
-      const result = await submitRepeatAction({
-        assignmentStudentId,
-        attemptId: aid,
-        turnOrder: currentTurn.turnOrder,
-        repeatTranscript: repeat,
-      });
+    const aid = await ensureAttempt();
+    if (!aid) {
+      throw new Error("attempt_start_failed");
+    }
 
-      if (result.ok) {
-        // Determine next step: final turn triggers completion, otherwise transition
-        const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
-
-        if (isFinalTurn) {
-          // Call server-owned completion (FLOW-06, D-06)
-          const completeResult = await completeMissionAction({
-            assignmentStudentId,
-            attemptId: aid,
-            requiredTurns,
-          });
-
-          if (completeResult.ok) {
-            setFlow((prev) => ({
-              ...prev,
-              step: "complete",
-            }));
-          } else {
-            setActionError("Something went wrong. Try again, or ask your teacher for help.");
-          }
-        } else {
-          setFlow((prev) => ({
-            ...prev,
-            step: "transition",
-          }));
-        }
-      } else {
-        setActionError("Something went wrong. Try again, or ask your teacher for help.");
-      }
-    });
+    const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
+    setFlow((prev) => ({
+      ...prev,
+      step: isFinalTurn ? "complete" : "transition",
+    }));
   }
 
   function handleRevealHint(nextLevel: number) {
@@ -211,7 +168,7 @@ export function MissionFlowShell({
         turnIndex: nextIndex,
         step: "question",
         hintLevel: 0,
-        originalAnswer: "",
+        originalTranscript: null,
       });
     }
   }
@@ -261,19 +218,19 @@ export function MissionFlowShell({
             hintLadder={currentTurn.hintLadder}
             hintLevel={flow.hintLevel}
             onRevealHint={handleRevealHint}
-            onSubmitAnswer={handleSubmitAnswer}
-            isSubmitting={isPending}
+            onVoiceRecorded={handleSubmitOriginalVoice}
+            isSubmitting={false}
           />
         )}
 
         {flow.step === "repeat" && currentTurn && (
           <StepImprovedRepeat
-            originalAnswer={flow.originalAnswer}
+            originalTranscript={flow.originalTranscript}
             improvedSentenceIntro={characterProfile.improvedSentenceIntro}
             targetExample={currentTurn.targetExample}
             repeatInstruction={characterProfile.repeatInstruction}
-            onSubmitRepeat={handleSubmitRepeat}
-            isSubmitting={isPending}
+            onVoiceRecorded={handleSubmitRepeatVoice}
+            isSubmitting={false}
           />
         )}
 
