@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 04
 current_phase_name: guided-student-attempt-loop
-status: planned
-stopped_at: Phase 4 planned — ready to execute
-last_updated: "2026-06-27T00:00:00.000Z"
+status: executing
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-06-27T00:35:19.550Z"
 last_activity: 2026-06-27
-last_activity_desc: Phase 04 planned — 5 plans in 4 waves, verification passed
+last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 7
   completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 13
+  completed_plans: 9
   percent: 43
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-25)
 
 ## Current Position
 
-Phase: 04 (guided-student-attempt-loop) — PLANNED ✓ (ready to execute)
-Plan: 0 of 5 complete
-Status: Planned — 5 plans across 4 waves (MVP vertical-slice). Plan-checker passed all 12 dimensions; 12/12 requirements + 14/14 decisions covered. Research/patterns/validation artifacts committed. Next: /gsd-execute-phase 4.
-Last activity: 2026-06-27 — Phase 04 planned; verification passed
+Phase: 04 (guided-student-attempt-loop) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-06-27 — Phase 04 execution started
 Prior: Phase 03 VERIFIED — UAT 5/5; assign RPC ambiguous-column blocker fixed (migration 202606260001). 1 cosmetic gap open (no save-confirmation; see 03-UAT.md).
 
 Progress: [###-------] 33%
@@ -62,6 +62,7 @@ Progress: [###-------] 33%
 | Phase 02 P03 | 7min | 2 tasks | 12 files |
 | Phase 02 P04 | 25min | 5 tasks | 17 files |
 | Phase 03 P03-03 | 7min | 3 tasks | 6 files |
+| Phase 04 P01 | 4min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,7 @@ Recent decisions affecting current work:
 - [Phase 03]: 03-02: Mission assignment is one atomic SECURITY DEFINER RPC (assign_mission_to_class, migration 202606250005) — assignment row + per-active-student rows + assigned status events in a single transaction (T-03-07).
 - [Phase 03]: 03-02: Mission snapshot is assembled and validated server-side via missionSnapshotSchema before the RPC; the browser only passes mission id, class id, and optional due date (T-03-04). RPC verifies caller owns both class and mission before any insert (T-03-05).
 - [Phase ?]: 03-03: Global focus-visible rings via root layout style block; aria-describedby wiring for field errors and help text; success auto-dismiss after 5 seconds.
+- [Phase ?]: 04-01: Character profile uses DEFAULT_CHARACTER_ID import (no duplicate literal); placeholder evaluation version 'placeholder-v1' as const for Phase 6 swap detection
 
 ### Pending Todos
 
@@ -104,6 +106,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-26T15:35:03.067Z
-Stopped at: Phase 4 UI-SPEC approved
-Resume file: .planning/phases/04-guided-student-attempt-loop/04-UI-SPEC.md
+Last session: 2026-06-27T00:35:19.544Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: None
