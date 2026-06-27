@@ -43,16 +43,15 @@ blocked: 0
 ## Gaps
 
 - truth: "Turn progress bar reflects true progress and reaches 100% on the final completed turn"
-  status: failed
+  status: fixed
   reason: "User reported: progress bar on 'Turn 2 of 2' only fills to ~halfway even when the turn is complete. Root cause: TurnProgressBar fill = (current - 1) / total, so the final turn caps at (N-1)/N and never reaches 100%."
   severity: cosmetic
   test: 1
-  root_cause: "src/components/student/TurnProgressBar.tsx:21 — fillPercent uses (current - 1) / total, which represents only turns completed BEFORE the current one. The in-progress/last turn is never counted, so a 2-turn mission caps at 50%."
+  root_cause: "src/components/student/TurnProgressBar.tsx — fillPercent used (current - 1) / total, which represents only turns completed BEFORE the current one. The in-progress/last turn was never counted, so a 2-turn mission capped at 50%."
   artifacts:
     - path: "src/components/student/TurnProgressBar.tsx"
       issue: "completedFraction = (current - 1) / total under-fills; final turn never reaches 100%"
-  missing:
-    - "Fill should represent progress through the current turn (e.g. current / total, or advance to 100% on completion) so the last turn reaches full."
+  fix: "Changed fill to current / total so the final turn reaches 100% (Turn 1 of 2 → 50%, Turn 2 of 2 → 100%). Guarded total > 0. tsc + eslint clean; no tests asserted fill behavior."
   debug_session: ""
 
 # NOTE (out-of-scope, not a gap): User observed the 'better way to say it' sentence

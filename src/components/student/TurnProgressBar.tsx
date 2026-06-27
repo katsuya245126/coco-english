@@ -5,8 +5,8 @@
  *
  * Shows "Turn {current} of {total}" label and a horizontal progress bar
  * with role="progressbar" and proper aria attributes. Fill width represents
- * the completed fraction (current - 1) / total since the current turn is
- * in-progress (not yet completed).
+ * progress through the current turn (current / total), so the final turn
+ * fills the bar to 100% rather than capping at (total - 1) / total.
  */
 
 import { labelStyle, progressTrackStyle, progressFillStyle } from "@/components/student/styles";
@@ -17,9 +17,10 @@ type TurnProgressBarProps = {
 };
 
 export function TurnProgressBar({ current, total }: TurnProgressBarProps) {
-  // Completed turns are turns before the current one.
-  const completedFraction = Math.max(0, (current - 1) / total);
-  const fillPercent = Math.min(completedFraction * 100, 100);
+  // Fill represents progress through the current turn, so the final turn
+  // reaches 100% (Turn 1 of 2 → 50%, Turn 2 of 2 → 100%).
+  const progressFraction = total > 0 ? Math.max(0, current / total) : 0;
+  const fillPercent = Math.min(progressFraction * 100, 100);
 
   return (
     <div>
