@@ -217,7 +217,24 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
   4. System evaluates meaning, target-pattern attempt, improved target-form sentence, and repeat closeness for each turn.
   5. System routes low-confidence, failed-schema, or ambiguous AI results to teacher review instead of pretending certainty.
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+**Wave 1**
+
+- [ ] `06-01-PLAN.md` — Phase 6 RED validation scaffold: mission-generation and turn-evaluation fixtures, fake-client adapter tests, and teacher/student source-contract checks.
+
+**Wave 2**
+
+- [ ] `06-02-PLAN.md` — Teacher mission-generation slice: strict generated draft schema, server-only AI adapter, teacher action, draft preview, and editable form-fill.
+
+**Wave 3**
+
+- [ ] `06-03-PLAN.md` — Student original-answer evaluation slice: English/meaning/target-pattern checks, conditional correction, non-English retry, and teacher-review routing.
+
+**Wave 4**
+
+- [ ] `06-04-PLAN.md` — Repeat evaluation, completion compatibility, teacher-review status/audit, and existing evidence-page AI annotations.
+
 **UI hint**: yes
 
 ### Phase 7: Teacher Review and Pilot Readiness
