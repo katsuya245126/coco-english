@@ -129,12 +129,12 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
   4. Student can reveal progressive hints in order: target pattern, word bank, then full example.
   5. Mission completes only after the required number of turns and repeat attempts are satisfied.
 
-**Plans**: 3/5 plans executed
+**Plans**: 4/5 plans executed
 
 - [x] 04-01-PLAN.md
 - [x] 04-02-PLAN.md
 - [x] 04-03-PLAN.md
-- [ ] 04-04-PLAN.md
+- [x] 04-04-PLAN.md
 - [ ] 04-05-PLAN.md
 
 **Wave 1**
@@ -242,7 +242,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 1. Data, Privacy, and Workflow Foundation | 1/1 | Complete | 2026-06-25 |
 | 2. Teacher Classroom Access | 4/4 | Complete    | 2026-06-26 |
 | 3. Manual Mission Assignment | 3/3 | Complete   | 2026-06-26 |
-| 4. Guided Student Attempt Loop | 3/5 | In Progress|  |
+| 4. Guided Student Attempt Loop | 4/5 | In Progress|  |
 | 5. Voice Capture and Evidence Storage | 0/TBD | Not started | - |
 | 6. AI Mission and Turn Intelligence | 0/TBD | Not started | - |
 | 7. Teacher Review and Pilot Readiness | 0/TBD | Not started | - |
