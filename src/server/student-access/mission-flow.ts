@@ -13,7 +13,10 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { assertTransitionRequest } from "@/domain/foundation/status";
 import { buildPlaceholderEvaluation } from "@/domain/flow/evaluation";
-import { nextUnfinishedTurnOrder } from "@/domain/flow/completion";
+import {
+  isAttemptComplete,
+  nextUnfinishedTurnOrder,
+} from "@/domain/flow/completion";
 
 // ─── Result types ───
 
@@ -40,6 +43,10 @@ export type RecordHintRevealResult =
       ok: false;
       error: "not_found" | "invalid_hint_level" | "no_turn_row" | "db_error";
     };
+
+export type CompleteAttemptResult =
+  | { ok: true }
+  | { ok: false; error: "not_found" | "not_complete" | "db_error" };
 
 // ─── Helpers ───
 
@@ -354,6 +361,100 @@ export async function recordHintReveal(input: {
       .from("assignment_students")
       .update({ highest_hint_level: newHighest })
       .eq("id", input.assignmentStudentId);
+
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "db_error" };
+  }
+}
+
+/**
+ * Complete a mission attempt (FLOW-06, D-06).
+ *
+ * Server-owned audited completion: re-derives completeness from the DB
+ * turns via isAttemptComplete. If not complete, writes nothing and returns
+ * not_complete. If complete, performs the audited started->completed
+ * transition with an assignment_status_events row, stamps
+ * attempts.status='completed'+completed_at and
+ * assignment_students.submitted_at+latest_attempt_id.
+ *
+ * Idempotent: a second call on an already-completed assignment returns
+ * ok:true without creating a duplicate audit event (Pitfall 3 —
+ * conditional UPDATE WHERE status='started' returns 0 rows).
+ */
+export async function completeAttempt(input: {
+  studentId: string;
+  assignmentStudentId: string;
+  attemptId: string;
+  requiredTurns: number;
+}): Promise<CompleteAttemptResult> {
+  try {
+    const supabase = createSupabaseServiceClient();
+
+    // 1. Verify ownership
+    const asRow = await loadOwnedAssignmentStudent(
+      supabase,
+      input.assignmentStudentId,
+      input.studentId,
+    );
+    if (!asRow) return { ok: false, error: "not_found" };
+
+    // 2. Load attempt turns from DB
+    const { data: turns, error: turnsErr } = await supabase
+      .from("attempt_turns")
+      .select("turn_order, original_transcript, repeat_transcript, repeat_accepted")
+      .eq("attempt_id", input.attemptId);
+
+    if (turnsErr) return { ok: false, error: "db_error" };
+
+    // 3. Gate on isAttemptComplete — the only deterministic completion check (D-06)
+    // Completion keys ONLY on transcripts + repeat_accepted, never on evaluation
+    if (!isAttemptComplete(input.requiredTurns, turns ?? [])) {
+      return { ok: false, error: "not_complete" };
+    }
+
+    // 4. Audited started->completed transition
+    const nowIso = new Date().toISOString();
+    assertTransitionRequest({
+      previousStatus: "started",
+      nextStatus: "completed",
+      actorType: "student_session",
+      reasonCode: "mission_completed",
+      occurredAt: nowIso,
+    });
+
+    // 5. Conditional UPDATE — 0 rows means already completed (idempotent, Pitfall 3)
+    const { data: updated } = await supabase
+      .from("assignment_students")
+      .update({
+        status: "completed" as const,
+        submitted_at: nowIso,
+        latest_attempt_id: input.attemptId,
+      })
+      .eq("id", input.assignmentStudentId)
+      .eq("status", "started")
+      .select("id")
+      .maybeSingle();
+
+    // Only write audit event if the transition actually happened (not duplicate)
+    if (updated) {
+      await supabase.from("assignment_status_events").insert({
+        assignment_student_id: input.assignmentStudentId,
+        previous_status: "started",
+        next_status: "completed",
+        actor_type: "student_session",
+        reason_code: "mission_completed",
+      });
+    }
+
+    // 6. Stamp attempt as completed
+    await supabase
+      .from("attempts")
+      .update({
+        status: "completed" as const,
+        completed_at: nowIso,
+      })
+      .eq("id", input.attemptId);
 
     return { ok: true };
   } catch {

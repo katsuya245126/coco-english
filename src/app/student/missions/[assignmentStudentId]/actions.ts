@@ -8,7 +8,6 @@
  * No business logic beyond gate + validate + delegate.
  *
  * No AI/LLM client import, no chat/buddy route (AI-06, T-04-01).
- * completeMissionAction deferred to plan 05.
  */
 
 import { z } from "zod";
@@ -18,10 +17,12 @@ import {
   recordAnswer,
   recordRepeat,
   recordHintReveal,
+  completeAttempt,
   type StartOrResumeResult,
   type RecordAnswerResult,
   type RecordRepeatResult,
   type RecordHintRevealResult,
+  type CompleteAttemptResult,
 } from "@/server/student-access/mission-flow";
 
 // ─── Input schemas ───
@@ -49,6 +50,12 @@ const revealHintSchema = z.object({
   attemptId: z.string().uuid(),
   turnOrder: z.number().int().positive(),
   hintLevel: z.number().int().min(1).max(3),
+});
+
+const completeMissionSchema = z.object({
+  assignmentStudentId: z.string().uuid(),
+  attemptId: z.string().uuid(),
+  requiredTurns: z.number().int().positive(),
 });
 
 // ─── Shared error types ───
@@ -124,5 +131,22 @@ export async function revealHintAction(
     attemptId: parsed.data.attemptId,
     turnOrder: parsed.data.turnOrder,
     hintLevel: parsed.data.hintLevel,
+  });
+}
+
+export async function completeMissionAction(
+  input: unknown,
+): Promise<CompleteAttemptResult | SessionExpired | InvalidInput> {
+  const unlock = await readStudentUnlock();
+  if (!unlock) return { ok: false, error: "session_expired" };
+
+  const parsed = completeMissionSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+
+  return completeAttempt({
+    studentId: unlock.studentId,
+    assignmentStudentId: parsed.data.assignmentStudentId,
+    attemptId: parsed.data.attemptId,
+    requiredTurns: parsed.data.requiredTurns,
   });
 }
