@@ -5,16 +5,16 @@ milestone_name: milestone
 current_phase: 05
 current_phase_name: voice-capture-and-evidence-storage
 status: executing
-stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-06-27T06:38:44.564Z"
+stopped_at: Completed 05-03-PLAN.md
+last_updated: "2026-06-27T07:02:10.853Z"
 last_activity: 2026-06-27
-last_activity_desc: Completed 05-02 private audio storage and metadata
+last_activity_desc: Completed 05-03 transcription integration
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 17
-  completed_plans: 15
-  percent: 88
+  completed_plans: 16
+  percent: 94
 ---
 
 # Project State
@@ -29,12 +29,12 @@ See: .planning/PROJECT.md (updated 2026-06-25)
 ## Current Position
 
 Phase: 05 (voice-capture-and-evidence-storage) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
-Last activity: 2026-06-27 — Completed 05-02 private audio storage and metadata
+Last activity: 2026-06-27 — Completed 05-03 transcription integration
 Prior: Phase 04 VERIFIED — UAT 3/3 pass + 1 cosmetic issue FIXED (progress bar reached 100% on final turn, f8c19fb7). Landing page at / shipped (409f62e9). Open backlog: teacher edit/reschedule of existing assignment (Phase 03 gap, no edit path → duplicate assignment).
 
-Progress: [█████████░] 88%
+Progress: [█████████░] 94%
 
 ## Performance Metrics
 
@@ -69,6 +69,7 @@ Progress: [█████████░] 88%
 | Phase 04 P05 | 8min | 3 tasks | 7 files |
 | Phase 05 P01 | 9min | 3 tasks | 8 files |
 | Phase 05 P02 | 10min | 4 tasks | 8 files |
+| Phase 05 P03 | 11min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -107,6 +108,9 @@ Recent decisions affecting current work:
 - [Phase 05]: 05-02: Store student audio in the private student-audio bucket; no public Storage URLs are returned to students.
 - [Phase 05]: 05-02: Upload service verifies assignment_students.id and student_id before any Storage or audio_clips write.
 - [Phase 05]: 05-02: Supabase db push was run successfully and remote storage.buckets reports student-audio public=false.
+- [Phase 05-03]: OpenAI transcription is isolated in src/server/audio/transcription.ts and tests inject fake clients; no automated test calls the paid API. — Keep external API access server-only and paid-call-free during automated verification.
+- [Phase 05-03]: Uploaded clips only return success after a transcript is present and audio_clips.processing_status is transcribed. — An uploaded clip alone is not useful speaking evidence until transcript text exists.
+- [Phase 05-03]: Failed or empty transcription marks audio_clips.processing_status as failed and keeps students on the same recorder with retry copy. — This avoids fabricated transcript evidence and keeps failure recovery child-friendly.
 
 ### Pending Todos
 
@@ -127,6 +131,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-27T06:38:44.558Z
-Stopped at: Completed 05-02-PLAN.md
+Last session: 2026-06-27T07:02:10.834Z
+Stopped at: Completed 05-03-PLAN.md
 Resume file: None

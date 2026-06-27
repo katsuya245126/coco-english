@@ -68,7 +68,7 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 - [x] **AUDIO-01**: System records short audio clips for original answers.
 - [x] **AUDIO-02**: System records short audio clips for repeat attempts.
 - [x] **AUDIO-03**: System uploads audio with retry and failure states understandable to elementary learners.
-- [ ] **AUDIO-04**: System transcribes original answers and repeat attempts.
+- [x] **AUDIO-04**: System transcribes original answers and repeat attempts.
 - [x] **AUDIO-05**: System stores transcript text, audio reference, clip metadata, and processing status for each turn.
 
 ### AI Evaluation
@@ -189,7 +189,7 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 | AUDIO-01 | Phase 5 | Complete |
 | AUDIO-02 | Phase 5 | Complete |
 | AUDIO-03 | Phase 5 | Complete |
-| AUDIO-04 | Phase 5 | Pending |
+| AUDIO-04 | Phase 5 | Complete |
 | AUDIO-05 | Phase 5 | Complete |
 | AI-01 | Phase 6 | Pending |
 | AI-02 | Phase 6 | Pending |
