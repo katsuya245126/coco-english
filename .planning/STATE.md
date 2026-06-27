@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: guided-student-attempt-loop
 status: executing
-stopped_at: Completed 04-02-PLAN.md
-last_updated: "2026-06-27T00:43:48.275Z"
+stopped_at: Completed 04-03-PLAN.md
+last_updated: "2026-06-27T00:52:42.319Z"
 last_activity: 2026-06-27
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 13
-  completed_plans: 10
+  completed_plans: 11
   percent: 43
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-06-25)
 ## Current Position
 
 Phase: 04 (guided-student-attempt-loop) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-06-27 — Phase 04 execution started
 Prior: Phase 03 VERIFIED — UAT 5/5; assign RPC ambiguous-column blocker fixed (migration 202606260001). 1 cosmetic gap open (no save-confirmation; see 03-UAT.md).
@@ -64,6 +64,7 @@ Progress: [###-------] 33%
 | Phase 03 P03-03 | 7min | 3 tasks | 6 files |
 | Phase 04 P01 | 4min | 3 tasks | 9 files |
 | Phase 04 P02 | 3min | 3 tasks | 4 files |
+| Phase 04 P03 | 5min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -88,6 +89,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 03-03: Global focus-visible rings via root layout style block; aria-describedby wiring for field errors and help text; success auto-dismiss after 5 seconds.
 - [Phase ?]: 04-01: Character profile uses DEFAULT_CHARACTER_ID import (no duplicate literal); placeholder evaluation version 'placeholder-v1' as const for Phase 6 swap detection
 - [Phase ?]: 04-02: Read-time display status (start/continue/done/closed) computed from due_at + DB status without mutating rows (D-14)
+- [Phase ?]: 04-03: Completion helpers key flow control on transcript + repeat_accepted only; evaluation field never read (D-06 isolation for Phase 6 swap)
+- [Phase ?]: 04-03: GREATEST semantics for hint rollup via Math.max in app code (Supabase JS lacks SQL GREATEST in update)
+- [Phase ?]: 04-03: Service functions accept studentId param from action layer; service-role logic stays isolated from cookie reads
 
 ### Pending Todos
 
@@ -108,6 +112,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-27T00:43:48.269Z
-Stopped at: Completed 04-02-PLAN.md
+Last session: 2026-06-27T00:52:42.312Z
+Stopped at: Completed 04-03-PLAN.md
 Resume file: None
