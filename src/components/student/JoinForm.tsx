@@ -106,7 +106,7 @@ export function JoinForm({ initialClass, showRemembered }: JoinFormProps) {
 
   return (
     <div>
-      <h1 style={displayTitleStyle}>Join class</h1>
+      <h1 style={displayTitleStyle}>Enter your class</h1>
       <p style={bodyStyle}>
         Enter the class code from your teacher, or open the class link.
       </p>

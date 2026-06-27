@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "English Speaking Practice",
-  description: "Foundation smoke screen",
+  title: "Coco English",
+  description: "Speaking practice for classrooms",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
