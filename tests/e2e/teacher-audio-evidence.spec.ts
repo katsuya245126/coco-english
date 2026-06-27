@@ -6,6 +6,10 @@ const pageSourcePath = join(
   process.cwd(),
   "src/app/teacher/evidence/[attemptId]/page.tsx",
 );
+const classPageSourcePath = join(
+  process.cwd(),
+  "src/app/teacher/classes/[id]/page.tsx",
+);
 const playerSourcePath = join(
   process.cwd(),
   "src/components/teacher/AudioClipPlayer.tsx",
@@ -24,6 +28,23 @@ test("teacher evidence page renders transcript labels before audio controls", ()
   expect(playerIndex).toBeGreaterThan(-1);
   expect(originalIndex).toBeLessThan(playerIndex);
   expect(repeatIndex).toBeLessThan(playerIndex);
+});
+
+test("teacher class UI links to attempt evidence", async ({ page }) => {
+  const source = readFileSync(classPageSourcePath, "utf8");
+
+  expect(source).toContain("Review evidence");
+  expect(source).toContain("/teacher/evidence/");
+
+  await page.setContent(`
+    <a href="http://127.0.0.1:3000/teacher/evidence/attempt-1">Review evidence</a>
+  `);
+
+  const evidenceRequest = page.waitForRequest(/\/teacher\/evidence\/attempt-1$/);
+  await page.getByRole("link", { name: "Review evidence" }).click();
+  await expect((await evidenceRequest).url()).toMatch(
+    /\/teacher\/evidence\/attempt-1$/,
+  );
 });
 
 test("audio player requires Load audio before native controls are shown", async ({
