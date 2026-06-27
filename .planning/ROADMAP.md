@@ -169,7 +169,9 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
   3. System stores transcript text, audio reference, clip metadata, and processing status for each mission turn.
   4. Teacher can play short audio clips on demand from attempt details without making audio the default review path.
 
-**Plans**: 3/4 plans executed
+**Plans**: 4/5 plans executed
+
+- [x] 05-05-PLAN.md
 
 - [x] 05-01-PLAN.md
 - [x] 05-02-PLAN.md
@@ -272,6 +274,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 2. Teacher Classroom Access | 4/4 | Complete    | 2026-06-26 |
 | 3. Manual Mission Assignment | 3/3 | Complete   | 2026-06-26 |
 | 4. Guided Student Attempt Loop | 5/5 | Complete   | 2026-06-27 |
-| 5. Voice Capture and Evidence Storage | 3/4 | In Progress|  |
+| 5. Voice Capture and Evidence Storage | 4/5 | In Progress|  |
 | 6. AI Mission and Turn Intelligence | 0/TBD | Not started | - |
 | 7. Teacher Review and Pilot Readiness | 0/TBD | Not started | - |

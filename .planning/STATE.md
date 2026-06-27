@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 05
 current_phase_name: voice-capture-and-evidence-storage
 status: executing
-stopped_at: Completed 05-03-PLAN.md
-last_updated: "2026-06-27T07:02:10.853Z"
+stopped_at: Completed 05-05-PLAN.md
+last_updated: "2026-06-27T08:42:08.296Z"
 last_activity: 2026-06-27
-last_activity_desc: Completed 05-03 transcription integration
+last_activity_desc: Completed 05-05 gap closure
 progress:
   total_phases: 7
   completed_phases: 4
-  total_plans: 17
-  completed_plans: 16
+  total_plans: 18
+  completed_plans: 17
   percent: 94
 ---
 
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-06-25)
 ## Current Position
 
 Phase: 05 (voice-capture-and-evidence-storage) — EXECUTING
-Plan: 4 of 4
-Status: Ready to execute
-Last activity: 2026-06-27 — Completed 05-03 transcription integration
+Plan: 5 of 5
+Status: Completed 05-05 gap closure; Phase 05 remains in progress pending manual UAT
+Last activity: 2026-06-27 — Completed 05-05 gap closure
 Prior: Phase 04 VERIFIED — UAT 3/3 pass + 1 cosmetic issue FIXED (progress bar reached 100% on final turn, f8c19fb7). Landing page at / shipped (409f62e9). Open backlog: teacher edit/reschedule of existing assignment (Phase 03 gap, no edit path → duplicate assignment).
 
 Progress: [█████████░] 94%
@@ -70,6 +70,7 @@ Progress: [█████████░] 94%
 | Phase 05 P01 | 9min | 3 tasks | 8 files |
 | Phase 05 P02 | 10min | 4 tasks | 8 files |
 | Phase 05 P03 | 11min | 3 tasks | 11 files |
+| Phase 05 P05 | 6min | 4 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -111,6 +112,8 @@ Recent decisions affecting current work:
 - [Phase 05-03]: OpenAI transcription is isolated in src/server/audio/transcription.ts and tests inject fake clients; no automated test calls the paid API. — Keep external API access server-only and paid-call-free during automated verification.
 - [Phase 05-03]: Uploaded clips only return success after a transcript is present and audio_clips.processing_status is transcribed. — An uploaded clip alone is not useful speaking evidence until transcript text exists.
 - [Phase 05-03]: Failed or empty transcription marks audio_clips.processing_status as failed and keeps students on the same recorder with retry copy. — This avoids fabricated transcript evidence and keeps failure recovery child-friendly.
+- [Phase ?]: 05-05: Evidence navigation is exposed from the teacher class page because it is already scoped to an owned class and gives teachers student homework context.
+- [Phase ?]: 05-05: Keep iOS Safari UAT deferred without real iPhone results or explicit risk acceptance; fixed product gaps are tracked separately.
 
 ### Pending Todos
 
@@ -131,6 +134,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-27T07:02:10.834Z
-Stopped at: Completed 05-03-PLAN.md
+Last session: 2026-06-27T08:42:08.216Z
+Stopped at: Completed 05-05-PLAN.md
 Resume file: None
