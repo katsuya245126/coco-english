@@ -4,11 +4,11 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 06
 current_phase_name: ai-mission-and-turn-intelligence
-status: ready
-stopped_at: Phase 05 verified complete (UAT 9/9)
-last_updated: "2026-06-27T18:30:00.000Z"
-last_activity: 2026-06-27
-last_activity_desc: Phase 05 verified complete; advanced to Phase 06
+status: ready_to_execute
+stopped_at: Phase 06 planned and verified
+last_updated: "2026-06-28T00:00:00.000+09:00"
+last_activity: 2026-06-28
+last_activity_desc: Phase 06 planned with 4 verified plans across 3 waves
 progress:
   total_phases: 7
   completed_phases: 5
@@ -28,9 +28,9 @@ See: .planning/PROJECT.md (updated 2026-06-25)
 
 ## Current Position
 
-Phase: 06 (ai-mission-and-turn-intelligence) — NOT STARTED (next to plan)
-Status: Ready to plan — depends on Phase 05 (complete)
-Last activity: 2026-06-27 — Phase 05 verified complete
+Phase: 06 (ai-mission-and-turn-intelligence) — PLANNED (next to execute)
+Status: Ready to execute — depends on Phase 05 (complete)
+Last activity: 2026-06-28 — Phase 06 planned and verified
 Prior: Phase 05 VERIFIED — UAT 9/9 pass. FK disambiguation fix for evidence queries (25afe7db). Gap closure: teacher evidence navigation added, mic-denied copy made child-friendly. iOS Safari + Android Chrome + desktop teacher evidence all verified on real devices.
 
 Progress: [█████-----] 71%

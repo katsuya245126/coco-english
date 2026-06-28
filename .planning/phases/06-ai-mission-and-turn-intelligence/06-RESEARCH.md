@@ -356,22 +356,19 @@ assertTransitionRequest({
 | A2 | Existing `attempt_turns.evaluation` JSON plus `attempts.needs_review_reason` is enough for Phase 7 handoff unless planner identifies a query need for indexed columns [ASSUMED]. | Architecture Patterns | Phase 7 may need a small migration for faster bucket filtering. |
 | A3 | The mission generator can satisfy v1 quality with the current mission fields and does not need extra curriculum metadata [ASSUMED]. | Recommended Plan Decomposition | Teacher-generated drafts may be generic if target pattern/topic/level are insufficient. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **What exact confidence threshold should route to teacher review?**
-   - What we know: Low-confidence, ambiguous, malformed, and failed-schema outcomes must route to teacher review [VERIFIED: 06-CONTEXT.md].
-   - What's unclear: Numeric or categorical cutoff is not locked [VERIFIED: 06-CONTEXT.md].
-   - Recommendation: Start with categorical `high|medium|low`, auto-continue only high-confidence valid outputs, and review after fixture results [ASSUMED].
+   - Decision: Use categorical confidence in `ai-eval-v1`: only `confidence: "high"` with a valid schema and non-review outcome can auto-continue. `confidence: "medium"`, `confidence: "low"`, ambiguous outcomes, malformed output, provider failure, and failed schema route to teacher review [VERIFIED: 06-CONTEXT.md].
+   - Execution note: Fixture tests may tune prompt wording, but they must not relax the rule that uncertain model output avoids automatic pass/fail.
 
 2. **Should Phase 6 add indexed columns for review reason/confidence?**
-   - What we know: Existing schema has `attempt_turns.evaluation`, `attempts.needs_review_reason`, and `teacher_review` statuses [VERIFIED: supabase/migrations/202606250001_foundation_schema.sql].
-   - What's unclear: Phase 7 dashboard query shape is not implemented yet [VERIFIED: .planning/ROADMAP.md].
-   - Recommendation: Prefer JSON plus existing fields in Phase 6; add narrow migration only if evidence annotation cannot be queried cleanly [ASSUMED].
+   - Decision: Do not add indexed review/confidence columns in Phase 6. Store structured evaluation details in `attempt_turns.evaluation`, mirror existing scalar fields such as `target_attempted`, `improved_sentence`, and `repeat_accepted`, and use existing `attempts.needs_review_reason` plus `teacher_review` statuses for Phase 7 handoff [VERIFIED: supabase/migrations/202606250001_foundation_schema.sql].
+   - Execution note: Add a migration only if implementation proves an existing Phase 6 write target is missing; do not pre-build Phase 7 dashboard query optimization.
 
 3. **Which OpenAI model should be the default for generation/evaluation?**
-   - What we know: Model names and costs are version-sensitive and left to planner/executor discretion [VERIFIED: AGENTS.md; VERIFIED: 06-CONTEXT.md].
-   - What's unclear: Cost/quality tradeoff for elementary ESL fixtures is not validated in this repo [ASSUMED].
-   - Recommendation: Use env-configured model names with no hardcoded UI exposure and fake-client tests [VERIFIED: src/server/audio/transcription.ts pattern].
+   - Decision: Use env-configured model names in server adapters: `OPENAI_MISSION_MODEL` for mission draft generation and `OPENAI_EVALUATION_MODEL` for turn evaluation. Do not hardcode model names in UI, tests, or student-visible copy. If a live server call has no configured model, return a narrow configuration error instead of silently choosing an unreviewed model [VERIFIED: src/server/audio/transcription.ts pattern].
+   - Execution note: Automated tests must inject fake clients and explicit test model strings; final live model choice remains a manual pilot configuration check because model names, quality, and pricing are version-sensitive [VERIFIED: AGENTS.md].
 
 ## Environment Availability
 
@@ -397,7 +394,7 @@ Nyquist validation is enabled in `.planning/config.json` [VERIFIED: .planning/co
 |----------|-------|
 | Framework | Vitest 2.1.9 installed; Playwright 1.61.1 installed [VERIFIED: package-lock.json]. |
 | Config file | `vitest.config.ts`, `playwright.config.ts` [VERIFIED: codebase grep]. |
-| Quick run command | `npx vitest run tests/domain/ai-mission-generation.test.ts tests/domain/turn-evaluation.test.ts tests/server/ai-mission-generator.test.ts tests/server/turn-evaluator.test.ts` [ASSUMED]. |
+| Quick run command | `npx vitest run tests/domain/mission-generation.test.ts tests/domain/turn-evaluation.test.ts tests/server/ai-mission-generator.test.ts tests/server/turn-evaluator.test.ts` [ASSUMED]. |
 | Full suite command | `npm run typecheck && npx vitest run && npx playwright test` [VERIFIED: package.json; VERIFIED: playwright.config.ts]. |
 
 ### Phase Requirements -> Test Map
@@ -406,12 +403,12 @@ Nyquist validation is enabled in `.planning/config.json` [VERIFIED: .planning/co
 |--------|----------|-----------|-------------------|--------------|
 | MISS-02 | Generate draft from teacher source fields | server/unit + component | `npx vitest run tests/server/ai-mission-generator.test.ts` | no - Wave 0 [VERIFIED: .planning/REQUIREMENTS.md]. |
 | MISS-03 | Preview/edit generated mission before assignment | component/e2e | `npx playwright test tests/e2e/teacher-ai-mission-draft.spec.ts` | no - Wave 0 [VERIFIED: 06-UI-SPEC.md]. |
-| MISS-05 | Reject invalid generated mission schema | unit/server | `npx vitest run tests/domain/ai-mission-generation.test.ts tests/server/ai-mission-generator.test.ts` | no - Wave 0 [VERIFIED: .planning/REQUIREMENTS.md]. |
+| MISS-05 | Reject invalid generated mission schema | unit/server | `npx vitest run tests/domain/mission-generation.test.ts tests/server/ai-mission-generator.test.ts` | no - Wave 0 [VERIFIED: .planning/REQUIREMENTS.md]. |
 | AI-01 | Meaning understandable result stored | unit/server | `npx vitest run tests/domain/turn-evaluation.test.ts tests/server/turn-evaluator.test.ts` | no - Wave 0 [VERIFIED: .planning/REQUIREMENTS.md]. |
 | AI-02 | Target pattern attempt result stored | unit/server | `npx vitest run tests/domain/turn-evaluation.test.ts` | no - Wave 0 [VERIFIED: .planning/REQUIREMENTS.md]. |
 | AI-03 | Improved sentence only when needed | unit/component/e2e | `npx vitest run tests/domain/turn-evaluation.test.ts && npx playwright test tests/e2e/student-ai-evaluation.spec.ts` | no - Wave 0 [VERIFIED: 06-CONTEXT.md]. |
-| AI-04 | Repeat closeness controls `repeat_accepted` | unit/server | `npx vitest run tests/server/turn-evaluator.test.ts tests/server/mission-flow-ai.test.ts` | no - Wave 0 [VERIFIED: .planning/REQUIREMENTS.md]. |
-| AI-05 | Low-confidence/schema/ambiguous routes to teacher review | unit/server/e2e | `npx vitest run tests/domain/turn-evaluation.test.ts tests/server/mission-flow-ai.test.ts` | no - Wave 0 [VERIFIED: 06-CONTEXT.md]. |
+| AI-04 | Repeat closeness controls `repeat_accepted` | unit/server | `npx vitest run tests/server/turn-evaluator.test.ts tests/server/student-mission-flow.test.ts` | no - Wave 0 [VERIFIED: .planning/REQUIREMENTS.md]. |
+| AI-05 | Low-confidence/schema/ambiguous routes to teacher review | unit/server/e2e | `npx vitest run tests/domain/turn-evaluation.test.ts tests/server/student-mission-flow.test.ts` | no - Wave 0 [VERIFIED: 06-CONTEXT.md]. |
 
 ### Sampling Rate
 
@@ -421,11 +418,11 @@ Nyquist validation is enabled in `.planning/config.json` [VERIFIED: .planning/co
 
 ### Wave 0 Gaps
 
-- [ ] `tests/domain/ai-mission-generation.test.ts` - covers MISS-02/MISS-05 schema mapping and invalid draft rejection [VERIFIED: .planning/REQUIREMENTS.md].
+- [ ] `tests/domain/mission-generation.test.ts` - covers MISS-02/MISS-05 schema mapping and invalid draft rejection [VERIFIED: .planning/REQUIREMENTS.md].
 - [ ] `tests/domain/turn-evaluation.test.ts` - covers correct, needs correction, non-English, low-confidence, ambiguous, failed-schema, repeat accepted, repeat retry [VERIFIED: 06-CONTEXT.md].
 - [ ] `tests/server/ai-mission-generator.test.ts` - fake OpenAI client, no paid calls, request shape, missing API key [VERIFIED: tests/server/transcription.test.ts pattern].
 - [ ] `tests/server/turn-evaluator.test.ts` - fake OpenAI client and schema failure mapping [VERIFIED: tests/server/transcription.test.ts pattern].
-- [ ] `tests/server/mission-flow-ai.test.ts` - completion rules after conditional skip-repeat and teacher-review routing [VERIFIED: src/domain/flow/completion.ts].
+- [ ] `tests/server/student-mission-flow.test.ts` - completion rules after conditional skip-repeat and teacher-review routing [VERIFIED: src/domain/flow/completion.ts].
 - [ ] `tests/e2e/teacher-ai-mission-draft.spec.ts` - draft panel states and no raw JSON/model internals [VERIFIED: 06-UI-SPEC.md].
 - [ ] `tests/e2e/student-ai-evaluation.spec.ts` - source/DOM checks or env-gated UI branches for correct/correction/non-English/review outcomes [VERIFIED: 06-UI-SPEC.md].
 

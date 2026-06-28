@@ -12,3 +12,6 @@ playwright-report/
 
 # Supabase CLI local cache (linked project ref, pooler URL, version stamps)
 supabase/.temp/
+
+# GSD/OpenAI research cache
+.planning/research/.cache/

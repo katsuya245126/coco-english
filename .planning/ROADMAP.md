@@ -226,12 +226,9 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
 **Wave 2**
 
 - [ ] `06-02-PLAN.md` — Teacher mission-generation slice: strict generated draft schema, server-only AI adapter, teacher action, draft preview, and editable form-fill.
-
-**Wave 3**
-
 - [ ] `06-03-PLAN.md` — Student original-answer evaluation slice: English/meaning/target-pattern checks, conditional correction, non-English retry, and teacher-review routing.
 
-**Wave 4**
+**Wave 3**
 
 - [ ] `06-04-PLAN.md` — Repeat evaluation, completion compatibility, teacher-review status/audit, and existing evidence-page AI annotations.
 

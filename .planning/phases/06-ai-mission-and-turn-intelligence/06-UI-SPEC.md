@@ -142,8 +142,8 @@ Supporting colors:
 | Repeat accepted | Good repeat. |
 | Repeat retry heading | Try the repeat again. |
 | Repeat retry body | Listen to the sentence and record it one more time. |
-| Continue CTA when correct | Continue |
-| Continue CTA after repeat accepted | Continue |
+| Continue CTA when correct | Continue mission |
+| Continue CTA after repeat accepted | Continue practice |
 | Retry recording CTA | Record again |
 
 ### Teacher Review Routing Copy
