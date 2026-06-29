@@ -30,6 +30,23 @@ test("teacher evidence page renders transcript labels before audio controls", ()
   expect(repeatIndex).toBeLessThan(playerIndex);
 });
 
+test("teacher evidence page renders AI annotations without Phase 7 dashboard controls", () => {
+  const source = readFileSync(pageSourcePath, "utf8");
+
+  expect(source).toContain("Meaning result");
+  expect(source).toContain("Target pattern result");
+  expect(source).toContain("Improved sentence");
+  expect(source).toContain("Repeat result");
+  expect(source).toContain("Teacher review");
+  expect(source).toContain("AI was not confident enough to decide.");
+  expect(source).toContain("The answer was ambiguous and needs a teacher check.");
+  expect(source).toContain(
+    "AI returned an invalid result, so this was routed to teacher review.",
+  );
+  expect(source).not.toContain("Override status");
+  expect(source).not.toContain("Review bucket");
+});
+
 test("teacher class UI links to attempt evidence", async ({ page }) => {
   const source = readFileSync(classPageSourcePath, "utf8");
 

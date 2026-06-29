@@ -66,7 +66,8 @@ function createMockSupabase(options: {
                     started_at: "2026-06-27T07:00:00Z",
                     completed_at: "2026-06-27T07:02:00Z",
                     assignment_students: {
-                      status: "completed",
+                      status: "teacher_review",
+                      needs_review_reason: "low_confidence",
                       submitted_at: "2026-06-27T07:02:00Z",
                       students: { display_name: "Mina" },
                       assignments: {
@@ -110,6 +111,16 @@ function createMockSupabase(options: {
                 original_transcript: "I wake up at seven.",
                 improved_sentence: "I wake up at seven.",
                 repeat_transcript: "I wake up at seven.",
+                target_attempted: true,
+                repeat_accepted: true,
+                evaluation: {
+                  version: "ai-eval-v1",
+                  outcome: "accepted_repeat",
+                  meaningUnderstood: true,
+                  targetPatternAttempted: true,
+                  reviewReason: null,
+                  repeatAccepted: true,
+                },
               },
               {
                 id: "turn-2",
@@ -117,6 +128,16 @@ function createMockSupabase(options: {
                 original_transcript: "I eat breakfast.",
                 improved_sentence: "I eat breakfast.",
                 repeat_transcript: "I eat breakfast.",
+                target_attempted: false,
+                repeat_accepted: null,
+                evaluation: {
+                  version: "ai-eval-v1",
+                  outcome: "teacher_review",
+                  meaningUnderstood: true,
+                  targetPatternAttempted: false,
+                  reviewReason: "low_confidence",
+                  repeatAccepted: null,
+                },
               },
             ],
             error: null,
@@ -179,6 +200,7 @@ describe("teacher audio evidence service", () => {
       missionTitle: "Daily routines",
       studentName: "Mina",
       attemptStatus: "completed",
+      reviewReason: "low_confidence",
       submittedAt: "2026-06-27T07:02:00Z",
       completedAt: "2026-06-27T07:02:00Z",
     });
@@ -186,6 +208,9 @@ describe("teacher audio evidence service", () => {
       turnOrder: 1,
       originalTranscript: "I wake up at seven.",
       repeatTranscript: "I wake up at seven.",
+      meaningResult: "Understood",
+      targetPatternResult: "Target pattern used",
+      repeatResult: "Accepted",
       audioClips: [
         {
           id: "clip-1",
@@ -198,6 +223,12 @@ describe("teacher audio evidence service", () => {
           processingStatus: "transcribed",
         },
       ],
+    });
+    expect(evidence?.turns[1]).toMatchObject({
+      meaningResult: "Needs teacher check",
+      targetPatternResult: "Needs teacher check",
+      repeatResult: "Needs teacher check",
+      reviewReason: "low_confidence",
     });
 
     const attemptLookup = mockSupabase.operations.find(

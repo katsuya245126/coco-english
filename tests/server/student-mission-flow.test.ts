@@ -79,6 +79,22 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(shellSource).not.toContain("teacher_review");
   });
 
+  it("review routing is service-owned, audited, and AI-attributed", () => {
+    const missionFlowSource = readFileSync(
+      "src/server/student-access/mission-flow.ts",
+      "utf8",
+    );
+
+    expect(missionFlowSource).toContain("routeAssignmentStudentToTeacherReview");
+    expect(missionFlowSource).toContain("assertTransitionRequest");
+    expect(missionFlowSource).toContain('status: "teacher_review"');
+    expect(missionFlowSource).toContain("needs_review_reason");
+    expect(missionFlowSource).toContain('actor_type: "ai_evaluator"');
+    expect(missionFlowSource).toContain('reason_code: "low_confidence"');
+    expect(missionFlowSource).toContain('reason_code: "ambiguous"');
+    expect(missionFlowSource).toContain('reason_code: "failed_schema"');
+  });
+
   it("student client modules do not import OpenAI or server AI adapters (T-06-01)", () => {
     const shellSource = readFileSync(
       "src/components/student/MissionFlowShell.tsx",
