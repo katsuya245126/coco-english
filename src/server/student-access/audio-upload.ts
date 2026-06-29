@@ -55,7 +55,7 @@ export type UploadAttemptAudioClipResult =
       audioClipId: string;
       processingStatus: "transcribed";
       transcript: string;
-      evaluation?: StoredOriginalTurnEvaluation;
+      evaluation?: StoredOriginalTurnEvaluation | StoredRepeatTurnEvaluation;
     }
   | {
       ok: false;
@@ -250,7 +250,9 @@ function readMissionSnapshot(assignmentStudent: unknown) {
   return parsed.success ? parsed.data : null;
 }
 
-function toJson(value: StoredOriginalTurnEvaluation): Json {
+function toJson(
+  value: StoredOriginalTurnEvaluation | StoredRepeatTurnEvaluation,
+): Json {
   return value as unknown as Json;
 }
 
@@ -302,7 +304,7 @@ export async function uploadAttemptAudioClip(
         },
         { onConflict: "attempt_id,turn_order" },
       )
-      .select("id")
+      .select("id, original_transcript, improved_sentence")
       .single();
 
     if (turnError || !turn) {
@@ -384,6 +386,7 @@ export async function uploadAttemptAudioClip(
 
     const transcript = transcription.text;
     let originalEvaluation: StoredOriginalTurnEvaluation | undefined;
+    let repeatEvaluation: StoredRepeatTurnEvaluation | undefined;
     const turnWrite =
       input.clipKind === "original_answer"
         ? await (async () => {
@@ -415,13 +418,32 @@ export async function uploadAttemptAudioClip(
               { onConflict: "attempt_id,turn_order" },
             );
           })()
-        : await supabase
-            .from("attempt_turns")
-            .update({
-              repeat_transcript: transcript,
-              repeat_accepted: true,
-            })
-            .eq("id", turn.id);
+        : await (async () => {
+            const snapshot = readMissionSnapshot(assignmentStudent);
+            const snapshotTurn = snapshot?.turns.find(
+              (missionTurn) => missionTurn.turnOrder === input.turnOrder,
+            );
+            const evaluate = deps.evaluateRepeatTurn ?? evaluateRepeatTurn;
+            const evaluationResult = await evaluate({
+              originalTranscript: turn.original_transcript ?? "",
+              improvedSentence:
+                turn.improved_sentence ?? snapshotTurn?.targetExample ?? "",
+              targetPattern: snapshot?.targetPattern ?? "",
+              level: snapshot?.level ?? "elementary",
+              repeatTranscript: transcript,
+            });
+            const decision = applyRepeatTurnEvaluation(evaluationResult);
+            repeatEvaluation = decision;
+
+            return supabase
+              .from("attempt_turns")
+              .update({
+                repeat_transcript: transcript,
+                repeat_accepted: decision.repeatAccepted,
+                evaluation: toJson(decision),
+              })
+              .eq("id", turn.id);
+          })();
 
     if (turnWrite.error) {
       await supabase
@@ -458,7 +480,7 @@ export async function uploadAttemptAudioClip(
       audioClipId: audioClip.id,
       processingStatus: "transcribed",
       transcript,
-      evaluation: originalEvaluation,
+      evaluation: originalEvaluation ?? repeatEvaluation,
     };
   } catch {
     return { ok: false, error: "db_error", retryable: true };

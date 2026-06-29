@@ -105,7 +105,7 @@ export async function startOrResumeAttempt(input: {
         // Load existing turns for resume position
         const { data: turns } = await supabase
           .from("attempt_turns")
-          .select("turn_order, original_transcript, repeat_transcript, repeat_accepted")
+          .select("turn_order, original_transcript, repeat_transcript, repeat_accepted, evaluation")
           .eq("attempt_id", attempt.id);
 
         // Get required_turns from the assignment's mission_snapshot
@@ -125,6 +125,7 @@ export async function startOrResumeAttempt(input: {
             original_transcript: t.original_transcript,
             repeat_transcript: t.repeat_transcript,
             repeat_accepted: t.repeat_accepted,
+            evaluation: t.evaluation,
           })),
         );
 
@@ -402,13 +403,13 @@ export async function completeAttempt(input: {
     // 2. Load attempt turns from DB
     const { data: turns, error: turnsErr } = await supabase
       .from("attempt_turns")
-      .select("turn_order, original_transcript, repeat_transcript, repeat_accepted")
+      .select("turn_order, original_transcript, repeat_transcript, repeat_accepted, evaluation")
       .eq("attempt_id", input.attemptId);
 
     if (turnsErr) return { ok: false, error: "db_error" };
 
-    // 3. Gate on isAttemptComplete — the only deterministic completion check (D-06)
-    // Completion keys ONLY on transcripts + repeat_accepted, never on evaluation
+    // 3. Gate on isAttemptComplete — app-owned completion accepts verified
+    // originals or accepted repeats, and rejects malformed evaluation JSON.
     if (!isAttemptComplete(input.requiredTurns, turns ?? [])) {
       return { ok: false, error: "not_complete" };
     }

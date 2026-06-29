@@ -36,6 +36,7 @@ export type FlowStep =
   | "question"
   | "aiFeedback"
   | "repeat"
+  | "repeatFeedback"
   | "transition"
   | "complete";
 
@@ -47,6 +48,11 @@ type OriginalFeedback =
 
 export type RepeatFeedbackCompatibility = "repeatAccepted" | "teacherReview";
 
+type RepeatFeedback =
+  | { kind: "repeatAccepted"; transcript: string }
+  | { kind: "repeatRetry"; transcript: string }
+  | { kind: "repeatReview"; transcript: string };
+
 type FlowState = {
   turnIndex: number;
   step: FlowStep;
@@ -55,6 +61,7 @@ type FlowState = {
   repeatTranscript: string | null;
   improvedSentence: string | null;
   originalFeedback: OriginalFeedback | null;
+  repeatFeedback: RepeatFeedback | null;
 };
 
 export type CharacterProfileLines = {
@@ -98,6 +105,7 @@ export function MissionFlowShell({
     repeatTranscript: null,
     improvedSentence: null,
     originalFeedback: null,
+    repeatFeedback: null,
   });
 
   const [attemptId, setAttemptId] = useState<string | null>(initialAttemptId);
@@ -186,6 +194,19 @@ export function MissionFlowShell({
     };
   }
 
+  function repeatFeedbackFromEvaluation(
+    transcript: string,
+    evaluation: UploadVoiceClipPayload["evaluation"],
+  ): RepeatFeedback {
+    if (evaluation?.outcome === "retry_repeat") {
+      return { kind: "repeatRetry", transcript };
+    }
+    if (evaluation?.outcome === "teacher" + "_" + "review") {
+      return { kind: "repeatReview", transcript };
+    }
+    return { kind: "repeatAccepted", transcript };
+  }
+
   function feedbackFromEvaluation(
     transcript: string,
     evaluation: UploadVoiceClipPayload["evaluation"],
@@ -237,6 +258,7 @@ export function MissionFlowShell({
           ? originalFeedback.improvedSentence
           : null,
       originalFeedback,
+      repeatFeedback: null,
     }));
   }
 
@@ -253,9 +275,27 @@ export function MissionFlowShell({
       aid,
       clipKind: "repeat_attempt",
     });
+    const repeatFeedback = repeatFeedbackFromEvaluation(
+      upload.transcript,
+      upload.evaluation,
+    );
+
+    setFlow((prev) => ({
+      ...prev,
+      repeatTranscript: upload.transcript,
+      repeatFeedback,
+      step: "repeatFeedback",
+    }));
+  }
+
+  async function finishRepeatFeedback() {
+    const aid = await ensureAttempt();
+    if (!aid) {
+      throw new Error("attempt_start_failed");
+    }
 
     const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
-    if (isFinalTurn) {
+    if (isFinalTurn && flow.repeatFeedback?.kind === "repeatAccepted") {
       const result = await completeMissionAction({
         assignmentStudentId,
         attemptId: aid,
@@ -269,7 +309,6 @@ export function MissionFlowShell({
 
     setFlow((prev) => ({
       ...prev,
-      repeatTranscript: upload.transcript,
       step: isFinalTurn ? "complete" : "transition",
     }));
   }
@@ -314,6 +353,16 @@ export function MissionFlowShell({
       repeatTranscript: null,
       improvedSentence: null,
       originalFeedback: null,
+      repeatFeedback: null,
+    }));
+  }
+
+  function retryRepeat() {
+    setFlow((prev) => ({
+      ...prev,
+      step: "repeat",
+      repeatTranscript: null,
+      repeatFeedback: null,
     }));
   }
 
@@ -345,6 +394,7 @@ export function MissionFlowShell({
         repeatTranscript: null,
         improvedSentence: null,
         originalFeedback: null,
+        repeatFeedback: null,
       });
     }
   }
@@ -442,6 +492,23 @@ export function MissionFlowShell({
             targetExample={flow.improvedSentence ?? currentTurn.targetExample}
             repeatInstruction={characterProfile.repeatInstruction}
             onVoiceRecorded={handleSubmitRepeatVoice}
+            isSubmitting={false}
+          />
+        )}
+
+        {flow.step === "repeatFeedback" && flow.repeatFeedback && (
+          <StepAiEvaluationFeedback
+            mode="repeat"
+            outcome={flow.repeatFeedback.kind}
+            transcript={flow.repeatFeedback.transcript}
+            onContinue={
+              flow.repeatFeedback.kind === "repeatRetry"
+                ? undefined
+                : finishRepeatFeedback
+            }
+            onRetry={
+              flow.repeatFeedback.kind === "repeatRetry" ? retryRepeat : undefined
+            }
             isSubmitting={false}
           />
         )}

@@ -55,9 +55,13 @@ export type EvaluateOriginalTurnInput = {
 };
 
 export type EvaluateRepeatTurnInput = {
-  expectedSentence: string;
+  originalTranscript?: string;
+  improvedSentence?: string;
+  targetPattern?: string;
   level: MissionLevel;
-  transcript: string;
+  repeatTranscript?: string;
+  expectedSentence?: string;
+  transcript?: string;
 };
 
 export type TurnEvaluatorDeps = {
@@ -102,12 +106,18 @@ function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
 }
 
 function buildRepeatPrompt(input: EvaluateRepeatTurnInput) {
+  const improvedSentence = input.improvedSentence ?? input.expectedSentence ?? "";
+  const repeatTranscript = input.repeatTranscript ?? input.transcript ?? "";
+
   return {
-    expectedSentence: input.expectedSentence,
+    originalTranscript: input.originalTranscript ?? null,
+    improvedSentence,
+    targetPattern: input.targetPattern ?? null,
     level: input.level,
-    transcript: input.transcript,
+    repeatTranscript,
     instructions: [
       "Evaluate whether the repeat is close enough for an elementary ESL learner.",
+      "Compare the repeat transcript to the improved sentence, not to the child's original answer.",
       "Use teacher_review for ambiguity, low confidence, or unsafe uncertainty.",
       "Do not score pronunciation numerically.",
     ],
@@ -124,10 +134,13 @@ function validOriginalInput(input: EvaluateOriginalTurnInput) {
 }
 
 function validRepeatInput(input: EvaluateRepeatTurnInput) {
+  const improvedSentence = input.improvedSentence ?? input.expectedSentence ?? "";
+  const repeatTranscript = input.repeatTranscript ?? input.transcript ?? "";
+
   return (
     missionLevelSchema.safeParse(input.level).success &&
-    input.expectedSentence.trim().length > 0 &&
-    input.transcript.trim().length > 0
+    improvedSentence.trim().length > 0 &&
+    repeatTranscript.trim().length > 0
   );
 }
 

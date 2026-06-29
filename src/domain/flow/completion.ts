@@ -38,8 +38,7 @@ function originalAnswerAccepted(turn: CompletionTurn): boolean {
   return (
     evaluation.version === "ai-eval-v1" &&
     evaluation.requireRepeat === false &&
-    (evaluation.outcome === "accepted_original" ||
-      evaluation.outcome === "teacher_review")
+    evaluation.outcome === "accepted_original"
   );
 }
 
