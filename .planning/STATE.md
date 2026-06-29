@@ -5,16 +5,16 @@ milestone_name: milestone
 current_phase: 06
 current_phase_name: ai-mission-and-turn-intelligence
 status: executing
-stopped_at: Completed 06-02-PLAN.md
-last_updated: "2026-06-29T11:21:43.070Z"
+stopped_at: Completed 06-04-PLAN.md
+last_updated: "2026-06-29T23:52:36.010Z"
 last_activity: 2026-06-29
-last_activity_desc: Phase 06 execution started
+last_activity_desc: Completed 06-04 repeat evaluation and review routing
 progress:
   total_phases: 7
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 22
-  completed_plans: 19
-  percent: 86
+  completed_plans: 21
+  percent: 95
 ---
 
 # Project State
@@ -28,12 +28,12 @@ See: .planning/PROJECT.md (updated 2026-06-25)
 
 ## Current Position
 
-Phase: 06 (ai-mission-and-turn-intelligence) — EXECUTING
-Status: Executing Phase 06
-Last activity: 2026-06-29 — Phase 06 execution started
+Phase: 06 (ai-mission-and-turn-intelligence) — COMPLETE
+Status: Phase 06 complete; ready for verification and Phase 7 planning
+Last activity: 2026-06-29 — Completed 06-04 repeat evaluation and review routing
 Prior: Phase 05 VERIFIED — UAT 9/9 pass. FK disambiguation fix for evidence queries (25afe7db). Gap closure: teacher evidence navigation added, mic-denied copy made child-friendly. iOS Safari + Android Chrome + desktop teacher evidence all verified on real devices.
 
-Progress: [█████████░] 86%
+Progress: [██████████] 95%
 
 ## Performance Metrics
 
@@ -72,6 +72,7 @@ Progress: [█████████░] 86%
 | Phase 05 P05 | 6min | 4 tasks | 4 files |
 | Phase 06 P01 | 6min | 2 tasks | 7 files |
 | Phase 06 P02 | 7min | 2 tasks | 5 files |
+| Phase 06 P04 | 15min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -120,6 +121,9 @@ Recent decisions affecting current work:
 - [Phase 06]: 06-01: Source-contract checks guard client/server AI boundaries and keep OpenAI out of student client modules.
 - [Phase 06]: 06-02: Mission draft generation returns validated drafts only; generated data is never saved until the teacher uses the existing mission save path.
 - [Phase 06]: 06-02: OpenAI Responses integration stays server-only in src/server/ai/mission-generator.ts with fake-client injection for automated tests.
+- [Phase 06]: 06-04: Repeat uploads evaluate the transcript against the improved sentence before setting repeat_accepted.
+- [Phase 06]: 06-04: Teacher-review status changes are centralized in routeAssignmentStudentToTeacherReview and audited with actor_type ai_evaluator.
+- [Phase 06]: 06-04: Existing teacher evidence shows AI annotations, while Phase 7 dashboard buckets and manual override UI remain out of scope.
 
 ### Pending Todos
 
@@ -140,6 +144,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-29T11:21:42.627Z
-Stopped at: Completed 06-02-PLAN.md
+Last session: 2026-06-29T23:52:35.756Z
+Stopped at: Completed 06-04-PLAN.md
 Resume file: None

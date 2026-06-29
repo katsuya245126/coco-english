@@ -16,7 +16,7 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
 - [x] **Phase 3: Manual Mission Assignment** - Teachers can manually create a mission and assign immutable homework to every student in a class. (completed 2026-06-26)
 - [x] **Phase 4: Guided Student Attempt Loop** - Students can complete the mission flow with classroom-safe buddy prompts, recasts, repeats, hints, and completion rules. (completed 2026-06-27)
 - [x] **Phase 5: Voice Capture and Evidence Storage** - Students record short per-turn clips, transcripts and clip metadata are stored, and teachers can play audio on demand. (completed 2026-06-27)
-- [ ] **Phase 6: AI Mission and Turn Intelligence** - AI generates validated mission drafts and evaluates student turns with structured, bounded, reviewable outputs.
+- [x] **Phase 6: AI Mission and Turn Intelligence** - AI generates validated mission drafts and evaluates student turns with structured, bounded, reviewable outputs. (completed 2026-06-29)
 - [ ] **Phase 7: Teacher Review and Pilot Readiness** - Teachers can scan status buckets, review attempts, override outcomes, and run the MVP safely in a pilot.
 
 ## Phase Details
@@ -217,12 +217,12 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
   4. System evaluates meaning, target-pattern attempt, improved target-form sentence, and repeat closeness for each turn.
   5. System routes low-confidence, failed-schema, or ambiguous AI results to teacher review instead of pretending certainty.
 
-**Plans**: 3/4 plans executed
+**Plans**: 4/4 plans complete
 
 - [x] 06-01-PLAN.md
 - [x] 06-02-PLAN.md
 - [x] 06-03-PLAN.md
-- [ ] 06-04-PLAN.md
+- [x] 06-04-PLAN.md
 
 **Wave 1**
 
@@ -294,5 +294,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 3. Manual Mission Assignment | 3/3 | Complete   | 2026-06-26 |
 | 4. Guided Student Attempt Loop | 5/5 | Complete   | 2026-06-27 |
 | 5. Voice Capture and Evidence Storage | 4/5 | In Progress|  |
-| 6. AI Mission and Turn Intelligence | 3/4 | In Progress|  |
+| 6. AI Mission and Turn Intelligence | 4/4 | Complete   | 2026-06-29 |
 | 7. Teacher Review and Pilot Readiness | 0/TBD | Not started | - |
