@@ -2,11 +2,17 @@
 
 import { revalidatePath } from "next/cache";
 import { requireTeacherProfile } from "@/server/auth/teacher-profile";
+import { missionDraftInputSchema } from "@/domain/ai/mission-generation";
+import type {
+  GenerateMissionDraftInput,
+  GeneratedMissionDraft,
+} from "@/domain/ai/mission-generation";
 import {
   assignMissionSchema,
   missionFormSchema,
   missionIdSchema,
 } from "@/domain/mission/schemas";
+import { generateMissionDraft } from "@/server/ai/mission-generator";
 import { assignMissionToClass } from "@/server/mission/assign-service";
 import {
   createMission,
@@ -19,6 +25,12 @@ const GENERIC_FAILURE =
 const ASSIGN_FAILURE =
   "We could not assign this mission. Please try again.";
 
+const DRAFT_SCHEMA_FAILURE =
+  "The draft did not match the mission format. Try again or write the mission manually.";
+
+const DRAFT_SERVICE_FAILURE =
+  "AI generation is not available right now. Write the mission manually or try again later.";
+
 export type MissionActionResult =
   | { ok: true; missionId: string }
   | { ok: false; error: string };
@@ -26,6 +38,14 @@ export type MissionActionResult =
 export type AssignMissionActionResult =
   | { ok: true; className: string; activeStudentCount: number }
   | { ok: false; error: string };
+
+export type GenerateMissionDraftActionResult =
+  | { ok: true; draft: GeneratedMissionDraft }
+  | {
+      ok: false;
+      error: string;
+      reason: "invalid-input" | "failed-schema" | "service-failed";
+    };
 
 function parseTurns(value: FormDataEntryValue | null): unknown {
   if (typeof value !== "string") {
@@ -141,4 +161,33 @@ export async function assignMissionAction(
   } catch {
     return { ok: false, error: ASSIGN_FAILURE };
   }
+}
+
+export async function generateMissionDraftAction(
+  input: GenerateMissionDraftInput,
+): Promise<GenerateMissionDraftActionResult> {
+  await requireTeacherProfile();
+  const parsed = missionDraftInputSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      reason: "invalid-input",
+      error:
+        parsed.error.issues[0]?.message ??
+        "Edit the details before generating a draft.",
+    };
+  }
+
+  const result = await generateMissionDraft(parsed.data);
+
+  if (result.ok) {
+    return { ok: true, draft: result.draft };
+  }
+
+  if (result.error === "schema_failed") {
+    return { ok: false, reason: "failed-schema", error: DRAFT_SCHEMA_FAILURE };
+  }
+
+  return { ok: false, reason: "service-failed", error: DRAFT_SERVICE_FAILURE };
 }
