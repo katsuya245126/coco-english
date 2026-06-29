@@ -217,11 +217,11 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
   4. System evaluates meaning, target-pattern attempt, improved target-form sentence, and repeat closeness for each turn.
   5. System routes low-confidence, failed-schema, or ambiguous AI results to teacher review instead of pretending certainty.
 
-**Plans**: 2/4 plans executed
+**Plans**: 3/4 plans executed
 
 - [x] 06-01-PLAN.md
 - [x] 06-02-PLAN.md
-- [ ] 06-03-PLAN.md
+- [x] 06-03-PLAN.md
 - [ ] 06-04-PLAN.md
 
 **Wave 1**
@@ -231,7 +231,7 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
 **Wave 2**
 
 - [x] `06-02-PLAN.md` — Teacher mission-generation slice: strict generated draft schema, server-only AI adapter, teacher action, draft preview, and editable form-fill.
-- [ ] `06-03-PLAN.md` — Student original-answer evaluation slice: English/meaning/target-pattern checks, conditional correction, non-English retry, and teacher-review routing.
+- [x] `06-03-PLAN.md` — Student original-answer evaluation slice: English/meaning/target-pattern checks, conditional correction, non-English retry, and teacher-review routing.
 
 **Wave 3**
 
@@ -294,5 +294,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 3. Manual Mission Assignment | 3/3 | Complete   | 2026-06-26 |
 | 4. Guided Student Attempt Loop | 5/5 | Complete   | 2026-06-27 |
 | 5. Voice Capture and Evidence Storage | 4/5 | In Progress|  |
-| 6. AI Mission and Turn Intelligence | 2/4 | In Progress|  |
+| 6. AI Mission and Turn Intelligence | 3/4 | In Progress|  |
 | 7. Teacher Review and Pilot Readiness | 0/TBD | Not started | - |
