@@ -40,10 +40,10 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 ### Mission Authoring
 
 - [x] **MISS-01**: Teacher can manually create a mission with target pattern, topic, level, required turns, due date, questions, expected target-form examples, and hints.
-- [ ] **MISS-02**: Teacher can generate a draft mission from target pattern, topic, level, required turns, and due date.
-- [ ] **MISS-03**: Teacher can preview and edit a generated mission before assigning it.
+- [x] **MISS-02**: Teacher can generate a draft mission from target pattern, topic, level, required turns, and due date.
+- [x] **MISS-03**: Teacher can preview and edit a generated mission before assigning it.
 - [x] **MISS-04**: Mission stores a `characterId` even though v1 has one default buddy character.
-- [ ] **MISS-05**: Mission generation output is validated against a strict mission schema before it can be assigned.
+- [x] **MISS-05**: Mission generation output is validated against a strict mission schema before it can be assigned.
 
 ### Assignment
 
@@ -170,10 +170,10 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 | STUD-04 | Phase 2 | Complete |
 | STUD-05 | Phase 2 | Complete |
 | MISS-01 | Phase 3 | Complete |
-| MISS-02 | Phase 6 | Pending |
-| MISS-03 | Phase 6 | Pending |
+| MISS-02 | Phase 6 | Complete |
+| MISS-03 | Phase 6 | Complete |
 | MISS-04 | Phase 3 | Complete |
-| MISS-05 | Phase 6 | Pending |
+| MISS-05 | Phase 6 | Complete |
 | ASGN-01 | Phase 3 | Complete |
 | ASGN-02 | Phase 3 | Complete |
 | ASGN-03 | Phase 3 | Complete |

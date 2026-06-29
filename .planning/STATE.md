@@ -5,16 +5,16 @@ milestone_name: milestone
 current_phase: 06
 current_phase_name: ai-mission-and-turn-intelligence
 status: executing
-stopped_at: Completed 06-01-PLAN.md
-last_updated: "2026-06-29T11:09:33.953Z"
+stopped_at: Completed 06-02-PLAN.md
+last_updated: "2026-06-29T11:21:43.070Z"
 last_activity: 2026-06-29
 last_activity_desc: Phase 06 execution started
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 22
-  completed_plans: 18
-  percent: 82
+  completed_plans: 19
+  percent: 86
 ---
 
 # Project State
@@ -33,7 +33,7 @@ Status: Executing Phase 06
 Last activity: 2026-06-29 — Phase 06 execution started
 Prior: Phase 05 VERIFIED — UAT 9/9 pass. FK disambiguation fix for evidence queries (25afe7db). Gap closure: teacher evidence navigation added, mic-denied copy made child-friendly. iOS Safari + Android Chrome + desktop teacher evidence all verified on real devices.
 
-Progress: [████████░░] 82%
+Progress: [█████████░] 86%
 
 ## Performance Metrics
 
@@ -71,6 +71,7 @@ Progress: [████████░░] 82%
 | Phase 05 P03 | 11min | 3 tasks | 11 files |
 | Phase 05 P05 | 6min | 4 tasks | 4 files |
 | Phase 06 P01 | 6min | 2 tasks | 7 files |
+| Phase 06 P02 | 7min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -117,6 +118,8 @@ Recent decisions affecting current work:
 - [Phase 06]: 06-01: Phase 6 behavior is locked first through RED tests; implementation remains in 06-02 through 06-04.
 - [Phase 06]: 06-01: AI adapter tests use injected fake Responses clients and missing-key branches so automated verification makes no paid provider calls.
 - [Phase 06]: 06-01: Source-contract checks guard client/server AI boundaries and keep OpenAI out of student client modules.
+- [Phase 06]: 06-02: Mission draft generation returns validated drafts only; generated data is never saved until the teacher uses the existing mission save path.
+- [Phase 06]: 06-02: OpenAI Responses integration stays server-only in src/server/ai/mission-generator.ts with fake-client injection for automated tests.
 
 ### Pending Todos
 
@@ -137,6 +140,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-29T11:09:13.499Z
-Stopped at: Completed 06-01-PLAN.md
+Last session: 2026-06-29T11:21:42.627Z
+Stopped at: Completed 06-02-PLAN.md
 Resume file: None
