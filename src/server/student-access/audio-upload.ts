@@ -8,11 +8,32 @@
  */
 
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
-import type { Database } from "@/lib/db/types";
-import { buildPlaceholderEvaluation } from "@/domain/flow/evaluation";
+import type { Database, Json } from "@/lib/db/types";
+import { missionSnapshotSchema } from "@/domain/mission/schemas";
+import {
+  AI_EVALUATION_VERSION,
+  decideOriginalTurnOutcome,
+  decideRepeatTurnOutcome,
+  originalTurnProviderFailureResult,
+  originalTurnSchemaFailureResult,
+  repeatTurnProviderFailureResult,
+  repeatTurnSchemaFailureResult,
+  type OriginalTurnDecision,
+  type OriginalTurnEvaluation,
+  type RepeatTurnDecision,
+  type RepeatTurnEvaluation,
+} from "@/domain/ai/turn-evaluation";
 import { transcribeAudioFile } from "@/server/audio/transcription";
+import {
+  evaluateOriginalTurn,
+  evaluateRepeatTurn,
+  type OriginalTurnEvaluationResult,
+  type RepeatTurnEvaluationResult,
+} from "@/server/ai/turn-evaluator";
 
 const DEFAULT_AUDIO_BUCKET = "student-audio";
+const FAILED_SCHEMA_REVIEW_REASON = "failed_schema";
+const LOW_CONFIDENCE_REVIEW_REASON = "low_confidence";
 
 export type AudioClipKind = Database["public"]["Enums"]["audio_clip_kind"];
 
@@ -34,6 +55,7 @@ export type UploadAttemptAudioClipResult =
       audioClipId: string;
       processingStatus: "transcribed";
       transcript: string;
+      evaluation?: StoredOriginalTurnEvaluation;
     }
   | {
       ok: false;
@@ -48,7 +70,131 @@ export type UploadAttemptAudioClipResult =
 
 export type UploadAttemptAudioClipDeps = {
   transcribeAudioFile?: typeof transcribeAudioFile;
+  evaluateOriginalTurn?: typeof evaluateOriginalTurn;
+  evaluateRepeatTurn?: typeof evaluateRepeatTurn;
 };
+
+type StoredOriginalTurnEvaluation = {
+  version: typeof AI_EVALUATION_VERSION;
+  outcome: OriginalTurnDecision["kind"];
+  confidence: OriginalTurnEvaluation["confidence"];
+  reviewReason: OriginalTurnEvaluation["reviewReason"];
+  meaningUnderstood: OriginalTurnEvaluation["meaningUnderstood"];
+  targetPatternAttempted: OriginalTurnEvaluation["targetPatternAttempted"];
+  englishLanguage: OriginalTurnEvaluation["englishLanguage"];
+  correctionNeeded: OriginalTurnEvaluation["correctionNeeded"];
+  improvedSentence: string | null;
+  requireRepeat: boolean;
+};
+
+type OriginalTurnWriteDecision = {
+  evaluation: StoredOriginalTurnEvaluation;
+  targetAttempted: boolean | null;
+  improvedSentence: string | null;
+};
+
+type StoredRepeatTurnEvaluation = {
+  version: typeof AI_EVALUATION_VERSION;
+  outcome: RepeatTurnDecision["kind"];
+  confidence: RepeatTurnEvaluation["confidence"];
+  reviewReason: RepeatTurnEvaluation["reviewReason"];
+  englishLanguage: RepeatTurnEvaluation["englishLanguage"];
+  repeatCloseEnough: RepeatTurnEvaluation["repeatCloseEnough"];
+  repeatAccepted: boolean | null;
+};
+
+export function applyOriginalTurnEvaluation(
+  result: OriginalTurnEvaluationResult,
+): OriginalTurnWriteDecision {
+  if (!result.ok) {
+    const decision =
+      result.error === "schema_failed"
+        ? originalTurnSchemaFailureResult()
+        : originalTurnProviderFailureResult();
+    const reviewReason =
+      result.error === "schema_failed"
+        ? FAILED_SCHEMA_REVIEW_REASON
+        : "provider_failed";
+
+    return {
+      evaluation: {
+        version: AI_EVALUATION_VERSION,
+        outcome: decision.kind,
+        confidence: "low",
+        reviewReason,
+        meaningUnderstood: false,
+        targetPatternAttempted: false,
+        englishLanguage: "uncertain",
+        correctionNeeded: false,
+        improvedSentence: null,
+        requireRepeat: decision.requireRepeat,
+      },
+      targetAttempted: null,
+      improvedSentence: null,
+    };
+  }
+
+  const decision = decideOriginalTurnOutcome(result.evaluation);
+  const improvedSentence =
+    decision.kind === "needs_correction" ? decision.improvedSentence : null;
+
+  return {
+    evaluation: {
+      version: AI_EVALUATION_VERSION,
+      outcome: decision.kind,
+      confidence: result.evaluation.confidence,
+      reviewReason:
+        decision.kind === "teacher_review"
+          ? decision.reviewReason || LOW_CONFIDENCE_REVIEW_REASON
+          : null,
+      meaningUnderstood: result.evaluation.meaningUnderstood,
+      targetPatternAttempted: result.evaluation.targetPatternAttempted,
+      englishLanguage: result.evaluation.englishLanguage,
+      correctionNeeded: result.evaluation.correctionNeeded,
+      improvedSentence,
+      requireRepeat: decision.requireRepeat,
+    },
+    targetAttempted: result.evaluation.targetPatternAttempted,
+    improvedSentence,
+  };
+}
+
+export function applyRepeatTurnEvaluation(
+  result: RepeatTurnEvaluationResult,
+): StoredRepeatTurnEvaluation {
+  if (!result.ok) {
+    const decision =
+      result.error === "schema_failed"
+        ? repeatTurnSchemaFailureResult()
+        : repeatTurnProviderFailureResult();
+    const reviewReason =
+      result.error === "schema_failed"
+        ? FAILED_SCHEMA_REVIEW_REASON
+        : "provider_failed";
+
+    return {
+      version: AI_EVALUATION_VERSION,
+      outcome: decision.kind,
+      confidence: "low",
+      reviewReason,
+      englishLanguage: "uncertain",
+      repeatCloseEnough: false,
+      repeatAccepted: decision.repeatAccepted,
+    };
+  }
+
+  const decision = decideRepeatTurnOutcome(result.evaluation);
+  return {
+    version: AI_EVALUATION_VERSION,
+    outcome: decision.kind,
+    confidence: result.evaluation.confidence,
+    reviewReason:
+      decision.kind === "teacher_review" ? decision.reviewReason : null,
+    englishLanguage: result.evaluation.englishLanguage,
+    repeatCloseEnough: result.evaluation.repeatCloseEnough,
+    repeatAccepted: decision.repeatAccepted,
+  };
+}
 
 function getStudentAudioBucketId() {
   return process.env.STUDENT_AUDIO_BUCKET || DEFAULT_AUDIO_BUCKET;
@@ -91,6 +237,23 @@ function isValidInput(input: UploadAttemptAudioClipInput) {
   );
 }
 
+function readMissionSnapshot(assignmentStudent: unknown) {
+  const rawSnapshot = (assignmentStudent as {
+    assignments?:
+      | { mission_snapshot?: unknown }
+      | Array<{ mission_snapshot?: unknown }>;
+  }).assignments;
+  const missionSnapshot = Array.isArray(rawSnapshot)
+    ? rawSnapshot[0]?.mission_snapshot
+    : rawSnapshot?.mission_snapshot;
+  const parsed = missionSnapshotSchema.safeParse(missionSnapshot);
+  return parsed.success ? parsed.data : null;
+}
+
+function toJson(value: StoredOriginalTurnEvaluation): Json {
+  return value as unknown as Json;
+}
+
 export async function uploadAttemptAudioClip(
   input: UploadAttemptAudioClipInput,
   deps: UploadAttemptAudioClipDeps = {},
@@ -104,7 +267,7 @@ export async function uploadAttemptAudioClip(
 
     const { data: assignmentStudent, error: assignmentError } = await supabase
       .from("assignment_students")
-      .select("id, student_id")
+      .select("id, student_id, assignments(mission_snapshot)")
       .eq("id", input.assignmentStudentId)
       .eq("student_id", input.studentId)
       .maybeSingle();
@@ -220,18 +383,38 @@ export async function uploadAttemptAudioClip(
     }
 
     const transcript = transcription.text;
+    let originalEvaluation: StoredOriginalTurnEvaluation | undefined;
     const turnWrite =
       input.clipKind === "original_answer"
-        ? await supabase.from("attempt_turns").upsert(
-            {
-              attempt_id: input.attemptId,
-              turn_order: input.turnOrder,
-              original_transcript: transcript,
-              target_attempted: true,
-              evaluation: buildPlaceholderEvaluation(),
-            },
-            { onConflict: "attempt_id,turn_order" },
-          )
+        ? await (async () => {
+            const snapshot = readMissionSnapshot(assignmentStudent);
+            const snapshotTurn = snapshot?.turns.find(
+              (missionTurn) => missionTurn.turnOrder === input.turnOrder,
+            );
+            const evaluate = deps.evaluateOriginalTurn ?? evaluateOriginalTurn;
+            const evaluationResult = await evaluate({
+              missionQuestion: snapshotTurn?.prompt ?? "",
+              targetPattern: snapshot?.targetPattern ?? "",
+              targetExample: snapshotTurn?.targetExample ?? "",
+              level: snapshot?.level ?? "elementary",
+              turnOrder: input.turnOrder,
+              transcript,
+            });
+            const decision = applyOriginalTurnEvaluation(evaluationResult);
+            originalEvaluation = decision.evaluation;
+
+            return supabase.from("attempt_turns").upsert(
+              {
+                attempt_id: input.attemptId,
+                turn_order: input.turnOrder,
+                original_transcript: transcript,
+                target_attempted: decision.targetAttempted,
+                improved_sentence: decision.improvedSentence,
+                evaluation: toJson(decision.evaluation),
+              },
+              { onConflict: "attempt_id,turn_order" },
+            );
+          })()
         : await supabase
             .from("attempt_turns")
             .update({
@@ -275,6 +458,7 @@ export async function uploadAttemptAudioClip(
       audioClipId: audioClip.id,
       processingStatus: "transcribed",
       transcript,
+      evaluation: originalEvaluation,
     };
   } catch {
     return { ok: false, error: "db_error", retryable: true };

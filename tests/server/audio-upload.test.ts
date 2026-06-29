@@ -52,6 +52,46 @@ function failedTranscriber() {
   }));
 }
 
+function successfulOriginalEvaluator(overrides = {}) {
+  return vi.fn(async () => ({
+    ok: true as const,
+    evaluation: {
+      version: "ai-eval-v1" as const,
+      outcome: "correct" as const,
+      meaningUnderstood: true,
+      targetPatternAttempted: true,
+      correctionNeeded: false,
+      improvedSentence: null,
+      englishLanguage: "english" as const,
+      confidence: "high" as const,
+      reviewReason: null,
+      ...overrides,
+    },
+  }));
+}
+
+const missionSnapshotFixture = {
+  missionId: "11111111-1111-4111-8111-111111111111",
+  title: "After school",
+  targetPattern: "I like ___ing.",
+  topic: "sports",
+  level: "elementary",
+  requiredTurns: 1,
+  characterId: "default-buddy",
+  turns: [
+    {
+      turnOrder: 1,
+      prompt: "What do you like doing after school?",
+      targetExample: "I like playing soccer after school.",
+      hintLadder: {
+        tier1: "I like ___ing.",
+        tier2: "playing soccer",
+        tier3: "I like playing soccer after school.",
+      },
+    },
+  ],
+};
+
 function createMockSupabase(options: {
   assignmentFound?: boolean;
   attemptFound?: boolean;
@@ -97,7 +137,15 @@ function createMockSupabase(options: {
         operations.push(operation);
         if (table === "assignment_students") {
           return {
-            data: options.assignmentFound === false ? null : { id: "as-1" },
+            data:
+              options.assignmentFound === false
+                ? null
+                : {
+                    id: "as-1",
+                    assignments: {
+                      mission_snapshot: missionSnapshotFixture,
+                    },
+                  },
             error: null,
           };
         }
@@ -182,15 +230,21 @@ describe("uploadAttemptAudioClip", () => {
     );
 
     const transcribe = successfulTranscriber("I like apples.");
+    const evaluateOriginal = successfulOriginalEvaluator();
     const result = await uploadAttemptAudioClip(audioInput(), {
       transcribeAudioFile: transcribe,
+      evaluateOriginalTurn: evaluateOriginal,
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
       audioClipId: "clip-1",
       processingStatus: "transcribed",
       transcript: "I like apples.",
+      evaluation: {
+        version: "ai-eval-v1",
+        outcome: "accepted_original",
+      },
     });
 
     const assignmentLookup = mockSupabase.operations.find(
@@ -207,6 +261,15 @@ describe("uploadAttemptAudioClip", () => {
       file: expect.any(Blob),
       mimeType: "audio/webm",
     });
+    expect(evaluateOriginal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transcript: "I like apples.",
+        targetPattern: "I like ___ing.",
+        targetExample: "I like playing soccer after school.",
+        level: "elementary",
+        turnOrder: 1,
+      }),
+    );
   });
 
   it("writes pending and transcribed processing_status metadata", async () => {
@@ -252,6 +315,7 @@ describe("uploadAttemptAudioClip", () => {
 
     await uploadAttemptAudioClip(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I want pizza."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
     });
 
     const transcriptWrite = mockSupabase.operations.find(
@@ -267,7 +331,8 @@ describe("uploadAttemptAudioClip", () => {
       original_transcript: "I want pizza.",
       target_attempted: true,
       evaluation: expect.objectContaining({
-        version: "placeholder-v1",
+        version: "ai-eval-v1",
+        outcome: "accepted_original",
       }),
     });
   });

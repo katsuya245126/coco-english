@@ -8,7 +8,7 @@ const baseOriginalEvaluation = {
   englishLanguage: "english",
   confidence: "high",
   reviewReason: null,
-};
+} as const;
 
 describe("original turn AI evaluation decisions (AI-01, AI-02, AI-03, AI-05)", () => {
   it("accepts correct English target responses with positive reinforcement and no repeat tax (D-01, D-02, D-03)", async () => {

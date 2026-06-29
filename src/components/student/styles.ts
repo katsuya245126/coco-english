@@ -166,6 +166,32 @@ export const recorderErrorStyle: CSSProperties = {
   border: "1px solid #FCA5A5",
 };
 
+// ─── Phase 6: AI evaluation feedback tokens ───
+
+export const evaluationSuccessStyle: CSSProperties = {
+  background: "#F0FDF4",
+  border: "1px solid #BBF7D0",
+  borderRadius: 8,
+  padding: 16,
+  boxSizing: "border-box",
+};
+
+export const evaluationReviewStyle: CSSProperties = {
+  background: "#FFFBEB",
+  border: "1px solid #FDE68A",
+  borderRadius: 8,
+  padding: 16,
+  boxSizing: "border-box",
+};
+
+export const evaluationErrorStyle: CSSProperties = {
+  background: "#FEF2F2",
+  border: "1px solid #FCA5A5",
+  borderRadius: 8,
+  padding: 16,
+  boxSizing: "border-box",
+};
+
 // ─── Phase 4: Progress bar tokens ───
 
 export const progressTrackStyle: CSSProperties = {

@@ -2,9 +2,7 @@
  * Deterministic attempt completion + resume-position helpers (D-06).
  *
  * Pure module — no DB, server, or AI/LLM imports. Flow control keys
- * ONLY on transcript presence + repeat_accepted; it never reads the
- * `evaluation` field. This isolation ensures that Phase 6's AI
- * evaluation swap cannot break completion logic (D-02 swap isolation).
+ * on transcript presence plus app-owned acceptance fields.
  */
 
 type CompletionTurn = {
@@ -12,7 +10,38 @@ type CompletionTurn = {
   original_transcript: string | null;
   repeat_transcript: string | null;
   repeat_accepted: boolean | null;
+  evaluation?: unknown;
 };
+
+function originalAnswerAccepted(turn: CompletionTurn): boolean {
+  if (
+    turn.original_transcript === null ||
+    turn.original_transcript.trim().length === 0
+  ) {
+    return false;
+  }
+
+  if (
+    typeof turn.evaluation !== "object" ||
+    turn.evaluation === null ||
+    Array.isArray(turn.evaluation)
+  ) {
+    return false;
+  }
+
+  const evaluation = turn.evaluation as {
+    version?: unknown;
+    outcome?: unknown;
+    requireRepeat?: unknown;
+  };
+
+  return (
+    evaluation.version === "ai-eval-v1" &&
+    evaluation.requireRepeat === false &&
+    (evaluation.outcome === "accepted_original" ||
+      evaluation.outcome === "teacher_review")
+  );
+}
 
 function isTurnFinished(turn: CompletionTurn): boolean {
   const hasAnswer =
@@ -22,15 +51,13 @@ function isTurnFinished(turn: CompletionTurn): boolean {
     turn.repeat_transcript !== null &&
     turn.repeat_transcript.trim().length > 0;
   const repeatAccepted = turn.repeat_accepted === true;
-  return hasAnswer && hasRepeat && repeatAccepted;
+  return (hasAnswer && hasRepeat && repeatAccepted) || originalAnswerAccepted(turn);
 }
 
 /**
  * Returns true only when every required turn (turn_order 1..requiredTurns)
- * has a non-empty trimmed original_transcript, a non-empty trimmed
- * repeat_transcript, and repeat_accepted === true.
- *
- * Never reads the `evaluation` field — flow control is transcript-only.
+ * has either a non-empty original answer accepted by app-owned AI evaluation,
+ * or a non-empty accepted repeat.
  */
 export function isAttemptComplete(
   requiredTurns: number,

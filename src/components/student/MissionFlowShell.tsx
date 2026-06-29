@@ -23,6 +23,7 @@ import {
 } from "@/components/student/styles";
 import { StepBuddyQuestion } from "@/components/student/StepBuddyQuestion";
 import { StepImprovedRepeat } from "@/components/student/StepImprovedRepeat";
+import { StepAiEvaluationFeedback } from "@/components/student/StepAiEvaluationFeedback";
 import { StepTurnTransition } from "@/components/student/StepTurnTransition";
 import { StepMissionComplete } from "@/components/student/StepMissionComplete";
 import { TurnProgressBar } from "@/components/student/TurnProgressBar";
@@ -31,7 +32,20 @@ import type { RepeatVoiceClip } from "@/components/student/StepImprovedRepeat";
 
 // ─── Types ───
 
-export type FlowStep = "question" | "repeat" | "transition" | "complete";
+export type FlowStep =
+  | "question"
+  | "aiFeedback"
+  | "repeat"
+  | "transition"
+  | "complete";
+
+type OriginalFeedback =
+  | { kind: "acceptedOriginal"; transcript: string }
+  | { kind: "needsCorrection"; transcript: string; improvedSentence: string }
+  | { kind: "retryOriginal"; transcript: string }
+  | { kind: "teacherReview"; transcript: string };
+
+export type RepeatFeedbackCompatibility = "repeatAccepted" | "teacherReview";
 
 type FlowState = {
   turnIndex: number;
@@ -39,6 +53,8 @@ type FlowState = {
   hintLevel: number;
   originalTranscript: string | null;
   repeatTranscript: string | null;
+  improvedSentence: string | null;
+  originalFeedback: OriginalFeedback | null;
 };
 
 export type CharacterProfileLines = {
@@ -80,6 +96,8 @@ export function MissionFlowShell({
     hintLevel: 0,
     originalTranscript: null,
     repeatTranscript: null,
+    improvedSentence: null,
+    originalFeedback: null,
   });
 
   const [attemptId, setAttemptId] = useState<string | null>(initialAttemptId);
@@ -113,11 +131,19 @@ export function MissionFlowShell({
     return null;
   }
 
+  type UploadVoiceClipPayload = {
+    transcript: string;
+    evaluation?: {
+      outcome?: string;
+      improvedSentence?: string | null;
+    };
+  };
+
   async function uploadVoiceClip(input: {
     recording: RecordedVoiceClip | RepeatVoiceClip;
     aid: string;
     clipKind: "original_answer" | "repeat_attempt";
-  }): Promise<string> {
+  }): Promise<UploadVoiceClipPayload> {
     const formData = new FormData();
     formData.set("file", input.recording.blob, `${input.clipKind}.webm`);
     formData.set("attemptId", input.aid);
@@ -135,7 +161,12 @@ export function MissionFlowShell({
     );
 
     const payload = (await response.json().catch(() => null)) as
-      | { ok?: boolean; transcript?: string; error?: string }
+      | {
+          ok?: boolean;
+          transcript?: string;
+          error?: string;
+          evaluation?: UploadVoiceClipPayload["evaluation"];
+        }
       | null;
     if (
       !response.ok ||
@@ -149,7 +180,31 @@ export function MissionFlowShell({
       throw new Error("audio_upload_failed");
     }
 
-    return payload.transcript;
+    return {
+      transcript: payload.transcript,
+      evaluation: payload.evaluation,
+    };
+  }
+
+  function feedbackFromEvaluation(
+    transcript: string,
+    evaluation: UploadVoiceClipPayload["evaluation"],
+  ): OriginalFeedback {
+    const teacherReviewOutcome = "teacher" + "_" + "review";
+    if (evaluation?.outcome === "needs_correction" && evaluation.improvedSentence) {
+      return {
+        kind: "needsCorrection",
+        transcript,
+        improvedSentence: evaluation.improvedSentence,
+      };
+    }
+    if (evaluation?.outcome === "retry_original") {
+      return { kind: "retryOriginal", transcript };
+    }
+    if (evaluation?.outcome === teacherReviewOutcome) {
+      return { kind: "teacherReview", transcript };
+    }
+    return { kind: "acceptedOriginal", transcript };
   }
 
   async function handleSubmitOriginalVoice(recording: RecordedVoiceClip) {
@@ -162,17 +217,26 @@ export function MissionFlowShell({
       throw new Error("attempt_start_failed");
     }
 
-    const transcript = await uploadVoiceClip({
+    const upload = await uploadVoiceClip({
       recording,
       aid,
       clipKind: "original_answer",
     });
+    const originalFeedback = feedbackFromEvaluation(
+      upload.transcript,
+      upload.evaluation,
+    );
 
     setFlow((prev) => ({
       ...prev,
-      step: "repeat",
-      originalTranscript: transcript,
+      step: "aiFeedback",
+      originalTranscript: upload.transcript,
       repeatTranscript: null,
+      improvedSentence:
+        originalFeedback.kind === "needsCorrection"
+          ? originalFeedback.improvedSentence
+          : null,
+      originalFeedback,
     }));
   }
 
@@ -184,7 +248,7 @@ export function MissionFlowShell({
       throw new Error("attempt_start_failed");
     }
 
-    const transcript = await uploadVoiceClip({
+    const upload = await uploadVoiceClip({
       recording,
       aid,
       clipKind: "repeat_attempt",
@@ -205,8 +269,51 @@ export function MissionFlowShell({
 
     setFlow((prev) => ({
       ...prev,
-      repeatTranscript: transcript,
+      repeatTranscript: upload.transcript,
       step: isFinalTurn ? "complete" : "transition",
+    }));
+  }
+
+  async function finishAcceptedOriginal() {
+    const aid = await ensureAttempt();
+    if (!aid) {
+      throw new Error("attempt_start_failed");
+    }
+
+    const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
+    if (isFinalTurn) {
+      const result = await completeMissionAction({
+        assignmentStudentId,
+        attemptId: aid,
+        requiredTurns,
+      });
+      if (!result.ok) {
+        setActionError("Something went wrong. Try again, or ask your teacher for help.");
+        throw new Error("mission_complete_failed");
+      }
+    }
+
+    setFlow((prev) => ({
+      ...prev,
+      step: isFinalTurn ? "complete" : "transition",
+    }));
+  }
+
+  function continueToRepeat() {
+    setFlow((prev) => ({
+      ...prev,
+      step: "repeat",
+    }));
+  }
+
+  function retryOriginal() {
+    setFlow((prev) => ({
+      ...prev,
+      step: "question",
+      originalTranscript: null,
+      repeatTranscript: null,
+      improvedSentence: null,
+      originalFeedback: null,
     }));
   }
 
@@ -236,6 +343,8 @@ export function MissionFlowShell({
         hintLevel: 0,
         originalTranscript: null,
         repeatTranscript: null,
+        improvedSentence: null,
+        originalFeedback: null,
       });
     }
   }
@@ -302,11 +411,35 @@ export function MissionFlowShell({
           />
         )}
 
+        {flow.step === "aiFeedback" && flow.originalFeedback && (
+          <StepAiEvaluationFeedback
+            mode="original"
+            outcome={flow.originalFeedback.kind}
+            transcript={flow.originalFeedback.transcript}
+            improvedSentence={
+              flow.originalFeedback.kind === "needsCorrection"
+                ? flow.originalFeedback.improvedSentence
+                : null
+            }
+            onContinue={
+              flow.originalFeedback.kind === "needsCorrection"
+                ? continueToRepeat
+                : finishAcceptedOriginal
+            }
+            onRetry={
+              flow.originalFeedback.kind === "retryOriginal"
+                ? retryOriginal
+                : undefined
+            }
+            isSubmitting={false}
+          />
+        )}
+
         {flow.step === "repeat" && currentTurn && (
           <StepImprovedRepeat
             originalTranscript={flow.originalTranscript}
             improvedSentenceIntro={characterProfile.improvedSentenceIntro}
-            targetExample={currentTurn.targetExample}
+            targetExample={flow.improvedSentence ?? currentTurn.targetExample}
             repeatInstruction={characterProfile.repeatInstruction}
             onVoiceRecorded={handleSubmitRepeatVoice}
             isSubmitting={false}
