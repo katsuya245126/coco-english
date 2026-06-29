@@ -70,6 +70,21 @@ function successfulOriginalEvaluator(overrides = {}) {
   }));
 }
 
+function successfulRepeatEvaluator(overrides = {}) {
+  return vi.fn(async () => ({
+    ok: true as const,
+    evaluation: {
+      version: "ai-eval-v1" as const,
+      outcome: "repeat_accepted" as const,
+      repeatCloseEnough: true,
+      englishLanguage: "english" as const,
+      confidence: "high" as const,
+      reviewReason: null,
+      ...overrides,
+    },
+  }));
+}
+
 const missionSnapshotFixture = {
   missionId: "11111111-1111-4111-8111-111111111111",
   title: "After school",
@@ -337,13 +352,15 @@ describe("uploadAttemptAudioClip", () => {
     });
   });
 
-  it("writes repeat_transcript and repeat_accepted through the repeat path", async () => {
+  it("evaluates repeat attempts before writing repeat_transcript and repeat_accepted", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
     );
 
+    const evaluateRepeat = successfulRepeatEvaluator();
     await uploadAttemptAudioClip(audioInput({ clipKind: "repeat_attempt" }), {
       transcribeAudioFile: successfulTranscriber("I want pizza, please."),
+      evaluateRepeatTurn: evaluateRepeat,
     });
 
     const transcriptWrite = mockSupabase.operations.find(
@@ -358,8 +375,20 @@ describe("uploadAttemptAudioClip", () => {
     expect(transcriptWrite?.payload).toMatchObject({
       repeat_transcript: "I want pizza, please.",
       repeat_accepted: true,
+      evaluation: expect.objectContaining({
+        outcome: "accepted_repeat",
+        repeatAccepted: true,
+      }),
     });
     expect(transcriptWrite?.filters).toContainEqual(["id", "turn-1"]);
+    expect(evaluateRepeat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repeatTranscript: "I want pizza, please.",
+        improvedSentence: "I like playing soccer after school.",
+        targetPattern: "I like ___ing.",
+        level: "elementary",
+      }),
+    );
   });
 
   it("marks the clip failed and returns retryable when storage upload fails", async () => {
