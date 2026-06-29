@@ -65,9 +65,9 @@ function createMockSupabase(options: {
                     status: "completed",
                     started_at: "2026-06-27T07:00:00Z",
                     completed_at: "2026-06-27T07:02:00Z",
+                    needs_review_reason: "low_confidence",
                     assignment_students: {
                       status: "teacher_review",
-                      needs_review_reason: "low_confidence",
                       submitted_at: "2026-06-27T07:02:00Z",
                       students: { display_name: "Mina" },
                       assignments: {

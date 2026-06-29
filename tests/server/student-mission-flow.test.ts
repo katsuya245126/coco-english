@@ -90,9 +90,10 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(missionFlowSource).toContain('status: "teacher_review"');
     expect(missionFlowSource).toContain("needs_review_reason");
     expect(missionFlowSource).toContain('actor_type: "ai_evaluator"');
-    expect(missionFlowSource).toContain('reason_code: "low_confidence"');
-    expect(missionFlowSource).toContain('reason_code: "ambiguous"');
-    expect(missionFlowSource).toContain('reason_code: "failed_schema"');
+    expect(missionFlowSource).toContain("reason_code:");
+    expect(missionFlowSource).toContain('"low_confidence"');
+    expect(missionFlowSource).toContain('"ambiguous"');
+    expect(missionFlowSource).toContain('"failed_schema"');
   });
 
   it("student client modules do not import OpenAI or server AI adapters (T-06-01)", () => {

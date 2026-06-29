@@ -69,6 +69,11 @@ export default async function AttemptEvidencePage({
           <div>
             <p style={labelStyle}>Status</p>
             <p style={valueStyle}>{evidence.attemptStatus}</p>
+            {evidence.reviewReason && (
+              <p style={reviewReasonInlineStyle}>
+                {reviewReasonLabel(evidence.reviewReason)}
+              </p>
+            )}
           </div>
           <div>
             <p style={labelStyle}>Submitted</p>
@@ -103,13 +108,47 @@ function TurnEvidenceSection({ turn }: { turn: AttemptTurnEvidence }) {
         label="Original answer"
         transcript={turn.originalTranscript}
       />
+      <AnnotationGrid turn={turn} />
+      {turn.improvedSentence && (
+        <TranscriptBlock
+          label="Improved sentence"
+          transcript={turn.improvedSentence}
+        />
+      )}
       <TranscriptBlock
         label="Repeat attempt"
         transcript={turn.repeatTranscript}
       />
+      {turn.reviewReason && (
+        <div style={reviewBlockStyle}>
+          <p style={reviewBadgeStyle}>Teacher review</p>
+          <p style={reviewReasonTextStyle}>
+            {reviewReasonLabel(turn.reviewReason)}
+          </p>
+        </div>
+      )}
       <AudioClipList label="Original answer audio" clips={originalClips} />
       <AudioClipList label="Repeat attempt audio" clips={repeatClips} />
     </article>
+  );
+}
+
+function AnnotationGrid({ turn }: { turn: AttemptTurnEvidence }) {
+  const rows = [
+    ["Meaning result", turn.meaningResult],
+    ["Target pattern result", turn.targetPatternResult],
+    ["Repeat result", turn.repeatResult],
+  ] as const;
+
+  return (
+    <div style={annotationGridStyle} aria-label="AI annotations">
+      {rows.map(([label, value]) => (
+        <div key={label} style={annotationItemStyle}>
+          <p style={labelStyle}>{label}</p>
+          <p style={valueStyle}>{value ?? "Not recorded"}</p>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -163,6 +202,22 @@ function formatDateTime(value: string | null) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function reviewReasonLabel(reason: string) {
+  if (reason === "low_confidence") {
+    return "AI was not confident enough to decide.";
+  }
+  if (reason === "ambiguous") {
+    return "The answer was ambiguous and needs a teacher check.";
+  }
+  if (reason === "failed_schema") {
+    return "AI returned an invalid result, so this was routed to teacher review.";
+  }
+  if (reason === "provider_failed") {
+    return "AI could not complete the check, so this was routed to teacher review.";
+  }
+  return "This answer needs a teacher check.";
 }
 
 const shellStyle: React.CSSProperties = {
@@ -283,4 +338,49 @@ const audioListStyle: React.CSSProperties = {
   display: "grid",
   gap: 8,
   marginTop: 12,
+};
+
+const annotationGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 12,
+  marginBottom: 16,
+  padding: 12,
+  border: "1px solid #E5E7EB",
+  borderRadius: 8,
+  background: "#F7F8FA",
+};
+
+const annotationItemStyle: React.CSSProperties = {
+  minWidth: 0,
+};
+
+const reviewBlockStyle: React.CSSProperties = {
+  marginBottom: 16,
+  padding: 12,
+  border: "1px solid #FDE68A",
+  borderRadius: 8,
+  background: "#FFFBEB",
+};
+
+const reviewBadgeStyle: React.CSSProperties = {
+  display: "inline-block",
+  margin: "0 0 6px",
+  fontSize: 14,
+  fontWeight: 600,
+  color: "#B45309",
+};
+
+const reviewReasonTextStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 16,
+  lineHeight: 1.5,
+  color: "#4B5563",
+};
+
+const reviewReasonInlineStyle: React.CSSProperties = {
+  margin: "6px 0 0",
+  fontSize: 14,
+  lineHeight: 1.4,
+  color: "#4B5563",
 };

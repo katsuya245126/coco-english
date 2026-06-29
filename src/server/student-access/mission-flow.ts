@@ -48,6 +48,16 @@ export type CompleteAttemptResult =
   | { ok: true }
   | { ok: false; error: "not_found" | "not_complete" | "db_error" };
 
+export type TeacherReviewReason =
+  | "low_confidence"
+  | "ambiguous"
+  | "failed_schema"
+  | "provider_failed";
+
+export type RouteTeacherReviewResult =
+  | { ok: true }
+  | { ok: false; error: "not_found" | "invalid_transition" | "db_error" };
+
 // ─── Helpers ───
 
 /** Load assignment_students row scoped to both id AND student_id (V4 ownership). */
@@ -68,6 +78,86 @@ async function loadOwnedAssignmentStudent(
 }
 
 // ─── Service functions ───
+
+export async function routeAssignmentStudentToTeacherReview(input: {
+  studentId: string;
+  assignmentStudentId: string;
+  attemptId: string;
+  reviewReason: TeacherReviewReason;
+}): Promise<RouteTeacherReviewResult> {
+  try {
+    const supabase = createSupabaseServiceClient();
+    const asRow = await loadOwnedAssignmentStudent(
+      supabase,
+      input.assignmentStudentId,
+      input.studentId,
+    );
+    if (!asRow) return { ok: false, error: "not_found" };
+
+    const { data: attempt, error: attemptError } = await supabase
+      .from("attempts")
+      .select("id, assignment_student_id")
+      .eq("id", input.attemptId)
+      .eq("assignment_student_id", input.assignmentStudentId)
+      .maybeSingle();
+
+    if (attemptError) return { ok: false, error: "db_error" };
+    if (!attempt) return { ok: false, error: "not_found" };
+
+    const { error: reasonError } = await supabase
+      .from("attempts")
+      .update({ needs_review_reason: input.reviewReason })
+      .eq("id", input.attemptId);
+
+    if (reasonError) return { ok: false, error: "db_error" };
+
+    if (asRow.status === "completed" || asRow.status === "teacher_review") {
+      return { ok: true };
+    }
+
+    const nowIso = new Date().toISOString();
+    try {
+      assertTransitionRequest({
+        previousStatus: asRow.status,
+        nextStatus: "teacher_review",
+        actorType: "ai_evaluator",
+        reasonCode: input.reviewReason,
+        occurredAt: nowIso,
+      });
+    } catch {
+      return { ok: false, error: "invalid_transition" };
+    }
+
+    const { data: updated, error: updateError } = await supabase
+      .from("assignment_students")
+      .update({
+        status: "teacher_review",
+        latest_attempt_id: input.attemptId,
+      })
+      .eq("id", input.assignmentStudentId)
+      .eq("status", asRow.status)
+      .select("id")
+      .maybeSingle();
+
+    if (updateError) return { ok: false, error: "db_error" };
+    if (!updated) return { ok: true };
+
+    const { error: eventError } = await supabase
+      .from("assignment_status_events")
+      .insert({
+        assignment_student_id: input.assignmentStudentId,
+        previous_status: asRow.status,
+        next_status: "teacher_review",
+        actor_type: "ai_evaluator",
+        reason_code: input.reviewReason,
+      });
+
+    if (eventError) return { ok: false, error: "db_error" };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "db_error" };
+  }
+}
 
 /**
  * Start or resume an attempt for an assignment (D-04, Pitfall 1).

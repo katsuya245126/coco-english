@@ -16,6 +16,7 @@ type AttemptOwnershipRow = {
   status: AttemptStatus;
   started_at: string;
   completed_at: string | null;
+  needs_review_reason: string | null;
   assignment_students: NestedRelation<{
     status: string;
     submitted_at: string | null;
@@ -37,6 +38,9 @@ type AttemptTurnRow = {
   original_transcript: string | null;
   improved_sentence: string | null;
   repeat_transcript: string | null;
+  target_attempted: boolean | null;
+  repeat_accepted: boolean | null;
+  evaluation: unknown;
 };
 
 type AudioClipEvidenceRow = {
@@ -65,6 +69,13 @@ export type AttemptTurnEvidence = {
   originalTranscript: string | null;
   improvedSentence: string | null;
   repeatTranscript: string | null;
+  meaningResult: "Understood" | "Try again" | "Needs teacher check";
+  targetPatternResult:
+    | "Target pattern used"
+    | "Target pattern missing"
+    | "Needs teacher check";
+  repeatResult: "Accepted" | "Try again" | "Needs teacher check" | null;
+  reviewReason: string | null;
   audioClips: AttemptAudioClipEvidence[];
 };
 
@@ -75,6 +86,7 @@ export type AttemptEvidence = {
   attemptStatus: AttemptStatus;
   submittedAt: string | null;
   completedAt: string | null;
+  reviewReason: string | null;
   turns: AttemptTurnEvidence[];
 };
 
@@ -107,6 +119,67 @@ function mapClip(row: AudioClipEvidenceRow): AttemptAudioClipEvidence {
   };
 }
 
+function readEvaluation(row: AttemptTurnRow) {
+  if (
+    typeof row.evaluation !== "object" ||
+    row.evaluation === null ||
+    Array.isArray(row.evaluation)
+  ) {
+    return null;
+  }
+
+  return row.evaluation as {
+    outcome?: unknown;
+    meaningUnderstood?: unknown;
+    targetPatternAttempted?: unknown;
+    reviewReason?: unknown;
+    repeatAccepted?: unknown;
+  };
+}
+
+function isTeacherReview(row: AttemptTurnRow) {
+  const evaluation = readEvaluation(row);
+  return (
+    evaluation?.outcome === "teacher_review" ||
+    typeof evaluation?.reviewReason === "string"
+  );
+}
+
+function mapMeaningResult(row: AttemptTurnRow): AttemptTurnEvidence["meaningResult"] {
+  const evaluation = readEvaluation(row);
+  if (isTeacherReview(row)) return "Needs teacher check";
+  if (evaluation?.outcome === "retry_original") return "Try again";
+  if (evaluation?.meaningUnderstood === false) return "Try again";
+  return "Understood";
+}
+
+function mapTargetPatternResult(
+  row: AttemptTurnRow,
+): AttemptTurnEvidence["targetPatternResult"] {
+  const evaluation = readEvaluation(row);
+  if (isTeacherReview(row)) return "Needs teacher check";
+  const targetAttempted =
+    typeof evaluation?.targetPatternAttempted === "boolean"
+      ? evaluation.targetPatternAttempted
+      : row.target_attempted;
+  return targetAttempted ? "Target pattern used" : "Target pattern missing";
+}
+
+function mapRepeatResult(row: AttemptTurnRow): AttemptTurnEvidence["repeatResult"] {
+  if (!row.repeat_transcript) return null;
+  if (isTeacherReview(row) || row.repeat_accepted === null) {
+    return "Needs teacher check";
+  }
+  return row.repeat_accepted ? "Accepted" : "Try again";
+}
+
+function mapReviewReason(row: AttemptTurnRow) {
+  const evaluation = readEvaluation(row);
+  return typeof evaluation?.reviewReason === "string"
+    ? evaluation.reviewReason
+    : null;
+}
+
 function mapTurn(
   row: AttemptTurnRow,
   clipsByTurnId: Map<string, AttemptAudioClipEvidence[]>,
@@ -117,6 +190,10 @@ function mapTurn(
     originalTranscript: row.original_transcript,
     improvedSentence: row.improved_sentence,
     repeatTranscript: row.repeat_transcript,
+    meaningResult: mapMeaningResult(row),
+    targetPatternResult: mapTargetPatternResult(row),
+    repeatResult: mapRepeatResult(row),
+    reviewReason: mapReviewReason(row),
     audioClips: clipsByTurnId.get(row.id) ?? [],
   };
 }
@@ -135,6 +212,7 @@ export async function getAttemptEvidenceForTeacher(input: {
         status,
         started_at,
         completed_at,
+        needs_review_reason,
         assignment_students!attempts_assignment_student_id_fkey!inner(
           status,
           submitted_at,
@@ -161,7 +239,7 @@ export async function getAttemptEvidenceForTeacher(input: {
   const turns = await supabase
     .from("attempt_turns")
     .select(
-      "id, turn_order, original_transcript, improved_sentence, repeat_transcript",
+      "id, turn_order, original_transcript, improved_sentence, repeat_transcript, target_attempted, repeat_accepted, evaluation",
     )
     .eq("attempt_id", input.attemptId)
     .order("turn_order", { ascending: true });
@@ -201,6 +279,7 @@ export async function getAttemptEvidenceForTeacher(input: {
     attemptStatus: attempt.data.status as AttemptStatus,
     submittedAt: metadata.submittedAt,
     completedAt: attempt.data.completed_at,
+    reviewReason: attempt.data.needs_review_reason,
     turns: turnRows.map((turn) => mapTurn(turn, clipsByTurnId)),
   };
 }

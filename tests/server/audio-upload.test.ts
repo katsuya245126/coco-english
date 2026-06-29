@@ -298,6 +298,7 @@ describe("uploadAttemptAudioClip", () => {
       body: "repeat",
     }), {
       transcribeAudioFile: successfulTranscriber("I like apples very much."),
+      evaluateRepeatTurn: successfulRepeatEvaluator(),
     });
 
     const clipInsert = mockSupabase.operations.find(

@@ -30,6 +30,10 @@ import {
   type OriginalTurnEvaluationResult,
   type RepeatTurnEvaluationResult,
 } from "@/server/ai/turn-evaluator";
+import {
+  routeAssignmentStudentToTeacherReview,
+  type TeacherReviewReason,
+} from "@/server/student-access/mission-flow";
 
 const DEFAULT_AUDIO_BUCKET = "student-audio";
 const FAILED_SCHEMA_REVIEW_REASON = "failed_schema";
@@ -256,6 +260,21 @@ function toJson(
   return value as unknown as Json;
 }
 
+function reviewReasonOrDefault(
+  reviewReason: string | null,
+): TeacherReviewReason {
+  if (
+    reviewReason === "low_confidence" ||
+    reviewReason === "ambiguous" ||
+    reviewReason === "failed_schema" ||
+    reviewReason === "provider_failed"
+  ) {
+    return reviewReason;
+  }
+
+  return LOW_CONFIDENCE_REVIEW_REASON;
+}
+
 export async function uploadAttemptAudioClip(
   input: UploadAttemptAudioClipInput,
   deps: UploadAttemptAudioClipDeps = {},
@@ -406,7 +425,7 @@ export async function uploadAttemptAudioClip(
             const decision = applyOriginalTurnEvaluation(evaluationResult);
             originalEvaluation = decision.evaluation;
 
-            return supabase.from("attempt_turns").upsert(
+            const write = await supabase.from("attempt_turns").upsert(
               {
                 attempt_id: input.attemptId,
                 turn_order: input.turnOrder,
@@ -417,6 +436,25 @@ export async function uploadAttemptAudioClip(
               },
               { onConflict: "attempt_id,turn_order" },
             );
+
+            if (write.error || decision.evaluation.outcome !== "teacher_review") {
+              return write;
+            }
+
+            const routeResult = await routeAssignmentStudentToTeacherReview({
+              studentId: input.studentId,
+              assignmentStudentId: input.assignmentStudentId,
+              attemptId: input.attemptId,
+              reviewReason: reviewReasonOrDefault(
+                decision.evaluation.reviewReason,
+              ),
+            });
+
+            if (!routeResult.ok) {
+              return { error: new Error(routeResult.error) };
+            }
+
+            return write;
           })()
         : await (async () => {
             const snapshot = readMissionSnapshot(assignmentStudent);
@@ -435,7 +473,7 @@ export async function uploadAttemptAudioClip(
             const decision = applyRepeatTurnEvaluation(evaluationResult);
             repeatEvaluation = decision;
 
-            return supabase
+            const write = await supabase
               .from("attempt_turns")
               .update({
                 repeat_transcript: transcript,
@@ -443,6 +481,23 @@ export async function uploadAttemptAudioClip(
                 evaluation: toJson(decision),
               })
               .eq("id", turn.id);
+
+            if (write.error || decision.outcome !== "teacher_review") {
+              return write;
+            }
+
+            const routeResult = await routeAssignmentStudentToTeacherReview({
+              studentId: input.studentId,
+              assignmentStudentId: input.assignmentStudentId,
+              attemptId: input.attemptId,
+              reviewReason: reviewReasonOrDefault(decision.reviewReason),
+            });
+
+            if (!routeResult.ok) {
+              return { error: new Error(routeResult.error) };
+            }
+
+            return write;
           })();
 
     if (turnWrite.error) {
