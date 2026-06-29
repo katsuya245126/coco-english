@@ -4,17 +4,17 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 06
 current_phase_name: ai-mission-and-turn-intelligence
-status: ready_to_execute
-stopped_at: Phase 06 planned and verified
-last_updated: "2026-06-28T00:00:00.000+09:00"
-last_activity: 2026-06-28
-last_activity_desc: Phase 06 planned with 4 verified plans across 3 waves
+status: executing
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-06-29T11:09:33.953Z"
+last_activity: 2026-06-29
+last_activity_desc: Phase 06 execution started
 progress:
   total_phases: 7
-  completed_phases: 5
-  total_plans: 18
+  completed_phases: 4
+  total_plans: 22
   completed_plans: 18
-  percent: 71
+  percent: 82
 ---
 
 # Project State
@@ -28,12 +28,12 @@ See: .planning/PROJECT.md (updated 2026-06-25)
 
 ## Current Position
 
-Phase: 06 (ai-mission-and-turn-intelligence) — PLANNED (next to execute)
-Status: Ready to execute — depends on Phase 05 (complete)
-Last activity: 2026-06-28 — Phase 06 planned and verified
+Phase: 06 (ai-mission-and-turn-intelligence) — EXECUTING
+Status: Executing Phase 06
+Last activity: 2026-06-29 — Phase 06 execution started
 Prior: Phase 05 VERIFIED — UAT 9/9 pass. FK disambiguation fix for evidence queries (25afe7db). Gap closure: teacher evidence navigation added, mic-denied copy made child-friendly. iOS Safari + Android Chrome + desktop teacher evidence all verified on real devices.
 
-Progress: [█████-----] 71%
+Progress: [████████░░] 82%
 
 ## Performance Metrics
 
@@ -70,6 +70,7 @@ Progress: [█████-----] 71%
 | Phase 05 P02 | 10min | 4 tasks | 8 files |
 | Phase 05 P03 | 11min | 3 tasks | 11 files |
 | Phase 05 P05 | 6min | 4 tasks | 4 files |
+| Phase 06 P01 | 6min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -113,6 +114,9 @@ Recent decisions affecting current work:
 - [Phase 05-03]: Failed or empty transcription marks audio_clips.processing_status as failed and keeps students on the same recorder with retry copy. — This avoids fabricated transcript evidence and keeps failure recovery child-friendly.
 - [Phase ?]: 05-05: Evidence navigation is exposed from the teacher class page because it is already scoped to an owned class and gives teachers student homework context.
 - [Phase ?]: 05-05: Keep iOS Safari UAT deferred without real iPhone results or explicit risk acceptance; fixed product gaps are tracked separately.
+- [Phase 06]: 06-01: Phase 6 behavior is locked first through RED tests; implementation remains in 06-02 through 06-04.
+- [Phase 06]: 06-01: AI adapter tests use injected fake Responses clients and missing-key branches so automated verification makes no paid provider calls.
+- [Phase 06]: 06-01: Source-contract checks guard client/server AI boundaries and keep OpenAI out of student client modules.
 
 ### Pending Todos
 
@@ -133,6 +137,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-27T08:42:08.216Z
-Stopped at: Completed 05-05-PLAN.md
+Last session: 2026-06-29T11:09:13.499Z
+Stopped at: Completed 06-01-PLAN.md
 Resume file: None
