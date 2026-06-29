@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 const baseOriginalEvaluation = {
   version: "ai-eval-v1",
+  outcome: "correct",
   meaningUnderstood: true,
   targetPatternAttempted: true,
   englishLanguage: "english",
@@ -37,6 +38,7 @@ describe("original turn AI evaluation decisions (AI-01, AI-02, AI-03, AI-05)", (
 
     const outcome = decideOriginalTurnOutcome({
       ...baseOriginalEvaluation,
+      outcome: "needs_correction",
       correctionNeeded: true,
       improvedSentence: "I like playing soccer after school.",
       targetPatternAttempted: false,
@@ -56,6 +58,7 @@ describe("original turn AI evaluation decisions (AI-01, AI-02, AI-03, AI-05)", (
 
     const outcome = decideOriginalTurnOutcome({
       ...baseOriginalEvaluation,
+      outcome: "non_english",
       meaningUnderstood: false,
       targetPatternAttempted: false,
       englishLanguage: "non_english",
@@ -77,6 +80,7 @@ describe("original turn AI evaluation decisions (AI-01, AI-02, AI-03, AI-05)", (
     expect(
       decideOriginalTurnOutcome({
         ...baseOriginalEvaluation,
+        outcome: "teacher_review",
         confidence: "low",
         correctionNeeded: false,
         improvedSentence: null,
@@ -91,6 +95,7 @@ describe("original turn AI evaluation decisions (AI-01, AI-02, AI-03, AI-05)", (
     expect(
       decideOriginalTurnOutcome({
         ...baseOriginalEvaluation,
+        outcome: "teacher_review",
         confidence: "medium",
         correctionNeeded: false,
         improvedSentence: null,
@@ -119,6 +124,7 @@ describe("repeat turn AI evaluation decisions (AI-04, AI-05)", () => {
     expect(
       decideRepeatTurnOutcome({
         version: "ai-eval-v1",
+        outcome: "repeat_accepted",
         repeatCloseEnough: true,
         englishLanguage: "english",
         confidence: "high",
@@ -135,6 +141,7 @@ describe("repeat turn AI evaluation decisions (AI-04, AI-05)", () => {
     expect(
       decideRepeatTurnOutcome({
         version: "ai-eval-v1",
+        outcome: "repeat_retry",
         repeatCloseEnough: false,
         englishLanguage: "english",
         confidence: "high",
@@ -155,6 +162,7 @@ describe("repeat turn AI evaluation decisions (AI-04, AI-05)", () => {
     expect(
       decideRepeatTurnOutcome({
         version: "ai-eval-v1",
+        outcome: "teacher_review",
         repeatCloseEnough: false,
         englishLanguage: "uncertain",
         confidence: "low",

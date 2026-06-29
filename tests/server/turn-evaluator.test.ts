@@ -16,6 +16,7 @@ function createFakeClient(result: unknown): FakeEvaluationResponsesClient {
 
 const correctOriginalProviderResult = {
   version: "ai-eval-v1",
+  outcome: "correct",
   meaningUnderstood: true,
   targetPatternAttempted: true,
   correctionNeeded: false,
@@ -123,6 +124,7 @@ describe("evaluateRepeatTurn server adapter (AI-04, AI-05)", () => {
     const client = createFakeClient({
       output_parsed: {
         version: "ai-eval-v1",
+        outcome: "repeat_accepted",
         repeatCloseEnough: true,
         englishLanguage: "english",
         confidence: "high",
@@ -143,6 +145,7 @@ describe("evaluateRepeatTurn server adapter (AI-04, AI-05)", () => {
       ok: true,
       evaluation: {
         version: "ai-eval-v1",
+        outcome: "repeat_accepted",
         repeatCloseEnough: true,
         englishLanguage: "english",
         confidence: "high",
@@ -156,6 +159,7 @@ describe("evaluateRepeatTurn server adapter (AI-04, AI-05)", () => {
     const client = createFakeClient({
       output_parsed: {
         version: "ai-eval-v1",
+        outcome: "teacher_review",
         repeatCloseEnough: false,
         englishLanguage: "uncertain",
         confidence: "low",
@@ -176,6 +180,7 @@ describe("evaluateRepeatTurn server adapter (AI-04, AI-05)", () => {
       ok: true,
       evaluation: {
         version: "ai-eval-v1",
+        outcome: "teacher_review",
         repeatCloseEnough: false,
         englishLanguage: "uncertain",
         confidence: "low",
