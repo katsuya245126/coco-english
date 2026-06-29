@@ -55,7 +55,7 @@ export function StepAiEvaluationFeedback({
         <div style={evaluationSuccessStyle}>
           <h2 style={headingInlineStyle}>Nice answer!</h2>
           <p style={bodyInlineStyle}>
-            You used the English practice well. Let's keep going.
+            You used the English practice well. Let&apos;s keep going.
           </p>
         </div>
         <button
