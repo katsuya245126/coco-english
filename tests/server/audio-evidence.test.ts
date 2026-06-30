@@ -67,8 +67,11 @@ function createMockSupabase(options: {
                     completed_at: "2026-06-27T07:02:00Z",
                     needs_review_reason: "low_confidence",
                     assignment_students: {
+                      id: "as-1",
                       status: "teacher_review",
                       submitted_at: "2026-06-27T07:02:00Z",
+                      attempt_count: 2,
+                      highest_hint_level: 1,
                       students: { display_name: "Mina" },
                       assignments: {
                         title: "Daily routines",
@@ -203,6 +206,9 @@ describe("teacher audio evidence service", () => {
       reviewReason: "low_confidence",
       submittedAt: "2026-06-27T07:02:00Z",
       completedAt: "2026-06-27T07:02:00Z",
+      assignmentStudentId: "as-1",
+      attemptCount: 2,
+      highestHintLevel: 1,
     });
     expect(evidence?.turns[0]).toMatchObject({
       turnOrder: 1,

@@ -18,8 +18,11 @@ type AttemptOwnershipRow = {
   completed_at: string | null;
   needs_review_reason: string | null;
   assignment_students: NestedRelation<{
+    id: string;
     status: string;
     submitted_at: string | null;
+    attempt_count: number;
+    highest_hint_level: number;
     students: NestedRelation<{
       display_name: string;
     }>;
@@ -81,12 +84,15 @@ export type AttemptTurnEvidence = {
 
 export type AttemptEvidence = {
   attemptId: string;
+  assignmentStudentId: string;
   missionTitle: string;
   studentName: string;
   attemptStatus: AttemptStatus;
   submittedAt: string | null;
   completedAt: string | null;
   reviewReason: string | null;
+  attemptCount: number;
+  highestHintLevel: number;
   turns: AttemptTurnEvidence[];
 };
 
@@ -105,9 +111,12 @@ function mapAttemptMetadata(row: AttemptOwnershipRow) {
   const student = one(assignmentStudent?.students);
 
   return {
+    assignmentStudentId: assignmentStudent?.id ?? "",
     missionTitle: assignment?.title ?? "Untitled mission",
     studentName: student?.display_name ?? "Unknown student",
     submittedAt: assignmentStudent?.submitted_at ?? null,
+    attemptCount: assignmentStudent?.attempt_count ?? 0,
+    highestHintLevel: assignmentStudent?.highest_hint_level ?? 0,
   };
 }
 
@@ -214,8 +223,11 @@ export async function getAttemptEvidenceForTeacher(input: {
         completed_at,
         needs_review_reason,
         assignment_students!attempts_assignment_student_id_fkey!inner(
+          id,
           status,
           submitted_at,
+          attempt_count,
+          highest_hint_level,
           students!inner(display_name),
           assignments!inner(
             title,
@@ -274,12 +286,15 @@ export async function getAttemptEvidenceForTeacher(input: {
 
   return {
     attemptId: attempt.data.id,
+    assignmentStudentId: metadata.assignmentStudentId,
     missionTitle: metadata.missionTitle,
     studentName: metadata.studentName,
     attemptStatus: attempt.data.status as AttemptStatus,
     submittedAt: metadata.submittedAt,
     completedAt: attempt.data.completed_at,
     reviewReason: attempt.data.needs_review_reason,
+    attemptCount: metadata.attemptCount,
+    highestHintLevel: metadata.highestHintLevel,
     turns: turnRows.map((turn) => mapTurn(turn, clipsByTurnId)),
   };
 }
