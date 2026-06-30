@@ -38,6 +38,7 @@ export type FlowStep =
   | "repeat"
   | "repeatFeedback"
   | "transition"
+  | "reviewPending"
   | "complete";
 
 type OriginalFeedback =
@@ -313,6 +314,14 @@ export function MissionFlowShell({
     }));
   }
 
+  function finishTeacherReviewFeedback() {
+    const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
+    setFlow((prev) => ({
+      ...prev,
+      step: isFinalTurn ? "reviewPending" : "transition",
+    }));
+  }
+
   async function finishAcceptedOriginal() {
     const aid = await ensureAttempt();
     if (!aid) {
@@ -474,7 +483,9 @@ export function MissionFlowShell({
             onContinue={
               flow.originalFeedback.kind === "needsCorrection"
                 ? continueToRepeat
-                : finishAcceptedOriginal
+                : flow.originalFeedback.kind === "teacherReview"
+                  ? finishTeacherReviewFeedback
+                  : finishAcceptedOriginal
             }
             onRetry={
               flow.originalFeedback.kind === "retryOriginal"
@@ -504,7 +515,9 @@ export function MissionFlowShell({
             onContinue={
               flow.repeatFeedback.kind === "repeatRetry"
                 ? undefined
-                : finishRepeatFeedback
+                : flow.repeatFeedback.kind === "repeatReview"
+                  ? finishTeacherReviewFeedback
+                  : finishRepeatFeedback
             }
             onRetry={
               flow.repeatFeedback.kind === "repeatRetry" ? retryRepeat : undefined
@@ -525,6 +538,17 @@ export function MissionFlowShell({
             completionHeading={characterProfile.completionHeading}
             completionBody={characterProfile.completionBody}
           />
+        )}
+
+        {flow.step === "reviewPending" && (
+          <div style={stepCardStyle} aria-live="polite">
+            <h2 style={{ fontSize: 24, color: "#111827", margin: "0 0 8px" }}>
+              Teacher review sent
+            </h2>
+            <p style={{ fontSize: 16, color: "#4B5563", margin: 0, lineHeight: 1.5 }}>
+              Your teacher will check this answer.
+            </p>
+          </div>
         )}
       </div>
     </div>

@@ -20,6 +20,8 @@ test("student AI evaluation UI source contract covers original-answer outcomes a
   expect(feedbackSource).toContain("Record again");
   expect(feedbackSource).toMatch(/Continue (mission|practice)/);
   expect(shellSource).toContain("StepAiEvaluationFeedback");
+  expect(shellSource).toContain("reviewPending");
+  expect(shellSource).toContain("Teacher review sent");
 });
 
 test("student AI evaluation source contract covers repeat accepted, retry, and review-routed outcomes", async () => {
