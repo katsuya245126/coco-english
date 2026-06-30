@@ -6,14 +6,9 @@ import {
   badgeContinueStyle,
   badgeDoneStyle,
   badgeClosedStyle,
-  bodyStyle,
   labelStyle,
 } from "@/components/student/styles";
 import type { CSSProperties } from "react";
-
-// UI-SPEC verbatim copy.
-const CLOSED_EXPLANATION =
-  "This homework is not open right now. Ask your teacher what to do next.";
 
 const cardStyle: CSSProperties = {
   background: "#FFFFFF",
@@ -65,14 +60,6 @@ const metaStyle: CSSProperties = {
   margin: 0,
 };
 
-const closedExplanationStyle: CSSProperties = {
-  ...bodyStyle,
-  fontSize: 14,
-  color: "#6B7280",
-  marginTop: 8,
-  marginBottom: 0,
-};
-
 const BADGE_STYLES: Record<
   StudentAssignmentListItem["displayStatus"],
   CSSProperties
@@ -80,7 +67,7 @@ const BADGE_STYLES: Record<
   start: badgeStartStyle,
   continue: badgeContinueStyle,
   done: badgeDoneStyle,
-  closed: badgeClosedStyle,
+  late: badgeClosedStyle,
 };
 
 const BADGE_LABELS: Record<
@@ -90,7 +77,7 @@ const BADGE_LABELS: Record<
   start: "Start",
   continue: "Continue",
   done: "Done",
-  closed: "Closed",
+  late: "Late",
 };
 
 function formatDueDate(dueAt: string | null): string {
@@ -119,7 +106,9 @@ export function AssignmentListItem({
   );
 
   const isLaunchable =
-    item.displayStatus === "start" || item.displayStatus === "continue";
+    item.displayStatus === "start" ||
+    item.displayStatus === "continue" ||
+    item.displayStatus === "late";
 
   if (isLaunchable) {
     return (
@@ -143,9 +132,6 @@ export function AssignmentListItem({
         {badge}
       </div>
       {meta}
-      {item.displayStatus === "closed" && (
-        <p style={closedExplanationStyle}>{CLOSED_EXPLANATION}</p>
-      )}
     </div>
   );
 }

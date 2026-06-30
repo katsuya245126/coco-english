@@ -11,7 +11,7 @@ import { missionSnapshotSchema } from "@/domain/mission/schemas";
 // SECURITY: server-only by construction (service-role client). Never import
 // from a "use client" module.
 
-export type AssignmentDisplayStatus = "start" | "continue" | "done" | "closed";
+export type AssignmentDisplayStatus = "start" | "continue" | "done" | "late";
 
 export type StudentAssignmentListItem = {
   assignmentStudentId: string;
@@ -83,23 +83,18 @@ export async function listStudentAssignments(
     const isPastDue =
       dueAt !== null && new Date(dueAt).getTime() < now.getTime();
 
-    if (isPastDue && row.status !== "completed" && row.status !== "needs_retry") {
-      // Expired and not completed/needs_retry -> display as closed (D-14).
-      // needs_retry is exempt: teacher explicitly reopened it, due date no longer blocks.
-      displayStatus = "closed";
-    } else if (row.status === "assigned") {
-      displayStatus = "start";
-    } else if (row.status === "started") {
-      displayStatus = "continue";
-    } else if (row.status === "completed") {
+    if (row.status === "completed") {
       displayStatus = "done";
     } else if (row.status === "needs_retry") {
-      // Teacher has sent the assignment for retry — reopen for the student (D-10).
+      // Teacher explicitly reopened — always launchable regardless of due date.
       displayStatus = "start";
+    } else if (row.status === "assigned") {
+      displayStatus = isPastDue ? "late" : "start";
+    } else if (row.status === "started") {
+      displayStatus = isPastDue ? "late" : "continue";
     } else {
-      // Any other status (missed, teacher_review) that is not past due —
-      // display as closed since the student cannot act on it.
-      displayStatus = "closed";
+      // missed, teacher_review — not student-actionable.
+      displayStatus = "late";
     }
 
     items.push({
