@@ -513,6 +513,7 @@ export function MissionFlowShell({
             mode="repeat"
             outcome={flow.repeatFeedback.kind}
             transcript={flow.repeatFeedback.transcript}
+            improvedSentence={flow.improvedSentence}
             onContinue={
               flow.repeatFeedback.kind === "repeatRetry"
                 ? undefined

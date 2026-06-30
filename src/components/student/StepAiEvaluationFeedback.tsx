@@ -155,10 +155,19 @@ export function StepAiEvaluationFeedback({
 
   return (
     <div style={stepCardStyle} aria-live="polite" role="alert">
-      <div style={evaluationErrorStyle}>
-        <h2 style={headingInlineStyle}>Try the repeat again.</h2>
+      <Transcript transcript={transcript} />
+      {improvedSentence && (
+        <div style={{ ...improvedSentenceCardStyle, marginTop: transcript ? 16 : 0 }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
+            Try saying this sentence again:
+          </p>
+          <p style={sentenceStyle}>{improvedSentence}</p>
+        </div>
+      )}
+      <div style={{ ...evaluationErrorStyle, marginTop: 16 }}>
+        <h2 style={headingInlineStyle}>Not quite — try once more.</h2>
         <p style={bodyInlineStyle}>
-          Listen to the sentence and record it one more time.
+          Say the sentence above as clearly as you can.
         </p>
       </div>
       <button

@@ -134,22 +134,42 @@ function TurnEvidenceSection({ turn }: { turn: AttemptTurnEvidence }) {
 }
 
 function AnnotationGrid({ turn }: { turn: AttemptTurnEvidence }) {
-  const rows = [
-    ["Meaning result", turn.meaningResult],
-    ["Target pattern result", turn.targetPatternResult],
-    ["Repeat result", turn.repeatResult],
-  ] as const;
+  const rows: [string, string | null][] = [
+    ["Did the student communicate clearly?", friendlyMeaningResult(turn.meaningResult)],
+    ["Did they use the target language?", friendlyPatternResult(turn.targetPatternResult)],
+    ...(turn.repeatResult !== null
+      ? [["Did they repeat it correctly?", friendlyRepeatResult(turn.repeatResult)] as [string, string]]
+      : []),
+  ];
 
   return (
     <div style={annotationGridStyle} aria-label="AI annotations">
       {rows.map(([label, value]) => (
         <div key={label} style={annotationItemStyle}>
           <p style={labelStyle}>{label}</p>
-          <p style={valueStyle}>{value ?? "Not recorded"}</p>
+          <p style={valueStyle}>{value ?? "—"}</p>
         </div>
       ))}
     </div>
   );
+}
+
+function friendlyMeaningResult(r: string) {
+  if (r === "Understood") return "Yes";
+  if (r === "Try again") return "Not clearly";
+  return "Needs your review";
+}
+
+function friendlyPatternResult(r: string) {
+  if (r === "Target pattern used") return "Yes";
+  if (r === "Target pattern missing") return "Not found";
+  return "Needs your review";
+}
+
+function friendlyRepeatResult(r: string) {
+  if (r === "Accepted") return "Yes, good enough";
+  if (r === "Try again") return "Not close enough";
+  return "Needs your review";
 }
 
 function TranscriptBlock({
