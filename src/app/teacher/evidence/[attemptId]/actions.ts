@@ -87,7 +87,8 @@ export async function overrideAssignmentStatusAction(
       reasonCode: "teacher_override",
       occurredAt: nowIso,
     });
-  } catch {
+  } catch (e) {
+    console.error("[override] assertTransitionRequest failed:", e);
     return { ok: false, error: "invalid_transition" };
   }
 
@@ -106,6 +107,7 @@ export async function overrideAssignmentStatusAction(
     .eq("id", input.assignmentStudentId);
 
   if (updateError) {
+    console.error("[override] assignment_students update failed:", updateError);
     return { ok: false, error: "db_error" };
   }
 
@@ -128,6 +130,7 @@ export async function overrideAssignmentStatusAction(
     });
 
   if (eventError) {
+    console.error("[override] assignment_status_events insert failed:", eventError);
     return { ok: false, error: "db_error" };
   }
 
