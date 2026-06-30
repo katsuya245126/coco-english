@@ -5,8 +5,8 @@ milestone_name: milestone
 current_phase: 06
 current_phase_name: ai-mission-and-turn-intelligence
 status: executing
-stopped_at: Phase 7 context gathered
-last_updated: "2026-06-30T07:19:55.336Z"
+stopped_at: Phase 7 UI-SPEC approved
+last_updated: "2026-06-30T15:33:45.547Z"
 last_activity: 2026-06-29
 last_activity_desc: Completed 06-04 repeat evaluation and review routing
 progress:
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-06-25)
 ## Current Position
 
 Phase: 06 (ai-mission-and-turn-intelligence) — COMPLETE
-Status: Phase 06 complete; ready for verification and Phase 7 planning
+Status: Ready to execute
 Last activity: 2026-06-29 — Completed 06-04 repeat evaluation and review routing
 Prior: Phase 05 VERIFIED — UAT 9/9 pass. FK disambiguation fix for evidence queries (25afe7db). Gap closure: teacher evidence navigation added, mic-denied copy made child-friendly. iOS Safari + Android Chrome + desktop teacher evidence all verified on real devices.
 
@@ -144,6 +144,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-30T07:19:55.329Z
-Stopped at: Phase 7 context gathered
-Resume file: .planning/phases/07-teacher-review-and-pilot-readiness/07-CONTEXT.md
+Last session: 2026-06-30T07:59:22.760Z
+Stopped at: Phase 7 UI-SPEC approved
+Resume file: .planning/phases/07-teacher-review-and-pilot-readiness/07-UI-SPEC.md
