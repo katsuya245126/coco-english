@@ -250,6 +250,21 @@ export function MissionFlowShell({
       upload.evaluation,
     );
 
+    const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
+    if (isFinalTurn && originalFeedback.kind === "acceptedOriginal") {
+      const result = await completeMissionAction({
+        assignmentStudentId,
+        attemptId: aid,
+        requiredTurns,
+      });
+      if (!result.ok) {
+        setActionError("Something went wrong. Try again, or ask your teacher for help.");
+        throw new Error("mission_complete_failed");
+      }
+      setFlow((prev) => ({ ...prev, step: "complete", originalTranscript: upload.transcript, originalFeedback, repeatFeedback: null }));
+      return;
+    }
+
     setFlow((prev) => ({
       ...prev,
       step: "aiFeedback",
@@ -281,6 +296,21 @@ export function MissionFlowShell({
       upload.transcript,
       upload.evaluation,
     );
+
+    const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
+    if (isFinalTurn && repeatFeedback.kind === "repeatAccepted") {
+      const result = await completeMissionAction({
+        assignmentStudentId,
+        attemptId: aid,
+        requiredTurns,
+      });
+      if (!result.ok) {
+        setActionError("Something went wrong. Try again, or ask your teacher for help.");
+        throw new Error("mission_complete_failed");
+      }
+      setFlow((prev) => ({ ...prev, repeatTranscript: upload.transcript, repeatFeedback, step: "complete" }));
+      return;
+    }
 
     setFlow((prev) => ({
       ...prev,
