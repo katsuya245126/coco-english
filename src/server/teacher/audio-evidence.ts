@@ -27,8 +27,10 @@ type AttemptOwnershipRow = {
       display_name: string;
     }>;
     assignments: NestedRelation<{
+      id: string;
       title: string;
       classes: NestedRelation<{
+        id: string;
         teacher_id: string;
       }>;
     }>;
@@ -85,9 +87,12 @@ export type AttemptTurnEvidence = {
 export type AttemptEvidence = {
   attemptId: string;
   assignmentStudentId: string;
+  assignmentId: string;
+  classId: string;
   missionTitle: string;
   studentName: string;
   attemptStatus: AttemptStatus;
+  assignmentStudentStatus: string;
   submittedAt: string | null;
   completedAt: string | null;
   reviewReason: string | null;
@@ -108,10 +113,14 @@ function one<T>(relation: NestedRelation<T>): T | null {
 function mapAttemptMetadata(row: AttemptOwnershipRow) {
   const assignmentStudent = one(row.assignment_students);
   const assignment = one(assignmentStudent?.assignments);
+  const assignmentClass = one(assignment?.classes);
   const student = one(assignmentStudent?.students);
 
   return {
     assignmentStudentId: assignmentStudent?.id ?? "",
+    assignmentId: assignment?.id ?? "",
+    classId: assignmentClass?.id ?? "",
+    assignmentStudentStatus: assignmentStudent?.status ?? "",
     missionTitle: assignment?.title ?? "Untitled mission",
     studentName: student?.display_name ?? "Unknown student",
     submittedAt: assignmentStudent?.submitted_at ?? null,
@@ -230,8 +239,9 @@ export async function getAttemptEvidenceForTeacher(input: {
           highest_hint_level,
           students!inner(display_name),
           assignments!inner(
+            id,
             title,
-            classes!inner(teacher_id)
+            classes!inner(id, teacher_id)
           )
         )
       `,
@@ -287,9 +297,12 @@ export async function getAttemptEvidenceForTeacher(input: {
   return {
     attemptId: attempt.data.id,
     assignmentStudentId: metadata.assignmentStudentId,
+    assignmentId: metadata.assignmentId,
+    classId: metadata.classId,
     missionTitle: metadata.missionTitle,
     studentName: metadata.studentName,
     attemptStatus: attempt.data.status as AttemptStatus,
+    assignmentStudentStatus: metadata.assignmentStudentStatus,
     submittedAt: metadata.submittedAt,
     completedAt: attempt.data.completed_at,
     reviewReason: attempt.data.needs_review_reason,

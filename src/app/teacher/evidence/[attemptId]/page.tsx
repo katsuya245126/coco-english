@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireTeacherProfile } from "@/server/auth/teacher-profile";
 import { getAttemptEvidenceForTeacher } from "@/server/teacher/audio-evidence";
 import { AudioClipPlayer } from "@/components/teacher/AudioClipPlayer";
+import { OverrideControls } from "@/components/teacher/OverrideControls";
 import type {
   AttemptAudioClipEvidence,
   AttemptTurnEvidence,
@@ -51,9 +52,18 @@ export default async function AttemptEvidencePage({
 
       <main style={mainStyle}>
         <p style={eyebrowStyle}>
-          <Link href="/teacher" style={linkStyle}>
-            Teacher dashboard
-          </Link>
+          {evidence.classId && evidence.assignmentId ? (
+            <Link
+              href={`/teacher/classes/${evidence.classId}/review/${evidence.assignmentId}`}
+              style={linkStyle}
+            >
+              ← Back to assignment review
+            </Link>
+          ) : (
+            <Link href="/teacher" style={linkStyle}>
+              Teacher dashboard
+            </Link>
+          )}
         </p>
         <h1 style={titleStyle}>Attempt evidence</h1>
 
@@ -81,6 +91,14 @@ export default async function AttemptEvidencePage({
               {formatDateTime(evidence.submittedAt ?? evidence.completedAt)}
             </p>
           </div>
+          <div>
+            <p style={labelStyle}>Attempts</p>
+            <p style={valueStyle}>{evidence.attemptCount}</p>
+          </div>
+          <div>
+            <p style={labelStyle}>Highest hint used</p>
+            <p style={valueStyle}>{hintLevelLabel(evidence.highestHintLevel)}</p>
+          </div>
         </section>
 
         <section aria-label="Turn transcripts" style={turnListStyle}>
@@ -88,6 +106,11 @@ export default async function AttemptEvidencePage({
             <TurnEvidenceSection key={turn.id} turn={turn} />
           ))}
         </section>
+
+        <OverrideControls
+          assignmentStudentId={evidence.assignmentStudentId}
+          attemptStatus={evidence.assignmentStudentStatus as import("@/domain/foundation/status").AssignmentStudentStatus}
+        />
       </main>
     </div>
   );
@@ -222,6 +245,13 @@ function formatDateTime(value: string | null) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function hintLevelLabel(level: number): string {
+  if (level === 0) return "No hints used";
+  if (level === 1) return "Pattern hint";
+  if (level === 2) return "Word bank";
+  return "Full example";
 }
 
 function reviewReasonLabel(reason: string) {
