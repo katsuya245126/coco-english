@@ -25,8 +25,11 @@ function audioInput(overrides: {
   turnOrder?: number;
   clipKind?: Database["public"]["Enums"]["audio_clip_kind"];
   body?: string;
+  mimeType?: string;
+  durationMs?: number;
 } = {}) {
   const body = overrides.body ?? "voice";
+  const mimeType = overrides.mimeType ?? "audio/webm";
 
   return {
     studentId: "student-1",
@@ -34,9 +37,9 @@ function audioInput(overrides: {
     attemptId: "attempt-1",
     turnOrder: overrides.turnOrder ?? 1,
     clipKind: overrides.clipKind ?? "original_answer",
-    file: new Blob([body], { type: "audio/webm" }),
-    mimeType: "audio/webm",
-    durationMs: 1200,
+    file: new Blob([body], { type: mimeType }),
+    mimeType,
+    durationMs: overrides.durationMs ?? 1200,
     byteSize: body.length,
   };
 }
@@ -91,7 +94,7 @@ const missionSnapshotFixture = {
   targetPattern: "I like ___ing.",
   topic: "sports",
   level: "elementary",
-  requiredTurns: 1,
+  requiredTurns: 2,
   characterId: "default-buddy",
   turns: [
     {
@@ -104,12 +107,24 @@ const missionSnapshotFixture = {
         tier3: "I like playing soccer after school.",
       },
     },
+    {
+      turnOrder: 2,
+      prompt: "What do you like eating?",
+      targetExample: "I like eating pizza.",
+      hintLadder: {
+        tier1: "I like ___ing.",
+        tier2: "eating pizza",
+        tier3: "I like eating pizza.",
+      },
+    },
   ],
 };
 
 function createMockSupabase(options: {
   assignmentFound?: boolean;
+  assignmentStatus?: Database["public"]["Enums"]["assignment_student_status"];
   attemptFound?: boolean;
+  attemptStatus?: Database["public"]["Enums"]["attempt_status"];
   uploadError?: Error | null;
 } = {}) {
   const operations: Operation[] = [];
@@ -157,6 +172,7 @@ function createMockSupabase(options: {
                 ? null
                 : {
                     id: "as-1",
+                    status: options.assignmentStatus ?? "started",
                     assignments: {
                       mission_snapshot: missionSnapshotFixture,
                     },
@@ -169,7 +185,11 @@ function createMockSupabase(options: {
             data:
               options.attemptFound === false
                 ? null
-                : { id: "attempt-1", assignment_student_id: "as-1" },
+                : {
+                    id: "attempt-1",
+                    assignment_student_id: "as-1",
+                    status: options.attemptStatus ?? "in_progress",
+                  },
             error: null,
           };
         }
@@ -457,6 +477,105 @@ describe("uploadAttemptAudioClip", () => {
     ).toBe(false);
   });
 
+  it("rejects closed assignments and attempts before creating audio rows", async () => {
+    mockSupabase = createMockSupabase({ assignmentStatus: "completed" });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const completedAssignmentResult = await uploadAttemptAudioClip(audioInput());
+
+    expect(completedAssignmentResult).toEqual({
+      ok: false,
+      error: "not_found",
+      retryable: false,
+    });
+    expect(mockSupabase.upload).not.toHaveBeenCalled();
+    expect(
+      mockSupabase.operations.some(
+        (operation) => operation.table === "audio_clips",
+      ),
+    ).toBe(false);
+
+    mockSupabase = createMockSupabase({ attemptStatus: "completed" });
+    const completedAttemptResult = await uploadAttemptAudioClip(audioInput());
+
+    expect(completedAttemptResult).toEqual({
+      ok: false,
+      error: "not_found",
+      retryable: false,
+    });
+    expect(mockSupabase.upload).not.toHaveBeenCalled();
+    expect(
+      mockSupabase.operations.some(
+        (operation) => operation.table === "audio_clips",
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects turn orders outside the mission snapshot before creating evidence rows", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 999 }));
+
+    expect(result).toEqual({
+      ok: false,
+      error: "invalid_audio",
+      retryable: false,
+    });
+    expect(mockSupabase.upload).not.toHaveBeenCalled();
+    expect(
+      mockSupabase.operations.some(
+        (operation) =>
+          operation.table === "attempt_turns" &&
+          operation.action === "upsert",
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects oversized, overlong, and unsupported audio before storage or transcription", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const transcribe = successfulTranscriber("should not run");
+
+    await expect(
+      uploadAttemptAudioClip(
+        { ...audioInput(), byteSize: 5 * 1024 * 1024 + 1 },
+        { transcribeAudioFile: transcribe },
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      error: "invalid_audio",
+      retryable: false,
+    });
+    await expect(
+      uploadAttemptAudioClip(
+        audioInput({ durationMs: 90_001 }),
+        { transcribeAudioFile: transcribe },
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      error: "invalid_audio",
+      retryable: false,
+    });
+    await expect(
+      uploadAttemptAudioClip(
+        audioInput({ mimeType: "audio/ogg" }),
+        { transcribeAudioFile: transcribe },
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      error: "invalid_audio",
+      retryable: false,
+    });
+
+    expect(mockSupabase.upload).not.toHaveBeenCalled();
+    expect(transcribe).not.toHaveBeenCalled();
+  });
+
   it("does not upload when assignment ownership does not match", async () => {
     mockSupabase = createMockSupabase({ assignmentFound: false });
     const { uploadAttemptAudioClip } = await import(
@@ -486,6 +605,9 @@ describe("uploadAttemptAudioClip", () => {
     );
 
     expect(routeSource).toContain("readStudentUnlock");
+    expect(routeSource).toContain("MAX_AUDIO_BYTES");
+    expect(routeSource).toContain("MAX_AUDIO_DURATION_MS");
+    expect(routeSource).toContain("ALLOWED_AUDIO_MIME_TYPES");
     expect(routeSource).not.toContain("getPublicUrl");
     expect(routeSource).not.toContain("publicUrl");
   });

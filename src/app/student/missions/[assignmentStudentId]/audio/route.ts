@@ -1,14 +1,19 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { readStudentUnlock } from "@/app/join/actions";
-import { uploadAttemptAudioClip } from "@/server/student-access/audio-upload";
+import {
+  ALLOWED_AUDIO_MIME_TYPES,
+  MAX_AUDIO_BYTES,
+  MAX_AUDIO_DURATION_MS,
+  uploadAttemptAudioClip,
+} from "@/server/student-access/audio-upload";
 
 const audioUploadSchema = z.object({
   assignmentStudentId: z.string().uuid(),
   attemptId: z.string().uuid(),
   turnOrder: z.coerce.number().int().positive(),
   clipKind: z.enum(["original_answer", "repeat_attempt"]),
-  durationMs: z.coerce.number().int().min(0),
+  durationMs: z.coerce.number().int().min(0).max(MAX_AUDIO_DURATION_MS),
 });
 
 type RouteContext = {
@@ -46,6 +51,17 @@ export async function POST(request: Request, context: RouteContext) {
     typeof mimeTypeField === "string" && mimeTypeField.trim().length > 0
       ? mimeTypeField
       : file.type;
+  const normalizedMimeType = mimeType.toLowerCase().split(";")[0]?.trim();
+  const fileMimeType = file.type.toLowerCase().split(";")[0]?.trim();
+
+  if (
+    file.size > MAX_AUDIO_BYTES ||
+    !normalizedMimeType ||
+    !ALLOWED_AUDIO_MIME_TYPES.has(normalizedMimeType) ||
+    (!!fileMimeType && fileMimeType !== normalizedMimeType)
+  ) {
+    return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
+  }
 
   const result = await uploadAttemptAudioClip({
     studentId: unlock.studentId,

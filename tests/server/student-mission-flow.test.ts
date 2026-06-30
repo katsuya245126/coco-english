@@ -96,6 +96,40 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(missionFlowSource).toContain('"failed_schema"');
   });
 
+  it("service-role mission-flow writes verify attempt ownership before mutation", () => {
+    const missionFlowSource = readFileSync(
+      "src/server/student-access/mission-flow.ts",
+      "utf8",
+    );
+
+    expect(missionFlowSource).toContain("loadOwnedAttempt");
+    expect(missionFlowSource).toContain(".eq(\"assignment_student_id\", assignmentStudentId)");
+    expect(missionFlowSource).toContain("attempt.attempt.status !== \"in_progress\"");
+  });
+
+  it("start attempts conditionally claim the assignment before returning the new attempt", () => {
+    const missionFlowSource = readFileSync(
+      "src/server/student-access/mission-flow.ts",
+      "utf8",
+    );
+
+    expect(missionFlowSource).toContain("const { data: claimed");
+    expect(missionFlowSource).toContain(".eq(\"status\", \"assigned\")");
+    expect(missionFlowSource).toContain("status: \"abandoned\" as const");
+    expect(missionFlowSource).toContain("resumed.latest_attempt_id");
+  });
+
+  it("completion checks assignment, audit, and attempt write errors", () => {
+    const missionFlowSource = readFileSync(
+      "src/server/student-access/mission-flow.ts",
+      "utf8",
+    );
+
+    expect(missionFlowSource).toContain("if (updateError)");
+    expect(missionFlowSource).toContain("if (eventError)");
+    expect(missionFlowSource).toContain("if (attemptUpdateError)");
+  });
+
   it("student client modules do not import OpenAI or server AI adapters (T-06-01)", () => {
     const shellSource = readFileSync(
       "src/components/student/MissionFlowShell.tsx",

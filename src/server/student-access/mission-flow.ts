@@ -77,6 +77,23 @@ async function loadOwnedAssignmentStudent(
   return data;
 }
 
+async function loadOwnedAttempt(
+  supabase: ReturnType<typeof createSupabaseServiceClient>,
+  assignmentStudentId: string,
+  attemptId: string,
+) {
+  const { data, error } = await supabase
+    .from("attempts")
+    .select("id, assignment_student_id, status")
+    .eq("id", attemptId)
+    .eq("assignment_student_id", assignmentStudentId)
+    .maybeSingle();
+
+  if (error) return { ok: false as const, error: "db_error" as const };
+  if (!data) return { ok: false as const, error: "not_found" as const };
+  return { ok: true as const, attempt: data };
+}
+
 // ─── Service functions ───
 
 export async function routeAssignmentStudentToTeacherReview(input: {
@@ -257,17 +274,9 @@ export async function startOrResumeAttempt(input: {
       occurredAt: nowIso,
     });
 
-    // Insert status event
-    await supabase.from("assignment_status_events").insert({
-      assignment_student_id: input.assignmentStudentId,
-      previous_status: "assigned",
-      next_status: "started",
-      actor_type: "student_session",
-      reason_code: "mission_started",
-    });
-
-    // Conditional UPDATE (Pitfall 3: 0 rows = already transitioned, treat idempotently)
-    await supabase
+    // Conditional UPDATE. If another request already claimed the assignment,
+    // abandon this speculative attempt and resume the authoritative latest attempt.
+    const { data: claimed, error: claimError } = await supabase
       .from("assignment_students")
       .update({
         status: "started" as const,
@@ -275,7 +284,46 @@ export async function startOrResumeAttempt(input: {
         attempt_count: asRow.attempt_count + 1,
       })
       .eq("id", input.assignmentStudentId)
-      .eq("status", "assigned");
+      .eq("status", "assigned")
+      .select("id")
+      .maybeSingle();
+
+    if (claimError) return { ok: false, error: "db_error" };
+
+    if (!claimed) {
+      await supabase
+        .from("attempts")
+        .update({ status: "abandoned" as const })
+        .eq("id", newAttempt.id);
+
+      const resumed = await loadOwnedAssignmentStudent(
+        supabase,
+        input.assignmentStudentId,
+        input.studentId,
+      );
+      if (resumed?.latest_attempt_id) {
+        return {
+          ok: true,
+          attemptId: resumed.latest_attempt_id,
+          isResume: true,
+          resumeTurnOrder: 1,
+        };
+      }
+
+      return { ok: false, error: "not_assigned_or_started" };
+    }
+
+    const { error: eventError } = await supabase
+      .from("assignment_status_events")
+      .insert({
+        assignment_student_id: input.assignmentStudentId,
+        previous_status: "assigned",
+        next_status: "started",
+        actor_type: "student_session",
+        reason_code: "mission_started",
+      });
+
+    if (eventError) return { ok: false, error: "db_error" };
 
     return {
       ok: true,
@@ -319,6 +367,16 @@ export async function recordAnswer(input: {
       input.studentId,
     );
     if (!asRow) return { ok: false, error: "not_found" };
+
+    const attempt = await loadOwnedAttempt(
+      supabase,
+      input.assignmentStudentId,
+      input.attemptId,
+    );
+    if (!attempt.ok) return attempt;
+    if (attempt.attempt.status !== "in_progress") {
+      return { ok: false, error: "not_found" };
+    }
 
     // Upsert on (attempt_id, turn_order) — Pitfall 2 idempotency
     const { error } = await supabase
@@ -370,6 +428,16 @@ export async function recordRepeat(input: {
       input.studentId,
     );
     if (!asRow) return { ok: false, error: "not_found" };
+
+    const attempt = await loadOwnedAttempt(
+      supabase,
+      input.assignmentStudentId,
+      input.attemptId,
+    );
+    if (!attempt.ok) return attempt;
+    if (attempt.attempt.status !== "in_progress") {
+      return { ok: false, error: "not_found" };
+    }
 
     // UPDATE existing turn row (never insert a new one)
     const { data, error } = await supabase
@@ -423,6 +491,16 @@ export async function recordHintReveal(input: {
       input.studentId,
     );
     if (!asRow) return { ok: false, error: "not_found" };
+
+    const attempt = await loadOwnedAttempt(
+      supabase,
+      input.assignmentStudentId,
+      input.attemptId,
+    );
+    if (!attempt.ok) return attempt;
+    if (attempt.attempt.status !== "in_progress") {
+      return { ok: false, error: "not_found" };
+    }
 
     // UPDATE turn: hint_level_used = GREATEST(hint_level_used, hintLevel)
     // Supabase JS client doesn't support SQL GREATEST in update, so we
@@ -490,6 +568,19 @@ export async function completeAttempt(input: {
     );
     if (!asRow) return { ok: false, error: "not_found" };
 
+    const attempt = await loadOwnedAttempt(
+      supabase,
+      input.assignmentStudentId,
+      input.attemptId,
+    );
+    if (!attempt.ok) return attempt;
+    if (attempt.attempt.status === "completed" && asRow.status === "completed") {
+      return { ok: true };
+    }
+    if (attempt.attempt.status !== "in_progress") {
+      return { ok: false, error: "not_found" };
+    }
+
     // 2. Load attempt turns from DB
     const { data: turns, error: turnsErr } = await supabase
       .from("attempt_turns")
@@ -515,7 +606,7 @@ export async function completeAttempt(input: {
     });
 
     // 5. Conditional UPDATE — 0 rows means already completed (idempotent, Pitfall 3)
-    const { data: updated } = await supabase
+    const { data: updated, error: updateError } = await supabase
       .from("assignment_students")
       .update({
         status: "completed" as const,
@@ -527,25 +618,31 @@ export async function completeAttempt(input: {
       .select("id")
       .maybeSingle();
 
+    if (updateError) return { ok: false, error: "db_error" };
+
     // Only write audit event if the transition actually happened (not duplicate)
     if (updated) {
-      await supabase.from("assignment_status_events").insert({
+      const { error: eventError } = await supabase.from("assignment_status_events").insert({
         assignment_student_id: input.assignmentStudentId,
         previous_status: "started",
         next_status: "completed",
         actor_type: "student_session",
         reason_code: "mission_completed",
       });
+
+      if (eventError) return { ok: false, error: "db_error" };
     }
 
     // 6. Stamp attempt as completed
-    await supabase
+    const { error: attemptUpdateError } = await supabase
       .from("attempts")
       .update({
         status: "completed" as const,
         completed_at: nowIso,
       })
       .eq("id", input.attemptId);
+
+    if (attemptUpdateError) return { ok: false, error: "db_error" };
 
     return { ok: true };
   } catch {

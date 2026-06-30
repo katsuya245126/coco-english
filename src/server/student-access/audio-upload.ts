@@ -38,6 +38,16 @@ import {
 const DEFAULT_AUDIO_BUCKET = "student-audio";
 const FAILED_SCHEMA_REVIEW_REASON = "failed_schema";
 const LOW_CONFIDENCE_REVIEW_REASON = "low_confidence";
+export const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
+export const MAX_AUDIO_DURATION_MS = 90_000;
+export const ALLOWED_AUDIO_MIME_TYPES = new Set([
+  "audio/webm",
+  "audio/mp4",
+  "audio/m4a",
+  "audio/mpeg",
+  "audio/wav",
+  "audio/wave",
+]);
 
 export type AudioClipKind = Database["public"]["Enums"]["audio_clip_kind"];
 
@@ -230,14 +240,21 @@ function buildObjectKey(input: {
 }
 
 function isValidInput(input: UploadAttemptAudioClipInput) {
+  const normalizedMimeType = input.mimeType.toLowerCase().split(";")[0]?.trim();
+  const fileMimeType = input.file.type.toLowerCase().split(";")[0]?.trim();
+
   return (
     Number.isInteger(input.turnOrder) &&
     input.turnOrder > 0 &&
     Number.isInteger(input.durationMs) &&
     input.durationMs >= 0 &&
+    input.durationMs <= MAX_AUDIO_DURATION_MS &&
     Number.isInteger(input.byteSize) &&
     input.byteSize > 0 &&
-    input.mimeType.trim().startsWith("audio/")
+    input.byteSize <= MAX_AUDIO_BYTES &&
+    !!normalizedMimeType &&
+    ALLOWED_AUDIO_MIME_TYPES.has(normalizedMimeType) &&
+    (!fileMimeType || fileMimeType === normalizedMimeType)
   );
 }
 
@@ -288,7 +305,7 @@ export async function uploadAttemptAudioClip(
 
     const { data: assignmentStudent, error: assignmentError } = await supabase
       .from("assignment_students")
-      .select("id, student_id, assignments(mission_snapshot)")
+      .select("id, student_id, status, assignments(mission_snapshot)")
       .eq("id", input.assignmentStudentId)
       .eq("student_id", input.studentId)
       .maybeSingle();
@@ -299,10 +316,13 @@ export async function uploadAttemptAudioClip(
     if (!assignmentStudent) {
       return { ok: false, error: "not_found", retryable: false };
     }
+    if (assignmentStudent.status !== "started") {
+      return { ok: false, error: "not_found", retryable: false };
+    }
 
     const { data: attempt, error: attemptError } = await supabase
       .from("attempts")
-      .select("id, assignment_student_id")
+      .select("id, assignment_student_id, status")
       .eq("id", input.attemptId)
       .eq("assignment_student_id", input.assignmentStudentId)
       .maybeSingle();
@@ -312,6 +332,17 @@ export async function uploadAttemptAudioClip(
     }
     if (!attempt) {
       return { ok: false, error: "not_found", retryable: false };
+    }
+    if (attempt.status !== "in_progress") {
+      return { ok: false, error: "not_found", retryable: false };
+    }
+
+    const snapshot = readMissionSnapshot(assignmentStudent);
+    const snapshotTurn = snapshot?.turns.find(
+      (missionTurn) => missionTurn.turnOrder === input.turnOrder,
+    );
+    if (!snapshot || !snapshotTurn) {
+      return { ok: false, error: "invalid_audio", retryable: false };
     }
 
     const { data: turn, error: turnError } = await supabase
@@ -409,16 +440,12 @@ export async function uploadAttemptAudioClip(
     const turnWrite =
       input.clipKind === "original_answer"
         ? await (async () => {
-            const snapshot = readMissionSnapshot(assignmentStudent);
-            const snapshotTurn = snapshot?.turns.find(
-              (missionTurn) => missionTurn.turnOrder === input.turnOrder,
-            );
             const evaluate = deps.evaluateOriginalTurn ?? evaluateOriginalTurn;
             const evaluationResult = await evaluate({
-              missionQuestion: snapshotTurn?.prompt ?? "",
-              targetPattern: snapshot?.targetPattern ?? "",
-              targetExample: snapshotTurn?.targetExample ?? "",
-              level: snapshot?.level ?? "elementary",
+              missionQuestion: snapshotTurn.prompt,
+              targetPattern: snapshot.targetPattern,
+              targetExample: snapshotTurn.targetExample,
+              level: snapshot.level,
               turnOrder: input.turnOrder,
               transcript,
             });
@@ -457,17 +484,12 @@ export async function uploadAttemptAudioClip(
             return write;
           })()
         : await (async () => {
-            const snapshot = readMissionSnapshot(assignmentStudent);
-            const snapshotTurn = snapshot?.turns.find(
-              (missionTurn) => missionTurn.turnOrder === input.turnOrder,
-            );
             const evaluate = deps.evaluateRepeatTurn ?? evaluateRepeatTurn;
             const evaluationResult = await evaluate({
               originalTranscript: turn.original_transcript ?? "",
-              improvedSentence:
-                turn.improved_sentence ?? snapshotTurn?.targetExample ?? "",
-              targetPattern: snapshot?.targetPattern ?? "",
-              level: snapshot?.level ?? "elementary",
+              improvedSentence: turn.improved_sentence ?? snapshotTurn.targetExample,
+              targetPattern: snapshot.targetPattern,
+              level: snapshot.level,
               repeatTranscript: transcript,
             });
             const decision = applyRepeatTurnEvaluation(evaluationResult);
