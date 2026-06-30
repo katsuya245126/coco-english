@@ -83,8 +83,9 @@ export async function listStudentAssignments(
     const isPastDue =
       dueAt !== null && new Date(dueAt).getTime() < now.getTime();
 
-    if (isPastDue && row.status !== "completed") {
-      // Expired and not completed -> display as closed (read-only, D-14).
+    if (isPastDue && row.status !== "completed" && row.status !== "needs_retry") {
+      // Expired and not completed/needs_retry -> display as closed (D-14).
+      // needs_retry is exempt: teacher explicitly reopened it, due date no longer blocks.
       displayStatus = "closed";
     } else if (row.status === "assigned") {
       displayStatus = "start";
