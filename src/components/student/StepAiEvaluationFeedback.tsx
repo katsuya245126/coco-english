@@ -53,10 +53,7 @@ export function StepAiEvaluationFeedback({
       <div style={stepCardStyle} aria-live="polite">
         <Transcript transcript={transcript} />
         <div style={evaluationSuccessStyle}>
-          <h2 style={headingInlineStyle}>Nice answer!</h2>
-          <p style={bodyInlineStyle}>
-            You used the English practice well. Let&apos;s keep going.
-          </p>
+          <h2 style={headingInlineStyle}>Great!</h2>
         </div>
         <button
           type="button"
@@ -64,7 +61,7 @@ export function StepAiEvaluationFeedback({
           onClick={onContinue}
           disabled={isSubmitting}
         >
-          Continue mission
+          Next
         </button>
       </div>
     );
@@ -75,11 +72,13 @@ export function StepAiEvaluationFeedback({
       <div style={stepCardStyle} aria-live="polite">
         <Transcript transcript={transcript} />
         <div style={{ ...improvedSentenceCardStyle, marginTop: transcript ? 16 : 0 }}>
-          <h2 style={headingInlineStyle}>Nice try! Here is a clearer way to say it:</h2>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
+            Better way to say it:
+          </p>
           <p style={sentenceStyle}>{improvedSentence}</p>
         </div>
         <p style={{ ...bodyInlineStyle, marginTop: 16 }}>
-          Now repeat this sentence.
+          Now say it out loud.
         </p>
         <button
           type="button"
@@ -87,7 +86,7 @@ export function StepAiEvaluationFeedback({
           onClick={onContinue}
           disabled={isSubmitting}
         >
-          Continue practice
+          OK, I&apos;m ready
         </button>
       </div>
     );
@@ -98,15 +97,14 @@ export function StepAiEvaluationFeedback({
       <div style={stepCardStyle} aria-live="polite" role="alert">
         <Transcript transcript={transcript} />
         <div style={{ ...evaluationErrorStyle, marginTop: transcript ? 16 : 0 }}>
-          <h2 style={headingInlineStyle}>Try that in English.</h2>
-          <p style={bodyInlineStyle}>Record your answer again using English.</p>
+          <h2 style={headingInlineStyle}>Please say it in English.</h2>
         </div>
         <button
           type="button"
           style={{ ...primaryButtonStyle, marginTop: 16 }}
           onClick={onRetry}
         >
-          Record again
+          Try again
         </button>
       </div>
     );
@@ -118,10 +116,7 @@ export function StepAiEvaluationFeedback({
         <Transcript transcript={transcript} />
         <div style={{ ...evaluationReviewStyle, marginTop: transcript ? 16 : 0 }}>
           <p style={badgeStyle}>Teacher review</p>
-          <h2 style={headingInlineStyle}>Your teacher will check this answer.</h2>
-          <p style={bodyInlineStyle}>
-            Keep going. Your teacher can review this turn later.
-          </p>
+          <h2 style={headingInlineStyle}>Your teacher will check this.</h2>
         </div>
         <button
           type="button"
@@ -129,7 +124,7 @@ export function StepAiEvaluationFeedback({
           onClick={onContinue}
           disabled={isSubmitting}
         >
-          Continue mission
+          Next
         </button>
       </div>
     );
@@ -139,7 +134,7 @@ export function StepAiEvaluationFeedback({
     return (
       <div style={stepCardStyle} aria-live="polite">
         <div style={evaluationSuccessStyle}>
-          <h2 style={headingInlineStyle}>Good repeat.</h2>
+          <h2 style={headingInlineStyle}>Great job!</h2>
         </div>
         <button
           type="button"
@@ -147,7 +142,7 @@ export function StepAiEvaluationFeedback({
           onClick={onContinue}
           disabled={isSubmitting}
         >
-          Continue practice
+          Next
         </button>
       </div>
     );
@@ -159,23 +154,20 @@ export function StepAiEvaluationFeedback({
       {improvedSentence && (
         <div style={{ ...improvedSentenceCardStyle, marginTop: transcript ? 16 : 0 }}>
           <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
-            Try saying this sentence again:
+            Say this sentence:
           </p>
           <p style={sentenceStyle}>{improvedSentence}</p>
         </div>
       )}
       <div style={{ ...evaluationErrorStyle, marginTop: 16 }}>
-        <h2 style={headingInlineStyle}>Not quite — try once more.</h2>
-        <p style={bodyInlineStyle}>
-          Say the sentence above as clearly as you can.
-        </p>
+        <h2 style={headingInlineStyle}>Try again.</h2>
       </div>
       <button
         type="button"
         style={{ ...primaryButtonStyle, marginTop: 16 }}
         onClick={onRetry}
       >
-        Record again
+        Try again
       </button>
     </div>
   );

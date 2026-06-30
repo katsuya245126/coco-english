@@ -135,10 +135,10 @@ function TurnEvidenceSection({ turn }: { turn: AttemptTurnEvidence }) {
 
 function AnnotationGrid({ turn }: { turn: AttemptTurnEvidence }) {
   const rows: [string, string | null][] = [
-    ["Did the student communicate clearly?", friendlyMeaningResult(turn.meaningResult)],
-    ["Did they use the target language?", friendlyPatternResult(turn.targetPatternResult)],
+    ["Communicated clearly?", friendlyMeaningResult(turn.meaningResult)],
+    ["Used the target language?", friendlyPatternResult(turn.targetPatternResult)],
     ...(turn.repeatResult !== null
-      ? [["Did they repeat it correctly?", friendlyRepeatResult(turn.repeatResult)] as [string, string]]
+      ? [["Repeated correctly?", friendlyRepeatResult(turn.repeatResult)] as [string, string]]
       : []),
   ];
 
@@ -146,8 +146,8 @@ function AnnotationGrid({ turn }: { turn: AttemptTurnEvidence }) {
     <div style={annotationGridStyle} aria-label="AI annotations">
       {rows.map(([label, value]) => (
         <div key={label} style={annotationItemStyle}>
-          <p style={labelStyle}>{label}</p>
-          <p style={valueStyle}>{value ?? "—"}</p>
+          <p style={annotationLabelStyle}>{label}</p>
+          <p style={annotationValueStyle(value)}>{value ?? "—"}</p>
         </div>
       ))}
     </div>
@@ -404,3 +404,24 @@ const reviewReasonInlineStyle: React.CSSProperties = {
   lineHeight: 1.4,
   color: "#4B5563",
 };
+
+const annotationLabelStyle: React.CSSProperties = {
+  margin: "0 0 4px",
+  fontSize: 13,
+  fontWeight: 600,
+  color: "#6B7280",
+};
+
+function annotationValueStyle(value: string | null): React.CSSProperties {
+  const v = value ?? "";
+  if (v === "Yes" || v === "Yes, good enough") {
+    return { margin: 0, fontSize: 15, fontWeight: 600, color: "#065F46" };
+  }
+  if (v === "Not clearly" || v === "Not found" || v === "Not close enough") {
+    return { margin: 0, fontSize: 15, fontWeight: 600, color: "#B91C1C" };
+  }
+  if (v === "Needs your review") {
+    return { margin: 0, fontSize: 15, fontWeight: 600, color: "#92400E" };
+  }
+  return { margin: 0, fontSize: 15, color: "#374151" };
+}

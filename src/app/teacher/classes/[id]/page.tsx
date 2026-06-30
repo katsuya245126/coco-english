@@ -87,7 +87,7 @@ export default async function ClassRosterPage({
     )
     .eq("assignments.class_id", classId)
     .not("latest_attempt_id", "is", null)
-    .order("submitted_at", { ascending: false, nullsFirst: false });
+    .order("submitted_at", { ascending: false, nullsFirst: true });
 
   if (evidenceRows.error) {
     throw new Error(
@@ -161,18 +161,20 @@ export default async function ClassRosterPage({
             <div style={evidenceListStyle}>
               {evidenceLinks.map((item) => (
                 <article key={item.id} style={evidenceItemStyle}>
-                  <div>
-                    <h3 style={evidenceTitleStyle}>{item.studentName}</h3>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+                      <h3 style={evidenceTitleStyle}>{item.studentName}</h3>
+                      <StatusBadge status={item.status} />
+                    </div>
                     <p style={evidenceMetaStyle}>
-                      {item.missionTitle} · {item.status} ·{" "}
-                      {formatDateTime(item.submittedAt)}
+                      {item.missionTitle} · {formatDateTime(item.submittedAt)}
                     </p>
                   </div>
                   <Link
                     href={`/teacher/evidence/${item.attemptId}`}
                     style={evidenceLinkStyle}
                   >
-                    Review evidence
+                    Review
                   </Link>
                 </article>
               ))}
@@ -246,4 +248,31 @@ const evidenceLinkStyle: React.CSSProperties = {
   textDecoration: "none",
   fontSize: 14,
   fontWeight: 600,
+  whiteSpace: "nowrap",
 };
+
+function StatusBadge({ status }: { status: string }) {
+  const s = status.toLowerCase();
+  let bg = "#F3F4F6";
+  let color = "#374151";
+  let label = status;
+
+  if (s === "completed") { bg = "#D1FAE5"; color = "#065F46"; label = "Completed"; }
+  else if (s === "in_progress") { bg = "#DBEAFE"; color = "#1D4ED8"; label = "In progress"; }
+  else if (s === "review_pending") { bg = "#FEF3C7"; color = "#92400E"; label = "Needs review"; }
+  else if (s === "not_started") { bg = "#F3F4F6"; color = "#6B7280"; label = "Not started"; }
+
+  return (
+    <span style={{
+      display: "inline-block",
+      fontSize: 12,
+      fontWeight: 600,
+      padding: "2px 8px",
+      borderRadius: 9999,
+      background: bg,
+      color,
+    }}>
+      {label}
+    </span>
+  );
+}

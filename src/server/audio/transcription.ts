@@ -21,7 +21,7 @@ export type TranscriptionResult =
 export type TranscriptionClient = {
   audio: {
     transcriptions: {
-      create(input: { file: File; model: string }): Promise<{ text?: string | null }>;
+      create(input: { file: File; model: string; prompt?: string }): Promise<{ text?: string | null }>;
     };
   };
 };
@@ -81,6 +81,7 @@ export async function transcribeAudioFile(
     const response = await client.audio.transcriptions.create({
       file: transcriptFile,
       model: resolveModel(input, deps),
+      prompt: "The student is an ESL learner speaking English or Korean.",
     });
     const text = response.text?.trim() ?? "";
 
