@@ -10,7 +10,7 @@
  * All buddy/sentence text comes from snapshot + static profile — no AI client.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { MissionSnapshotTurn } from "@/domain/mission/schemas";
 import {
   startAttemptAction,
@@ -112,6 +112,8 @@ export function MissionFlowShell({
 
   const [attemptId, setAttemptId] = useState<string | null>(initialAttemptId);
   const [actionError, setActionError] = useState<string | null>(null);
+  const originalAudioUrlRef = useRef<string | null>(null);
+  const repeatAudioUrlRef = useRef<string | null>(null);
 
   // ─── Resume notice (D-04) ───
   const [showResumeNotice, setShowResumeNotice] = useState(isResume);
@@ -230,10 +232,24 @@ export function MissionFlowShell({
     return { kind: "acceptedOriginal", transcript };
   }
 
+  function revokeAudioUrls() {
+    if (originalAudioUrlRef.current) {
+      URL.revokeObjectURL(originalAudioUrlRef.current);
+      originalAudioUrlRef.current = null;
+    }
+    if (repeatAudioUrlRef.current) {
+      URL.revokeObjectURL(repeatAudioUrlRef.current);
+      repeatAudioUrlRef.current = null;
+    }
+  }
+
   async function handleSubmitOriginalVoice(recording: RecordedVoiceClip) {
     setActionError(null);
     // Dismiss resume notice on first submit (D-04)
     setShowResumeNotice(false);
+
+    if (originalAudioUrlRef.current) URL.revokeObjectURL(originalAudioUrlRef.current);
+    originalAudioUrlRef.current = URL.createObjectURL(recording.blob);
 
     const aid = await ensureAttempt();
     if (!aid) {
@@ -281,6 +297,9 @@ export function MissionFlowShell({
 
   async function handleSubmitRepeatVoice(recording: RepeatVoiceClip) {
     setActionError(null);
+
+    if (repeatAudioUrlRef.current) URL.revokeObjectURL(repeatAudioUrlRef.current);
+    repeatAudioUrlRef.current = URL.createObjectURL(recording.blob);
 
     const aid = await ensureAttempt();
     if (!aid) {
@@ -386,6 +405,7 @@ export function MissionFlowShell({
   }
 
   function retryOriginal() {
+    revokeAudioUrls();
     setFlow((prev) => ({
       ...prev,
       step: "question",
@@ -398,6 +418,10 @@ export function MissionFlowShell({
   }
 
   function retryRepeat() {
+    if (repeatAudioUrlRef.current) {
+      URL.revokeObjectURL(repeatAudioUrlRef.current);
+      repeatAudioUrlRef.current = null;
+    }
     setFlow((prev) => ({
       ...prev,
       step: "repeat",
@@ -424,6 +448,7 @@ export function MissionFlowShell({
   }
 
   function handleNextTurn() {
+    revokeAudioUrls();
     const nextIndex = flow.turnIndex + 1;
     if (nextIndex < requiredTurns) {
       setFlow({
@@ -506,6 +531,7 @@ export function MissionFlowShell({
             mode="original"
             outcome={flow.originalFeedback.kind}
             transcript={flow.originalFeedback.transcript}
+            audioUrl={originalAudioUrlRef.current ?? undefined}
             improvedSentence={
               flow.originalFeedback.kind === "needsCorrection"
                 ? flow.originalFeedback.improvedSentence
@@ -518,11 +544,7 @@ export function MissionFlowShell({
                   ? finishTeacherReviewFeedback
                   : finishAcceptedOriginal
             }
-            onRetry={
-              flow.originalFeedback.kind === "retryOriginal"
-                ? retryOriginal
-                : undefined
-            }
+            onRetry={retryOriginal}
             isSubmitting={false}
           />
         )}
@@ -543,6 +565,7 @@ export function MissionFlowShell({
             mode="repeat"
             outcome={flow.repeatFeedback.kind}
             transcript={flow.repeatFeedback.transcript}
+            audioUrl={repeatAudioUrlRef.current ?? undefined}
             improvedSentence={flow.improvedSentence}
             onContinue={
               flow.repeatFeedback.kind === "repeatRetry"
@@ -551,9 +574,7 @@ export function MissionFlowShell({
                   ? finishTeacherReviewFeedback
                   : finishRepeatFeedback
             }
-            onRetry={
-              flow.repeatFeedback.kind === "repeatRetry" ? retryRepeat : undefined
-            }
+            onRetry={retryRepeat}
             isSubmitting={false}
           />
         )}

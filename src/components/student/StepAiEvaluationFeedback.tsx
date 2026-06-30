@@ -23,6 +23,7 @@ type StepAiEvaluationFeedbackProps = {
   mode: "original" | "repeat";
   outcome: OriginalOutcome | RepeatOutcome;
   transcript?: string | null;
+  audioUrl?: string;
   improvedSentence?: string | null;
   onContinue?: () => void | Promise<void>;
   onRetry?: () => void;
@@ -33,6 +34,7 @@ export function StepAiEvaluationFeedback({
   mode,
   outcome,
   transcript,
+  audioUrl,
   improvedSentence,
   onContinue,
   onRetry,
@@ -63,6 +65,7 @@ export function StepAiEvaluationFeedback({
         >
           Next
         </button>
+        <RecordingReview audioUrl={audioUrl} onRetry={onRetry} />
       </div>
     );
   }
@@ -88,6 +91,7 @@ export function StepAiEvaluationFeedback({
         >
           OK, I&apos;m ready
         </button>
+        <RecordingReview audioUrl={audioUrl} onRetry={onRetry} />
       </div>
     );
   }
@@ -99,13 +103,7 @@ export function StepAiEvaluationFeedback({
         <div style={{ ...evaluationErrorStyle, marginTop: transcript ? 16 : 0 }}>
           <h2 style={headingInlineStyle}>Please say it in English.</h2>
         </div>
-        <button
-          type="button"
-          style={{ ...primaryButtonStyle, marginTop: 16 }}
-          onClick={onRetry}
-        >
-          Try again
-        </button>
+        <RecordingReview audioUrl={audioUrl} onRetry={onRetry} />
       </div>
     );
   }
@@ -126,6 +124,7 @@ export function StepAiEvaluationFeedback({
         >
           Next
         </button>
+        <RecordingReview audioUrl={audioUrl} onRetry={onRetry} />
       </div>
     );
   }
@@ -133,6 +132,7 @@ export function StepAiEvaluationFeedback({
   if (outcome === "repeatAccepted") {
     return (
       <div style={stepCardStyle} aria-live="polite">
+        <Transcript transcript={transcript} />
         <div style={evaluationSuccessStyle}>
           <h2 style={headingInlineStyle}>Great job!</h2>
         </div>
@@ -144,6 +144,7 @@ export function StepAiEvaluationFeedback({
         >
           Next
         </button>
+        <RecordingReview audioUrl={audioUrl} onRetry={onRetry} />
       </div>
     );
   }
@@ -162,13 +163,7 @@ export function StepAiEvaluationFeedback({
       <div style={{ ...evaluationErrorStyle, marginTop: 16 }}>
         <h2 style={headingInlineStyle}>Try again.</h2>
       </div>
-      <button
-        type="button"
-        style={{ ...primaryButtonStyle, marginTop: 16 }}
-        onClick={onRetry}
-      >
-        Try again
-      </button>
+      <RecordingReview audioUrl={audioUrl} onRetry={onRetry} />
     </div>
   );
 }
@@ -183,6 +178,22 @@ function Transcript({ transcript }: { transcript?: string | null }) {
       <p style={{ fontSize: 16, color: "#111827", margin: 0, lineHeight: 1.5 }}>
         {transcript}
       </p>
+    </div>
+  );
+}
+
+function RecordingReview({ audioUrl, onRetry }: { audioUrl?: string; onRetry?: () => void }) {
+  if (!audioUrl && !onRetry) return null;
+  return (
+    <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #E5E7EB", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+      {audioUrl && (
+        <audio controls src={audioUrl} style={{ height: 36, flex: 1, minWidth: 180 }} />
+      )}
+      {onRetry && (
+        <button type="button" onClick={onRetry} style={{ fontSize: 14, color: "#6B7280", background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+          Record again
+        </button>
+      )}
     </div>
   );
 }
