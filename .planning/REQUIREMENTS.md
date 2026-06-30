@@ -83,9 +83,9 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 ### Teacher Review
 
 - [x] **REV-01**: Teacher dashboard shows homework buckets: completed, not started, missed, needs retry, and teacher review.
-- [ ] **REV-02**: Teacher can scan each student's status, attempt count, submitted time, and highest hint level used.
-- [ ] **REV-03**: Teacher can open an attempt detail view.
-- [ ] **REV-04**: Attempt detail shows original transcript, improved sentence, repeat transcript, target-pattern result, hint usage, and attempt count.
+- [x] **REV-02**: Teacher can scan each student's status, attempt count, submitted time, and highest hint level used.
+- [x] **REV-03**: Teacher can open an attempt detail view.
+- [x] **REV-04**: Attempt detail shows original transcript, improved sentence, repeat transcript, target-pattern result, hint usage, and attempt count.
 - [x] **REV-05**: Teacher can play short audio clips on demand from the attempt detail view.
 - [x] **REV-06**: Teacher can manually mark an attempt complete, needs retry, or teacher review.
 
@@ -198,9 +198,9 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 | AI-05 | Phase 6 | Complete |
 | AI-06 | Phase 4 | Complete |
 | REV-01 | Phase 7 | Complete |
-| REV-02 | Phase 7 | Pending |
-| REV-03 | Phase 7 | Pending |
-| REV-04 | Phase 7 | Pending |
+| REV-02 | Phase 7 | Complete |
+| REV-03 | Phase 7 | Complete |
+| REV-04 | Phase 7 | Complete |
 | REV-05 | Phase 5 | Complete |
 | REV-06 | Phase 7 | Complete |
 | CHAR-01 | Phase 4 | Complete |

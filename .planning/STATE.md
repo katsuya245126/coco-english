@@ -5,16 +5,16 @@ milestone_name: milestone
 current_phase: 07
 current_phase_name: teacher-review-and-pilot-readiness
 status: executing
-stopped_at: Phase 7 UI-SPEC approved
-last_updated: "2026-06-30T16:01:00.571Z"
+stopped_at: Phase 7 Plan 03 complete — checkpoint awaiting human verification
+last_updated: "2026-06-30T16:16:09.782Z"
 last_activity: 2026-06-30
 last_activity_desc: Phase 07 execution started
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 26
-  completed_plans: 23
-  percent: 71
+  completed_plans: 24
+  percent: 92
 ---
 
 # Project State
@@ -124,6 +124,8 @@ Recent decisions affecting current work:
 - [Phase 06]: 06-04: Repeat uploads evaluate the transcript against the improved sentence before setting repeat_accepted.
 - [Phase 06]: 06-04: Teacher-review status changes are centralized in routeAssignmentStudentToTeacherReview and audited with actor_type ai_evaluator.
 - [Phase 06]: 06-04: Existing teacher evidence shows AI annotations, while Phase 7 dashboard buckets and manual override UI remain out of scope.
+- [Phase 07]: 07-03: overrideAssignmentStatusAction uses assertTransitionRequest for server-owned illegal-transition rejection; assignmentStudentId ownership anchored in RLS-authorized evidence load (T-07-06, T-07-07).
+- [Phase 07]: 07-03: Dynamic .eq('status', asRow.status) claim guard in startOrResumeAttempt covers both assigned and needs_retry; reasonCode=reopened_by_teacher for needs_retry path (D-10, T-07-08).
 
 ### Pending Todos
 
@@ -144,6 +146,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-30T16:01:00.565Z
+Last session: 2026-06-30T16:16:09.776Z
 Stopped at: Phase 7 UI-SPEC approved
 Resume file: .planning/phases/07-teacher-review-and-pilot-readiness/07-UI-SPEC.md
