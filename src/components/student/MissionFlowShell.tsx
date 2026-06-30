@@ -20,6 +20,7 @@ import {
 import {
   displayTitleStyle,
   resumeNoticeStyle,
+  stepCardStyle,
 } from "@/components/student/styles";
 import { StepBuddyQuestion } from "@/components/student/StepBuddyQuestion";
 import { StepImprovedRepeat } from "@/components/student/StepImprovedRepeat";
