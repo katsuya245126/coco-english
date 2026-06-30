@@ -303,7 +303,7 @@ export function VoiceRecorderControl({
               style={{
                 height: "100%",
                 borderRadius: 3,
-                background: secondsLeft <= 5 ? "#EF4444" : "#2563EB",
+                background: secondsLeft <= 5 ? "#B42318" : "#2563EB",
                 width: `${(secondsLeft / maxSeconds) * 100}%`,
                 transition: "width 1s linear, background 0.3s",
               }}

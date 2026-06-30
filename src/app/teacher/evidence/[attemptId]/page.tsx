@@ -305,7 +305,7 @@ const summaryStyle: React.CSSProperties = {
   gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
   gap: 16,
   marginBottom: 24,
-  padding: 20,
+  padding: 24,
   border: "1px solid #D1D5DB",
   borderRadius: 8,
   background: "#FFFFFF",
@@ -330,7 +330,7 @@ const turnListStyle: React.CSSProperties = {
 };
 
 const turnCardStyle: React.CSSProperties = {
-  padding: 20,
+  padding: 24,
   border: "1px solid #D1D5DB",
   borderRadius: 8,
   background: "#FFFFFF",
@@ -407,7 +407,7 @@ const reviewReasonInlineStyle: React.CSSProperties = {
 
 const annotationLabelStyle: React.CSSProperties = {
   margin: "0 0 4px",
-  fontSize: 13,
+  fontSize: 14,
   fontWeight: 600,
   color: "#6B7280",
 };
@@ -415,13 +415,13 @@ const annotationLabelStyle: React.CSSProperties = {
 function annotationValueStyle(value: string | null): React.CSSProperties {
   const v = value ?? "";
   if (v === "Yes" || v === "Yes, good enough") {
-    return { margin: 0, fontSize: 15, fontWeight: 600, color: "#065F46" };
+    return { margin: 0, fontSize: 16, fontWeight: 600, color: "#065F46" };
   }
   if (v === "Not clearly" || v === "Not found" || v === "Not close enough") {
-    return { margin: 0, fontSize: 15, fontWeight: 600, color: "#B91C1C" };
+    return { margin: 0, fontSize: 16, fontWeight: 600, color: "#B91C1C" };
   }
   if (v === "Needs your review") {
-    return { margin: 0, fontSize: 15, fontWeight: 600, color: "#92400E" };
+    return { margin: 0, fontSize: 16, fontWeight: 600, color: "#92400E" };
   }
-  return { margin: 0, fontSize: 15, color: "#374151" };
+  return { margin: 0, fontSize: 16, color: "#374151" };
 }

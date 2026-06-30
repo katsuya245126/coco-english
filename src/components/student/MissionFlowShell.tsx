@@ -595,7 +595,7 @@ export function MissionFlowShell({
 
         {flow.step === "reviewPending" && (
           <div style={stepCardStyle} aria-live="polite">
-            <h2 style={{ fontSize: 24, color: "#111827", margin: "0 0 8px" }}>
+            <h2 style={{ fontSize: 20, color: "#111827", margin: "0 0 8px" }}>
               Teacher review sent
             </h2>
             <p style={{ fontSize: 16, color: "#4B5563", margin: 0, lineHeight: 1.5 }}>

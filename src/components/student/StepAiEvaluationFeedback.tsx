@@ -161,9 +161,17 @@ export function StepAiEvaluationFeedback({
         </div>
       )}
       <div style={{ ...evaluationErrorStyle, marginTop: 16 }}>
-        <h2 style={headingInlineStyle}>Try again.</h2>
+        <h2 style={headingInlineStyle}>Try the repeat again.</h2>
+        <p style={bodyInlineStyle}>Listen to the sentence and record it one more time.</p>
       </div>
-      <RecordingReview audioUrl={audioUrl} onRetry={onRetry} />
+      <button
+        type="button"
+        style={{ ...primaryButtonStyle, marginTop: 16 }}
+        onClick={onRetry}
+      >
+        Try again
+      </button>
+      <RecordingReview audioUrl={audioUrl} onRetry={undefined} />
     </div>
   );
 }
