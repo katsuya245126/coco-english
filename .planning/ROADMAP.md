@@ -253,7 +253,24 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
   4. Teacher can manually mark an attempt complete, needs retry, or teacher review.
   5. System marks overdue incomplete homework as missed and logs completion, audio processing, transcription, AI evaluation, and retention/deletion activity.
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+**Wave 0**
+
+- [ ] `07-01-PLAN.md` — Wave 0 RED test scaffolds: cron auth, audited override, Storage-first purge, structured logger, per-assignment bucketing (5 failing test files).
+
+**Wave 1**
+
+- [ ] `07-02-PLAN.md` — Nav restructure + review dashboard slice: class click → assignment list (newest-first) → per-assignment status buckets with Review links; roster/PINs/join-code moved to a Class settings page (REV-01/02/03, D-01..D-06).
+
+**Wave 2**
+
+- [ ] `07-03-PLAN.md` — Attempt-detail + override slice: REV-04 gap fields (attempt count, highest hint), audited teacher override with confirmation, and the needs-retry student-reopen path (REV-02/04/06, D-07..D-10).
+
+**Wave 3**
+
+- [ ] `07-04-PLAN.md` — Pilot-readiness ops slice: CRON_SECRET-gated daily cron for missed-homework + audio purge, zero-dependency structured logger, and failure-point instrumentation (ASGN-05, PILOT-03, PILOT-04, D-11..D-14).
+
 **UI hint**: yes
 
 ## Requirement Coverage
