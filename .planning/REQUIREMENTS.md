@@ -51,7 +51,7 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 - [x] **ASGN-02**: Assigned mission is snapshotted so later mission edits do not change existing homework unexpectedly.
 - [x] **ASGN-03**: System creates per-student assignment records when homework is assigned.
 - [x] **ASGN-04**: Assignment statuses include assigned, started, completed, missed, needs retry, and teacher review.
-- [ ] **ASGN-05**: System can mark homework missed when the due date passes without completion.
+- [x] **ASGN-05**: System can mark homework missed when the due date passes without completion.
 
 ### Student Speaking Mission
 
@@ -82,12 +82,12 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 
 ### Teacher Review
 
-- [ ] **REV-01**: Teacher dashboard shows homework buckets: completed, not started, missed, needs retry, and teacher review.
+- [x] **REV-01**: Teacher dashboard shows homework buckets: completed, not started, missed, needs retry, and teacher review.
 - [ ] **REV-02**: Teacher can scan each student's status, attempt count, submitted time, and highest hint level used.
 - [ ] **REV-03**: Teacher can open an attempt detail view.
 - [ ] **REV-04**: Attempt detail shows original transcript, improved sentence, repeat transcript, target-pattern result, hint usage, and attempt count.
 - [x] **REV-05**: Teacher can play short audio clips on demand from the attempt detail view.
-- [ ] **REV-06**: Teacher can manually mark an attempt complete, needs retry, or teacher review.
+- [x] **REV-06**: Teacher can manually mark an attempt complete, needs retry, or teacher review.
 
 ### Character And Safety
 
@@ -100,8 +100,8 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 
 - [x] **PILOT-01**: System has a mobile-responsive student flow for common phone/tablet browser sizes.
 - [x] **PILOT-02**: System includes basic microphone permission and recording failure handling.
-- [ ] **PILOT-03**: System includes basic logging for assignment completion, audio processing, transcription, and AI evaluation failures.
-- [ ] **PILOT-04**: System includes a basic retention/deletion path for stored audio clips.
+- [x] **PILOT-03**: System includes basic logging for assignment completion, audio processing, transcription, and AI evaluation failures.
+- [x] **PILOT-04**: System includes a basic retention/deletion path for stored audio clips.
 
 ## v2 Requirements
 
@@ -178,7 +178,7 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 | ASGN-02 | Phase 3 | Complete |
 | ASGN-03 | Phase 3 | Complete |
 | ASGN-04 | Phase 1 | Complete |
-| ASGN-05 | Phase 7 | Pending |
+| ASGN-05 | Phase 7 | Complete |
 | FLOW-01 | Phase 4 | Complete |
 | FLOW-02 | Phase 4 | Complete |
 | FLOW-03 | Phase 5 | Complete |
@@ -197,20 +197,20 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 | AI-04 | Phase 6 | Complete |
 | AI-05 | Phase 6 | Complete |
 | AI-06 | Phase 4 | Complete |
-| REV-01 | Phase 7 | Pending |
+| REV-01 | Phase 7 | Complete |
 | REV-02 | Phase 7 | Pending |
 | REV-03 | Phase 7 | Pending |
 | REV-04 | Phase 7 | Pending |
 | REV-05 | Phase 5 | Complete |
-| REV-06 | Phase 7 | Pending |
+| REV-06 | Phase 7 | Complete |
 | CHAR-01 | Phase 4 | Complete |
 | CHAR-02 | Phase 4 | Complete |
 | CHAR-03 | Phase 4 | Complete |
 | CHAR-04 | Phase 4 | Complete |
 | PILOT-01 | Phase 4 | Complete |
 | PILOT-02 | Phase 5 | Complete |
-| PILOT-03 | Phase 7 | Pending |
-| PILOT-04 | Phase 7 | Pending |
+| PILOT-03 | Phase 7 | Complete |
+| PILOT-04 | Phase 7 | Complete |
 
 **Coverage:**
 
