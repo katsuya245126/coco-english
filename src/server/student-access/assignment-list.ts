@@ -92,9 +92,12 @@ export async function listStudentAssignments(
       displayStatus = "continue";
     } else if (row.status === "completed") {
       displayStatus = "done";
+    } else if (row.status === "needs_retry") {
+      // Teacher has sent the assignment for retry — reopen for the student (D-10).
+      displayStatus = "start";
     } else {
-      // Any other status (missed, needs_retry, teacher_review) that is not
-      // past due — display as closed since the student cannot act on it.
+      // Any other status (missed, teacher_review) that is not past due —
+      // display as closed since the student cannot act on it.
       displayStatus = "closed";
     }
 

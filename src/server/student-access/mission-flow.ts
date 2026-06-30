@@ -245,8 +245,8 @@ export async function startOrResumeAttempt(input: {
       }
     }
 
-    // 3. Only create a new attempt if status is 'assigned'
-    if (asRow.status !== "assigned") {
+    // 3. Only create a new attempt if status is 'assigned' or 'needs_retry' (D-10)
+    if (asRow.status !== "assigned" && asRow.status !== "needs_retry") {
       return { ok: false, error: "not_assigned_or_started" };
     }
 
@@ -264,18 +264,20 @@ export async function startOrResumeAttempt(input: {
       return { ok: false, error: "db_error" };
     }
 
-    // 5. Audited assigned->started transition
+    // 5. Audited transition — use actual prior status and appropriate reason code
     const nowIso = new Date().toISOString();
+    const reasonCode =
+      asRow.status === "needs_retry" ? "reopened_by_teacher" : "mission_started";
     assertTransitionRequest({
-      previousStatus: "assigned",
+      previousStatus: asRow.status,
       nextStatus: "started",
       actorType: "student_session",
-      reasonCode: "mission_started",
+      reasonCode,
       occurredAt: nowIso,
     });
 
-    // Conditional UPDATE. If another request already claimed the assignment,
-    // abandon this speculative attempt and resume the authoritative latest attempt.
+    // Conditional UPDATE. Use dynamic prior status as the claim guard so optimistic
+    // locking works for both 'assigned' and 'needs_retry' paths (T-07-08).
     const { data: claimed, error: claimError } = await supabase
       .from("assignment_students")
       .update({
@@ -284,7 +286,7 @@ export async function startOrResumeAttempt(input: {
         attempt_count: asRow.attempt_count + 1,
       })
       .eq("id", input.assignmentStudentId)
-      .eq("status", "assigned")
+      .eq("status", asRow.status)
       .select("id")
       .maybeSingle();
 
@@ -317,10 +319,10 @@ export async function startOrResumeAttempt(input: {
       .from("assignment_status_events")
       .insert({
         assignment_student_id: input.assignmentStudentId,
-        previous_status: "assigned",
+        previous_status: asRow.status,
         next_status: "started",
         actor_type: "student_session",
-        reason_code: "mission_started",
+        reason_code: reasonCode,
       });
 
     if (eventError) return { ok: false, error: "db_error" };

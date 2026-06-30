@@ -114,9 +114,26 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     );
 
     expect(missionFlowSource).toContain("const { data: claimed");
-    expect(missionFlowSource).toContain(".eq(\"status\", \"assigned\")");
+    // Claim guard now uses dynamic asRow.status (not hardcoded "assigned") to support needs_retry
+    expect(missionFlowSource).toContain(".eq(\"status\", asRow.status)");
     expect(missionFlowSource).toContain("status: \"abandoned\" as const");
     expect(missionFlowSource).toContain("resumed.latest_attempt_id");
+  });
+
+  it("needs_retry gate is accepted and uses reopened_by_teacher reason code (D-10)", () => {
+    const missionFlowSource = readFileSync(
+      "src/server/student-access/mission-flow.ts",
+      "utf8",
+    );
+
+    // Gate accepts needs_retry
+    expect(missionFlowSource).toContain('asRow.status !== "needs_retry"');
+    // Reason code for needs_retry path
+    expect(missionFlowSource).toContain('"reopened_by_teacher"');
+    // Audit event uses dynamic previousStatus (not hardcoded "assigned")
+    expect(missionFlowSource).toContain("previous_status: asRow.status");
+    // Reason code in audit event uses dynamic variable
+    expect(missionFlowSource).toContain("reason_code: reasonCode");
   });
 
   it("completion checks assignment, audit, and attempt write errors", () => {
