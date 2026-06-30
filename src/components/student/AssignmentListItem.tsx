@@ -6,6 +6,7 @@ import {
   badgeContinueStyle,
   badgeDoneStyle,
   badgeLateStyle,
+  badgeRetryStyle,
   labelStyle,
 } from "@/components/student/styles";
 import type { CSSProperties } from "react";
@@ -73,6 +74,7 @@ const BADGE_STYLES: Record<
 > = {
   start: badgeStartStyle,
   continue: badgeContinueStyle,
+  retry: badgeRetryStyle,
   done: badgeDoneStyle,
   late: badgeLateStyle,
 };
@@ -83,6 +85,7 @@ const BADGE_LABELS: Record<
 > = {
   start: "Start",
   continue: "Continue",
+  retry: "↻ Retry",
   done: "Done",
   late: "Late",
 };
@@ -115,6 +118,7 @@ export function AssignmentListItem({
   const isLaunchable =
     item.displayStatus === "start" ||
     item.displayStatus === "continue" ||
+    item.displayStatus === "retry" ||
     item.displayStatus === "late";
 
   if (isLaunchable) {

@@ -11,7 +11,7 @@ import { missionSnapshotSchema } from "@/domain/mission/schemas";
 // SECURITY: server-only by construction (service-role client). Never import
 // from a "use client" module.
 
-export type AssignmentDisplayStatus = "start" | "continue" | "done" | "late";
+export type AssignmentDisplayStatus = "start" | "continue" | "retry" | "done" | "late";
 
 export type StudentAssignmentListItem = {
   assignmentStudentId: string;
@@ -86,8 +86,8 @@ export async function listStudentAssignments(
     if (row.status === "completed") {
       displayStatus = "done";
     } else if (row.status === "needs_retry") {
-      // Teacher explicitly reopened — always launchable regardless of due date.
-      displayStatus = "start";
+      // Teacher explicitly reopened — signal retry to student (D-10).
+      displayStatus = "retry";
     } else if (row.status === "assigned") {
       displayStatus = isPastDue ? "late" : "start";
     } else if (row.status === "started") {
