@@ -68,6 +68,7 @@ export function StepBuddyQuestion({
       <div style={{ marginTop: 16 }}>
         <VoiceRecorderControl
           mode="original"
+          maxSeconds={30}
           disabled={isSubmitting}
           onRecorded={(blob, metadata) =>
             onVoiceRecorded({

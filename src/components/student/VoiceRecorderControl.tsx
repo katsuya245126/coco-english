@@ -35,6 +35,7 @@ type RecorderState =
 type VoiceRecorderControlProps = {
   mode: RecorderMode;
   disabled?: boolean;
+  maxSeconds?: number;
   onRecorded: (
     blob: Blob,
     metadata: VoiceRecordingMetadata,
@@ -49,15 +50,18 @@ const readyCopy: Record<RecorderMode, string> = {
 export function VoiceRecorderControl({
   mode,
   disabled = false,
+  maxSeconds,
   onRecorded,
 }: VoiceRecorderControlProps) {
   const [state, setState] = useState<RecorderState>("ready");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState<number>(maxSeconds ?? 0);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const startedAtRef = useRef<number>(0);
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (
@@ -71,6 +75,7 @@ export function VoiceRecorderControl({
 
     return () => {
       clearStopTimer();
+      clearCountdown();
       stopStream();
     };
   }, []);
@@ -118,9 +123,21 @@ export function VoiceRecorderControl({
 
       recorder.start();
       setState("recording");
+
+      const limitMs = maxSeconds ? maxSeconds * 1000 : MAX_RECORDING_MS;
+      setSecondsLeft(maxSeconds ?? 0);
       stopTimerRef.current = setTimeout(() => {
         stopRecording();
-      }, MAX_RECORDING_MS);
+      }, limitMs);
+
+      if (maxSeconds) {
+        let remaining = maxSeconds;
+        countdownRef.current = setInterval(() => {
+          remaining -= 1;
+          setSecondsLeft(remaining);
+          if (remaining <= 0) clearCountdown();
+        }, 1000);
+      }
     } catch (error) {
       stopStream();
       const isPermissionError =
@@ -140,6 +157,7 @@ export function VoiceRecorderControl({
 
   function stopRecording() {
     clearStopTimer();
+    clearCountdown();
     const recorder = recorderRef.current;
     if (recorder && recorder.state !== "inactive") {
       recorder.stop();
@@ -178,6 +196,13 @@ export function VoiceRecorderControl({
     }
   }
 
+  function clearCountdown() {
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
+  }
+
   function stopStream() {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
@@ -209,7 +234,7 @@ export function VoiceRecorderControl({
       return "Waiting for microphone permission...";
     }
     if (state === "recording") {
-      return "Recording...";
+      return maxSeconds ? `Recording... ${secondsLeft}s left` : "Recording...";
     }
     if (isProcessing) {
       return "Listening to your answer...";
@@ -270,6 +295,22 @@ export function VoiceRecorderControl({
       >
         {statusText()}
       </p>
+
+      {state === "recording" && maxSeconds && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ height: 6, borderRadius: 3, background: "#E5E7EB", overflow: "hidden" }}>
+            <div
+              style={{
+                height: "100%",
+                borderRadius: 3,
+                background: secondsLeft <= 5 ? "#EF4444" : "#2563EB",
+                width: `${(secondsLeft / maxSeconds) * 100}%`,
+                transition: "width 1s linear, background 0.3s",
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       <button
         type="button"
