@@ -262,3 +262,10 @@ export const badgeClosedStyle: CSSProperties = {
   color: "#6B7280",
   border: "1px solid #E5E7EB",
 };
+
+export const badgeLateStyle: CSSProperties = {
+  ...statusBadgeBaseStyle,
+  background: "#FEF2F2",
+  color: "#B91C1C",
+  border: "1px solid #FECACA",
+};

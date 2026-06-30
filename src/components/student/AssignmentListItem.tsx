@@ -5,7 +5,7 @@ import {
   badgeStartStyle,
   badgeContinueStyle,
   badgeDoneStyle,
-  badgeClosedStyle,
+  badgeLateStyle,
   labelStyle,
 } from "@/components/student/styles";
 import type { CSSProperties } from "react";
@@ -16,6 +16,13 @@ const cardStyle: CSSProperties = {
   borderRadius: 8,
   padding: 16,
   boxSizing: "border-box",
+};
+
+const doneCardStyle: CSSProperties = {
+  ...cardStyle,
+  background: "#F9FAFB",
+  border: "1px solid #E5E7EB",
+  opacity: 0.75,
 };
 
 const linkCardStyle: CSSProperties = {
@@ -67,7 +74,7 @@ const BADGE_STYLES: Record<
   start: badgeStartStyle,
   continue: badgeContinueStyle,
   done: badgeDoneStyle,
-  late: badgeClosedStyle,
+  late: badgeLateStyle,
 };
 
 const BADGE_LABELS: Record<
@@ -126,7 +133,7 @@ export function AssignmentListItem({
   }
 
   return (
-    <div style={cardStyle}>
+    <div style={doneCardStyle}>
       <div style={row1Style}>
         <p style={titleStyle}>{item.title}</p>
         {badge}
