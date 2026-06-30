@@ -17,6 +17,7 @@ type OverrideButtonConfig = {
   color: string;
   dialogHeading: string;
   dialogBody: string;
+  showReason: boolean;
 };
 
 // ─── Config ───
@@ -31,6 +32,7 @@ const OVERRIDE_BUTTONS: OverrideButtonConfig[] = [
     dialogHeading: "Mark this attempt complete?",
     dialogBody:
       "This will count the student's homework as done. You can change it later if needed.",
+    showReason: false,
   },
   {
     nextStatus: "needs_retry",
@@ -41,6 +43,7 @@ const OVERRIDE_BUTTONS: OverrideButtonConfig[] = [
     dialogHeading: "Send this attempt for retry?",
     dialogBody:
       "The student will be able to re-record from the beginning. Their previous attempt stays saved.",
+    showReason: true,
   },
   {
     nextStatus: "teacher_review",
@@ -51,6 +54,7 @@ const OVERRIDE_BUTTONS: OverrideButtonConfig[] = [
     dialogHeading: "Keep in review?",
     dialogBody:
       "This attempt will stay in your review queue with no change to the student's status.",
+    showReason: true,
   },
 ];
 
@@ -225,18 +229,22 @@ export function OverrideControls({
             </h2>
             <p style={dialogBodyStyle}>{pendingButton.dialogBody}</p>
 
-            <label style={reasonLabelStyle} htmlFor="override-reason">
-              Reason (optional)
-            </label>
-            <textarea
-              id="override-reason"
-              rows={3}
-              placeholder="Optional: add a note about this decision"
-              value={reasonNote}
-              onChange={(e) => setReasonNote(e.target.value)}
-              disabled={submitting}
-              style={reasonTextareaStyle}
-            />
+            {pendingButton.showReason && (
+              <>
+                <label style={reasonLabelStyle} htmlFor="override-reason">
+                  Reason (optional)
+                </label>
+                <textarea
+                  id="override-reason"
+                  rows={3}
+                  placeholder="Optional: add a note about this decision"
+                  value={reasonNote}
+                  onChange={(e) => setReasonNote(e.target.value)}
+                  disabled={submitting}
+                  style={reasonTextareaStyle}
+                />
+              </>
+            )}
 
             <div style={dialogActionsStyle}>
               <button

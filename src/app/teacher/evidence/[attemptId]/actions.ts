@@ -124,7 +124,6 @@ export async function overrideAssignmentStatusAction(
       actor_type: "teacher",
       actor_id: profile.id,
       reason_code: "teacher_override",
-      occurred_at: nowIso,
       metadata: Object.keys(metadata).length > 0 ? metadata : {},
     });
 
