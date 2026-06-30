@@ -42,9 +42,9 @@ Declared values (multiples of 4 only):
 | 3xl | 64px | (Reserved — not used in Phase 7 views) |
 
 Exceptions:
-- Header height: 56px (established across all teacher pages — do not change)
-- Status badge pill padding: `2px 8px` (vertical 2px is an exception for compact badge readability)
-- Logoff button padding: `6px 12px` (established touch target for secondary action)
+- Header height: 56px (= 4×14, established across all teacher pages — do not change)
+- Status badge pill padding: `4px 8px` (both axes on scale)
+- Logoff button padding: `8px 12px` (both axes on scale)
 - Override confirmation dialog inner padding: 24px (matches card padding)
 
 ---
@@ -55,10 +55,12 @@ All sizes in px. Line heights as ratios. Weights use numeric values only.
 
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
-| Body / transcript | 16px | 400 | 1.5 |
 | Label / meta / badge | 14px | 600 | 1.4 |
+| Body / transcript | 16px | 400 | 1.5 |
 | Subheading (Turn N, section titles) | 20px | 600 | 1.25 |
 | Page title (h1) | 28px | 600 | 1.2 |
+
+Exactly 4 sizes: 14, 16, 20, 28. No other font sizes appear anywhere in this spec.
 
 **Source:** Extracted exactly from existing teacher page inline styles. No new sizes or weights are introduced in Phase 7.
 
@@ -67,7 +69,7 @@ Rules:
 - Label text above a value (e.g. "Student", "Mission", "Status"): 14px / 600 / color #4B5563
 - Meta text (submitted time, student count, assignment due date): 14px / 400 / color #4B5563
 - Navigation links and CTA-style links (e.g. "Review", "← Classes"): 14px / 600 / color #2563EB
-- Status badge text: 12px / 600 (only exception below body — kept compact for inline scan badges)
+- Status badge text: 14px / 600 (smallest declared size; carries the semantic badge color)
 
 ---
 
@@ -231,7 +233,7 @@ Override confirmation approach: inline modal dialog (not a full-page redirect). 
 
 ### Status Badge
 
-- `<span>` with `display: inline-block`, `borderRadius: 9999` (pill), `fontSize: 12`, `fontWeight: 600`, `padding: "2px 8px"`
+- `<span>` with `display: inline-block`, `borderRadius: 9999` (pill), `fontSize: 14`, `fontWeight: 600`, `padding: "4px 8px"`
 - Not interactive — display only
 - Carries the semantic color from the status badge palette table above
 
@@ -274,7 +276,7 @@ Components to create or extend — executor uses this list as the implementation
 
   [Assignments section]
     h2: Assignments                      (20px/600/lh 1.25)
-    [Assignment list: display grid, gap 12px]
+    [Assignment list: display grid, gap 8px]
       [Article card: padding 16px, border #D1D5DB, borderRadius 8, background #FFFFFF]
         left: title (16px/600) + due date (14px/400/#4B5563)
         right: "View results" link (14px/600/#2563EB)
@@ -315,7 +317,7 @@ Bucket render order: completed → needs_retry → teacher_review → not_starte
 [Section: marginTop 32px, paddingTop 24px, borderTop #E5E7EB]
   h2: Teacher action                     (20px/600/lh 1.25)
   p: "Manually set the outcome..."       (14px/400/#4B5563)
-  [Button group: display flex, gap 12px, marginTop 16px, flexWrap wrap]
+  [Button group: display flex, gap 8px, marginTop 16px, flexWrap wrap]
     [Button: Mark complete]  background #111827, color #FFFFFF, borderRadius 6, padding 8px 16px, fontSize 14, fontWeight 600
     [Button: Send for retry] background #1D4ED8, color #FFFFFF, borderRadius 6, padding 8px 16px, fontSize 14, fontWeight 600
     [Button: Keep in review] background #92400E, color #FFFFFF, borderRadius 6, padding 8px 16px, fontSize 14, fontWeight 600
