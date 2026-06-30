@@ -85,7 +85,7 @@ const BADGE_LABELS: Record<
 > = {
   start: "Start",
   continue: "Continue",
-  retry: "↻ Retry",
+  retry: "Retry",
   done: "Done",
   late: "Late",
 };
