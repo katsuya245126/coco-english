@@ -1,20 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-current_phase: 07
-status: milestone_complete
-stopped_at: Milestone v1.0 archived locally; ready to start next milestone with /gsd-new-milestone
-last_updated: "2026-07-01T01:01:12.608Z"
+milestone: v2.0
+milestone_name: Coco Comes Alive
+status: planning
+last_updated: "2026-07-01T10:39:34.942Z"
 last_activity: 2026-07-01
-last_activity_desc: Milestone v1.0 archived and prepared for next milestone planning
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 26
-  completed_plans: 26
-  percent: 100
-current_phase_name: teacher-review-and-pilot-readiness
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -28,12 +24,10 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 
 ## Current Position
 
-Phase: 07 of 07 (teacher-review-and-pilot-readiness)
-Status: Milestone v1.0 complete and archived locally
-Last activity: 2026-07-01 — v1.0 archive docs prepared; next milestone is not yet defined
-Prior: Phase 07 verified complete; Phase 5 and Phase 6 missing verification artifacts were reconciled before closeout.
-
-Progress: [██████████] 100%
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-07-01 — Milestone v2.0 started
 
 ## Performance Metrics
 

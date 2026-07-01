@@ -45,15 +45,26 @@ The project is between milestones. Start the next requirements and roadmap cycle
 
 ### Active
 
-*(none — all v1 requirements validated; milestone v1.0 complete as of Phase 7, 2026-07-01)*
+*(defined per-category during v2.0 requirements; see Current Milestone below)*
 
-### Next Milestone Goals
+## Current Milestone: v2.0 Coco Comes Alive (VN-feel overhaul)
 
-Define after v1.0 closeout with `/gsd-new-milestone`. Known inputs include pilot-readiness manual checks, carried technical debt from the v1.0 milestone audit, and any classroom feedback gathered before the next build cycle.
+**Goal:** Transform Coco English from a functional homework form into an immersive, character-driven speaking experience — Coco speaks, appears on screen, converses naturally, and scores pronunciation — while keeping the teacher-linked homework loop and teacher-verifiability intact.
+
+**Product thesis — "VN feel, homework substance":** Borrow the visual-novel *feel* (Coco is present, speaks, frames each mission as a scene), not the VN *structure* (no branching storyline, no arc across missions). Free-talk practice stays the substance; the standalone Visual Novel remains a separate, deferred product. Each mission gets a lightweight scene premise generated from the target pattern being taught.
+
+**Target features (each ships as its own verified point release, ordered lightest → heaviest):**
+- **v2.1 — Coco Voice (TTS):** Coco speaks the AI/mission text aloud (ElevenLabs and/or a cloned teacher voice), real-time.
+- **v2.2 — Pronunciation scoring:** per-word/phoneme feedback (SpeechAce / Azure Speech Assessment / ELSA) shown to student and surfaced in teacher review; reuses v1 stored audio + target sentences.
+- **v2.3 — Mascot (VN-style):** 2D Coco on-screen (waist-up, background scene, dialogue box) with expression/speaking state synced to voice.
+- **v2.4 — Dynamic turns + scene framing ("Coco Chat"):** natural contextual replies anchored to the target pattern (Coco shares first, has personality, bounded ~5 turns, teacher-verifiable transcript) plus a per-mission scene premise generated from the target pattern.
+- **v2.5 — UI overhaul:** one cohesive visual pass, last — so layout isn't redone after mascot/voice/chat land.
+
+**Key context:** 6 elementary ESL students, 1 class/week; teacher uses own product; ~$30/mo AI budget (ample at this scale). Each release verified in production before the next begins.
 
 ### Out of Scope
 
-- Full visual novel story system — defer until the homework loop is validated.
+- Full standalone visual novel *product* (branching storyline, arc across missions, story-first experience) — remains deferred as a separate product. Note: v2.0 adds VN *atmosphere* (Coco on-screen, per-mission scene framing) to the homework loop, which is distinct from the VN story system.
 - Large character cast — start with one recurring buddy to keep MVP scope small.
 - Romance or dating mechanics — not appropriate for the classroom use case.
 - Student email/password account management — too much friction for elementary learners.
