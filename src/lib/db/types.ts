@@ -277,6 +277,40 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      tts_audio_cache: {
+        Row: {
+          id: string;
+          content_hash: string;
+          provider: string;
+          model: string;
+          voice: string;
+          response_format: string;
+          character_id: string;
+          object_key: string;
+          mime_type: string;
+          byte_size: number;
+          created_at: string;
+          last_accessed_at: string;
+        };
+        Insert: {
+          id?: string;
+          content_hash: string;
+          provider: string;
+          model: string;
+          voice: string;
+          response_format: string;
+          character_id: string;
+          object_key: string;
+          mime_type: string;
+          byte_size: number;
+          created_at?: string;
+          last_accessed_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["tts_audio_cache"]["Insert"]
+        >;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
