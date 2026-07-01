@@ -6,6 +6,7 @@
  */
 
 import OpenAI from "openai";
+import { log } from "@/server/logging/logger";
 import { zodTextFormat } from "openai/helpers/zod";
 import {
   originalTurnEvaluationSchema,
@@ -188,6 +189,7 @@ export async function evaluateOriginalTurn(
 
     return { ok: true, evaluation: parsed.data };
   } catch {
+    log("error", "ai.evaluation_failed", { turnKind: "original", error: "provider_failed" });
     return { ok: false, error: "provider_failed" };
   }
 }
@@ -235,6 +237,7 @@ export async function evaluateRepeatTurn(
 
     return { ok: true, evaluation: parsed.data };
   } catch {
+    log("error", "ai.evaluation_failed", { turnKind: "repeat", error: "provider_failed" });
     return { ok: false, error: "provider_failed" };
   }
 }

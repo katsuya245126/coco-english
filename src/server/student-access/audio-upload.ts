@@ -34,6 +34,7 @@ import {
   routeAssignmentStudentToTeacherReview,
   type TeacherReviewReason,
 } from "@/server/student-access/mission-flow";
+import { log } from "@/server/logging/logger";
 
 const DEFAULT_AUDIO_BUCKET = "student-audio";
 const FAILED_SCHEMA_REVIEW_REASON = "failed_schema";
@@ -552,6 +553,11 @@ export async function uploadAttemptAudioClip(
       return { ok: false, error: "db_error", retryable: true };
     }
 
+    log("info", "audio.uploaded", {
+      audioClipId: audioClip.id,
+      assignmentStudentId: input.assignmentStudentId,
+      attemptId: input.attemptId,
+    });
     return {
       ok: true,
       audioClipId: audioClip.id,

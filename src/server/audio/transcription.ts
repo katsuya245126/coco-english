@@ -6,6 +6,7 @@
  */
 
 import OpenAI from "openai";
+import { log } from "@/server/logging/logger";
 
 const DEFAULT_TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe";
 
@@ -86,11 +87,13 @@ export async function transcribeAudioFile(
     const text = response.text?.trim() ?? "";
 
     if (!text) {
+      log("error", "audio.transcription_failed", { error: "empty_transcript" });
       return { ok: false, error: "empty_transcript" };
     }
 
     return { ok: true, text };
   } catch {
+    log("error", "audio.transcription_failed", { error: "transcription_failed" });
     return { ok: false, error: "transcription_failed" };
   }
 }

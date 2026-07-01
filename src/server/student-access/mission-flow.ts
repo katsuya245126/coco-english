@@ -13,6 +13,7 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { assertTransitionRequest } from "@/domain/foundation/status";
 import { buildPlaceholderEvaluation } from "@/domain/flow/evaluation";
+import { log } from "@/server/logging/logger";
 import {
   isAttemptComplete,
   nextUnfinishedTurnOrder,
@@ -620,7 +621,13 @@ export async function completeAttempt(input: {
       .select("id")
       .maybeSingle();
 
-    if (updateError) return { ok: false, error: "db_error" };
+    if (updateError) {
+      log("error", "assignment.completion_failed", {
+        assignmentStudentId: input.assignmentStudentId,
+        error: updateError.message,
+      });
+      return { ok: false, error: "db_error" };
+    }
 
     // Only write audit event if the transition actually happened (not duplicate)
     if (updated) {
@@ -632,7 +639,13 @@ export async function completeAttempt(input: {
         reason_code: "mission_completed",
       });
 
-      if (eventError) return { ok: false, error: "db_error" };
+      if (eventError) {
+        log("error", "assignment.completion_failed", {
+          assignmentStudentId: input.assignmentStudentId,
+          error: eventError.message,
+        });
+        return { ok: false, error: "db_error" };
+      }
     }
 
     // 6. Stamp attempt as completed
@@ -644,8 +657,18 @@ export async function completeAttempt(input: {
       })
       .eq("id", input.attemptId);
 
-    if (attemptUpdateError) return { ok: false, error: "db_error" };
+    if (attemptUpdateError) {
+      log("error", "assignment.completion_failed", {
+        assignmentStudentId: input.assignmentStudentId,
+        error: attemptUpdateError.message,
+      });
+      return { ok: false, error: "db_error" };
+    }
 
+    log("info", "assignment.completed", {
+      assignmentStudentId: input.assignmentStudentId,
+      attemptId: input.attemptId,
+    });
     return { ok: true };
   } catch {
     return { ok: false, error: "db_error" };
