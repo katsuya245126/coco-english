@@ -1,287 +1,196 @@
-# Feature Landscape
+# Feature Research
 
-**Domain:** Teacher-linked AI ESL speaking homework for elementary learners  
-**Researched:** 2026-06-25  
-**Research focus:** Table-stakes, differentiators, anti-features, complexity, dependencies, teacher workload, and child/student friction  
-**Overall confidence:** MEDIUM-HIGH  
+**Domain:** Character-driven speaking-practice UX for elementary ESL learners (TTS mascot voice, pronunciation scoring, VN-style presentation, bounded AI conversation) — v2.0 "Coco Comes Alive"
+**Researched:** 2026-07-01
+**Confidence:** MEDIUM (web-sourced, cross-checked across multiple vendors/products; no single-source claims treated as authoritative)
 
-## Executive Recommendation
+**Scope note:** This supersedes the v1.0-era FEATURES.md in this same path. v1 features (auth, roster, mission generation, guided voice flow, transcript-first review, etc.) are shipped and out of scope for this research — see PROJECT.md "Validated" section. This file covers only the five NEW v2.0 point releases: Coco Voice (TTS), pronunciation scoring, VN-style mascot, dynamic bounded conversation ("Coco Chat"), and the UI overhaul.
 
-The v1 product should be a narrow speaking-homework workflow, not a general ESL app, LMS, chatbot, or visual novel. The strongest wedge is: teachers assign a short mission from today's target English; students complete it by voice with a friendly buddy; teachers see completion and review transcripts first, with audio available only when needed.
+## Feature Landscape
 
-V1 should prioritize assignment accountability and low-friction completion over rich content, grading, analytics, avatars, or parent workflows. The core user promise is not "learn English with AI"; it is "every student did spoken output after class, and the teacher can verify it quickly."
+### Table Stakes (Users Expect These)
 
-## Table Stakes
+Features users assume exist once a product markets itself as "Coco talks to you" or "practice pronunciation." Missing these makes the v2.0 features feel broken or half-built, not just minimal.
 
-Features users expect. Missing = product feels incomplete for classroom homework or ESL speaking practice.
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| TTS plays automatically when Coco's line appears | If Coco has a "voice," silence when her line shows up reads as a bug, not a design choice. Duolingo characters speak every line they show. | LOW | Use a fast/low-latency model tier (e.g., ElevenLabs Flash ~75ms) so playback starts near-instantly on line render; don't block UI on audio generation — fetch/stream while text renders. |
+| Replay / tap-to-hear-again on Coco's line | Kids need to re-hear a target sentence before repeating it; this is core to the existing "meaning-first, then repeat target sentence" flow. | LOW | Should reuse the same audio (cache per mission/line) rather than regenerate on each tap — cost and latency both benefit. |
+| Overall pronunciation score is understandable at a glance (not raw numbers) | ELSA, Speechace, and Azure all expose 0-100 phoneme/word scores in their raw API, but every child-facing product wraps this in a simpler visual (stars, color, simple face/emoji) before showing kids. | LOW-MEDIUM | The 0-100 API score is an input signal, not the UI. Map to 3-4 bands (e.g., "got it" / "close" / "try again") rather than showing "62/100." |
+| Word-level highlight of what to fix, not just a total score | Table stakes for phoneme-scoring products (Speechace, Azure, ELSA) — the whole value proposition of per-word scoring is showing *which* word needs work, not just a pass/fail. | MEDIUM | Directly reuses v1's per-turn transcript capture; needs the target sentence tokenized and aligned to the scoring API's word-level output. |
+| Mascot has a visible "speaking" state distinct from "idle/listening" | Basic VN/character convention — if Coco is on screen at all, static-during-speech reads as broken lip sync or a frozen app. | LOW-MEDIUM | Does not require full lip-sync; a simple mouth-open/closed toggle or bounce animation synced to audio start/stop covers most of the perceived quality gap cheaply (see Anti-Features on lip-sync precision). |
+| Dialogue box with clear, high-contrast text sized for kids | Base VN convention, doubles as an ESL accessibility need (many students are still building reading fluency in English). | LOW | Reuse existing mission-flow typography conventions; this is a styling task more than a new system. |
+| Conversation has a visible/implied end (not infinite) | Every bounded-chat product researched (Duolingo Video Call, Univerbal, Talkpal) makes the boundary explicit — a fixed turn count or time cap communicated to the user, not a silent cutoff. | LOW-MEDIUM | v2.4 spec already says "~5 turns" — enforce this server-side (hard stop), and telegraph it in UI (e.g., a turn counter or Coco visibly wrapping up), matching Duolingo's "psst, say it's time to go" pattern. |
+| Teacher can still read a plain transcript of the AI conversation | Non-negotiable per existing constraint: "Teacher review must be transcript-first." Any new AI-conversation feature must not regress this. | LOW (if transcript capture is reused from v1) | v2.4's "teacher-verifiable transcript" requirement in PROJECT.md — extend the existing per-turn transcript capture to cover Coco's dynamic turns, not just the fixed target-sentence turn. |
 
-| Feature | Why Expected | V1? | Complexity | Dependencies | Teacher Workload Impact | Student Friction Impact | Notes |
-|---------|--------------|-----|------------|--------------|--------------------------|-------------------------|-------|
-| Teacher email/password login | Teachers need persistent classes, rosters, assignments, and review history. | Yes | Low | Auth, teacher profile | Low once set up | None | Use standard teacher account model; avoid school SSO in v1. |
-| Class creation and roster management | Classroom tools depend on class containers and student lists. | Yes | Medium | Teacher auth, student identity model | Medium setup, then saves time | Low if roster drives name selection | Must support add/edit/remove students and simple PIN reset. |
-| Student access by class code or QR link | Elementary learners struggle with email/password flows; classroom tools commonly use codes. | Yes | Medium | Class roster, device memory, student PIN | Reduces teacher support burden | Very low | First run: code/QR -> name -> 4-digit PIN. Return: remembered class -> name -> PIN. |
-| Device-remembered class | Re-entering class code every homework session is avoidable friction. | Yes | Low | Local storage/cookie, class membership | Fewer support questions | Very low | Include "change class" escape hatch. |
-| 4-digit student PIN | Needed to prevent classmates from submitting as each other without creating real accounts. | Yes | Low-Med | Roster, PIN hashing/reset | Some setup/reset burden | Low | PIN is enough for MVP; do not overbuild child account security. |
-| AI-assisted mission generation from target English | Teachers need fast post-class assignment creation tied to today's sentence pattern. | Yes | Medium-High | LLM prompt, mission schema, moderation | Major workload reducer | None | Input fields: target pattern, topic, level, required turns, due date. |
-| Teacher edit-before-assign | Teachers will not trust generated content blindly, especially for children. | Yes | Medium | Mission editor, generated draft state | Adds control without heavy work | None | Must be quick inline editing, not a complex authoring suite. |
-| Manual mission creation fallback | Some teachers will want exact wording or distrust generation. | Yes, basic | Medium | Mission schema/editor | Useful for edge cases | None | Keep secondary; AI generation remains primary path. |
-| Due dates and assignment status | Homework products need due-date accountability and "who did it" visibility. | Yes | Medium | Assignment model, time zones, status jobs | Core time-saver | Clear expectations | Statuses should include assigned/not started, started, completed, missed, needs retry, teacher review. |
-| Voice-first mission flow | Speaking practice must require spoken output, not typed answers. | Yes | High | Browser/mobile mic permissions, recording, STT | Produces verifiable homework | Medium; mic permission can block | Provide clear mic-permission recovery and retry. |
-| Short guided missions | Elementary homework must be finishable and tied to class target language. | Yes | Medium | Mission script, turn counter, completion rules | Review volume stays manageable | Low | Default 2-3 minutes, about 3 speaking turns. |
-| Buddy asks simple follow-up questions | AI speaking tools are expected to feel conversational, but classroom homework needs bounds. | Yes | Medium | Character/tone policy, mission script | None | Improves motivation | One recurring supportive classmate buddy is enough. |
-| Speech transcription per turn | Teachers need readable evidence before listening to audio. | Yes | High | STT, turn storage, confidence handling | Major review time-saver | Invisible unless shown to student | Store original answer and repeat attempt transcripts. |
-| Per-turn short audio clips | Speaking verification requires audio, but long recordings are costly to review and store. | Yes | High | Recording upload, storage, retention policy | Audio only when needed | Invisible after recording | Store clips for original answer and repeat, not full session audio. |
-| Meaning-first acceptance | ESL learners should not be punished for understandable output before form correction. | Yes | High | AI evaluation rubric | Reduces teacher disputes | Lowers anxiety | Mark meaning, target-pattern attempt, and repeat separately. |
-| Target-form recast and required repeat | The product's learning loop depends on turning imperfect speech into practiced target English. | Yes | High | AI rewrite, TTS/text display, repeat STT | Better evidence for teacher | Medium; adds one extra step | This is the key pedagogical loop: accept meaning -> show better sentence -> student repeats. |
-| Progressive hints | Children need scaffolding without teacher intervention. | Yes | Medium | Mission hints, hint state | Reduces blocked attempts | Lowers frustration | Ladder: target pattern -> word bank -> full example sentence. |
-| Hint usage visible to teacher | Hint data helps teachers interpret completion without treating hints as failure. | Yes | Low-Med | Attempt metadata | Saves review time | None | Show highest hint level used. |
-| Completion rules | Teachers need a reliable definition of "done." | Yes | Medium-High | Evaluation state machine | Reduces manual judgment | Clear finish line | Complete only after required turns and repeat attempts meet minimum criteria. |
-| Needs-retry and teacher-review buckets | AI evaluation will be imperfect; teachers need exception queues. | Yes | Medium | Confidence thresholds, review states | Focuses teacher attention | Some students may retry | Do not force teachers to inspect every attempt. |
-| Assignment dashboard with buckets | Classroom tools are scan-first; teachers need class-level status at a glance. | Yes | Medium | Assignment/status queries | Core workload reducer | None | Buckets: completed, not started, missed, needs retry, teacher review. |
-| Transcript-first attempt detail | Teachers lack time to listen to every clip. | Yes | Medium | Attempt data model, audio player | Major workload reducer | None | Show transcript, improved sentence, repeat transcript, hint usage, attempts, submitted time. |
-| Audio playback only on demand | Audio is evidence, not the default review mode. | Yes | Medium | Stored clips, signed URLs/player | Keeps review fast | None | Include per-turn play buttons, not autoplay. |
-| Student retry flow | Children will hit mic/STT/evaluation mistakes; homework needs recovery. | Yes | Medium | Attempt versioning, status updates | Reduces teacher intervention | Medium but necessary | Allow retry from needs_retry and failed repeat. |
-| Friendly child-safe tone | Elementary ESL learners need encouragement and simple language. | Yes | Medium | Character prompt, content policy | Reduces complaints | Lowers anxiety | Avoid sarcasm, complex jokes, romance, shame, adult themes. |
-| Basic teacher settings for required turns and due date | Teachers need control over homework length and timing. | Yes | Low-Med | Mission assignment form | Aligns to class needs | None | Keep controls minimal: turns, due date, class. |
-| Basic privacy and retention defaults | Child voice recordings are sensitive. | Yes | Medium | Storage lifecycle, deletion policy | Reduces institutional risk | None | Default 30 or 60 day audio retention; keep transcripts/status longer if policy allows. |
-| Mobile-responsive student flow | Many students will complete homework on family phones/tablets. | Yes | Medium | Responsive UI, audio browser support | Fewer support issues | Critical | Test iOS Safari, Android Chrome, desktop Chrome. |
-| Clear empty/error states | Kids need obvious recovery when no homework, wrong PIN, mic denied, or upload fails. | Yes | Low-Med | UI states, retry handling | Fewer teacher messages | Lower frustration | Use simple wording and one next action. |
+### Differentiators (Competitive Advantage)
 
-## Differentiators
+Features that set Coco English apart within its niche (teacher-linked, classroom-anchored homework, not generic open-market language app). Not required for v2.0 to "work," but this is where the "VN feel, homework substance" thesis pays off.
 
-Features that support the product wedge. Not all are v1, but they create separation from generic homework platforms and consumer AI chat apps.
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| Cloned teacher voice as an optional TTS voice | No competitor at this scale offers "your actual teacher's voice says the line." For a 6-student, teacher-operated class, this is a highly personal, low-cost differentiator (ElevenLabs voice cloning) that generic apps (Duolingo, ELSA) cannot replicate per-classroom. | MEDIUM | Needs a one-time teacher voice sample + consent flow; keep as an optional toggle, default to a stock friendly voice so it isn't a hard blocker for launch. |
+| Per-mission scene premise generated from the target grammar pattern | This is the actual novel mechanic in v2.4 — turns "practice 'I went to the park'" into a tiny framed scene ("Coco just got back from a trip and wants to know about your weekend"). Univerbal/Talkpal do this generically (100+ canned scenarios); Coco's version is generated per-mission from teacher-input target English, so it is always aligned to what was taught in class that day. | MEDIUM-HIGH | Reuses the existing AI mission-generation pipeline (Phase 6) — this is an extension of "target English -> mission," not a new subsystem. Scene premise + Coco's opening line should be generated together so Coco always "shares first." |
+| Coco has a stable, recognizable personality across missions | Continuity (same buddy, consistent voice/expressions/catchphrases) builds the parasocial rapport that keeps young learners motivated over weeks, which is the whole justification for the character layer per PROJECT.md context. | LOW-MEDIUM | Already decided in v1 (`characterId`, one recurring buddy) — v2.0 just needs voice/expression choices to stay consistent with the established Coco personality, not introduce a second "voice" for the character. |
+| Word-level feedback visible to the teacher, not just the student | Table-stakes apps (Speechace, ELSA) are consumer-facing and stop at showing the student their own score. A teacher-linked product can differentiate by surfacing the same per-word breakdown in teacher review, turning pronunciation scoring into a diagnostic tool for the teacher, not just a student mini-game. | MEDIUM | Extends existing transcript-first review screen; reuse REV-0x review UI patterns from v1 rather than building a parallel view. |
+| Expression state tied to conversational content, not just audio amplitude | A mascot that looks happy when praising a good attempt and encouraging (not sad/disappointed) on a miss reinforces the "balanced correction style, no harsh failure language" principle already established in v1's mission flow. | MEDIUM | 3-5 expression states (idle, speaking, happy/celebrating, encouraging/neutral-on-miss, thinking) is enough — do not build a large expression matrix (see anti-features on production cost). |
 
-| Feature | Value Proposition | V1? | Complexity | Dependencies | Teacher Workload Impact | Student Friction Impact | Notes |
-|---------|-------------------|-----|------------|--------------|--------------------------|-------------------------|-------|
-| Mission generation from "today's English" | Makes the tool fit real academy/classroom routines where teachers teach a pattern and need immediate homework. | Yes | Medium-High | AI generator, editable mission schema | High reduction | None | Strongest teacher-facing differentiator. |
-| Meaning-first then target-form repeat loop | Combines communicative practice with form-focused repetition; better fit for ESL than generic chat. | Yes | High | AI evaluation, recast generation, STT | Medium | Medium | This should be the signature student learning mechanic. |
-| Transcript-first teacher review with audio evidence | Speaking platforms often produce recordings; this makes review realistic for a whole class. | Yes | Medium-High | Turn storage, transcript/audio UI | Very high reduction | None | Essential product wedge for teacher adoption. |
-| AI confidence routed to teacher-review bucket | Avoids pretending AI grading is perfect; focuses human review on uncertain attempts. | Yes | High | Evaluation confidence, thresholds | High reduction | None | More trustworthy than automatic scores. |
-| Homework status buckets optimized for action | Teachers want "who needs action?" not analytics dashboards. | Yes | Medium | Status model, assignment dashboard | High reduction | None | Completed, not started, missed, needs retry, teacher review. |
-| Low-friction child identity without email | Distinct from LMS/consumer apps; designed for elementary classes. | Yes | Medium | Class code/QR, roster, PIN | Medium reduction | Very low | This is table-stakes for this product, but differentiating against consumer speaking apps. |
-| One recurring supportive classmate buddy | Adds continuity and motivation without building a large game/story system. | Yes | Medium | Character policy, avatar/name assets | None | Positive | Keep character as tone layer, not system complexity. |
-| Attempt-level evidence bundle | Teachers can see what the student said, what the AI suggested, what was repeated, and whether hints were used. | Yes | Medium | Attempt data model | High reduction | None | More useful than a single "score." |
-| Assignment-level retry targeting | Teacher can quickly ask only certain students to retry. | Maybe v1 if cheap | Medium | Status buckets, notification/link generation | High | Medium | Could be manual in v1: status visible, student can retry. Automated retry assignment can wait. |
-| Target-pattern mastery view | Shows which students attempted/repeated today's pattern, not generic fluency. | Later | Medium-High | Aggregated evaluation metadata | Medium | None | Useful after core loop proves repeat use. |
-| Teacher-created reusable mission templates | Speeds repeated patterns across classes. | Later | Medium | Mission library, duplication | Medium | None | Defer until teachers create enough missions to justify it. |
-| Class-level export/report | Academies may need progress records or parent/admin proof. | Later | Medium | Data export, privacy review | Medium | None | CSV/PDF later; avoid in MVP unless pilot buyer requires it. |
-| Controlled small character cast | Keeps motivation fresh while remaining classroom-safe. | Later | Medium-High | `characterId`, assets, policies | None | Positive | Only after one-buddy loop validates. |
-| Seasonal/story mission wrapper | Increases engagement for repeat use. | Later | High | Character/campaign system | None | Positive but can distract | Avoid until assignment and completion behavior are proven. |
-| Teacher review shortcuts | Bulk mark reviewed, filter by hint level, filter by low confidence. | Later, soon after v1 | Medium | Review workflow, audit trail | High | None | Add once real teacher review patterns are observed. |
-| Pronunciation/intelligibility cues | Can support speaking quality beyond grammar. | Later | High | Pronunciation assessment, rubric | Medium | Could increase anxiety | Keep qualitative and teacher-facing first; avoid numeric pronunciation scores in v1. |
-| Parent proof link or summary | Helps academies demonstrate homework value to parents. | Later | Medium-High | Parent sharing, privacy consent | Medium | None | Defer; parent accounts are out of scope. |
-| LMS import/export | Helpful for schools already using Google Classroom or Teams. | Later | High | Integrations, institutional auth | Medium | None | Not needed to validate the wedge. |
+### Anti-Features (Commonly Requested, Often Problematic)
 
-## Anti-Features
+Features that look like natural extensions of "make Coco feel alive" but create real cost, safety, or product-focus problems for this specific product (young ESL kids, teacher-verifiability, single-teacher-operator budget).
 
-Features to explicitly not build, because they dilute the wedge, raise child-safety/privacy risk, or create teacher workload.
-
-| Anti-Feature | Why Avoid | What to Do Instead |
-|--------------|-----------|-------------------|
-| Long-form open-ended AI chat | Higher AI drift, unsafe content risk, harder completion criteria, less tied to class target language. | Use bounded missions with scripted goals, short follow-ups, and clear completion rules. |
-| Numerical AI grades or fluency scores in v1 | Teachers may over-trust noisy AI assessment; scores create parent/student disputes and require validation. | Use completion/review states plus evidence: transcript, repeat result, hint usage, audio. |
-| Full LMS replacement | Attendance, gradebook, files, parent messaging, and school admin workflows would bury the speaking-homework wedge. | Integrate later if needed; v1 focuses on classes, missions, completion, review. |
-| Student email/password accounts | Too much friction for elementary learners; increases support burden. | Class code/QR, roster name selection, 4-digit PIN, remembered class. |
-| School SSO in MVP | Useful for institutional sales but slow to implement and not needed for first validation. | Teacher email/password; design auth boundaries so SSO can be added later. |
-| Parent accounts in MVP | Adds consent, messaging, privacy, and support complexity before teacher value is proven. | Provide teacher-facing evidence first; parent summaries later if pilots demand it. |
-| Large character cast | Expensive content/design surface; risks turning the product into entertainment-first software. | One recurring supportive buddy with `characterId` in the data model. |
-| Visual novel/story system in MVP | High production complexity and not necessary to prove speaking homework adoption. | Keep missions lightly characterful and classroom-safe. |
-| Romance, dating, parasocial companion mechanics | Inappropriate for elementary classroom use and increases child-safety concerns. | Buddy behaves like a supportive classmate, not a private companion. |
-| Always-on AI companion | Privacy and attachment risk for children; not aligned to teacher-assigned homework. | AI interaction only during assigned missions. |
-| Long session recordings | Expensive storage, harder review, higher privacy exposure. | Store short per-turn clips with retention limits. |
-| Autoplaying or mandatory teacher audio review | Makes review impossible at class scale. | Transcript-first review; audio playback on demand. |
-| Large prebuilt content marketplace | Content is not the initial bottleneck; teacher target-language alignment is. | Generate missions from today's English and let teachers edit. |
-| Overly rich analytics dashboards | Premature and may distract from actionability. | Status buckets and exception queues first. |
-| Social feeds, comments, likes, leaderboards | Adds moderation risk and social pressure; speaking anxiety is already high for ESL learners. | Private homework attempts visible to teacher only. |
-| Competitive streaks as the core motivator | Consumer language apps use gamification, but classroom homework needs reliability and low shame. | Use gentle completion feedback and optional lightweight progress later. |
-| Free-form student text input as main mode | Lets students avoid speaking and undermines the product promise. | Voice-first, with text only for accessibility/recovery if explicitly designed. |
-| Automatic failure for grammar mistakes | Bad fit for elementary ESL; discourages output and conflicts with communicative practice. | Accept understandable meaning, then recast and repeat target form. |
-| Complex teacher rubric builder in v1 | Adds authoring workload and pushes toward grading rather than practice/accountability. | Fixed simple rubric: meaning understandable, target attempted, repeat close enough, review confidence. |
-| Permanent storage of child voice data | Raises privacy, cost, and institutional objections. | Limited audio retention with clear deletion policy. |
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|------------------|-------------|
+| Raw numeric pronunciation score (e.g., "62/100") shown directly to the child | Scoring APIs (Speechace, Azure, ELSA) return exactly this number, so it's the "free" thing to expose | Numeric percentage scoring, especially precise/low scores, functions like a grade and can be discouraging for elementary learners still building confidence in a foreign language; research on gamification misuse shows controlling/precise feedback undermines intrinsic motivation in kids | Map score bands to 3-4 friendly buckets (e.g., "Nice!" / "Almost!" / "Let's try that word again") with color/icon, not a number; keep the raw score server-side for the teacher-facing view only |
+| Heart/life-loss or streak-break mechanics tied to pronunciation misses | Common in mainstream apps (Duolingo hearts) and easy to bolt onto a scoring feature | Documented as an anxiety-inducing pattern that blocks practice entirely once "lives" run out — directly conflicts with the existing "no harsh failure language" principle and the goal of maximizing spoken output reps | Unlimited retries with light encouragement (matches ELSA's own approach: unlimited practice until pronounced correctly) |
+| Full facial/lip-sync animation (frame-accurate viseme mapping like Duolingo's 15-20 shape system) | "If Duolingo does full lip sync, shouldn't Coco?" | Duolingo's viseme system required voice actors, ML-trained TTS per character, and a dedicated animation engine (Rive) built by a much larger team — wildly disproportionate to a single-teacher, 6-student product; largely decorative beyond a basic speaking/idle toggle | Binary or simple 3-state mouth animation (closed / open / mid) driven off audio playback start/stop events, not phoneme timing |
+| Open-ended free chat with Coco (no scene, no turn limit) | "More conversation = more practice" is an intuitive but wrong inference | Explicitly called out as Out of Scope in PROJECT.md ("Long-form free chat... guided missions reduce AI drift"); also breaks teacher-verifiability — a teacher cannot quickly assess an unbounded transcript, and AI drift risk (off-topic, inappropriate, or ungraded content) rises with turn count | Fixed ~5-turn bounded exchange anchored to one scene premise and one target pattern, matching v2.4 spec; enforce server-side turn cap plus a "wrap up" system nudge (Duolingo pattern) rather than relying on the model to self-limit |
+| Story arc / continuity across missions (Coco "remembers" past missions, references earlier events) | Natural next step once Coco has a personality and talks — feels like it would deepen engagement | Explicitly Out of Scope per PROJECT.md ("no branching storyline, no arc across missions... standalone VN remains a separate, deferred product"); scope creep toward the deferred VN product, risks turning teacher-verifiable homework review into story continuity tracking | Keep each mission self-contained; Coco's personality is consistent (same character traits/voice) but does not carry a plot memory between missions |
+| Romance/relationship or "affection meter" mechanics with Coco | Common VN-genre convention that "VN feel" might be assumed to imply | Explicitly Out of Scope in PROJECT.md ("Romance or dating mechanics — not appropriate for the classroom use case"); serious child-safety and brand-trust risk for a classroom product used by elementary students and reviewed by teachers | None needed — the "VN feel" being targeted is presence/voice/scene-framing only, not VN relationship systems |
+| Large expression/pose library or multiple outfits/scenes per character | Feels like "more content = more life" | High art/production cost for one recurring buddy at this scale (single teacher, ~$30/mo AI budget, no art budget implied); mostly decorative once the core 3-5 functional states (idle, speaking, happy, encouraging, thinking) exist | Ship a small, purposeful expression set tied to functional states, not a costume/pose gallery |
+| Real-time conversational voice pipeline (low-latency speech-to-speech loop, barge-in/interruption handling) | "Real-time" sounds like the natural target once TTS + AI chat both exist | Full conversational voice AI (like OpenAI Realtime API or Duolingo's GPT-4o video call stack) is high complexity/cost and introduces new failure modes (interruption handling, background noise, latency stacking with STT+LLM+TTS) disproportionate to a bounded ~5-turn per-mission exchange for 6 students | Keep the existing turn-based flow: student speaks a turn -> transcribed (Whisper, already built) -> Coco's next line is generated and TTS'd -> played. Not a live duplex voice call. |
+| Automatic strict pass/fail gating on pronunciation score (must re-record until score threshold met) | Feels rigorous, "makes sure they actually learned it" | Conflicts with existing philosophy of accepting understandable meaning first and avoiding harsh failure gates; could block homework completion for kids with real but non-disqualifying accent variation, undermining the "verify practice happened" core value | Show the score/feedback but let completion be governed by the existing status-bucket system (attempted/completed/needs retry), with score as *information* for the student/teacher, not a submission blocker |
 
 ## Feature Dependencies
 
-```text
-Teacher auth -> class creation -> roster -> student code/QR access -> student PIN login
+```
+Coco Voice (TTS) [v2.1]
+    |__requires__> existing mission text generation (target sentence, Coco's lines) [v1, done]
 
-Teacher auth + class roster -> mission generation/editing -> assignment -> due dates/status buckets
+Pronunciation scoring [v2.2]
+    |__requires__> existing per-turn audio capture + target sentence text [v1, done]
+    |__enhances__> teacher review UI (adds word-level detail to existing transcript view)
 
-Mission schema -> student guided voice flow -> per-turn recording -> STT transcripts -> AI evaluation -> completion/needs_retry/teacher_review
+Mascot (VN-style) [v2.3]
+    |__requires__> Coco Voice (TTS) [v2.1] for speaking-state sync
+    |__enhances__> existing mission flow screens (adds visual presence, doesn't replace flow logic)
 
-AI evaluation -> target-form recast -> required repeat -> repeat transcript/audio -> attempt evidence bundle
+Dynamic turns + scene framing ("Coco Chat") [v2.4]
+    |__requires__> Coco Voice (TTS) [v2.1] (Coco needs to speak her dynamic lines, not just fixed target sentences)
+    |__requires__> Mascot presence [v2.3] recommended but not strictly blocking (text-only fallback is viable)
+    |__requires__> existing AI mission-generation pipeline [v1 Phase 6] (scene premise generated from target pattern reuses this)
+    |__conflicts__> Anti-feature "open-ended free chat" (must stay bounded ~5 turns, server-enforced)
 
-Attempt evidence bundle -> assignment dashboard -> transcript-first teacher review -> audio-on-demand verification
+UI overhaul [v2.5]
+    |__requires__> v2.1-v2.4 all shipped (explicitly ordered last per PROJECT.md so layout isn't redone mid-stream)
 
-Hint ladder -> hint usage tracking -> teacher attempt detail context
-
-Audio clips -> retention policy -> privacy posture -> school/academy trust
-
-characterId in mission -> one default buddy now -> small cast/story wrappers later
+Teacher-facing word-level pronunciation detail
+    |__requires__> Pronunciation scoring [v2.2]
+    |__requires__> existing transcript-first teacher review [v1 Phase 7]
 ```
 
-## MVP Recommendation
+### Dependency Notes
 
-Prioritize v1:
+- **v2.3 (Mascot) requires v2.1 (Voice):** a speaking-state animation with no audio to sync to is either faked (bad) or meaningless; ship voice first so mascot's "speaking" state has a real signal to key off.
+- **v2.4 (Coco Chat) requires v2.1 (Voice):** dynamic AI-generated turns still need to be spoken aloud to match the "Coco speaks" experience established in v2.1; doing v2.4 before v2.1 would mean shipping silent dynamic dialogue, then retrofitting voice onto a more complex system.
+- **v2.4 enhances from v2.3 but does not strictly require it:** scene framing and bounded chat can function as a text+voice experience without the on-screen mascot, but pairing them is where the "VN feel" thesis is fully realized. Given v2.3 is scoped before v2.4 in the roadmap, this ordering is already correct.
+- **Pronunciation scoring enhances teacher review, doesn't replace it:** the existing transcript-first review (v1 Phase 7) remains the primary surface; word-level scores are additive detail, not a new review paradigm. This keeps the "teacher review must be fast" constraint intact.
+- **Anti-feature "open-ended chat" conflicts with v2.4:** the whole design challenge of v2.4 is implementing bounded conversation (scene + target pattern + turn cap) without sliding into the free-chat anti-pattern already ruled out in PROJECT.md. Use Duolingo's pattern: explicit system-level turn cap + "wrap it up" nudge, not reliance on the LLM's own judgment.
 
-1. Teacher login, class creation, roster management, and simple student PIN reset.
-2. Student access through class code/QR, remembered class, name selection, and 4-digit PIN.
-3. AI-assisted mission generation from target pattern, topic, level, required turns, and due date.
-4. Teacher edit-before-assign and basic manual mission creation fallback.
-5. Voice-first 2-3 minute guided mission with one recurring supportive buddy.
-6. Meaning-first acceptance, target-form recast, and required repeat.
-7. Progressive hints with highest hint level recorded.
-8. Per-turn transcripts and short audio clips for original answer and repeat.
-9. Status buckets: completed, not started/assigned, started, missed, needs retry, teacher review.
-10. Transcript-first attempt review with optional audio playback.
-11. Limited audio retention and basic child-safe AI interaction boundaries.
+## MVP Definition (per point release, not a single v2.0 MVP)
 
-Defer:
+Per PROJECT.md, v2.0 ships as five ordered point releases, each independently verified in production. Treat each as its own "launch with" set below.
 
-| Feature | Reason to Defer |
-|---------|-----------------|
-| Large character cast | Not necessary to validate homework loop; adds design/content overhead. |
-| Story/visual novel system | Risks building entertainment infrastructure before proving teacher repeat assignment. |
-| Numerical grading | Requires validation and creates trust/dispute risk. |
-| Pronunciation scoring | Technically complex and can increase anxiety; first validate transcript/repeat loop. |
-| Parent accounts | Adds privacy/support complexity before teacher value is proven. |
-| School SSO | Useful later for institutions; not needed for MVP pilots. |
-| LMS integrations | Valuable only after teachers confirm the standalone loop is worth repeating. |
-| Rich analytics | Premature before knowing what teachers actually inspect. |
-| Content marketplace | Teacher-generated target-language missions are the wedge. |
+### v2.1 Coco Voice — Launch With
 
-## Phase Guidance for Requirements
+- [ ] TTS playback of Coco's existing scripted lines (meaning-first prompt + target sentence) — this is the entire scope; no new content generation needed
+- [ ] Tap-to-replay on Coco's line
+- [ ] One default stock voice — essential to ship without waiting on teacher voice cloning/consent flow
 
-### Phase 1: Core Classroom Shell
+### v2.1 Add After Validation
 
-Build teacher auth, class roster, student access, and assignment containers. This phase proves the classroom identity model and removes the biggest child-friction risk.
+- [ ] Cloned teacher voice option — add once default voice pipeline is proven stable and consented recording workflow exists
 
-Must include:
+### v2.2 Pronunciation Scoring — Launch With
 
-- Teacher login.
-- Create/edit class.
-- Add/edit/remove students.
-- Student class code/QR access.
-- Name selection and 4-digit PIN.
-- Remembered class on device.
+- [ ] Word-level score computed against the existing stored per-turn audio + target sentence (reuses v1 data, no new capture needed)
+- [ ] Simplified band-based feedback UI to student (not raw score)
+- [ ] Word-level detail surfaced in existing teacher review screen
 
-### Phase 2: Mission Authoring and Assignment
+### v2.2 Add After Validation
 
-Build mission generation, editing, manual fallback, due date, and assignment-to-class. This phase proves teachers can create useful homework quickly enough after class.
+- [ ] Phoneme-level (not just word-level) detail, if word-level proves too coarse for teacher diagnostic needs
 
-Must include:
+### v2.3 Mascot — Launch With
 
-- Target pattern/topic/level/turns/due-date inputs.
-- Generated mission draft.
-- Edit-before-assign.
-- Assignment status initialization.
-- Basic mission preview.
+- [ ] Static Coco character art, waist-up, one background scene
+- [ ] 3 functional states: idle, speaking (synced to v2.1 audio), and one reaction state (happy/encouraging)
+- [ ] Dialogue box UI
 
-### Phase 3: Student Speaking Mission
+### v2.3 Add After Validation
 
-Build the voice-first guided mission and completion state machine. This phase proves students can complete the assignment without teacher help.
+- [ ] Additional expression states (thinking, celebrating variations) once base states are validated with real students
+- [ ] Scene backgrounds per mission (currently one static scene is enough for MVP)
 
-Must include:
+### v2.4 Coco Chat — Launch With
 
-- Mic permission flow.
-- Buddy prompt.
-- Student recording.
-- STT transcript.
-- Meaning/target-pattern check.
-- Better target-form sentence.
-- Required repeat.
-- Progressive hints.
-- Complete/needs_retry/teacher_review result.
+- [ ] Per-mission scene premise generated from target pattern (extends existing AI mission-generation pipeline)
+- [ ] Coco opens the exchange first (matches "Coco shares first, has personality")
+- [ ] Hard server-enforced ~5-turn cap with a wrap-up system nudge
+- [ ] Full transcript capture of all dynamic turns, teacher-reviewable exactly like v1 turns
 
-### Phase 4: Teacher Review and Accountability
+### v2.4 Add After Validation
 
-Build class assignment dashboard and attempt detail review. This phase proves the teacher can verify homework at class scale.
+- [ ] Persistent "facts learned about student" carried between missions (Duolingo pattern) — explicitly risks drifting toward Out-of-Scope story continuity; only add if a real teacher need emerges, and only as light personalization, not plot memory
 
-Must include:
+### Future Consideration (beyond v2.0)
 
-- Status buckets.
-- Submitted time and attempt count.
-- Highest hint level.
-- Transcript-first attempt detail.
-- Optional per-turn audio playback.
-- Retry/review state handling.
+- [ ] Cloned teacher voice as default rather than optional — defer until enough teachers use the product to justify a smoother consent/recording UX
+- [ ] Phoneme-level real-time visualization (waveform-style feedback) — defer until word-level scoring is validated as useful/actionable to teachers
+- [ ] Any move toward the standalone VN product (story arcs, branching, large cast) — remains explicitly out of scope per PROJECT.md; do not let v2.3/v2.4 momentum pull the roadmap toward it
 
-### Phase 5: Hardening for Pilots
+## Feature Prioritization Matrix
 
-Build privacy, retention, mobile reliability, review shortcuts, and operational polish. This phase prepares real classroom pilots.
+| Feature | User Value | Implementation Cost | Priority |
+|---------|------------|---------------------|----------|
+| TTS playback of scripted Coco lines (v2.1) | HIGH | LOW | P1 |
+| Tap-to-replay | MEDIUM | LOW | P1 |
+| Word-level pronunciation feedback (student-facing, banded) | HIGH | MEDIUM | P1 |
+| Word-level pronunciation detail (teacher-facing) | MEDIUM | LOW (additive to existing review UI) | P1 |
+| Static mascot with idle/speaking/reaction states | HIGH | MEDIUM | P1 |
+| Scene premise generation from target pattern | HIGH | MEDIUM | P1 |
+| Bounded ~5-turn dynamic conversation with server-enforced cap | HIGH | HIGH | P1 |
+| Cloned teacher voice | MEDIUM | MEDIUM | P2 |
+| Additional expression states beyond base 3 | LOW-MEDIUM | MEDIUM | P2 |
+| Phoneme-level (vs word-level) scoring detail | MEDIUM | MEDIUM-HIGH | P2 |
+| Multiple mission backgrounds/scenes | LOW | MEDIUM | P3 |
+| Persistent cross-mission "facts about student" memory | LOW-MEDIUM (risk of scope creep) | HIGH | P3 |
 
-Must include:
+**Priority key:**
+- P1: Must have for the respective point release to be considered shipped
+- P2: Should have, add once P1 is validated in production with real students
+- P3: Nice to have, watch for scope creep toward the deferred standalone VN product
 
-- Audio retention/deletion.
-- Mobile browser testing and fallbacks.
-- Teacher-facing error/review filters.
-- Basic auditability for attempt changes.
-- Child-safe AI guardrails and content logging sufficient for debugging.
+## Competitor Feature Analysis
 
-## Complexity Notes
-
-High-complexity areas:
-
-- Browser/mobile audio capture and upload reliability.
-- Speech-to-text accuracy for young ESL learners.
-- AI evaluation that separates meaning, target-form attempt, and repeat quality.
-- Child-safe LLM behavior under unexpected student speech.
-- Teacher review UX that remains fast with 10-30 students per class.
-- Privacy and retention for child voice recordings.
-
-Medium-complexity areas:
-
-- Student access without email/password while preventing mistaken identity.
-- Mission generation constrained to a schema teachers can edit.
-- Status bucket transitions and due-date handling.
-- Retry attempts and attempt history.
-
-Low-complexity areas:
-
-- Teacher email/password login.
-- Basic class and roster CRUD.
-- Due date input.
-- Fixed one-buddy character metadata.
-- Simple hint ladder state tracking.
-
-## Teacher Workload Principles
-
-- Every teacher-facing screen should answer an action question: "Who is done?", "Who missed it?", "Who needs retry?", "What did this student say?"
-- Do not require teachers to listen to every submission.
-- Do not make teachers grade by rubric in v1.
-- Let teachers edit generated missions, but do not make authoring feel like curriculum design.
-- Prefer exception queues over dashboards: needs retry and teacher review matter more than charts.
-- Use evidence bundles instead of scores to build trust.
-
-## Child/Student Friction Principles
-
-- No email/password for students.
-- No long onboarding.
-- No social posting, public performance, or peer comparison.
-- Keep missions short enough to finish before frustration.
-- Show one clear next action after every recording.
-- Accept understandable meaning before correction.
-- Use hints without shame.
-- Make retry feel normal, not punitive.
-- Keep buddy language simple, supportive, and classroom-safe.
+| Feature | Duolingo | ELSA Speak / Speechace / Azure | Coco English's Approach |
+|---------|----------|-------------------------------|--------------------------|
+| Character voice | Custom-recorded ML voices per character + full viseme lip-sync via Rive engine | N/A (not character-driven) | Off-the-shelf TTS (ElevenLabs) with optional teacher voice clone; simple speaking-state animation, not frame-accurate lip sync — proportionate to team/budget size |
+| Pronunciation feedback | Not a core Duolingo feature; general correctness only | Phoneme/word/syllable-level scores via API; color-coded, unlimited-retry UX; no harsh gating | Reuse same class of API (Speechace/Azure/ELSA per PROJECT.md options); band the score into friendly categories for kids, expose raw detail only to teacher |
+| Character presentation | Rive-based animated character system, full video-call-like experience (Duolingo Max) | N/A | Static 2D VN-style presentation (waist-up sprite + dialogue box), not animated video — VN "feel" without VN production cost |
+| Bounded AI conversation | Video Call with Lily: system-scripted scenario + time cap + turn-limit nudge + GPT-4o backend | N/A (not conversational) | Directly adopt Duolingo's pattern: scene-scoped system prompt + hard turn cap + wrap-up nudge, but keep turn-based (not real-time voice call) and always transcript-capturable for teacher review |
+| Guardrails against drift | Explicit system-level instructions per scenario, purpose-driven calls | N/A | Scene premise + target pattern baked into system prompt for each mission (like Univerbal/Talkpal's scenario libraries), scoped tighter (single target grammar pattern, ~5 turns, one teacher-verifiable transcript) |
 
 ## Sources
 
-Source confidence could not be tagged through the GSD `classify-confidence` seam because the local `gsd-tools.cjs` install failed to load `../../../package.json`. Confidence below is assigned from source type: official/product docs and stable project docs are higher; market summaries and research papers are supporting evidence.
+- [Giving our characters voices — Duolingo blog](https://blog.duolingo.com/character-voices/)
+- [Lip syncing lessons: the next step in bringing our characters to life — Duolingo blog](https://blog.duolingo.com/world-character-visemes/)
+- [Get to know the AI behind every Video Call with Lily — Duolingo blog](https://blog.duolingo.com/ai-and-video-call/)
+- [Video Call lets you have real life conversations with Lily — Duolingo blog](https://blog.duolingo.com/video-call/)
+- [Duolingo's AI-powered Video Call brings Lily to life with Rive](https://rive.app/blog/duolingo-s-ai-powered-video-call-brings-lily-to-life)
+- [Speechace — Pronunciation and fluency assessment](https://www.speechace.com/)
+- [Handling phoneme and syllable scores — Speechace API docs](https://api-docs.speechace.com/api-reference/score-text-pronunciation/handling-phoneme-and-syllable-scores)
+- [ELSA Speech Analyzer](https://speechanalyzer.elsaspeak.com/)
+- [Speech Pronunciation Assessment is Generally Available — Microsoft Community Hub](https://techcommunity.microsoft.com/blog/azure-ai-foundry-blog/speech-pronunciation-assessment-is-generally-available/3740894)
+- [Interactive language learning with pronunciation assessment — Microsoft Learn](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/language-learning-with-pronunciation-assessment)
+- [How to Master 2D Visual Novel Game Design — Brave Zebra](https://www.bravezebra.com/blog/game-design-visual-novel-2d/)
+- [Best AI Speaking Apps 2026 — Lingtuitive](https://lingtuitive.com/blog/best-ai-speaking-apps)
+- [When Gamification Spoils Your Learning: A Qualitative Case Study of Gamification Misuse in a Language-Learning App (arXiv)](https://arxiv.org/abs/2203.16175)
+- [Gamification in mobile-assisted language learning: systematic review of Duolingo literature — Taylor & Francis](https://www.tandfonline.com/doi/full/10.1080/09588221.2021.1933540)
+- [ElevenLabs Text to Speech docs](https://elevenlabs.io/docs/overview/capabilities/text-to-speech)
+- [ElevenLabs Stream speech API docs](https://elevenlabs.io/docs/api-reference/text-to-speech/stream)
+- [ElevenLabs Pricing](https://elevenlabs.io/pricing)
 
-- Local project source, HIGH: `.planning/PROJECT.md`
-- Local project source, HIGH: `english-speaking-practice-app-spec.md`
-- Classroom assignment norms, MEDIUM: Google Classroom overview and assignment model, https://en.wikipedia.org/wiki/Google_Classroom
-- Child classroom access and portfolio norms, MEDIUM: ClassDojo overview, https://en.wikipedia.org/wiki/ClassDojo
-- Student video/audio submission precedent, MEDIUM: Flip/Flipgrid overview and retirement context, https://en.wikipedia.org/wiki/Flip_%28software%29
-- Collaborative classroom submission precedent, MEDIUM: Padlet overview, https://en.wikipedia.org/wiki/Padlet
-- AI speaking-practice market norms, MEDIUM: Praktika overview, https://en.wikipedia.org/wiki/Praktika_%28software%29
-- AI language tutor market norms, MEDIUM: Talkpal AI overview, https://en.wikipedia.org/wiki/Talkpal_AI
-- Guided AI speaking feedback trend, MEDIUM: Babbel Speak overview, https://en.wikipedia.org/wiki/Babbel
-- ESL/task-based speaking pedagogy, MEDIUM: Task-based language teaching overview, https://en.wikipedia.org/wiki/Task-based_language_teaching
-- Corrective-feedback and communicative-use rationale, MEDIUM: Second-language acquisition classroom research, https://en.wikipedia.org/wiki/Second-language_acquisition_classroom_research
-- Automatic pronunciation assessment scope and limits, MEDIUM: Pronunciation assessment overview, https://en.wikipedia.org/wiki/Pronunciation_assessment
-- Supportive recast/rephrasing direction, MEDIUM: AI Twin ESL speaking practice paper, https://arxiv.org/abs/2601.11103
-- Spoken language assessment/feedback technical context, MEDIUM: Speak & Improve Challenge 2025, https://arxiv.org/abs/2412.11985
-- Child AI privacy-by-design risk framing, MEDIUM: Privacy by Design Framework for LLM-Based Applications for Children, https://arxiv.org/abs/2602.17418
-- Current classroom AI concern signals, LOW-MEDIUM: Guardian report on AI in classrooms, https://www.theguardian.com/education/2026/jun/23/ai-us-schools-students
-- Current student privacy concern signals, LOW-MEDIUM: Axios education AI privacy report, https://www.axios.com/2025/08/14/ai-education-privacy
+---
+*Feature research for: Coco English v2.0 "Coco Comes Alive"*
+*Researched: 2026-07-01*

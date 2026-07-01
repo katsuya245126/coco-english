@@ -1,172 +1,124 @@
-# Technology Stack
+# Stack Research
 
-**Project:** English Speaking Practice App
-**Research dimension:** Stack for a teacher-linked AI ESL speaking homework MVP
-**Researched:** 2026-06-25
-**Overall confidence:** HIGH for the core web/data stack, MEDIUM for AI model choice because model pricing and quality move quickly.
+**Domain:** Immersive character/voice/pronunciation features for an existing Next.js + Supabase + OpenAI ESL speaking-homework app (v2.0 "Coco Comes Alive")
+**Researched:** 2026-07-01
+**Confidence:** MEDIUM (web-verified vendor docs/pricing pages; no HIGH-tier curated source available for this niche vendor-comparison question)
 
-## Recommendation
-
-Build the MVP as a single TypeScript web app: **Next.js App Router on Vercel, Supabase for Postgres/Auth/Storage, browser MediaRecorder for short audio clips, and OpenAI Responses + Speech-to-Text APIs for guided mission generation/evaluation/transcription**.
-
-This fits the product because the hard parts are not enterprise LMS scale; they are a clean teacher workflow, low-friction student access, secure roster-scoped data, short audio capture, transcript-first review, and controlled AI behavior. A managed Postgres/Auth/Storage backend keeps the MVP small while preserving real relational constraints for classes, rosters, assignments, attempts, turns, audio clips, and review states.
+> Note: this file supersedes the v1.0-era STACK.md for the purposes of the v2.0 milestone. It covers ONLY the NEW additions needed for v2.1–v2.5. The existing Next.js (App Router, TypeScript), Supabase (Postgres/auth/storage), OpenAI (Whisper + GPT), and Playwright stack from v1.0 is validated, unchanged, and out of scope here — see the prior STACK.md content (now folded into this file's context) for that baseline.
 
 ## Recommended Stack
 
-### Core Application
+### Core Technologies (new, by feature)
 
-| Technology | Current version/family | Purpose | Why | Confidence |
-|------------|------------------------|---------|-----|------------|
-| Next.js App Router | 16.2.9 | Full-stack React app, routing, server components, route handlers, server actions | Official docs position Next.js as a React framework for full-stack apps, with App Router supporting Server Components. One app can handle teacher dashboard, student flow, secure server-side AI calls, and signed storage URLs without a separate API service. | HIGH |
-| React | 19.2.7 | UI runtime | Matches current Next.js stack and gives access to the supported React Server Components path rather than starting on deprecated Create React App patterns. | HIGH |
-| TypeScript | Current stable via `create-next-app --typescript` | Type safety across mission schemas, status enums, AI outputs, and Supabase types | The product has many state transitions and role-specific data access rules; types will prevent common mistakes in assignment status, attempt turn shape, and AI structured outputs. | HIGH |
-| Tailwind CSS | 4.3.1 | Styling system | Tailwind's current Next.js setup is simple and low-overhead. It is enough for dense teacher dashboards and mobile student screens without adopting a heavy component framework. | HIGH |
-| shadcn/ui CLI + Radix primitives | `shadcn` 4.11.0 | Accessible UI building blocks copied into the codebase | Use for dashboard tables, dialogs, forms, tabs, drawers, and review panels. It avoids a locked-in design system while keeping accessibility primitives practical. | MEDIUM-HIGH |
-| lucide-react | 1.21.0 | Icons | Pairs cleanly with shadcn-style interfaces and keeps controls recognizable without custom SVG work. | HIGH |
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| OpenAI `gpt-4o-mini-tts` (via existing `openai` npm SDK) | SDK: `openai@6.45.0` (already installed); model: `gpt-4o-mini-tts` | v2.1 Coco Voice — text-to-speech for mission/AI lines | Zero new vendor account, zero new SDK, zero new billing relationship — it's the same OpenAI API key/client already in the codebase for Whisper/GPT. ~$0.015/min of audio is trivially cheap at 6-student scale. Streaming supported (first chunk ~300-600ms), 13 voices, steerable tone via an `instructions` string (useful for "warm, encouraging classmate" delivery). This should be the **default TTS path**; add ElevenLabs only for the voice-cloning feature specifically. |
+| ElevenLabs (`@elevenlabs/elevenlabs-js`) | `2.55.0` (npm, current) | v2.1 Coco Voice — teacher-voice cloning specifically, optional higher-quality Coco voice | ElevenLabs is the only realistic option here for **voice cloning** — OpenAI TTS has no cloning capability. Use ElevenLabs *only* for the cloned-teacher-voice variant; keep the default Coco voice on OpenAI TTS to avoid double vendor cost. Flash v2.5 model (~75ms model latency) is fine for real-time; Multilingual v2 for higher quality on non-real-time lines. |
+| Azure AI Speech — Pronunciation Assessment (REST endpoint, or `microsoft-cognitiveservices-speech-sdk` if a full SDK is preferred) | `microsoft-cognitiveservices-speech-sdk@^1.x` (latest at install time) | v2.2 Pronunciation scoring | **Recommended over SpeechAce and ELSA at this scale** — see vendor comparison below. Free tier covers 5 audio-hours/month; a 6-student/1-class-week app will likely stay near or just above that, meaning pronunciation scoring costs close to $0/mo, comfortably inside the ~$30/mo budget. |
+| Rive (`@rive-app/react-canvas` + `@rive-app/canvas`) | `@rive-app/react-canvas@4.29.3`, `@rive-app/canvas@2.38.3` | v2.3 Mascot rendering | **Recommended over Live2D** for a solo-dev/tiny-budget project — see rendering comparison below. Single `.riv` file authored in Rive's free web editor; `useRive` React hook manages canvas + WASM lifecycle; State Machine `Trigger`/`Boolean`/`Number` inputs map cleanly to "idle / talking / happy / thinking" states driven by TTS playback events. |
+| (No new library) — existing `openai` SDK, Chat Completions/Responses API | `openai@6.45.0` (already installed) | v2.4 Dynamic turns + scene framing | This is a prompting/orchestration change (bounded ~5-turn conversation state machine + a scene-premise generation call), not a new dependency. Reuse the existing OpenAI client and existing turn-evaluation patterns from v1's mission flow. |
+| Tailwind CSS + shadcn/ui (already in the v1 stack) | Tailwind `^4.x`, shadcn/ui latest CLI-generated components | v2.5 UI overhaul | No new dependency — v1 already uses Tailwind + shadcn/ui. The v2.5 pass is a design/composition effort (VN dialogue box + background scene layout), not a new library adoption. |
 
-### Backend, Auth, Database, Storage
+### Supporting Libraries
 
-| Technology | Current version/family | Purpose | Why | Confidence |
-|------------|------------------------|---------|-----|------------|
-| Supabase Postgres | Managed Supabase Postgres | Relational data store | The domain is relational: teachers own classes, classes have rosters, assignments target classes, attempts belong to students, and audio clips belong to turns. Postgres is a better fit than document storage for dashboard filtering and review states. | HIGH |
-| Supabase Auth | Supabase Auth | Teacher email/password login | Teacher accounts are normal authenticated users. Supabase Auth gives email/password without building account management from scratch. | HIGH |
-| Custom student access in Postgres | App-owned roster PIN flow | Student class-code/QR/name/PIN access | Do **not** create Supabase Auth users for elementary students in the MVP. Store student roster rows with PIN hashes and issue short-lived app sessions from a server route after class code + student + PIN verification. This matches the spec and avoids email/password friction. | HIGH |
-| Supabase Row Level Security | Postgres RLS policies | Defense-in-depth authorization | Supabase docs state RLS should be enabled on exposed schemas and can combine with Auth. Use RLS for teacher-owned rows; use server-only service-role access for student PIN session validation and AI/audio mutations that cannot map cleanly to `auth.uid()`. | HIGH |
-| Supabase Storage | Supabase Storage private bucket | Short per-turn audio clips | Storage is integrated with Postgres/RLS and supports private access. Store short clips per answer/repeat turn, not full sessions. Use private buckets and signed URLs for teacher playback. | HIGH |
-| @supabase/supabase-js | 2.108.2 | Browser/server client for data and storage | Official JS client covers Postgres, auth, realtime, edge functions, and large files. Use generated database types. | HIGH |
-| @supabase/ssr | 0.12.0 | Supabase auth in Next.js SSR | Official Supabase SSR package is the intended path for cookie-backed server/client auth in Next.js. | HIGH |
-| Supabase CLI | Current stable | Local migrations, type generation, seed data | Use SQL migrations from day one. The app needs durable constraints and RLS policies; dashboard-clicked schema changes will become risky quickly. | HIGH |
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| `howler` | `2.2.4` | Simple, cross-browser audio playback abstraction (handles autoplay-policy edge cases, sprite/queueing) | Use if v2.1 TTS playback logic (queueing Coco's lines, avoiding overlapping audio, mobile Safari autoplay quirks) gets non-trivial. For a single line played after a user gesture, the plain HTML `<audio>` element is enough — don't add Howler until you actually need queueing/sprites. |
+| Native `MediaSource` + `<audio>` (no library) | Browser built-in | Lowest-latency incremental playback of streamed TTS chunks | Only needed if you adopt ElevenLabs/OpenAI **streaming** endpoints instead of request-then-play. At this app's scale (short mission lines, ~0.3-1s full-response latency), plain non-streaming `fetch` → blob → `<audio src>` is simpler and sufficient; reach for `MediaSource` only if line length grows (v2.4 multi-turn chat) or perceived latency becomes a UX complaint. |
+| Rive web editor (SaaS, browser-based) | N/A (authoring tool, not a runtime dependency) | Author the Coco `.riv` character file (idle/talk/expression states) | One-time/ongoing asset-authoring tool for whoever builds the mascot art+rig; free tier is sufficient for one character with a handful of states. |
 
-### AI and Speech
+### Development Tools
 
-| Technology | Current version/family | Purpose | Why | Confidence |
-|------------|------------------------|---------|-----|------------|
-| OpenAI Responses API | Current Responses API | Mission generation, target-form correction, turn evaluation | OpenAI docs recommend Responses API over older Chat Completions for text generation. Use structured outputs for mission JSON and evaluation JSON so the app never relies on prose parsing. | HIGH |
-| OpenAI model for text | Start with `gpt-5.4-mini`; reserve `gpt-5.5` for hard cases | Generate missions and evaluate student turns | Official model docs identify GPT-5.5 as the latest flagship and GPT-5.4 mini/nano as lower-cost, lower-latency variants. For elementary ESL turn evaluation, mini is the right default; escalate only for low-confidence evaluations or teacher review cases. | MEDIUM |
-| OpenAI Speech-to-Text | `gpt-4o-mini-transcribe` default; `gpt-4o-transcribe` fallback | Transcribe short student audio clips | Official speech docs list both models. The mini transcribe model is the MVP default for cost; use the larger model only when transcript confidence is low or the clip is critical for review. | MEDIUM-HIGH |
-| OpenAI Node SDK | 6.45.0 | Server-side API client | Keeps API keys server-only in route handlers/server actions. Never call OpenAI directly from the browser for student homework. | HIGH |
-| Zod | 4.4.3 | Runtime validation of AI outputs and forms | Validate AI mission/evaluation payloads before writing them. Bad AI JSON should become `teacher_review`, not corrupt attempt state. | HIGH |
+| Tool | Purpose | Notes |
+|------|---------|-------|
+| Existing Playwright e2e suite (v1) | Extend to smoke-test that TTS requests succeed and the mascot state machine reaches "talking" | No new tool; CI/headless browsers won't actually play audio — assert on network response + DOM/canvas state, not audible sound. |
 
-### Audio Capture
-
-| Technology | Current version/family | Purpose | Why | Confidence |
-|------------|------------------------|---------|-----|------------|
-| Browser `MediaRecorder` + `getUserMedia` | Web Platform API | Record short answer/repeat clips | MDN documents MediaRecorder as part of the MediaStream Recording API. For 2-3 minute guided missions with short per-turn clips, native browser recording is enough and avoids SDK/vendor complexity. | HIGH |
-| Preferred audio format | `audio/webm;codecs=opus` when supported, fallback by `MediaRecorder.isTypeSupported()` | Compact audio upload | Opus/WebM is compact for speech in modern browsers. Detect support instead of hard-coding one MIME type, because Safari/device behavior still needs testing. | MEDIUM |
-| Direct upload flow | Browser uploads to a signed server-issued destination or server route | Persist clips | For MVP, start with a Next.js route handler that validates student session + assignment/turn, uploads to private Supabase Storage, then writes the clip row. Move to signed upload URLs only when upload size/latency warrants it. | MEDIUM-HIGH |
-
-### Forms, Data Fetching, Validation, Testing
-
-| Technology | Current version/family | Purpose | Why | Confidence |
-|------------|------------------------|---------|-----|------------|
-| React Hook Form | 7.80.0 | Teacher mission forms, roster forms, PIN entry | Good fit for form-heavy teacher workflows and student PIN/name selection; lighter than a form framework. | HIGH |
-| Zod resolver pattern | Zod 4 with React Hook Form | Shared validation | Define mission creation, roster import, and AI output schemas once and use them on server and client. | HIGH |
-| TanStack Query | 5.101.1 | Client-side async state where needed | Use sparingly for polling attempt status, signed audio URLs, and dashboard filters. Do not wrap every server-rendered query. | MEDIUM-HIGH |
-| Vitest | 4.1.9 | Unit tests | Test mission status transitions, PIN verification, AI output validation, and due-date/missed logic without browser overhead. | HIGH |
-| Playwright | 1.61.1 | End-to-end tests | Cover teacher assignment creation and student mission happy path, including microphone-permission mock strategy later. | HIGH |
-
-### Infrastructure
-
-| Technology | Current version/family | Purpose | Why | Confidence |
-|------------|------------------------|---------|-----|------------|
-| Vercel | Current managed Next.js platform | Hosting, previews, serverless route handlers | Lowest-friction deployment path for Next.js. Good enough for MVP traffic and teacher demos. | HIGH |
-| Supabase managed project | Current hosted Supabase | Database, auth, storage | Avoids operating Postgres, auth, object storage, signed URLs, and backups separately during validation. | HIGH |
-| Vercel Cron or Supabase scheduled job | Current platform feature | Mark missed assignments, prune expired audio | Use one scheduled job for due-date transitions and 30/60-day audio deletion. Keep it boring and observable. | MEDIUM |
-| Sentry | Current stable SaaS / `@sentry/nextjs` | Error monitoring | Add before pilot use. Audio upload and AI failures need traceable diagnostics. | MEDIUM-HIGH |
-| PostHog or Vercel Analytics | Current stable | Product analytics | Track assignment created, mission started, mission completed, retry/review rate. Use only product events needed to validate classroom usefulness. | MEDIUM |
-
-## Data Model Direction
-
-Use plain Postgres tables with SQL migrations:
-
-| Table | Purpose |
-|-------|---------|
-| `teacher_profiles` | One row per authenticated teacher user. |
-| `classes` | Teacher-owned class with code/QR token metadata. |
-| `students` | Roster entry with display name, PIN hash, class membership, archived flag. |
-| `student_sessions` | Optional server-issued session records or signed token audit rows for PIN-based access. |
-| `missions` | Teacher-created/generated mission template with target pattern, level, required turns, characterId. |
-| `assignments` | Mission assigned to class with due date and status metadata. |
-| `assignment_students` | Per-student assignment state: assigned, started, completed, missed, needs_retry, teacher_review. |
-| `attempts` | Student attempt summary, submitted time, highest hint level, model versions used. |
-| `attempt_turns` | Original transcript, improved target-form sentence, repeat transcript, target-pattern flags, evaluation JSON. |
-| `audio_clips` | Storage path, MIME type, duration, byte size, retention expiry, associated turn and clip kind. |
-
-Do not start with Prisma unless the team already strongly prefers it. Supabase's value is Postgres + RLS + generated types + Storage policies. An ORM can obscure RLS behavior and add migration friction for a small schema. SQL migrations plus generated Supabase types are simpler for this MVP.
-
-## Installation Baseline
+## Installation
 
 ```bash
-# Core app
-npx create-next-app@latest coco-english --typescript --eslint --app
+# v2.1 Coco Voice — OpenAI TTS uses the already-installed openai package, no new install.
+# Add ElevenLabs only for the teacher-voice-cloning variant:
+npm install @elevenlabs/elevenlabs-js
 
-# UI and styling
-npm install tailwindcss @tailwindcss/postcss postcss
-npx shadcn@latest init
-npm install lucide-react
+# v2.2 Pronunciation scoring — Azure Speech
+npm install microsoft-cognitiveservices-speech-sdk
+# (or skip the SDK and call the REST pronunciation-assessment endpoint directly with fetch,
+#  which avoids pulling in the SDK's larger dependency footprint — see "Alternatives Considered")
 
-# Supabase
-npm install @supabase/supabase-js @supabase/ssr
-npm install -D supabase
+# v2.3 Mascot rendering — Rive
+npm install @rive-app/react-canvas
 
-# AI, validation, forms, async state
-npm install openai zod react-hook-form @hookform/resolvers @tanstack/react-query
+# v2.4 Dynamic turns — no new install (existing openai SDK)
 
-# Testing
-npm install -D vitest @playwright/test
+# v2.5 UI overhaul — no new install (Tailwind + shadcn/ui already in v1 stack)
+
+# Optional audio-playback convenience (only if queueing/sprite needs emerge)
+npm install howler
+npm install -D @types/howler
 ```
 
-## What Not To Use
+## Alternatives Considered
 
-| Avoid | Why | Use Instead | Confidence |
-|-------|-----|-------------|------------|
-| Full LMS platforms or LTI-first architecture | The MVP is validating speaking homework usefulness, not replacing Google Classroom/Canvas. LMS integrations will slow product learning. | Simple teacher account, class, roster, assignment dashboard. | HIGH |
-| Student email/password accounts | Elementary learners have account friction; the spec explicitly calls for class code/name/PIN access. | Class QR/code + remembered class + roster name + 4-digit PIN. | HIGH |
-| Firebase Firestore as primary database | Firestore can work, but relational homework dashboards, class ownership, attempts, turns, status buckets, and teacher review filters are more natural in Postgres. | Supabase Postgres. | HIGH |
-| Separate S3/R2 audio storage for MVP | Adds another provider, IAM surface, signed URL implementation, and lifecycle management before volume justifies it. | Supabase Storage private bucket with retention job. | HIGH |
-| Live WebRTC voice agent for v1 | The product does not need fully live conversational voice. It needs guided short turns, transcription, correction, repeat, and review. Realtime voice raises latency/cost/behavior complexity. | Record short clips with MediaRecorder, transcribe after each turn, generate the next guided prompt. | HIGH |
-| Whisper-only or browser speech recognition only | Browser speech recognition has inconsistent support and privacy behavior; Whisper-only may be older than current OpenAI transcription choices. | `gpt-4o-mini-transcribe` default with fallback to `gpt-4o-transcribe`. | MEDIUM-HIGH |
-| A large agent framework for mission logic | Guided ESL homework is a constrained workflow, not open-ended agent autonomy. Agent frameworks add debugging surface and prompt drift. | Deterministic state machine + Responses API structured outputs. | HIGH |
-| Numerical grading engine | The spec says completion and review states are enough. Grades invite trust, fairness, and parent/school concerns too early. | Status buckets and teacher review flags. | HIGH |
-| Microservices | No scale or team need yet; service boundaries would slow iteration. | One Next.js app with server-side modules and Supabase. | HIGH |
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|-------------------------|
+| OpenAI `gpt-4o-mini-tts` as default Coco voice | ElevenLabs for *all* TTS (not just cloning) | If voice quality/expressiveness becomes a real complaint from the teacher/students and budget allows moving fully to ElevenLabs's Starter ($5/mo) or Creator ($22/mo) tier — still cheap at this scale, but adds a second vendor to maintain for no reason if OpenAI TTS quality is "good enough" for elementary ESL. |
+| ElevenLabs for voice cloning specifically | Azure/OpenAI voice cloning | Neither Azure Speech nor OpenAI currently offer accessible instant voice-cloning comparable to ElevenLabs; if the teacher-voice-clone feature is dropped, skip ElevenLabs entirely and use OpenAI TTS only. |
+| Azure Speech Pronunciation Assessment | SpeechAce | SpeechAce has better-documented focus on **child/K-12 ESL** speech specifically (phonics, sight words, oral reading fluency) and richer scripted-activity tooling out of the box — worth it if child-speech accuracy problems appear with Azure in practice. But SpeechAce's cheapest plan is $40/mo flat, which alone blows the ~$30/mo total budget; only reconsider if Azure's free-tier scoring quality proves inadequate for 6 kids' voices. |
+| Azure Speech Pronunciation Assessment | ELSA API | ELSA's B2B/partner-oriented API has less transparent self-serve low-volume pricing (requires sales contact) and is harder to integrate solo without a clear entry tier — deprioritize unless Azure/SpeechAce both prove insufficient. |
+| Rive for mascot rendering | Live2D Cubism SDK for Web | Live2D produces the classic "VN/vtuber" 2D rigged look with more fluid natural motion and is free to use at this small scale (individual/small-enterprise exemption from the publication license). Choose Live2D if the teacher/dev is willing to invest in Cubism Editor model authoring (a heavier, more specialized skill/pipeline than Rive's simpler state-machine + timeline editor) and wants a more "anime VN" aesthetic than Rive's flatter vector-animation look supports. |
+| Rive for mascot rendering | Static sprite-swap (plain PNG/WebP images per expression, no animation library) | If even Rive's authoring overhead is too much for a 6-student pilot, a handful of static expression images (idle/talking-mouth-open/happy/thinking) swapped via CSS/React state on a timer synced to TTS playback delivers 80% of the VN feel for near-zero engineering cost. Reasonable **first cut** for v2.3 if the team wants to ship VN-atmosphere fast and only invest in Rive/Live2D if static swaps feel too static in practice. |
+| Plain non-streaming TTS request-then-play | WebSocket/`MediaSource` streaming playback | Only adopt streaming if mission lines get long enough (multi-sentence Coco Chat turns in v2.4) that the ~0.3-1s non-streaming latency becomes noticeable; premature streaming adds meaningful client complexity (chunk buffering, autoplay-gesture timing) for a benefit users won't perceive on short lines. |
 
-## Implementation Notes for Roadmap
+## What NOT to Use
 
-1. Start with the data model, RLS policies, and teacher auth before AI. If teachers cannot trust class/roster isolation, the product is not usable in schools.
-2. Build student PIN access as an app session, not Supabase Auth. Keep service-role calls server-only.
-3. Treat mission flow as a deterministic state machine: prompt -> record -> upload -> transcribe -> evaluate -> show improved sentence -> repeat -> evaluate -> next turn/complete.
-4. Store both transcript and audio metadata per turn. Audio playback should use short-lived signed URLs only in teacher review.
-5. Add model/version fields on AI-generated missions, evaluations, and transcriptions so later quality/cost changes are auditable.
-6. Use structured output validation. Any invalid or low-confidence AI result should create `teacher_review`, not block the student with a technical error.
-7. Implement retention early: `audio_clips.retention_expires_at` plus a scheduled deletion job. Keep transcripts longer than audio.
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| SpeechAce as the default/only pronunciation vendor | Its cheapest tier is a flat $40/mo subscription — that alone exceeds this project's entire ~$30/mo AI budget, before accounting for existing Whisper/GPT/TTS spend. Not viable at 6-student scale regardless of accuracy quality. | Azure AI Speech Pronunciation Assessment (pay-per-second, effectively free within the 5-hr/mo free tier at this scale). |
+| ELSA API as a first choice | Self-serve pricing/onboarding for low-volume solo integration is opaque (sales-contact-gated); adds integration friction disproportionate to a 6-student pilot. | Azure AI Speech Pronunciation Assessment; revisit ELSA only if partnership terms improve or Azure proves inadequate. |
+| Live2D Cubism as the *first* mascot implementation | Requires a separate, specialized rigging pipeline (Cubism Editor, PSD-layer prep, parameter binding) before any web rendering can happen — a large time investment relative to a single recurring buddy character at pilot scale. | Rive (lighter authoring, browser-based editor, smaller runtime) or static sprite-swaps as a v0. |
+| Building a custom Whisper-based DIY pronunciation scorer (e.g. forced-alignment/confidence-score hacks) | Whisper's per-word confidence is an inference-time approximation, not a phoneme-level pronunciation model — it estimates transcription confidence, not correctness of pronunciation against a native-speaker reference. Not fit for purpose against SpeechAce/Azure/ELSA's purpose-built phoneme-level scoring. | A dedicated pronunciation-assessment API (Azure recommended; SpeechAce as fallback if budget allows later). |
+| Full streaming (WebSocket) TTS pipeline for the v2.1 launch | Adds real engineering complexity (bidirectional socket lifecycle, chunk-buffering, MediaSource wiring) that isn't justified by this app's short, single-sentence mission/AI lines where sub-second non-streaming latency is already imperceptible to a 6-student pilot. | Simple request → blob → `<audio>` playback; revisit streaming only if v2.4's longer Coco Chat turns make latency noticeable. |
+| Introducing a second general TTS vendor (e.g. paying for ElevenLabs Creator+ tier for *all* voice, not just cloning) before validating need | Doubles vendor surface and cost for a feature (expressive default voice) OpenAI's TTS already covers adequately for elementary ESL content; wasteful against a $30/mo budget. | OpenAI `gpt-4o-mini-tts` as default; ElevenLabs scoped narrowly to the optional cloned-teacher-voice variant. |
 
-## Confidence Notes
+## Stack Patterns by Variant
 
-| Area | Confidence | Notes |
-|------|------------|-------|
-| Next.js/Vercel frontend/backend | HIGH | Official Next docs show current 16.2.9 and App Router/full-stack direction; npm registry confirms current versions. |
-| Supabase data/auth/storage | HIGH | Official Supabase docs align directly with Postgres, Auth, Storage, RLS, and JavaScript client needs. |
-| Browser audio recording | HIGH | MediaRecorder is the standard web API for this use case, though MIME support needs device testing. |
-| OpenAI API family | HIGH | Official docs recommend Responses API for text generation and list current transcription models. |
-| Specific OpenAI model defaults | MEDIUM | Current docs favor GPT-5.4 mini for latency/cost and list GPT-4o mini transcribe, but model pricing/quality changes frequently. Re-check before paid pilot. |
-| Student PIN session implementation | MEDIUM-HIGH | Architecturally straightforward, but privacy/security review should happen before classroom pilot. |
+**If the teacher-voice-cloning feature in v2.1 is deprioritized or cut:**
+- Use OpenAI `gpt-4o-mini-tts` exclusively for all TTS.
+- Because it removes an entire vendor (ElevenLabs) and its billing/API-key management for a feature that's explicitly optional ("and/or a cloned teacher voice") in the milestone context — simplest possible v2.1.
+
+**If Azure's pronunciation-assessment accuracy on child ESL speech proves weak in practice (post-launch finding, not pre-emptive):**
+- Add SpeechAce for a second opinion or full replacement, accepting the $40/mo floor as a deliberate budget increase.
+- Because SpeechAce's stated specialization (K-12, phonics, ESL, wide accent/demographic training data) directly targets the accuracy gap Azure's general-purpose STT-based assessment might show for young non-native speakers.
+
+**If v2.3 needs to ship fast for a demo before full mascot art is ready:**
+- Use static sprite-swap images (no Rive/Live2D) as the v0 mascot, swapped on TTS start/stop and mission emotional beats.
+- Because it requires zero new runtime dependency and no specialized rigging pipeline, letting v2.1/v2.2/v2.4 validate first while mascot art is produced in parallel; upgrade to Rive once art assets exist.
+
+## Version Compatibility
+
+| Package A | Compatible With | Notes |
+|-----------|-----------------|-------|
+| `openai@6.45.0` | Next.js App Router (server actions / route handlers) | Already used in v1 for Whisper transcription and GPT mission/turn evaluation; `gpt-4o-mini-tts` calls go through the same client — no new SDK version constraint. |
+| `@elevenlabs/elevenlabs-js@2.55.0` | Node 18+ (standard for current Next.js) | No known Next.js-specific incompatibilities; call from server-side route handlers/server actions to keep the API key off the client, same pattern as the existing OpenAI integration. |
+| `@rive-app/react-canvas@4.29.3` | `@rive-app/canvas@2.38.3` (peer/underlying WASM runtime) | Install both — `react-canvas` wraps `canvas`'s WASM runtime; keep them in sync when upgrading (check the react-canvas changelog for the canvas runtime version it expects). Client-component only in App Router (`"use client"`) since it needs `window`/canvas/WASM. |
+| `microsoft-cognitiveservices-speech-sdk` | Works fine as a plain REST call too | Given this project's minimal-dependency preference, consider skipping the SDK and calling the Pronunciation Assessment REST endpoint directly via `fetch` from a server route — avoids pulling in the SDK's larger footprint (it bundles support for many unused STT/TTS/translation features) for a single narrow use case. |
 
 ## Sources
 
-- Next.js docs, current latest version 16.2.9 and App Router/full-stack positioning: https://nextjs.org/docs
-- React blog, React 19.2 and current React release/security context: https://react.dev/blog
-- Tailwind CSS Next.js installation, v4.3 docs and setup: https://tailwindcss.com/docs/installation/framework-guides/nextjs
-- Supabase documentation overview for Postgres, Auth, Storage, Realtime, JavaScript client: https://supabase.com/docs
-- Supabase Row Level Security guide: https://supabase.com/docs/guides/database/postgres/row-level-security
-- Supabase SSR client for Next.js: https://supabase.com/docs/guides/auth/server-side/nextjs
-- Supabase JavaScript client reference: https://supabase.com/docs/reference/javascript/introduction
-- Supabase Storage access control/uploads/downloads: https://supabase.com/docs/guides/storage/security/access-control, https://supabase.com/docs/guides/storage/uploads/standard-uploads, https://supabase.com/docs/guides/storage/serving/downloads
-- OpenAI text generation guide recommending Responses API: https://developers.openai.com/api/docs/guides/text
-- OpenAI speech-to-text guide listing `gpt-4o-transcribe` and `gpt-4o-mini-transcribe`: https://developers.openai.com/api/docs/guides/speech-to-text
-- OpenAI model catalog for GPT-5.5, GPT-5.4 mini/nano, and transcription model families: https://developers.openai.com/api/docs/models
-- MDN MediaRecorder API: https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder
-- npm registry check on 2026-06-25: `next@16.2.9`, `react@19.2.7`, `tailwindcss@4.3.1`, `@supabase/supabase-js@2.108.2`, `@supabase/ssr@0.12.0`, `openai@6.45.0`, `zod@4.4.3`, `react-hook-form@7.80.0`, `@tanstack/react-query@5.101.1`, `shadcn@4.11.0`, `lucide-react@1.21.0`, `vitest@4.1.9`, `@playwright/test@1.61.1`.
+- [ElevenLabs Node SDK — GitHub elevenlabs/elevenlabs-js](https://github.com/elevenlabs/elevenlabs-js) — confirmed npm package name/install; version cross-checked via `npm view` (2.55.0)
+- [ElevenLabs streaming/latency docs](https://elevenlabs.io/docs/eleven-api/guides/how-to/best-practices/latency-optimization) — Flash v2.5 ~75ms latency, latency-optimization levels
+- [ElevenLabs pricing](https://elevenlabs.io/pricing) and [ElevenLabs pricing breakdown (Flexprice)](https://flexprice.io/blog/elevenlabs-pricing-breakdown) — Starter $5/mo unlocks instant voice cloning
+- [OpenAI gpt-4o-mini-tts model page](https://platform.openai.com/docs/models/gpt-4o-mini-tts) and [TokenMix cost analysis](https://tokenmix.ai/blog/gpt-4o-mini-tts-cheapest-tts-api-2026) — pricing ($0.60/1M text in, $12/1M audio out, ~$0.015/min), streaming latency, voice count
+- [SpeechAce API plans](https://www.speechace.com/api-plans/) — fetched directly; Basic $40/mo / Pro $80/mo / Premium $125/mo tiers, per-request pricing
+- [SpeechAce for Voice AI for kids](https://www.speechace.com/using-the-speechace-api-as-voice-ai-for-kids/) — K-12/child ESL suitability claim
+- [Azure Speech pricing](https://azure.microsoft.com/en-us/pricing/details/speech/) and [Microsoft Q&A on pronunciation-assessment pricing](https://learn.microsoft.com/en-us/answers/questions/5608069/pricing-and-usage-of-pronunciation-assessment-feat) — $1.32/hr standard, free F0 tier (5 hrs/mo)
+- [ELSA API overview](https://api-external-doc.elsanow.co/intro) and [ELSA for Business](https://business.elsaspeak.com/elsa-api-01) — scripted/unscripted modes, metered API, partner-oriented positioning
+- [Live2D Cubism SDK license](https://www.live2d.com/en/sdk/license/) — free for individuals/small-scale enterprises (Publication License exemption)
+- [Rive React runtime docs](https://help.rive.app/runtimes/overview/react) and [Rive state machines guide](https://help.rive.app/runtimes/state-machines) — `useRive` hook, Trigger/Number/Boolean inputs; versions cross-checked via `npm view` (`@rive-app/react-canvas@4.29.3`, `@rive-app/canvas@2.38.3`)
+- [MDN Web Audio API best practices](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Best_practices) — autoplay-gesture requirement, MediaSource streaming pattern
+- `npm view` (executed directly, 2026-07-01) — confirmed current npm registry versions for `openai`, `@elevenlabs/elevenlabs-js`, `@rive-app/react-canvas`, `@rive-app/canvas`, `howler`
+- Confidence note: all vendor/pricing findings are MEDIUM confidence (official vendor docs/pricing pages found via web search and cross-checked against a second source where possible, per `gsd-tools query classify-confidence --provider brave --verified`); no HIGH-tier curated/Context7 source exists for this specific vendor-comparison question.
 
-## Research Process Note
-
-The requested GSD research seam was attempted with `/Users/john/.codex/gsd-core/bin/gsd-tools.cjs query research-plan`, but the local tool installation failed with `Cannot find module '../../../package.json'` before returning a fetch plan. I proceeded with official documentation and live npm registry checks to satisfy the current-version quality gate.
+---
+*Stack research for: v2.0 "Coco Comes Alive" — TTS, pronunciation scoring, VN-style mascot rendering, dynamic conversation*
+*Researched: 2026-07-01*
