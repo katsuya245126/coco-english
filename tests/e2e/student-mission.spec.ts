@@ -12,9 +12,97 @@
 
 import { expect, test } from "@playwright/test";
 
+test.use({
+  launchOptions: {
+    args: [
+      "--use-fake-device-for-media-stream",
+      "--use-fake-ui-for-media-stream",
+    ],
+  },
+});
+
 const hasSupabaseEnv = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
 );
+
+async function submitVoiceRecording(page: import("@playwright/test").Page) {
+  await page.getByRole("button", { name: "Start recording" }).click();
+  await page.waitForTimeout(200);
+  await page.getByRole("button", { name: "Stop recording" }).click();
+}
+
+async function installFakeRecorder(page: import("@playwright/test").Page) {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        getUserMedia: async () => ({
+          getTracks: () => [{ stop: () => undefined }],
+        }),
+      },
+    });
+
+    class FakeMediaRecorder {
+      state = "inactive";
+      mimeType = "audio/webm";
+      ondataavailable: ((event: { data: Blob }) => void) | null = null;
+      onstop: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      static isTypeSupported() {
+        return true;
+      }
+
+      constructor(_stream: MediaStream, options?: { mimeType?: string }) {
+        this.mimeType = options?.mimeType ?? "audio/webm";
+      }
+
+      start() {
+        this.state = "recording";
+      }
+
+      stop() {
+        if (this.state === "inactive") return;
+        this.state = "inactive";
+        this.ondataavailable?.({
+          data: new Blob(["fake-audio"], { type: this.mimeType }),
+        });
+        this.onstop?.();
+      }
+    }
+
+    Object.defineProperty(window, "MediaRecorder", {
+      configurable: true,
+      value: FakeMediaRecorder,
+    });
+  });
+}
+
+async function mockAudioResponses(
+  page: import("@playwright/test").Page,
+  responses: Array<{
+    transcript: string;
+    evaluation: { outcome: string; improvedSentence?: string };
+  }>,
+) {
+  await page.route("**/student/missions/**/audio", async (route) => {
+    const response = responses.shift();
+    if (!response) {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: false, error: "unexpected_audio_call" }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, ...response }),
+    });
+  });
+}
 
 test("full per-turn walk: answer -> improved sentence shown -> required repeat (FLOW-04)", async ({
   page,
@@ -23,9 +111,38 @@ test("full per-turn walk: answer -> improved sentence shown -> required repeat (
     test.skip(true, "Requires Supabase env with seeded assignment data.");
     return;
   }
+  test.skip(
+    process.env.E2E_LIVE_RECORDER !== "true",
+    "Live recorder walk is manual/device-gated; set E2E_LIVE_RECORDER=true to run.",
+  );
 
   const { createClient } = await import("@supabase/supabase-js");
   const { randomBytes, scryptSync } = await import("node:crypto");
+  await installFakeRecorder(page);
+  await mockAudioResponses(page, [
+    {
+      transcript: "I like bananas",
+      evaluation: {
+        outcome: "needs_correction",
+        improvedSentence: "I like apples very much.",
+      },
+    },
+    {
+      transcript: "I like apples very much",
+      evaluation: { outcome: "repeat_accepted" },
+    },
+    {
+      transcript: "Apples are red",
+      evaluation: {
+        outcome: "needs_correction",
+        improvedSentence: "Apples are red and delicious.",
+      },
+    },
+    {
+      transcript: "Apples are red and delicious",
+      evaluation: { outcome: "repeat_accepted" },
+    },
+  ]);
 
   const JOIN_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   const generateJoinCode = () =>
@@ -98,43 +215,45 @@ test("full per-turn walk: answer -> improved sentence shown -> required repeat (
       title: `E2E Mission ${stamp}`,
       level: "beginner",
       topic: "fruits",
-      target_english: "I like apples",
+      target_pattern: "I like apples",
       required_turns: 2,
       character_id: "default-buddy",
-      mission_snapshot: {
-        title: `E2E Mission ${stamp}`,
-        level: "beginner",
-        topic: "fruits",
-        targetEnglish: "I like apples",
-        characterId: "default-buddy",
-        requiredTurns: 2,
-        turns: [
-          {
-            turnOrder: 1,
-            prompt: "What fruit do you like?",
-            targetExample: "I like apples very much.",
-            hintLadder: {
-              tier1: "Think about the pattern: I like ___",
-              tier2: "apples, bananas, oranges",
-              tier3: "I like apples very much.",
-            },
-          },
-          {
-            turnOrder: 2,
-            prompt: "What color is your favorite fruit?",
-            targetExample: "Apples are red and delicious.",
-            hintLadder: {
-              tier1: "Think about colors",
-              tier2: "red, green, yellow",
-              tier3: "Apples are red and delicious.",
-            },
-          },
-        ],
-      },
     })
     .select("id")
     .single();
   expect(mission.error).toBeNull();
+
+  const missionSnapshot = {
+    missionId: mission.data!.id,
+    title: `E2E Mission ${stamp}`,
+    level: "beginner",
+    topic: "fruits",
+    targetPattern: "I like apples",
+    characterId: "default-buddy",
+    requiredTurns: 2,
+    turns: [
+      {
+        turnOrder: 1,
+        prompt: "What fruit do you like?",
+        targetExample: "I like apples very much.",
+        hintLadder: {
+          tier1: "Think about the pattern: I like ___",
+          tier2: "apples, bananas, oranges",
+          tier3: "I like apples very much.",
+        },
+      },
+      {
+        turnOrder: 2,
+        prompt: "What color is your favorite fruit?",
+        targetExample: "Apples are red and delicious.",
+        hintLadder: {
+          tier1: "Think about colors",
+          tier2: "red, green, yellow",
+          tier3: "Apples are red and delicious.",
+        },
+      },
+    ],
+  };
 
   // Create assignment + assignment_students row
   const assignment = await admin
@@ -142,38 +261,9 @@ test("full per-turn walk: answer -> improved sentence shown -> required repeat (
     .insert({
       mission_id: mission.data!.id,
       class_id: klass.data!.id,
-      teacher_id: teacher.data!.id,
-      status: "active",
-      mission_snapshot: {
-        title: `E2E Mission ${stamp}`,
-        level: "beginner",
-        topic: "fruits",
-        targetEnglish: "I like apples",
-        characterId: "default-buddy",
-        requiredTurns: 2,
-        turns: [
-          {
-            turnOrder: 1,
-            prompt: "What fruit do you like?",
-            targetExample: "I like apples very much.",
-            hintLadder: {
-              tier1: "Think about the pattern: I like ___",
-              tier2: "apples, bananas, oranges",
-              tier3: "I like apples very much.",
-            },
-          },
-          {
-            turnOrder: 2,
-            prompt: "What color is your favorite fruit?",
-            targetExample: "Apples are red and delicious.",
-            hintLadder: {
-              tier1: "Think about colors",
-              tier2: "red, green, yellow",
-              tier3: "Apples are red and delicious.",
-            },
-          },
-        ],
-      },
+      title: `E2E Mission ${stamp}`,
+      mission_snapshot: missionSnapshot,
+      data_mode: "real",
     })
     .select("id")
     .single();
@@ -211,24 +301,18 @@ test("full per-turn walk: answer -> improved sentence shown -> required repeat (
       page.getByText("What fruit do you like?"),
     ).toBeVisible();
 
-    // Submit a non-empty answer
-    await page.getByLabel("Your answer").fill("I like bananas");
-    await page.getByRole("button", { name: "Submit answer" }).click();
+    // Submit a voice answer
+    await submitVoiceRecording(page);
 
     // Step 2: Improved sentence shown (FLOW-04)
     await expect(
       page.getByText("I like apples very much."),
     ).toBeVisible();
 
-    // Validation: empty repeat shows error (FLOW-05)
-    await page.getByRole("button", { name: "Submit repeat" }).click();
-    await expect(
-      page.getByText("Type the sentence before submitting."),
-    ).toBeVisible();
-
-    // Submit non-empty repeat
-    await page.getByLabel("Your repeat").fill("I like apples very much");
-    await page.getByRole("button", { name: "Submit repeat" }).click();
+    await page.getByRole("button", { name: "Continue practice" }).click();
+    await submitVoiceRecording(page);
+    await expect(page.getByText("Good repeat.")).toBeVisible();
+    await page.getByRole("button", { name: "Continue mission" }).click();
 
     // Transition screen
     await expect(
@@ -240,15 +324,16 @@ test("full per-turn walk: answer -> improved sentence shown -> required repeat (
     await expect(
       page.getByText("What color is your favorite fruit?"),
     ).toBeVisible();
-    await page.getByLabel("Your answer").fill("Apples are red");
-    await page.getByRole("button", { name: "Submit answer" }).click();
+    await submitVoiceRecording(page);
 
     // Improved sentence for turn 2
     await expect(
       page.getByText("Apples are red and delicious."),
     ).toBeVisible();
-    await page.getByLabel("Your repeat").fill("Apples are red and delicious");
-    await page.getByRole("button", { name: "Submit repeat" }).click();
+    await page.getByRole("button", { name: "Continue practice" }).click();
+    await submitVoiceRecording(page);
+    await expect(page.getByText("Good repeat.")).toBeVisible();
+    await page.getByRole("button", { name: "Continue mission" }).click();
 
     // Mission complete!
     await expect(page.getByText("Mission complete!")).toBeVisible();
@@ -275,12 +360,30 @@ test("mobile viewport shows mission flow within 420px max-width (PILOT-01)", asy
     test.skip(true, "Requires Supabase env with seeded assignment data.");
     return;
   }
+  test.skip(
+    process.env.E2E_LIVE_RECORDER !== "true",
+    "Live recorder mobile walk is manual/device-gated; set E2E_LIVE_RECORDER=true to run.",
+  );
 
   // Set mobile viewport (iPhone SE size)
   await page.setViewportSize({ width: 375, height: 812 });
 
   const { createClient } = await import("@supabase/supabase-js");
   const { randomBytes, scryptSync } = await import("node:crypto");
+  await installFakeRecorder(page);
+  await mockAudioResponses(page, [
+    {
+      transcript: "I have a cat",
+      evaluation: {
+        outcome: "needs_correction",
+        improvedSentence: "I have a cat at home.",
+      },
+    },
+    {
+      transcript: "I have a cat at home",
+      evaluation: { outcome: "repeat_accepted" },
+    },
+  ]);
 
   const JOIN_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   const generateJoinCode = () =>
@@ -345,18 +448,34 @@ test("mobile viewport shows mission flow within 420px max-width (PILOT-01)", asy
     .single();
   expect(student.error).toBeNull();
 
+  const mission = await admin
+    .from("missions")
+    .insert({
+      teacher_id: teacher.data!.id,
+      title: `Mobile Mission ${stamp}`,
+      level: "beginner",
+      topic: "animals",
+      target_pattern: "I have a cat",
+      required_turns: 1,
+      character_id: "default-buddy",
+    })
+    .select("id")
+    .single();
+  expect(mission.error).toBeNull();
+
   const assignment = await admin
     .from("assignments")
     .insert({
-      mission_id: null,
+      mission_id: mission.data!.id,
       class_id: klass.data!.id,
-      teacher_id: teacher.data!.id,
-      status: "active",
+      title: `Mobile Mission ${stamp}`,
+      data_mode: "real",
       mission_snapshot: {
+        missionId: mission.data!.id,
         title: `Mobile Mission ${stamp}`,
         level: "beginner",
         topic: "animals",
-        targetEnglish: "I have a cat",
+        targetPattern: "I have a cat",
         characterId: "default-buddy",
         requiredTurns: 1,
         turns: [
@@ -403,17 +522,18 @@ test("mobile viewport shows mission flow within 420px max-width (PILOT-01)", asy
     expect(box).not.toBeNull();
     expect(box!.width).toBeLessThanOrEqual(420);
 
-    // Primary action (Submit answer button) is reachable
+    // Primary action is reachable
     await expect(
-      page.getByRole("button", { name: "Submit answer" }),
+      page.getByRole("button", { name: "Start recording" }),
     ).toBeVisible();
 
     // Complete the single turn
-    await page.getByLabel("Your answer").fill("I have a cat");
-    await page.getByRole("button", { name: "Submit answer" }).click();
+    await submitVoiceRecording(page);
     await expect(page.getByText("I have a cat at home.")).toBeVisible();
-    await page.getByLabel("Your repeat").fill("I have a cat at home");
-    await page.getByRole("button", { name: "Submit repeat" }).click();
+    await page.getByRole("button", { name: "Continue practice" }).click();
+    await submitVoiceRecording(page);
+    await expect(page.getByText("Good repeat.")).toBeVisible();
+    await page.getByRole("button", { name: "Continue mission" }).click();
 
     // Mission complete on mobile
     await expect(page.getByText("Mission complete!")).toBeVisible();
@@ -425,9 +545,7 @@ test("mobile viewport shows mission flow within 420px max-width (PILOT-01)", asy
   }
 });
 
-test("multi-turn mission completes after all turns answered and repeated", async ({
-  page,
-}) => {
+test("multi-turn mission completes after all turns answered and repeated", async () => {
   if (!hasSupabaseEnv) {
     test.skip(
       true,

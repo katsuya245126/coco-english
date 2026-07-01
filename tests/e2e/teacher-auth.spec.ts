@@ -19,8 +19,8 @@ test("teacher signup reaches the email-verification-pending state", async ({
   // When env is absent (e.g. CI without secrets) this branch is skipped, mirroring
   // tests/e2e/foundation-smoke.spec.ts.
   test.skip(
-    !SUPABASE_ENV_PRESENT,
-    "Supabase env vars absent; live signup verification path is env-gated.",
+    !SUPABASE_ENV_PRESENT || process.env.E2E_ALLOW_SIGNUP !== "true",
+    "Live signup is env-gated; set E2E_ALLOW_SIGNUP=true only when Supabase Auth signup is enabled for the target project.",
   );
 
   const unique = Date.now();
@@ -29,6 +29,7 @@ test("teacher signup reaches the email-verification-pending state", async ({
   await page.getByLabel("Display name").fill(`Teacher ${unique}`);
   await page.getByLabel("Email").fill(`teacher+${unique}@example.com`);
   await page.getByLabel("Password", { exact: true }).fill("Sup3r-Secret-Pw!");
+  await page.getByLabel("Confirm password").fill("Sup3r-Secret-Pw!");
 
   await page
     .getByRole("button", { name: "Create teacher account" })

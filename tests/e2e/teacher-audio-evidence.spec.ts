@@ -8,7 +8,7 @@ const pageSourcePath = join(
 );
 const classPageSourcePath = join(
   process.cwd(),
-  "src/app/teacher/classes/[id]/page.tsx",
+  "src/app/teacher/classes/[id]/review/[assignmentId]/page.tsx",
 );
 const playerSourcePath = join(
   process.cwd(),

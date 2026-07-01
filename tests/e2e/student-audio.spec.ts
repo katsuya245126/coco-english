@@ -56,7 +56,10 @@ test("student mission completion is gated after repeat transcript success", asyn
   );
 
   const repeatUploadIndex = source.indexOf('clipKind: "repeat_attempt"');
-  const completeIndex = source.indexOf("const result = await completeMissionAction");
+  const completeIndex = source.indexOf(
+    "const result = await completeMissionAction",
+    repeatUploadIndex,
+  );
   const repeatTranscriptIndex = source.indexOf("repeatTranscript: transcript");
 
   expect(repeatUploadIndex).toBeGreaterThan(-1);

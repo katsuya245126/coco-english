@@ -55,7 +55,7 @@ export function StepAiEvaluationFeedback({
       <div style={stepCardStyle} aria-live="polite">
         <Transcript transcript={transcript} />
         <div style={evaluationSuccessStyle}>
-          <h2 style={headingInlineStyle}>Great!</h2>
+          <h2 style={headingInlineStyle}>Nice answer!</h2>
         </div>
         <button
           type="button"
@@ -63,7 +63,7 @@ export function StepAiEvaluationFeedback({
           onClick={onContinue}
           disabled={isSubmitting}
         >
-          Next
+          Continue practice
         </button>
         <RecordingReview audioUrl={audioUrl} onRetry={onRetry} />
       </div>
@@ -76,7 +76,7 @@ export function StepAiEvaluationFeedback({
         <Transcript transcript={transcript} />
         <div style={{ ...improvedSentenceCardStyle, marginTop: transcript ? 16 : 0 }}>
           <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
-            Better way to say it:
+                Nice try! Here is a clearer way to say it:
           </p>
           <p style={sentenceStyle}>{improvedSentence}</p>
         </div>
@@ -89,7 +89,7 @@ export function StepAiEvaluationFeedback({
           onClick={onContinue}
           disabled={isSubmitting}
         >
-          OK, I&apos;m ready
+          Continue practice
         </button>
         <RecordingReview audioUrl={audioUrl} onRetry={onRetry} />
       </div>
@@ -101,7 +101,7 @@ export function StepAiEvaluationFeedback({
       <div style={stepCardStyle} aria-live="polite" role="alert">
         <Transcript transcript={transcript} />
         <div style={{ ...evaluationErrorStyle, marginTop: transcript ? 16 : 0 }}>
-          <h2 style={headingInlineStyle}>Please say it in English.</h2>
+          <h2 style={headingInlineStyle}>Try that in English.</h2>
         </div>
         <RecordingReview audioUrl={audioUrl} onRetry={onRetry} />
       </div>
@@ -114,7 +114,7 @@ export function StepAiEvaluationFeedback({
         <Transcript transcript={transcript} />
         <div style={{ ...evaluationReviewStyle, marginTop: transcript ? 16 : 0 }}>
           <p style={badgeStyle}>Teacher review</p>
-          <h2 style={headingInlineStyle}>Your teacher will check this.</h2>
+          <h2 style={headingInlineStyle}>Your teacher will check this answer.</h2>
         </div>
         <button
           type="button"
@@ -122,7 +122,7 @@ export function StepAiEvaluationFeedback({
           onClick={onContinue}
           disabled={isSubmitting}
         >
-          Next
+          Continue mission
         </button>
         <RecordingReview audioUrl={audioUrl} onRetry={onRetry} />
       </div>
@@ -134,7 +134,7 @@ export function StepAiEvaluationFeedback({
       <div style={stepCardStyle} aria-live="polite">
         <Transcript transcript={transcript} />
         <div style={evaluationSuccessStyle}>
-          <h2 style={headingInlineStyle}>Great job!</h2>
+          <h2 style={headingInlineStyle}>Good repeat.</h2>
         </div>
         <button
           type="button"
@@ -142,7 +142,7 @@ export function StepAiEvaluationFeedback({
           onClick={onContinue}
           disabled={isSubmitting}
         >
-          Next
+          Continue mission
         </button>
         <RecordingReview audioUrl={audioUrl} onRetry={onRetry} />
       </div>

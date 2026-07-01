@@ -1,15 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
+import type { MissionResponsesClient } from "@/server/ai/mission-generator";
 
-type FakeMissionResponsesClient = {
-  responses: {
-    parse: ReturnType<typeof vi.fn>;
-  };
-};
+type FakeMissionResponsesClient = MissionResponsesClient;
 
 function createFakeClient(result: unknown): FakeMissionResponsesClient {
   return {
     responses: {
-      parse: vi.fn(async () => result),
+      parse: vi.fn(async () => result) as MissionResponsesClient["responses"]["parse"],
     },
   };
 }
@@ -84,7 +81,7 @@ describe("generateMissionDraft server adapter (D-08, D-09, D-10)", () => {
       responses: {
         parse: vi.fn(async () => {
           throw new Error("provider unavailable: token trace");
-        }),
+        }) as MissionResponsesClient["responses"]["parse"],
       },
     };
 

@@ -293,7 +293,7 @@ export default async function AssignmentReviewPage({
                               whiteSpace: "nowrap",
                             }}
                           >
-                            Review
+                            Review evidence
                           </Link>
                         )}
                       </div>

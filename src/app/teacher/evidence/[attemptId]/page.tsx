@@ -158,10 +158,10 @@ function TurnEvidenceSection({ turn }: { turn: AttemptTurnEvidence }) {
 
 function AnnotationGrid({ turn }: { turn: AttemptTurnEvidence }) {
   const rows: [string, string | null][] = [
-    ["Communicated clearly?", friendlyMeaningResult(turn.meaningResult)],
-    ["Used the target language?", friendlyPatternResult(turn.targetPatternResult)],
+    ["Meaning result", friendlyMeaningResult(turn.meaningResult)],
+    ["Target pattern result", friendlyPatternResult(turn.targetPatternResult)],
     ...(turn.repeatResult !== null
-      ? [["Repeated correctly?", friendlyRepeatResult(turn.repeatResult)] as [string, string]]
+      ? [["Repeat result", friendlyRepeatResult(turn.repeatResult)] as [string, string]]
       : []),
   ];
 

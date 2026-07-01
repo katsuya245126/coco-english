@@ -1,18 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
+import type { TranscriptionClient } from "@/server/audio/transcription";
 
-type FakeTranscriptionClient = {
-  audio: {
-    transcriptions: {
-      create: ReturnType<typeof vi.fn>;
-    };
-  };
-};
+type FakeTranscriptionClient = TranscriptionClient;
 
 function createFakeClient(result: unknown): FakeTranscriptionClient {
   return {
     audio: {
       transcriptions: {
-        create: vi.fn(async () => result),
+        create: vi.fn(async () => result) as TranscriptionClient["audio"]["transcriptions"]["create"],
       },
     },
   };
@@ -97,7 +92,7 @@ describe("transcribeAudioFile", () => {
         transcriptions: {
           create: vi.fn(async () => {
             throw new Error("provider unavailable");
-          }),
+          }) as TranscriptionClient["audio"]["transcriptions"]["create"],
         },
       },
     };

@@ -1,15 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
+import type { TurnEvaluationResponsesClient } from "@/server/ai/turn-evaluator";
 
-type FakeEvaluationResponsesClient = {
-  responses: {
-    parse: ReturnType<typeof vi.fn>;
-  };
-};
+type FakeEvaluationResponsesClient = TurnEvaluationResponsesClient;
 
 function createFakeClient(result: unknown): FakeEvaluationResponsesClient {
   return {
     responses: {
-      parse: vi.fn(async () => result),
+      parse: vi.fn(async () => result) as TurnEvaluationResponsesClient["responses"]["parse"],
     },
   };
 }
@@ -78,7 +75,7 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
       responses: {
         parse: vi.fn(async () => {
           throw new Error("provider unavailable");
-        }),
+        }) as TurnEvaluationResponsesClient["responses"]["parse"],
       },
     };
 

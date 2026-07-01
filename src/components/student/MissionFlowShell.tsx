@@ -261,8 +261,9 @@ export function MissionFlowShell({
       aid,
       clipKind: "original_answer",
     });
+    const transcript = upload.transcript;
     const originalFeedback = feedbackFromEvaluation(
-      upload.transcript,
+      transcript,
       upload.evaluation,
     );
 
@@ -277,14 +278,14 @@ export function MissionFlowShell({
         setActionError("Something went wrong. Try again, or ask your teacher for help.");
         throw new Error("mission_complete_failed");
       }
-      setFlow((prev) => ({ ...prev, step: "complete", originalTranscript: upload.transcript, originalFeedback, repeatFeedback: null }));
+      setFlow((prev) => ({ ...prev, step: "complete", originalTranscript: transcript, originalFeedback, repeatFeedback: null }));
       return;
     }
 
     setFlow((prev) => ({
       ...prev,
       step: "aiFeedback",
-      originalTranscript: upload.transcript,
+      originalTranscript: transcript,
       repeatTranscript: null,
       improvedSentence:
         originalFeedback.kind === "needsCorrection"
@@ -311,8 +312,9 @@ export function MissionFlowShell({
       aid,
       clipKind: "repeat_attempt",
     });
+    const transcript = upload.transcript;
     const repeatFeedback = repeatFeedbackFromEvaluation(
-      upload.transcript,
+      transcript,
       upload.evaluation,
     );
 
@@ -327,13 +329,13 @@ export function MissionFlowShell({
         setActionError("Something went wrong. Try again, or ask your teacher for help.");
         throw new Error("mission_complete_failed");
       }
-      setFlow((prev) => ({ ...prev, repeatTranscript: upload.transcript, repeatFeedback, step: "complete" }));
+      setFlow((prev) => ({ ...prev, repeatTranscript: transcript, repeatFeedback, step: "complete" }));
       return;
     }
 
     setFlow((prev) => ({
       ...prev,
-      repeatTranscript: upload.transcript,
+      repeatTranscript: transcript,
       repeatFeedback,
       step: "repeatFeedback",
     }));
