@@ -5,21 +5,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server-auth";
 import { listRoster } from "@/server/classroom/roster-service";
 import { RosterEditor } from "@/components/teacher/RosterEditor";
 
-type NestedRelation<T> = T | T[] | null | undefined;
-
-function one<T>(relation: NestedRelation<T>): T | null {
-  if (Array.isArray(relation)) return relation[0] ?? null;
-  return relation ?? null;
-}
-
-function formatDateTime(value: string | null) {
-  if (!value) return "Not submitted";
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
-
 // Per-teacher authenticated page: never statically cache (Supabase SSR caching
 // warning). requireTeacherProfile gates access; the class load runs under RLS
 // so a class owned by another teacher resolves to notFound rather than leaking.
@@ -91,7 +76,3 @@ export default async function ClassManagePage({
     </div>
   );
 }
-
-// Keep these helpers exported for any future re-use but mark them as used
-// by the moved content (originally from [id]/page.tsx).
-export { one, formatDateTime };

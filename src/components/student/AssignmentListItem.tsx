@@ -7,7 +7,6 @@ import {
   badgeDoneStyle,
   badgeLateStyle,
   badgeRetryStyle,
-  labelStyle,
 } from "@/components/student/styles";
 import type { CSSProperties } from "react";
 
