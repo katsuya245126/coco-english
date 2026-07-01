@@ -32,13 +32,19 @@ export function TurnEditor({ turns, onChange, errors = {} }: TurnEditorProps) {
       if ("hintLadder" in patch) {
         return {
           ...turn,
-          hintLadder: { ...turn.hintLadder, ...patch.hintLadder },
+          hintLadder: {
+            ...emptyTurn.hintLadder,
+            ...turn.hintLadder,
+            ...patch.hintLadder,
+          },
         };
       }
       return { ...turn, ...patch };
     });
     onChange(next);
   }
+
+  const emptyHintLadder = { tier1: "", tier2: "", tier3: "" };
 
   return (
     <section style={panelStyle}>
@@ -60,7 +66,9 @@ export function TurnEditor({ turns, onChange, errors = {} }: TurnEditorProps) {
       ) : null}
 
       <div style={{ display: "grid", gap: 24 }}>
-        {turns.map((turn, index) => (
+        {turns.map((turn, index) => {
+          const hintLadder = turn.hintLadder ?? emptyHintLadder;
+          return (
           <div key={index} style={turnBlockStyle}>
             <div style={sectionHeaderStyle}>
               <h3 style={labelStyle}>Turn {index + 1}</h3>
@@ -100,7 +108,7 @@ export function TurnEditor({ turns, onChange, errors = {} }: TurnEditorProps) {
             <Field
               id={`turn-${index}-hint-1`}
               label="Hint 1: Target pattern"
-              value={turn.hintLadder.tier1}
+              value={hintLadder.tier1 ?? ""}
               placeholder='e.g. "I like ___ing"'
               error={errors[`turns.${index}.hintLadder.tier1`]}
               onChange={(value) =>
@@ -110,7 +118,7 @@ export function TurnEditor({ turns, onChange, errors = {} }: TurnEditorProps) {
             <Field
               id={`turn-${index}-hint-2`}
               label="Hint 2: Word bank"
-              value={turn.hintLadder.tier2}
+              value={hintLadder.tier2 ?? ""}
               placeholder='e.g. "play, soccer, like"'
               error={errors[`turns.${index}.hintLadder.tier2`]}
               onChange={(value) =>
@@ -120,7 +128,7 @@ export function TurnEditor({ turns, onChange, errors = {} }: TurnEditorProps) {
             <Field
               id={`turn-${index}-hint-3`}
               label="Hint 3: Full example"
-              value={turn.hintLadder.tier3}
+              value={hintLadder.tier3 ?? ""}
               placeholder='e.g. "I like playing soccer."'
               error={errors[`turns.${index}.hintLadder.tier3`]}
               onChange={(value) =>
@@ -128,7 +136,8 @@ export function TurnEditor({ turns, onChange, errors = {} }: TurnEditorProps) {
               }
             />
           </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

@@ -77,14 +77,29 @@ function mapMission(row: MissionRow, counts?: {
   };
 }
 
+// The hint_ladder JSON column is not schema-enforced at the DB level, so older
+// or seeded rows may be null or missing tier keys. Normalize to the expected
+// {tier1, tier2, tier3} shape so the mission editor never crashes on a
+// malformed value.
+function normalizeHintLadder(value: Json): HintLadder {
+  const raw =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  return {
+    tier1: typeof raw.tier1 === "string" ? raw.tier1 : "",
+    tier2: typeof raw.tier2 === "string" ? raw.tier2 : "",
+    tier3: typeof raw.tier3 === "string" ? raw.tier3 : "",
+  };
+}
+
 function mapTurn(row: TurnRow): MissionTurn {
-  const hintLadder = row.hint_ladder as HintLadder;
   return {
     id: row.id,
     turnOrder: row.turn_order,
     prompt: row.prompt,
     targetExample: row.target_example,
-    hintLadder,
+    hintLadder: normalizeHintLadder(row.hint_ladder),
   };
 }
 
