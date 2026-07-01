@@ -70,12 +70,30 @@ REQ-ID categories continue from v1 with new codes: VOICE, PRON, MASCOT, CHAT, SC
 
 ## Traceability
 
-*(Filled by roadmap — each requirement mapped to exactly one phase.)*
+Each v2.0 requirement is mapped to exactly one phase. 23/23 mapped, no orphans.
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| VOICE-01..04 | TBD (v2.1) | Pending |
-| PRON-01..06 | TBD (v2.2) | Pending |
-| MASCOT-01..04 | TBD (v2.3) | Pending |
-| SCENE-01, CHAT-01..06 | TBD (v2.4) | Pending |
-| UIX-01..02 | TBD (v2.5) | Pending |
+| VOICE-01 | Phase 8 (v2.1 Coco Voice) | Pending |
+| VOICE-02 | Phase 8 (v2.1 Coco Voice) | Pending |
+| VOICE-03 | Phase 8 (v2.1 Coco Voice) | Pending |
+| VOICE-04 | Phase 8 (v2.1 Coco Voice) | Pending |
+| PRON-01 | Phase 9 (v2.2 Pronunciation Scoring) | Pending |
+| PRON-02 | Phase 9 (v2.2 Pronunciation Scoring) | Pending |
+| PRON-03 | Phase 9 (v2.2 Pronunciation Scoring) | Pending |
+| PRON-04 | Phase 9 (v2.2 Pronunciation Scoring) | Pending |
+| PRON-05 | Phase 9 (v2.2 Pronunciation Scoring) | Pending |
+| PRON-06 | Phase 9 (v2.2 Pronunciation Scoring) | Pending |
+| MASCOT-01 | Phase 10 (v2.3 Mascot) | Pending |
+| MASCOT-02 | Phase 10 (v2.3 Mascot) | Pending |
+| MASCOT-03 | Phase 10 (v2.3 Mascot) | Pending |
+| MASCOT-04 | Phase 10 (v2.3 Mascot) | Pending |
+| SCENE-01 | Phase 11 (v2.4 Coco Chat) | Pending |
+| CHAT-01 | Phase 11 (v2.4 Coco Chat) | Pending |
+| CHAT-02 | Phase 11 (v2.4 Coco Chat) | Pending |
+| CHAT-03 | Phase 11 (v2.4 Coco Chat) | Pending |
+| CHAT-04 | Phase 11 (v2.4 Coco Chat) | Pending |
+| CHAT-05 | Phase 11 (v2.4 Coco Chat) | Pending |
+| CHAT-06 | Phase 11 (v2.4 Coco Chat) | Pending |
+| UIX-01 | Phase 12 (v2.5 UI Overhaul) | Pending |
+| UIX-02 | Phase 12 (v2.5 UI Overhaul) | Pending |

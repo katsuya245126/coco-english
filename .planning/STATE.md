@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Coco Comes Alive
-status: planning
-last_updated: "2026-07-01T10:39:34.942Z"
+status: roadmapped
+last_updated: "2026-07-01T11:10:37.000Z"
 last_activity: 2026-07-01
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 12
+  completed_phases: 7
+  total_plans: 26
+  completed_plans: 26
+  percent: 58
 ---
 
 # Project State
@@ -20,14 +20,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-01)
 
 **Core value:** Students must complete useful spoken English practice outside class, and teachers must be able to verify that it happened.
-**Current focus:** Between milestones — start next milestone planning
+**Current focus:** v2.0 Coco Comes Alive — Phase 8 (Coco Voice / TTS), ready to plan
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-07-01 — Milestone v2.0 started
+Phase: 8 of 12 (Coco Voice - TTS)
+Plan: TBD (not yet planned)
+Status: Roadmapped — ready to run /gsd-plan-phase 8
+Last activity: 2026-07-01 — v2.0 roadmap created (Phases 8-12), 23/23 requirements mapped
+
+Progress: [█████░░░░░] 58%
 
 ## Performance Metrics
 
@@ -77,6 +79,8 @@ Last activity: 2026-07-01 — Milestone v2.0 started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- [v2.0 Roadmap]: Phases 8-12 map 1:1 to the five point releases (v2.1-v2.5) in dependency order: Voice -> Pronunciation (independent) -> Mascot (needs Voice) -> Coco Chat (needs Voice+Mascot) -> UI Overhaul (needs all). All 23 v2.0 requirements mapped, no orphans.
+- [v2.0 Roadmap]: Phase 11 (Coco Chat) flagged as highest research risk (drift/moderation/transcript UX); Phase 9 (Pronunciation) needs an Azure-accuracy validation pass against real stored student audio; Phase 10 (Mascot) needs a Rive-vs-static-sprite spike before art starts.
 - [Roadmap]: Use a 7-phase vertical MVP sequence driven by classroom homework risk and requirement coverage.
 - [Roadmap]: Build manual mission assignment before AI generation so teacher control and snapshots exist first.
 - [Roadmap]: Add audio before AI evaluation so recording, storage, and teacher playback can be verified independently.
@@ -148,6 +152,6 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 ## Session Continuity
 
-Last session: 2026-07-01T01:01:12.608Z
-Stopped at: Milestone v1.0 archived locally; ready for /gsd-new-milestone.
+Last session: 2026-07-01T11:10:37.000Z
+Stopped at: v2.0 ROADMAP.md created (Phases 8-12); awaiting user approval, then /gsd-plan-phase 8.
 Resume file: None
