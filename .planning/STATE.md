@@ -5,16 +5,16 @@ milestone_name: milestone
 current_phase: 07
 current_phase_name: teacher-review-and-pilot-readiness
 status: executing
-stopped_at: Phase 7 Plan 03 complete — checkpoint awaiting human verification
-last_updated: "2026-06-30T16:16:09.782Z"
+stopped_at: Phase 7 Plan 04 complete — checkpoint awaiting human verification (cron auth + audio purge)
+last_updated: "2026-07-01T00:30:30.298Z"
 last_activity: 2026-06-30
 last_activity_desc: Phase 07 execution started
 progress:
   total_phases: 7
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 26
-  completed_plans: 24
-  percent: 92
+  completed_plans: 25
+  percent: 86
 ---
 
 # Project State
@@ -73,6 +73,7 @@ Progress: [██████████] 95%
 | Phase 06 P01 | 6min | 2 tasks | 7 files |
 | Phase 06 P02 | 7min | 2 tasks | 5 files |
 | Phase 06 P04 | 15min | 2 tasks | 11 files |
+| Phase 07 P04 | 4min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -126,6 +127,7 @@ Recent decisions affecting current work:
 - [Phase 06]: 06-04: Existing teacher evidence shows AI annotations, while Phase 7 dashboard buckets and manual override UI remain out of scope.
 - [Phase 07]: 07-03: overrideAssignmentStatusAction uses assertTransitionRequest for server-owned illegal-transition rejection; assignmentStudentId ownership anchored in RLS-authorized evidence load (T-07-06, T-07-07).
 - [Phase 07]: 07-03: Dynamic .eq('status', asRow.status) claim guard in startOrResumeAttempt covers both assigned and needs_retry; reasonCode=reopened_by_teacher for needs_retry path (D-10, T-07-08).
+- [Phase ?]: 07-04: Storage-first ordering in purgeExpiredAudio; CRON_SECRET !cronSecret check; zero-dependency stdout logger (PILOT-03, PILOT-04, T-07-10)
 
 ### Pending Todos
 
@@ -146,6 +148,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-30T16:16:09.776Z
-Stopped at: Phase 7 UI-SPEC approved
-Resume file: .planning/phases/07-teacher-review-and-pilot-readiness/07-UI-SPEC.md
+Last session: 2026-07-01T00:30:30.291Z
+Stopped at: Phase 7 Plan 04 complete — checkpoint awaiting human verification (cron auth + audio purge)
+Resume file: .planning/phases/07-teacher-review-and-pilot-readiness/07-04-SUMMARY.md

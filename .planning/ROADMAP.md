@@ -17,7 +17,7 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
 - [x] **Phase 4: Guided Student Attempt Loop** - Students can complete the mission flow with classroom-safe buddy prompts, recasts, repeats, hints, and completion rules. (completed 2026-06-27)
 - [x] **Phase 5: Voice Capture and Evidence Storage** - Students record short per-turn clips, transcripts and clip metadata are stored, and teachers can play audio on demand. (completed 2026-06-27)
 - [x] **Phase 6: AI Mission and Turn Intelligence** - AI generates validated mission drafts and evaluates student turns with structured, bounded, reviewable outputs. (completed 2026-06-29)
-- [ ] **Phase 7: Teacher Review and Pilot Readiness** - Teachers can scan status buckets, review attempts, override outcomes, and run the MVP safely in a pilot.
+- [x] **Phase 7: Teacher Review and Pilot Readiness** - Teachers can scan status buckets, review attempts, override outcomes, and run the MVP safely in a pilot. (completed 2026-07-01)
 
 ## Phase Details
 
@@ -253,12 +253,12 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
   4. Teacher can manually mark an attempt complete, needs retry, or teacher review.
   5. System marks overdue incomplete homework as missed and logs completion, audio processing, transcription, AI evaluation, and retention/deletion activity.
 
-**Plans**: 3/4 plans executed
+**Plans**: 4/4 plans complete
 
 - [x] 07-01-PLAN.md
 - [x] 07-02-PLAN.md
 - [x] 07-03-PLAN.md
-- [ ] 07-04-PLAN.md
+- [x] 07-04-PLAN.md
 
 **Wave 0**
 
@@ -317,4 +317,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 4. Guided Student Attempt Loop | 5/5 | Complete   | 2026-06-27 |
 | 5. Voice Capture and Evidence Storage | 4/5 | In Progress|  |
 | 6. AI Mission and Turn Intelligence | 4/4 | Complete   | 2026-06-29 |
-| 7. Teacher Review and Pilot Readiness | 3/4 | In Progress|  |
+| 7. Teacher Review and Pilot Readiness | 4/4 | Complete   | 2026-07-01 |
