@@ -3,18 +3,18 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 07
-current_phase_name: teacher-review-and-pilot-readiness
-status: executing
-stopped_at: Phase 7 Plan 04 complete — checkpoint awaiting human verification (cron auth + audio purge)
-last_updated: "2026-07-01T00:30:30.298Z"
-last_activity: 2026-06-30
-last_activity_desc: Phase 07 execution started
+status: milestone_complete
+stopped_at: Phase 07 verified complete (12/12 must-haves) — milestone v1.0 all 7 phases done, ready for /gsd-complete-milestone
+last_updated: "2026-07-01T01:01:12.608Z"
+last_activity: 2026-07-01
+last_activity_desc: Phase 07 verified and marked complete
 progress:
   total_phases: 7
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 26
   completed_plans: 25
-  percent: 86
+  percent: 96
+current_phase_name: teacher-review-and-pilot-readiness
 ---
 
 # Project State
@@ -28,18 +28,18 @@ See: .planning/PROJECT.md (updated 2026-06-25)
 
 ## Current Position
 
-Phase: 07 (teacher-review-and-pilot-readiness) — EXECUTING
-Status: Executing Phase 07
-Last activity: 2026-06-30 — Phase 07 execution started
-Prior: Phase 05 VERIFIED — UAT 9/9 pass. FK disambiguation fix for evidence queries (25afe7db). Gap closure: teacher evidence navigation added, mic-denied copy made child-friendly. iOS Safari + Android Chrome + desktop teacher evidence all verified on real devices.
+Phase: 07 of 07 (teacher-review-and-pilot-readiness)
+Status: Phase complete — milestone v1.0 all 7 phases done
+Last activity: 2026-07-01 — Phase 07 verified (12/12 must-haves) and marked complete
+Prior: Phase 06 complete — AI mission generation and turn evaluation shipped (no VERIFICATION.md on file for Phase 06).
 
-Progress: [██████████] 95%
+Progress: [██████████] 96%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 5
+- Total plans completed: 9
 - Average duration: 20 min
 - Total execution time: 0.3 hours
 
@@ -49,6 +49,7 @@ Progress: [██████████] 95%
 |-------|-------|-------|----------|
 | 1 | 1 | 20 min | 20 min |
 | 02 | 4 | - | - |
+| 07 | 4 | - | - |
 
 **Recent Trend:**
 
@@ -128,6 +129,8 @@ Recent decisions affecting current work:
 - [Phase 07]: 07-03: overrideAssignmentStatusAction uses assertTransitionRequest for server-owned illegal-transition rejection; assignmentStudentId ownership anchored in RLS-authorized evidence load (T-07-06, T-07-07).
 - [Phase 07]: 07-03: Dynamic .eq('status', asRow.status) claim guard in startOrResumeAttempt covers both assigned and needs_retry; reasonCode=reopened_by_teacher for needs_retry path (D-10, T-07-08).
 - [Phase ?]: 07-04: Storage-first ordering in purgeExpiredAudio; CRON_SECRET !cronSecret check; zero-dependency stdout logger (PILOT-03, PILOT-04, T-07-10)
+- [Phase 07]: Live UAT after 07-03 drove product changes beyond the plan: "closed" renamed to "late" (past-due assignments stay launchable), new "retry" display status for teacher-reopened attempts, completed->needs_retry added to LEGAL_TRANSITIONS, occurred_at column removed from override audit insert.
+- [Phase 07]: Post-merge gate closed 2026-07-01 — assignment-list.test.ts expectations updated to match the late/retry rename, logger.test.ts vi.spyOn typecheck fixed via a typed helper function (commit c7039220). Full suite 33/33 files green, tsc clean.
 
 ### Pending Todos
 
@@ -148,6 +151,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-01T00:30:30.291Z
-Stopped at: Phase 7 Plan 04 complete — checkpoint awaiting human verification (cron auth + audio purge)
-Resume file: .planning/phases/07-teacher-review-and-pilot-readiness/07-04-SUMMARY.md
+Last session: 2026-07-01T01:01:12.608Z
+Stopped at: Phase 07 verified complete (gsd-verifier, 12/12 must-haves) and marked done. Milestone v1.0 is now 7/7 phases complete — ready for /gsd-complete-milestone.
+Resume file: None
