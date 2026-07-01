@@ -51,6 +51,7 @@ export function CocoSpeechAudio({
   label = "Play Coco",
 }: CocoSpeechAudioProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const autoplayedUrlRef = useRef<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [state, setState] = useState<PlaybackState>("loading");
 
@@ -116,34 +117,30 @@ export function CocoSpeechAudio({
     line.characterId,
   ]);
 
-  // Opportunistic autoplay (D-01). A rejected play() promise (blocked autoplay)
-  // is caught so it never surfaces as an unhandled rejection (D-02, D-03).
+  // Opportunistic autoplay (D-01), attempted once per resolved URL so an ended
+  // clip does not loop. A rejected play() promise (blocked autoplay) is caught
+  // directly so it never surfaces as an unhandled rejection (D-02, D-03). The
+  // "playing" state is driven by the element's onPlay handler.
   useEffect(() => {
-    if (state !== "ready" || !audioUrl) return;
+    if (!audioUrl) return;
+    if (autoplayedUrlRef.current === audioUrl) return;
     const el = audioRef.current;
     if (!el) return;
 
-    el.play()
-      .then(() => {
-        setState("playing");
-      })
-      .catch(() => {
-        // Autoplay blocked — remain ready so the student can tap replay.
-        setState("ready");
-      });
-  }, [state, audioUrl]);
+    autoplayedUrlRef.current = audioUrl;
+    el.play().catch(() => {
+      // Autoplay blocked — remain ready so the student can tap replay.
+      setState("ready");
+    });
+  }, [audioUrl]);
 
   function handleReplay() {
     const el = audioRef.current;
     if (!el) return;
     el.currentTime = 0;
-    el.play()
-      .then(() => {
-        setState("playing");
-      })
-      .catch(() => {
-        setState("error");
-      });
+    el.play().catch(() => {
+      setState("error");
+    });
   }
 
   const isError = state === "error";
@@ -179,6 +176,7 @@ export function CocoSpeechAudio({
           ref={audioRef}
           src={audioUrl}
           preload="auto"
+          onPlay={() => setState("playing")}
           onEnded={() => setState("ready")}
           onError={() => setState("error")}
           style={hiddenAudioStyle}
