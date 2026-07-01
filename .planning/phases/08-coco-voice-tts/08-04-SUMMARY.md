@@ -140,6 +140,14 @@ None - no external service configuration required by this plan.
 - Ready for phase verification: `npx playwright test tests/e2e/student-coco-voice.spec.ts` (browser autoplay/audio semantics) and the manual UAT of voiced lines on a real device.
 - No blockers introduced. The pre-existing tts-cache test-fixture typecheck errors remain for a later cleanup pass.
 
+## Self-Check: PASSED
+
+- FOUND: src/components/student/CocoSpeechAudio.tsx
+- FOUND: .planning/phases/08-coco-voice-tts/08-04-SUMMARY.md
+- FOUND commit: a9f3af0b (Task 1)
+- FOUND commit: 36de2edb (Task 2)
+- FOUND commit: b88bd451 (Task 1 fix)
+
 ---
 *Phase: 08-coco-voice-tts*
 *Completed: 2026-07-01*
