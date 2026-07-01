@@ -73,8 +73,8 @@ Requirements for the first usable teacher-linked speaking homework MVP.
 
 ### AI Evaluation
 
-- [ ] **AI-01**: System evaluates whether the student's meaning is understandable.
-- [ ] **AI-02**: System evaluates whether the student attempted the target pattern.
+- [x] **AI-01**: System evaluates whether the student's meaning is understandable.
+- [x] **AI-02**: System evaluates whether the student attempted the target pattern.
 - [x] **AI-03**: System produces a better target-form sentence for understandable answers.
 - [x] **AI-04**: System evaluates whether the repeat attempt is close enough for the mission level.
 - [x] **AI-05**: System routes low-confidence, failed-schema, or ambiguous evaluations to teacher review instead of pretending certainty.
@@ -191,8 +191,8 @@ Roadmap mapping is created in `ROADMAP.md`. Each v1 requirement maps to exactly 
 | AUDIO-03 | Phase 5 | Complete |
 | AUDIO-04 | Phase 5 | Complete |
 | AUDIO-05 | Phase 5 | Complete |
-| AI-01 | Phase 6 | Pending |
-| AI-02 | Phase 6 | Pending |
+| AI-01 | Phase 6 | Complete |
+| AI-02 | Phase 6 | Complete |
 | AI-03 | Phase 6 | Complete |
 | AI-04 | Phase 6 | Complete |
 | AI-05 | Phase 6 | Complete |

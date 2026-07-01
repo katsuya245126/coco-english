@@ -25,20 +25,21 @@ Students must complete useful spoken English practice outside class, and teacher
 
 - [x] DATA-01 through DATA-05 validated in Phase 1: relational workflow schema, server-owned status audit path, short audio metadata, retention fields, and demo/real data boundary.
 - [x] ASGN-04 validated in Phase 1: assignment statuses include assigned, started, completed, missed, needs retry, and teacher review.
+- [x] Teacher can log in with email and password. — Validated in Phase 2 (AUTH-01..04)
+- [x] Teacher can create a class and manage a student roster. — Validated in Phase 2 (CLASS-01..04)
+- [x] Student can access homework without an email/password account using a class code or QR link, remembered class, name selection, and 4-digit PIN. — Validated in Phase 2 (STUD-01..05)
+- [x] Teacher can generate a speaking mission from today's target English, topic, level, required turns, and due date. — Validated in Phase 3 (MISS-01/04) manually, Phase 6 (MISS-02/03/05) via AI draft generation
+- [x] Teacher can edit the generated mission before assigning it. — Validated in Phase 6 (MISS-03)
+- [x] Student can complete a 2-3 minute speaking mission by voice. — Validated in Phase 4/5 (FLOW-01..07, AUDIO-01..05)
+- [x] Mission flow accepts understandable meaning first, then shows a better target-form sentence and requires repetition. — Validated in Phase 4 (FLOW-04/05) and Phase 6 (AI-01..05, meaning/target-pattern evaluation)
+- [x] The app captures transcripts and short audio clips per speaking turn. — Validated in Phase 5 (AUDIO-01..05)
+- [x] Teacher can see homework status buckets: completed, not started, missed, needs retry, and teacher review. — Validated in Phase 7 (REV-01)
+- [x] Teacher can open an attempt and review transcript-first details with optional audio playback. — Validated in Phase 7 (REV-02/03/04/06) and Phase 5 (REV-05)
+- [x] The MVP uses one recurring supportive classmate buddy while keeping the character model open to later change. — Validated in Phase 4 (CHAR-01..04)
 
 ### Active
 
-- [ ] Teacher can log in with email and password.
-- [ ] Teacher can create a class and manage a student roster.
-- [ ] Student can access homework without an email/password account using a class code or QR link, remembered class, name selection, and 4-digit PIN.
-- [ ] Teacher can generate a speaking mission from today's target English, topic, level, required turns, and due date.
-- [ ] Teacher can edit the generated mission before assigning it.
-- [ ] Student can complete a 2-3 minute speaking mission by voice.
-- [ ] Mission flow accepts understandable meaning first, then shows a better target-form sentence and requires repetition.
-- [ ] The app captures transcripts and short audio clips per speaking turn.
-- [ ] Teacher can see homework status buckets: completed, not started, missed, needs retry, and teacher review.
-- [ ] Teacher can open an attempt and review transcript-first details with optional audio playback.
-- [ ] The MVP uses one recurring supportive classmate buddy while keeping the character model open to later change.
+*(none — all v1 requirements validated; milestone v1.0 complete as of Phase 7, 2026-07-01)*
 
 ### Out of Scope
 
@@ -85,17 +86,19 @@ Source planning docs:
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Build teacher-linked speaking homework first | This directly addresses the classroom practice gap and is easier to validate than a full visual novel. | — Pending |
-| Use one recurring supportive classmate buddy for MVP | Gives students continuity while keeping the character system simple. | — Pending |
-| Keep the character model open with `characterId` | Allows later cast/story changes without rebuilding the mission flow. | — Pending |
-| Use teacher email/password login | Teachers can manage classes and assignments with a normal account model. | — Pending |
-| Use class code or QR, remembered class, name selection, and 4-digit PIN for students | Reduces login friction while still tracking individual homework. | — Pending |
-| Store transcripts and short audio clips per speaking turn | Speaking verification needs audio, but teacher review must remain fast. | — Pending |
-| Use completion/review states instead of numerical grades | Early product value is accountability and practice, not grading precision. | — Pending |
-| Keep missions guided rather than open-ended free chat | Reduces AI drift and keeps practice tied to teacher-provided target English. | — Pending |
+| Build teacher-linked speaking homework first | This directly addresses the classroom practice gap and is easier to validate than a full visual novel. | Validated — full v1 loop shipped across Phases 1-7 |
+| Use one recurring supportive classmate buddy for MVP | Gives students continuity while keeping the character system simple. | Validated in Phase 4 |
+| Keep the character model open with `characterId` | Allows later cast/story changes without rebuilding the mission flow. | Validated in Phase 4 |
+| Use teacher email/password login | Teachers can manage classes and assignments with a normal account model. | Validated in Phase 2 |
+| Use class code or QR, remembered class, name selection, and 4-digit PIN for students | Reduces login friction while still tracking individual homework. | Validated in Phase 2 |
+| Store transcripts and short audio clips per speaking turn | Speaking verification needs audio, but teacher review must remain fast. | Validated in Phase 5 |
+| Use completion/review states instead of numerical grades | Early product value is accountability and practice, not grading precision. | Validated in Phase 7 |
+| Keep missions guided rather than open-ended free chat | Reduces AI drift and keeps practice tied to teacher-provided target English. | Validated in Phase 6 (AI-06) |
 | Use class-level demo/real data mode copied to assignments | Students are class-scoped, and assignment-level copies simplify later audit and retention queries. | Validated in Phase 1 |
 | Keep assignment status transitions server-owned and audited | Client UI, jobs, and future AI should provide requests or evidence, while app code owns final state changes. | Validated in Phase 1 |
 | Name the product and buddy "Coco" (full name: Coco English) | Easy for Korean/ESL kids to pronounce, warm for students, descriptive enough for teachers; buddy and app share one identity. Movie ("Coco") overlap judged low-risk in a different category. | Decided 2026-06-25 |
+| Past-due assignments show a "Late" badge and stay launchable (renamed from "Closed") | Live teacher UAT in Phase 7 showed blocking late submissions was the wrong default — students should still be able to submit late homework. | Validated in Phase 7 |
+| Teacher-reopened attempts show a distinct "Retry" badge instead of reusing "Start" | Students need to know a homework item is a teacher-issued reopen, not a fresh assignment. | Validated in Phase 7 |
 
 ## Evolution
 
@@ -116,4 +119,4 @@ This document evolves at phase transitions and milestone boundaries.
 5. Update Context with current state, feedback, and metrics.
 
 ---
-*Last updated: 2026-06-25 after Phase 1 execution*
+*Last updated: 2026-07-01 after Phase 7 execution — milestone v1.0 complete (all 7 phases)*
