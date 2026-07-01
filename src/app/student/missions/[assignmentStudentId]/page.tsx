@@ -43,8 +43,14 @@ export default async function MissionPage({ params }: MissionPageProps) {
     redirect("/student/home");
   }
 
-  // 2. Guard: completed or expired assignments redirect home (D-14).
-  if (asRow.status === "completed") {
+  // 2. Guard: only recordable statuses may enter the mission flow. A student
+  // who already submitted (teacher_review), finished (completed), or missed the
+  // due date should never land on the recorder — the audio route rejects those
+  // uploads with not_found, which previously surfaced as a dead-end
+  // "audio_upload_failed". Any non-recordable status redirects home, where the
+  // assignment list shows the real status (D-14).
+  const RECORDABLE_STATUSES = new Set(["assigned", "started", "needs_retry"]);
+  if (!RECORDABLE_STATUSES.has(asRow.status)) {
     redirect("/student/home");
   }
 
