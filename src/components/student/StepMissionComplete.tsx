@@ -12,13 +12,16 @@
 
 import { useRouter } from "next/navigation";
 import { primaryButtonStyle } from "@/components/student/styles";
+import { CocoSpeechAudio } from "@/components/student/CocoSpeechAudio";
 
 export type StepMissionCompleteProps = {
+  assignmentStudentId: string;
   completionHeading: string;
   completionBody: string;
 };
 
 export function StepMissionComplete({
+  assignmentStudentId,
   completionHeading,
   completionBody,
 }: StepMissionCompleteProps) {
@@ -26,17 +29,24 @@ export function StepMissionComplete({
 
   return (
     <div style={{ textAlign: "center", padding: 24 }} aria-live="polite">
-      <h2
-        style={{
-          fontSize: 28,
-          fontWeight: 600,
-          color: "#111827",
-          margin: 0,
-          lineHeight: 1.2,
-        }}
-      >
-        {completionHeading}
-      </h2>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+        <h2
+          style={{
+            fontSize: 28,
+            fontWeight: 600,
+            color: "#111827",
+            margin: 0,
+            lineHeight: 1.2,
+          }}
+        >
+          {completionHeading}
+        </h2>
+        {/* Voice the completion celebration line (D-11). */}
+        <CocoSpeechAudio
+          assignmentStudentId={assignmentStudentId}
+          line={{ lineKind: "completion_celebration" }}
+        />
+      </div>
       <p
         style={{
           fontSize: 16,

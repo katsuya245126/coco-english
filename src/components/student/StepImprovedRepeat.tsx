@@ -14,6 +14,7 @@ import {
   stepCardStyle,
   improvedSentenceCardStyle,
 } from "@/components/student/styles";
+import { CocoSpeechAudio } from "@/components/student/CocoSpeechAudio";
 import {
   VoiceRecorderControl,
   type VoiceRecordingMetadata,
@@ -24,6 +25,8 @@ export type RepeatVoiceClip = VoiceRecordingMetadata & {
 };
 
 type StepImprovedRepeatProps = {
+  assignmentStudentId: string;
+  turnOrder: number;
   originalTranscript: string | null;
   improvedSentenceIntro: string;
   targetExample: string;
@@ -33,6 +36,8 @@ type StepImprovedRepeatProps = {
 };
 
 export function StepImprovedRepeat({
+  assignmentStudentId,
+  turnOrder,
   originalTranscript,
   improvedSentenceIntro,
   targetExample,
@@ -53,11 +58,18 @@ export function StepImprovedRepeat({
         </div>
       )}
 
-      {/* Improved sentence area */}
+      {/* Improved / model sentence area — voiced (D-07). The transcript block
+          above is deliberately NOT voiced (D-10). */}
       <div style={{ ...improvedSentenceCardStyle, marginTop: originalTranscript ? 16 : 0 }}>
-        <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
-          {improvedSentenceIntro}
-        </p>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
+            {improvedSentenceIntro}
+          </p>
+          <CocoSpeechAudio
+            assignmentStudentId={assignmentStudentId}
+            line={{ lineKind: "improved_sentence", turnOrder }}
+          />
+        </div>
         <p style={{ fontSize: 20, fontWeight: 600, color: "#111827", margin: 0, lineHeight: 1.25 }}>
           {targetExample}
         </p>

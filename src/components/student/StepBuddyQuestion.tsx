@@ -15,6 +15,7 @@ import {
   buddyCardStyle,
 } from "@/components/student/styles";
 import { HintRevealer } from "@/components/student/HintRevealer";
+import { CocoSpeechAudio } from "@/components/student/CocoSpeechAudio";
 import {
   VoiceRecorderControl,
   type VoiceRecordingMetadata,
@@ -25,6 +26,8 @@ export type RecordedVoiceClip = VoiceRecordingMetadata & {
 };
 
 type StepBuddyQuestionProps = {
+  assignmentStudentId: string;
+  turnOrder: number;
   questionLabel: string;
   prompt: string;
   hintLadder: HintLadder;
@@ -35,6 +38,8 @@ type StepBuddyQuestionProps = {
 };
 
 export function StepBuddyQuestion({
+  assignmentStudentId,
+  turnOrder,
   questionLabel,
   prompt,
   hintLadder,
@@ -47,9 +52,16 @@ export function StepBuddyQuestion({
     <div style={stepCardStyle} aria-live="polite">
       {/* Buddy speech area */}
       <div style={buddyCardStyle}>
-        <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
-          {questionLabel}
-        </p>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
+            {questionLabel}
+          </p>
+          {/* Voice the mission prompt (D-06). Text above renders regardless. */}
+          <CocoSpeechAudio
+            assignmentStudentId={assignmentStudentId}
+            line={{ lineKind: "mission_prompt", turnOrder }}
+          />
+        </div>
         <p style={{ fontSize: 20, fontWeight: 600, color: "#111827", margin: 0, lineHeight: 1.25 }}>
           {prompt}
         </p>
