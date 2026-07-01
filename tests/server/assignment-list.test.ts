@@ -2,8 +2,9 @@
  * Unit tests for listStudentAssignments display-status computation.
  *
  * Focused on the needs_retry reopen path (D-10):
- *   - needs_retry not past due → displayStatus "start" (launchable)
- *   - needs_retry past due     → displayStatus "closed" (existing isPastDue guard)
+ *   - needs_retry always → displayStatus "retry" (launchable, regardless of due date —
+ *     a teacher-issued reopen is not blocked by the original due date, and is
+ *     visually distinguished from a fresh "start" so students know to resubmit)
  *
  * All other status mappings are covered by integration behavior; these tests
  * cover only the cases relevant to Plan 07-03 (needs_retry gate fix).
@@ -84,7 +85,7 @@ beforeEach(() => {
 });
 
 describe("listStudentAssignments — needs_retry reopen (D-10)", () => {
-  it("maps needs_retry (not past due) to displayStatus 'start'", async () => {
+  it("maps needs_retry (not past due) to displayStatus 'retry'", async () => {
     // Future due date — not past due
     const future = new Date(Date.now() + 1_000_000_000).toISOString();
     _mockRows = [makeRow("needs_retry", future)];
@@ -95,10 +96,10 @@ describe("listStudentAssignments — needs_retry reopen (D-10)", () => {
 
     const items = await listStudentAssignments("student-1");
     expect(items).toHaveLength(1);
-    expect(items[0].displayStatus).toBe("start");
+    expect(items[0].displayStatus).toBe("retry");
   });
 
-  it("maps needs_retry with no due_at to displayStatus 'start'", async () => {
+  it("maps needs_retry with no due_at to displayStatus 'retry'", async () => {
     _mockRows = [makeRow("needs_retry", null)];
 
     const { listStudentAssignments } = await import(
@@ -107,11 +108,11 @@ describe("listStudentAssignments — needs_retry reopen (D-10)", () => {
 
     const items = await listStudentAssignments("student-1");
     expect(items).toHaveLength(1);
-    expect(items[0].displayStatus).toBe("start");
+    expect(items[0].displayStatus).toBe("retry");
   });
 
-  it("maps past-due needs_retry to displayStatus 'closed'", async () => {
-    // Past due date
+  it("maps past-due needs_retry to displayStatus 'retry' (teacher reopen overrides due date)", async () => {
+    // Past due date — teacher-issued reopen is still launchable, not blocked
     const past = new Date(Date.now() - 1_000_000_000).toISOString();
     _mockRows = [makeRow("needs_retry", past)];
 
@@ -121,10 +122,10 @@ describe("listStudentAssignments — needs_retry reopen (D-10)", () => {
 
     const items = await listStudentAssignments("student-1");
     expect(items).toHaveLength(1);
-    expect(items[0].displayStatus).toBe("closed");
+    expect(items[0].displayStatus).toBe("retry");
   });
 
-  it("maps missed to displayStatus 'closed' (not affected by needs_retry change)", async () => {
+  it("maps missed to displayStatus 'late' (not affected by needs_retry change)", async () => {
     _mockRows = [makeRow("missed", null)];
 
     const { listStudentAssignments } = await import(
@@ -133,10 +134,10 @@ describe("listStudentAssignments — needs_retry reopen (D-10)", () => {
 
     const items = await listStudentAssignments("student-1");
     expect(items).toHaveLength(1);
-    expect(items[0].displayStatus).toBe("closed");
+    expect(items[0].displayStatus).toBe("late");
   });
 
-  it("maps teacher_review to displayStatus 'closed'", async () => {
+  it("maps teacher_review to displayStatus 'late'", async () => {
     _mockRows = [makeRow("teacher_review", null)];
 
     const { listStudentAssignments } = await import(
@@ -145,6 +146,6 @@ describe("listStudentAssignments — needs_retry reopen (D-10)", () => {
 
     const items = await listStudentAssignments("student-1");
     expect(items).toHaveLength(1);
-    expect(items[0].displayStatus).toBe("closed");
+    expect(items[0].displayStatus).toBe("late");
   });
 });

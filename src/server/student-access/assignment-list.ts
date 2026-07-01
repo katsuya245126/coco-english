@@ -3,9 +3,9 @@ import { missionSnapshotSchema } from "@/domain/mission/schemas";
 
 // Student assignment-list read service (FLOW-01, D-13, D-14).
 //
-// Pure read — never mutates assignment_students rows. The "closed" display
+// Pure read — never mutates assignment_students rows. The "late" display
 // status is computed at read-time from due_at without updating the DB status
-// column (D-14: closed/expired is a display concern, not a stored transition).
+// column (D-14: past-due is a display concern, not a stored transition).
 //
 // Uses the service-role client because students have no Supabase Auth session.
 // SECURITY: server-only by construction (service-role client). Never import

@@ -15,18 +15,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // This import will fail (RED) until Wave 1 creates src/server/logging/logger.ts
 import { log } from "@/server/logging/logger";
 
+function spyOnStdoutWrite(onWrite: (text: string) => void) {
+  return vi.spyOn(process.stdout, "write").mockImplementation(
+    (chunk: string | Uint8Array) => {
+      onWrite(typeof chunk === "string" ? chunk : Buffer.from(chunk).toString());
+      return true;
+    },
+  );
+}
+
 describe("structured stdout logger", () => {
-  let stdoutSpy: ReturnType<typeof vi.spyOn>;
+  let stdoutSpy: ReturnType<typeof spyOnStdoutWrite>;
   let capturedOutput: string;
 
   beforeEach(() => {
     capturedOutput = "";
-    stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation(
-      (chunk: string | Uint8Array) => {
-        capturedOutput += typeof chunk === "string" ? chunk : Buffer.from(chunk).toString();
-        return true;
-      },
-    );
+    stdoutSpy = spyOnStdoutWrite((text) => {
+      capturedOutput += text;
+    });
   });
 
   afterEach(() => {
