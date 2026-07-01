@@ -19,7 +19,7 @@ created: 2026-07-01
 |----------|-------|
 | **Framework** | Vitest 3.2.6, Playwright 1.61.1 |
 | **Config file** | `vitest.config.ts`, `playwright.config.ts` |
-| **Quick run command** | `npx vitest run tests/server/tts-generator.test.ts tests/server/tts-cache.test.ts tests/domain/tts.test.ts` |
+| **Quick run command** | `npx vitest run tests/server/tts-generator.test.ts tests/server/tts-cache.test.ts tests/domain/tts.test.ts tests/domain/tts-ui-source.test.ts` |
 | **Full suite command** | `npm run typecheck && npm run lint && npm test && npm run test:e2e` |
 | **Estimated runtime** | Quick: under 30s after Wave 0; full: several minutes plus manual UAT |
 
@@ -27,7 +27,7 @@ created: 2026-07-01
 
 ## Sampling Rate
 
-- **After every task commit:** Run `npx vitest run tests/server/tts-generator.test.ts tests/server/tts-cache.test.ts tests/domain/tts.test.ts` once Wave 0 creates those files.
+- **After every task commit:** Run `npx vitest run tests/server/tts-generator.test.ts tests/server/tts-cache.test.ts tests/domain/tts.test.ts tests/domain/tts-ui-source.test.ts` once Wave 0 creates those files.
 - **After every plan wave:** Run `npm run typecheck && npm run lint && npm test`.
 - **Before `$gsd-verify-work`:** Run full suite plus `npm run test:e2e`, then complete real low-end-device UAT for VOICE-04.
 - **Max feedback latency:** Automated quick feedback should stay under 30 seconds once Wave 0 exists; manual UAT is intentionally outside this latency target.
@@ -39,9 +39,9 @@ created: 2026-07-01
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
 | 08-W0-01 | TBD | 0 | VOICE-01 | T-08-01 | OpenAI TTS stays server-only; missing key/provider failures are handled without paid calls in tests. | unit | `npx vitest run tests/server/tts-generator.test.ts` | no W0 | pending |
-| 08-W0-02 | TBD | 0 | VOICE-02 | T-08-02 | Inline replay button is accessible and does not expose provider internals. | unit/static/e2e | `npx vitest run tests/domain/tts.test.ts && npx playwright test tests/e2e/student-coco-voice.spec.ts` | no W0 | pending |
+| 08-W0-02 | TBD | 0 | VOICE-02 | T-08-02 | Inline replay button is accessible and does not expose provider internals. | unit/static | `npx vitest run tests/domain/tts.test.ts tests/domain/tts-ui-source.test.ts` | no W0 | pending |
 | 08-W0-03 | TBD | 0 | VOICE-03 | T-08-03 | Server computes canonical cache key; second identical request is a cache hit with no provider call. | unit/integration | `npx vitest run tests/server/tts-cache.test.ts` | no W0 | pending |
-| 08-W0-04 | TBD | 0 | VOICE-04 | T-08-04 | Playback uses standard `<audio>` and degrades to text-only if voice fails. | static + manual UAT | `npx playwright test tests/e2e/student-coco-voice.spec.ts` plus real device script | no W0 | pending |
+| 08-W0-04 | TBD | 0 | VOICE-04 | T-08-04 | Playback uses standard `<audio>` and degrades to text-only if voice fails. | static + browser + manual UAT | `npx vitest run tests/domain/tts-ui-source.test.ts && npx playwright test tests/e2e/student-coco-voice.spec.ts` plus real device script | no W0 | pending |
 
 *Status values: pending, green, red, flaky*
 
@@ -50,9 +50,10 @@ created: 2026-07-01
 ## Wave 0 Requirements
 
 - [ ] `tests/domain/tts.test.ts` — canonical hash inputs, voiced-line eligibility rules, no student transcript voicing.
+- [ ] `tests/domain/tts-ui-source.test.ts` — inline replay UI source contracts, no OpenAI client import in student client modules, standard `<audio>` usage, no transcript descriptors.
 - [ ] `tests/server/tts-generator.test.ts` — fake OpenAI speech client, missing key branch, provider failure branch, response format/model assertions.
 - [ ] `tests/server/tts-cache.test.ts` — cache miss/upload/insert path, cache hit/no provider call path, duplicate/concurrency-safe behavior.
-- [ ] `tests/e2e/student-coco-voice.spec.ts` — inline replay UI, no OpenAI client import in student client modules, standard `<audio>` usage, autoplay fallback behavior.
+- [ ] `tests/e2e/student-coco-voice.spec.ts` — browser-required autoplay/audio fallback behavior only; static/source assertions belong in Vitest.
 - [ ] Manual UAT checklist in the final verification artifact for Chromebook or older tablet playback.
 
 ---

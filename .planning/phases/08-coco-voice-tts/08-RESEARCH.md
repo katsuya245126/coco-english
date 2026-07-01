@@ -378,22 +378,21 @@ if (playResult) {
 | A4 | Cache-hit verification should use provider call count plus response metadata. | Pitfalls / Validation | If wrong, acceptance tests may miss accidental provider regeneration. |
 | A5 | The main implementation complexity is idempotent, observable, non-blocking delivery rather than TTS synthesis. | Don't Hand-Roll | If wrong, planner may under-allocate tasks for voice quality/manual listening. |
 
-## Open Questions
+## Resolved Questions
+
+All research questions are resolved for executable planning as of the revision pass on 2026-07-01.
 
 1. **Should `tts-audio` be public immutable or private with signed URLs?**
    - What we know: Supabase private buckets require authorization/download or signed URLs; public buckets expose objects to anyone with the URL. [CITED: https://supabase.com/docs/guides/storage/buckets/fundamentals]
-   - What's unclear: The project's policy for generated child-facing audio has not been explicitly decided. [ASSUMED]
-   - Recommendation: Default to public immutable only if the planner records "generated Coco lines contain no student PII"; otherwise use private signed URLs. [ASSUMED]
+   - Resolution: Use a private `tts-audio` bucket with app-created signed URLs. This is the conservative child-facing default, avoids casual public distribution of generated classroom audio, and matches the executable Plan 02/03 storage design. [RESOLVED: 08-02-PLAN.md, 08-03-PLAN.md]
 
 2. **Which built-in OpenAI voice should represent Coco?**
    - What we know: OpenAI docs list built-in voices including `coral`, `nova`, `shimmer`, `marin`, and `cedar`, and recommend `marin` or `cedar` for best quality. [CITED: https://developers.openai.com/api/docs/guides/text-to-speech]
-   - What's unclear: No child/teacher preference has been recorded for Coco's exact voice. [VERIFIED: .planning/phases/08-coco-voice-tts/08-CONTEXT.md]
-   - Recommendation: Planner should include a short manual listening checkpoint over 2-3 voices before locking the env default. [ASSUMED]
+   - Resolution: Use `marin` as `DEFAULT_COCO_TTS_VOICE` in the executable plan. Rationale: it is one of OpenAI's recommended high-quality voices and is a conservative clarity-first default for elementary ESL listening. Keep the voice in a bounded domain constant/dependency override rather than a user-facing setting, and record final listening acceptability during Phase 8 UAT. [RESOLVED: 08-03-PLAN.md]
 
 3. **Can executor verify on a real low-end school device during this phase?**
    - What we know: VOICE-04 requires Chromebook or older tablet verification, not only a dev machine. [VERIFIED: .planning/ROADMAP.md]
-   - What's unclear: Device availability is not known from local probes. [VERIFIED: environment probe]
-   - Recommendation: Planner must add a manual UAT gate with a human-needed fallback if the device is unavailable. [ASSUMED]
+   - Resolution: Plan 05 includes a blocking human verification checkpoint for a real Chromebook or older tablet, with explicit `human_needed` fallback if no device is available. [RESOLVED: 08-05-PLAN.md]
 
 ## Environment Availability
 
@@ -431,9 +430,9 @@ if (playResult) {
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |--------|----------|-----------|-------------------|--------------|
 | VOICE-01 | Server uses OpenAI `gpt-4o-mini-tts` through current SDK adapter and returns usable audio metadata. | unit | `npx vitest run tests/server/tts-generator.test.ts` | ❌ Wave 0 |
-| VOICE-02 | Visible voiced line has inline replay button with accessible label and calls audio playback on demand. | component/static/e2e | `npx vitest run tests/domain/tts.test.ts && npx playwright test tests/e2e/student-coco-voice.spec.ts` | ❌ Wave 0 |
+| VOICE-02 | Visible voiced line has inline replay button with accessible label and calls audio playback on demand. | component/static + browser | `npx vitest run tests/domain/tts.test.ts tests/domain/tts-ui-source.test.ts && npx playwright test tests/e2e/student-coco-voice.spec.ts` | ❌ Wave 0 |
 | VOICE-03 | Two identical requests produce one provider call and second response `cacheStatus: "hit"`. | unit/integration | `npx vitest run tests/server/tts-cache.test.ts` | ❌ Wave 0 |
-| VOICE-04 | Playback uses standard `<audio>` and no streaming pipeline; real low-end-device UAT passes. | static + manual UAT | `npx playwright test tests/e2e/student-coco-voice.spec.ts` plus manual device script | ❌ Wave 0 |
+| VOICE-04 | Playback uses standard `<audio>` and no streaming pipeline; real low-end-device UAT passes. | static + browser + manual UAT | `npx vitest run tests/domain/tts-ui-source.test.ts && npx playwright test tests/e2e/student-coco-voice.spec.ts` plus manual device script | ❌ Wave 0 |
 
 ### Sampling Rate
 
@@ -446,7 +445,8 @@ if (playResult) {
 - [ ] `tests/domain/tts.test.ts` — canonical hash inputs, line eligibility rules, no transcript voicing. [ASSUMED]
 - [ ] `tests/server/tts-generator.test.ts` — fake OpenAI speech client, missing key branch, provider failure branch, response format/model assertions. [VERIFIED: codebase grep] [ASSUMED]
 - [ ] `tests/server/tts-cache.test.ts` — miss/upload/insert path, hit/no provider call path, duplicate/concurrency-safe upsert behavior. [ASSUMED]
-- [ ] `tests/e2e/student-coco-voice.spec.ts` — source/static checks for inline replay UI, no OpenAI import in client modules, standard `<audio>` usage. [ASSUMED]
+- [ ] `tests/domain/tts-ui-source.test.ts` — Vitest source/static checks for inline replay UI, no OpenAI import in client modules, standard `<audio>` usage, and no transcript descriptors. [ASSUMED]
+- [ ] `tests/e2e/student-coco-voice.spec.ts` — browser-required autoplay/audio fallback behavior only. [ASSUMED]
 - [ ] Manual UAT script in `08-VERIFICATION.md` or plan task for Chromebook/older tablet playback. [VERIFIED: .planning/ROADMAP.md]
 
 ## Security Domain
