@@ -15,3 +15,5 @@ supabase/.temp/
 
 # GSD/OpenAI research cache
 .planning/research/.cache/
+
+.DS_Store

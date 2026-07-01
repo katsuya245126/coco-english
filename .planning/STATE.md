@@ -12,8 +12,8 @@ progress:
   total_phases: 7
   completed_phases: 7
   total_plans: 26
-  completed_plans: 25
-  percent: 96
+  completed_plans: 26
+  percent: 100
 current_phase_name: teacher-review-and-pilot-readiness
 ---
 
@@ -33,7 +33,7 @@ Status: Phase complete — milestone v1.0 all 7 phases done
 Last activity: 2026-07-01 — Phase 07 verified (12/12 must-haves) and marked complete
 Prior: Phase 06 complete — AI mission generation and turn evaluation shipped (no VERIFICATION.md on file for Phase 06).
 
-Progress: [██████████] 96%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -138,7 +138,7 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 5]: Mobile browser microphone and recording support need verification on target devices.
+- [Phase 5]: RESOLVED 2026-07-01 — mobile mic/recording verified on real iOS Safari + Android Chrome; UAT 9/9 Pass, 05-04 closed.
 - [Phase 6]: OpenAI model defaults, quality, and pricing should be rechecked before paid classroom pilots.
 
 ## Deferred Items

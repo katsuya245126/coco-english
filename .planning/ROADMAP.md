@@ -15,7 +15,7 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
 - [x] **Phase 2: Teacher Classroom Access** - Teachers can manage classes and rosters, and students can enter homework without email/password accounts. (completed 2026-06-26)
 - [x] **Phase 3: Manual Mission Assignment** - Teachers can manually create a mission and assign immutable homework to every student in a class. (completed 2026-06-26)
 - [x] **Phase 4: Guided Student Attempt Loop** - Students can complete the mission flow with classroom-safe buddy prompts, recasts, repeats, hints, and completion rules. (completed 2026-06-27)
-- [x] **Phase 5: Voice Capture and Evidence Storage** - Students record short per-turn clips, transcripts and clip metadata are stored, and teachers can play audio on demand. (completed 2026-06-27)
+- [x] **Phase 5: Voice Capture and Evidence Storage** - Students record short per-turn clips, transcripts and clip metadata are stored, and teachers can play audio on demand. (completed 2026-06-27; 5/5 plans, UAT 9/9)
 - [x] **Phase 6: AI Mission and Turn Intelligence** - AI generates validated mission drafts and evaluates student turns with structured, bounded, reviewable outputs. (completed 2026-06-29)
 - [x] **Phase 7: Teacher Review and Pilot Readiness** - Teachers can scan status buckets, review attempts, override outcomes, and run the MVP safely in a pilot. (completed 2026-07-01)
 
@@ -169,14 +169,14 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
   3. System stores transcript text, audio reference, clip metadata, and processing status for each mission turn.
   4. Teacher can play short audio clips on demand from attempt details without making audio the default review path.
 
-**Plans**: 4/5 plans executed
+**Plans**: 5/5 plans executed
 
 - [x] 05-05-PLAN.md
 
 - [x] 05-01-PLAN.md
 - [x] 05-02-PLAN.md
 - [x] 05-03-PLAN.md
-- [ ] 05-04-PLAN.md
+- [x] 05-04-PLAN.md
 
 **Wave 1**
 
@@ -192,7 +192,7 @@ This roadmap delivers the teacher-linked speaking homework loop as a vertical MV
 
 **Wave 4**
 
-- [ ] `05-04-PLAN.md` - Teacher evidence playback and pilot checks: transcript-first attempt evidence page, signed on-demand audio URLs, and required iOS Safari / Android Chrome device verification.
+- [x] `05-04-PLAN.md` - Teacher evidence playback and pilot checks: transcript-first attempt evidence page, signed on-demand audio URLs, and required iOS Safari / Android Chrome device verification. (completed 2026-06-27)
 
 **Cross-cutting constraints:**
 
@@ -315,6 +315,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 2. Teacher Classroom Access | 4/4 | Complete    | 2026-06-26 |
 | 3. Manual Mission Assignment | 3/3 | Complete   | 2026-06-26 |
 | 4. Guided Student Attempt Loop | 5/5 | Complete   | 2026-06-27 |
-| 5. Voice Capture and Evidence Storage | 4/5 | In Progress|  |
+| 5. Voice Capture and Evidence Storage | 5/5 | Complete   | 2026-06-27 |
 | 6. AI Mission and Turn Intelligence | 4/4 | Complete   | 2026-06-29 |
 | 7. Teacher Review and Pilot Readiness | 4/4 | Complete    | 2026-07-01 |

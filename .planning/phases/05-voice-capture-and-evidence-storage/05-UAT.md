@@ -47,10 +47,10 @@ blocked: 0
 
 ## Risk Acceptance
 
-No risks have been accepted.
+No risks have been accepted. All 9 required rows passed on real devices.
 
-- iOS Safari checks are deferred because an iPhone was not available.
-- The teacher evidence navigation gap was fixed in gap closure plan 05-05, but Phase 05 closeout still blocks on the deferred iOS Safari rows and the remaining logged-in desktop playback check.
+- iOS Safari checks (UAT-05-01/02/03) passed on a real iPhone (John, 2026-06-27).
+- The teacher evidence navigation gap was fixed in gap closure plan 05-05; logged-in desktop playback (UAT-05-09) also passed. No closeout blockers remain.
 
 ## Observations
 
