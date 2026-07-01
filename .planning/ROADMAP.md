@@ -50,10 +50,10 @@ Archive:
   3. Requesting the same line (same text + character + voice + provider + format) a second time serves a cached result instead of calling the TTS provider again — verified via a cache-hit check, not just visual playback.
   4. Voice playback works using a standard HTML `<audio>` element (no streaming pipeline) tested on a real low-end school device (Chromebook or older tablet), not just a dev machine.
 
-**Plans**: 1/5 plans executed
+**Plans**: 2/5 plans executed
 
 - [x] 08-01-PLAN.md
-- [ ] 08-02-PLAN.md
+- [x] 08-02-PLAN.md
 - [ ] 08-03-PLAN.md
 - [ ] 08-04-PLAN.md
 - [ ] 08-05-PLAN.md
@@ -136,7 +136,7 @@ Phases execute in numeric order: 8 → 9 → 10 → 11 → 12
 | 5. Voice Capture and Evidence Storage | v1.0 | 5/5 | Complete | 2026-06-27 |
 | 6. AI Mission and Turn Intelligence | v1.0 | 4/4 | Complete | 2026-06-29 |
 | 7. Teacher Review and Pilot Readiness | v1.0 | 4/4 | Complete | 2026-07-01 |
-| 8. Coco Voice (TTS) | v2.0 | 1/5 | In Progress|  |
+| 8. Coco Voice (TTS) | v2.0 | 2/5 | In Progress|  |
 | 9. Pronunciation Scoring | v2.0 | 0/TBD | Not started | - |
 | 10. Mascot (VN-style) | v2.0 | 0/TBD | Not started | - |
 | 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 0/TBD | Not started | - |

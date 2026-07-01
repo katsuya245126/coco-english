@@ -43,12 +43,12 @@ requirements-completed: [VOICE-03]
 # Metrics
 duration: 1min
 completed: 2026-07-01
-status: blocked
+status: complete
 ---
 
 # Phase 08 Plan 02: TTS Cache Schema Foundation Summary
 
-**Private tts-audio Storage bucket and public.tts_audio_cache table (unique content_hash + object_key, service-role-only RLS) plus typed DB access for cache-first Coco TTS — remote `supabase db push` is blocked pending human-run authentication.**
+**Private tts-audio Storage bucket and public.tts_audio_cache table (unique content_hash + object_key, service-role-only RLS) plus typed DB access for cache-first Coco TTS — remote `supabase db push` completed and verified 2026-07-01.**
 
 ## Performance
 
@@ -67,7 +67,7 @@ status: blocked
 ## Task Commits
 
 1. **Task 1: Add private TTS cache schema** - `1c2477f8` (feat)
-2. **Task 2: [BLOCKING] Push and verify Supabase schema** - BLOCKED (not committed; see Blockers)
+2. **Task 2: [BLOCKING] Push and verify Supabase schema** - RESOLVED 2026-07-01 (human-run `supabase db push`; no code commit — deploy action only)
 
 ## Files Created/Modified
 - `supabase/migrations/202607010001_tts_audio_cache.sql` - Private tts-audio bucket + tts_audio_cache table, RLS + service_role grants.
@@ -90,24 +90,21 @@ None - plan executed exactly as written for Task 1.
 
 ## Blockers
 
-**Task 2 (`[BLOCKING]` remote schema push) is BLOCKED — human authentication required.**
-- **Command:** `supabase db push`
-- **Blocker 1 (environment):** The auto-mode sandbox classifier denied the command as a `[Production Deploy]` — "runs migrations against the linked remote Supabase database, a production DB migration the task never authorized." A sub-agent in a worktree cannot deploy to the production database.
-- **Blocker 2 (auth/link state):** Independently, this worktree has **no `SUPABASE_ACCESS_TOKEN`** set and **no linked project ref** (`supabase/.temp/project-ref` absent). `supabase db push` would prompt for non-TTY login/link, which cannot be suppressed.
-- **Per Task 2's own acceptance criteria**, this situation is handled by naming the exact error and marking the plan blocked rather than proceeding silently. Plan status is `blocked`.
-- **Resolution (human):** From the main checkout (not a worktree), a developer with production Supabase access must run:
-  1. `export SUPABASE_ACCESS_TOKEN=<token>` (or `supabase login`)
-  2. `supabase link --project-ref <ref>` if not already linked
-  3. `supabase db push` to apply `202607010001_tts_audio_cache.sql`
-  4. Confirm remote `storage.buckets` has `tts-audio` with `public=false` and `public.tts_audio_cache` exists with unique `content_hash`.
-- No server route in later plans should rely on the remote schema until this push succeeds.
+**Task 2 (`[BLOCKING]` remote schema push) — RESOLVED 2026-07-01 by human-run `supabase db push`.**
+- **Original blocker:** the worktree sub-agent could not run `supabase db push` — the auto-mode sandbox classified it as a `[Production Deploy]`, and the worktree had no `SUPABASE_ACCESS_TOKEN`. Per Task 2's acceptance criteria the executor named the error and marked the plan blocked rather than proceeding silently.
+- **Resolution:** The developer ran `supabase db push` from the main checkout against the linked project (ref `pcxxhfjnkjkjnpdtdqtp`). Migration `202607010001` now appears in both Local and Remote columns of `supabase migration list`.
+- **Verified against remote** (via `supabase db query --linked`, all `true`):
+  - `public.tts_audio_cache` table exists.
+  - `content_hash` carries a unique constraint.
+  - `tts-audio` Storage bucket is private (`public=false`).
+- Downstream TTS routes may now rely on the remote schema.
 
 ## User Setup Required
 None from this plan's code. The remote schema push (Blockers, above) is an operator/deploy action, not app configuration.
 
 ## Next Phase Readiness
 - Local schema and DB types are complete and committed; downstream plans can build `src/server/audio/tts-cache.ts` against the typed table.
-- **Gating blocker:** the remote `supabase db push` must be run by a human before any TTS route touches the remote cache table/bucket.
+- Remote schema is live and verified (see Blockers) — no gating blocker remains for TTS route plans.
 
 ## Self-Check: PASSED
 - FOUND: supabase/migrations/202607010001_tts_audio_cache.sql
@@ -116,4 +113,4 @@ None from this plan's code. The remote schema push (Blockers, above) is an opera
 
 ---
 *Phase: 08-coco-voice-tts*
-*Completed: 2026-07-01 (Task 1); Task 2 blocked pending human db push*
+*Completed: 2026-07-01 (Task 1 code + Task 2 human-run db push, remote-verified)*
