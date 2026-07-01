@@ -12,6 +12,12 @@ The app helps teachers close the practice gap between classes: students get more
 
 Students must complete useful spoken English practice outside class, and teachers must be able to verify that it happened.
 
+## Current State
+
+Milestone v1.0 shipped on 2026-07-01. The teacher-linked speaking homework MVP is complete across seven phases: teachers can set up classes, assign manual or AI-assisted missions, students can complete guided voice practice with Coco, and teachers can review transcript-first evidence with optional audio playback and operational status buckets.
+
+The project is between milestones. Start the next requirements and roadmap cycle with `/gsd-new-milestone`.
+
 ## Business Context
 
 - **Customer**: ESL teachers, academies, and schools that assign speaking homework.
@@ -40,6 +46,10 @@ Students must complete useful spoken English practice outside class, and teacher
 ### Active
 
 *(none — all v1 requirements validated; milestone v1.0 complete as of Phase 7, 2026-07-01)*
+
+### Next Milestone Goals
+
+Define after v1.0 closeout with `/gsd-new-milestone`. Known inputs include pilot-readiness manual checks, carried technical debt from the v1.0 milestone audit, and any classroom feedback gathered before the next build cycle.
 
 ### Out of Scope
 
@@ -119,4 +129,4 @@ This document evolves at phase transitions and milestone boundaries.
 5. Update Context with current state, feedback, and metrics.
 
 ---
-*Last updated: 2026-07-01 after Phase 7 execution — milestone v1.0 complete (all 7 phases)*
+*Last updated: 2026-07-01 after v1.0 milestone closeout*

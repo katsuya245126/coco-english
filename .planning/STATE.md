@@ -4,10 +4,10 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 07
 status: milestone_complete
-stopped_at: Phase 07 verified complete (12/12 must-haves) — milestone v1.0 all 7 phases done, ready for /gsd-complete-milestone
+stopped_at: Milestone v1.0 archived locally; ready to start next milestone with /gsd-new-milestone
 last_updated: "2026-07-01T01:01:12.608Z"
 last_activity: 2026-07-01
-last_activity_desc: Phase 07 verified and marked complete
+last_activity_desc: Milestone v1.0 archived and prepared for next milestone planning
 progress:
   total_phases: 7
   completed_phases: 7
@@ -21,17 +21,17 @@ current_phase_name: teacher-review-and-pilot-readiness
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-25)
+See: .planning/PROJECT.md (updated 2026-07-01)
 
 **Core value:** Students must complete useful spoken English practice outside class, and teachers must be able to verify that it happened.
-**Current focus:** Phase 07 — teacher-review-and-pilot-readiness
+**Current focus:** Between milestones — start next milestone planning
 
 ## Current Position
 
 Phase: 07 of 07 (teacher-review-and-pilot-readiness)
-Status: Phase complete — milestone v1.0 all 7 phases done
-Last activity: 2026-07-01 — Phase 07 verified (12/12 must-haves) and marked complete
-Prior: Phase 06 complete — AI mission generation and turn evaluation shipped (no VERIFICATION.md on file for Phase 06).
+Status: Milestone v1.0 complete and archived locally
+Last activity: 2026-07-01 — v1.0 archive docs prepared; next milestone is not yet defined
+Prior: Phase 07 verified complete; Phase 5 and Phase 6 missing verification artifacts were reconciled before closeout.
 
 Progress: [██████████] 100%
 
@@ -140,17 +140,20 @@ None yet.
 
 - [Phase 5]: RESOLVED 2026-07-01 — mobile mic/recording verified on real iOS Safari + Android Chrome; UAT 9/9 Pass, 05-04 closed.
 - [Phase 6]: OpenAI model defaults, quality, and pricing should be rechecked before paid classroom pilots.
+- [Milestone close]: Phase 02, Phase 04, and Phase 06 retain human_needed pilot-readiness checks; these were acknowledged and deferred at v1.0 closeout.
 
 ## Deferred Items
 
-Items acknowledged and carried forward from previous milestone close:
+Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
-| *(none)* | | | |
+| verification | Phase 02 browser/manual sign-off items in 02-VERIFICATION.md | human_needed | 2026-07-01 |
+| verification | Phase 04 device/manual sign-off items in 04-VERIFICATION.md | human_needed | 2026-07-01 |
+| verification | Phase 06 live AI quality and browser draft round-trip in 06-VERIFICATION.md | human_needed | 2026-07-01 |
 
 ## Session Continuity
 
 Last session: 2026-07-01T01:01:12.608Z
-Stopped at: Phase 07 verified complete (gsd-verifier, 12/12 must-haves) and marked done. Milestone v1.0 is now 7/7 phases complete — ready for /gsd-complete-milestone.
+Stopped at: Milestone v1.0 archived locally; ready for /gsd-new-milestone.
 Resume file: None
