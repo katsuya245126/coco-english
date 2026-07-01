@@ -160,6 +160,16 @@ export async function routeAssignmentStudentToTeacherReview(input: {
     if (updateError) return { ok: false, error: "db_error" };
     if (!updated) return { ok: true };
 
+    // Stamp the attempt to match the assignment so it no longer looks
+    // in_progress. Leaving it in_progress lets the resume path try to reopen a
+    // submitted mission (mirrors the completed-path stamping in completeAttempt).
+    const { error: attemptUpdateError } = await supabase
+      .from("attempts")
+      .update({ status: "teacher_review" as const })
+      .eq("id", input.attemptId);
+
+    if (attemptUpdateError) return { ok: false, error: "db_error" };
+
     const { error: eventError } = await supabase
       .from("assignment_status_events")
       .insert({
