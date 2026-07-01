@@ -231,16 +231,16 @@ export function VoiceRecorderControl({
       return errorMessage ?? "We could not save that recording. Try again.";
     }
     if (state === "waiting-permission") {
-      return "Waiting for microphone permission...";
+      return "Allow mic";
     }
     if (state === "recording") {
-      return maxSeconds ? `Recording... ${secondsLeft}s left` : "Recording...";
+      return maxSeconds ? `Recording… ${secondsLeft}s` : "Recording…";
     }
     if (isProcessing) {
-      return "Listening to your answer...";
+      return "Saving…";
     }
     if (state === "success") {
-      return "Listening to your answer...";
+      return "Saved";
     }
     return readyCopy[mode];
   }
@@ -293,7 +293,16 @@ export function VoiceRecorderControl({
           margin: "0 0 16px",
         }}
       >
-        {statusText()}
+        {isProcessing ? (
+          <span
+            style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+          >
+            <span className="spinner" aria-hidden="true" />
+            {statusText()}
+          </span>
+        ) : (
+          statusText()
+        )}
       </p>
 
       {state === "recording" && maxSeconds && (
@@ -327,7 +336,16 @@ export function VoiceRecorderControl({
         onClick={handleAction}
         disabled={disabled || state === "waiting-permission" || state === "success"}
       >
-        {isProcessing ? "Saving your voice..." : actionLabel()}
+        {isProcessing ? (
+          <span
+            style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+          >
+            <span className="spinner" aria-hidden="true" />
+            Saving…
+          </span>
+        ) : (
+          actionLabel()
+        )}
       </button>
     </div>
   );

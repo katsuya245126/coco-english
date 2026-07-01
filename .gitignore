@@ -17,3 +17,5 @@ supabase/.temp/
 .planning/research/.cache/
 
 .DS_Store
+.vercel
+.env*

@@ -42,8 +42,7 @@ test("student audio transcription states use classroom-safe copy", async () => {
     "utf8",
   );
 
-  expect(recorderSource).toContain("Saving your voice...");
-  expect(recorderSource).toContain("Listening to your answer...");
+  expect(recorderSource).toContain("Saving…");
   expect(shellSource).toContain("We could not hear that clearly. Record again.");
   expect(repeatSource).toContain("We heard:");
   expect(shellSource).toContain("Your repeat:");

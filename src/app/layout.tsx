@@ -16,6 +16,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               "*, *::before, *::after { box-sizing: border-box; }",
               "body { margin: 0; }",
               ":focus-visible { outline: 2px solid #2563EB; outline-offset: 2px; }",
+              "@keyframes spin { to { transform: rotate(360deg); } }",
+              ".spinner { display: inline-block; width: 1em; height: 1em; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: -0.15em; }",
             ].join("\n"),
           }}
         />
