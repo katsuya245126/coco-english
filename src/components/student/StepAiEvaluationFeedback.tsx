@@ -9,6 +9,7 @@ import {
   primaryButtonStyle,
   stepCardStyle,
 } from "@/components/student/styles";
+import { CocoSpeechAudio } from "@/components/student/CocoSpeechAudio";
 
 type OriginalOutcome =
   | "checking"
@@ -20,6 +21,8 @@ type OriginalOutcome =
 type RepeatOutcome = "repeatAccepted" | "repeatRetry" | "repeatReview";
 
 type StepAiEvaluationFeedbackProps = {
+  assignmentStudentId: string;
+  turnOrder: number;
   mode: "original" | "repeat";
   outcome: OriginalOutcome | RepeatOutcome;
   transcript?: string | null;
@@ -31,6 +34,8 @@ type StepAiEvaluationFeedbackProps = {
 };
 
 export function StepAiEvaluationFeedback({
+  assignmentStudentId,
+  turnOrder,
   mode,
   outcome,
   transcript,
@@ -75,9 +80,17 @@ export function StepAiEvaluationFeedback({
       <div style={stepCardStyle} aria-live="polite">
         <Transcript transcript={transcript} />
         <div style={{ ...improvedSentenceCardStyle, marginTop: transcript ? 16 : 0 }}>
-          <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
-                Nice try! Here is a clearer way to say it:
-          </p>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
+                  Nice try! Here is a clearer way to say it:
+            </p>
+            {/* Voice only Coco-style feedback + improved sentence (D-09).
+                The transcript above is never voiced (D-10). */}
+            <CocoSpeechAudio
+              assignmentStudentId={assignmentStudentId}
+              line={{ lineKind: "coco_feedback", turnOrder }}
+            />
+          </div>
           <p style={sentenceStyle}>{improvedSentence}</p>
         </div>
         <p style={{ ...bodyInlineStyle, marginTop: 16 }}>

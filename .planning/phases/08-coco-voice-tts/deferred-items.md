@@ -28,3 +28,8 @@ test is the fixed spec for this plan) and is outside 08-03's file scope
 fixture's mock typings (e.g. type `payload` as `Record<string, unknown>`, narrow the
 forged-field construct, and default the destructure to a typed tuple) without changing
 any assertions.
+
+**Re-confirmed during 08-04 (Wave 3):** The same three `tests/server/tts-cache.test.ts`
+errors still surface under plan-level `npm run typecheck`. They remain out of scope for
+08-04 (client playback layer: `CocoSpeechAudio.tsx` + step wiring). All 08-04 changed
+files typecheck clean; the runtime source-boundary and TTS domain suites pass.

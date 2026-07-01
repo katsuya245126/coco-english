@@ -518,6 +518,8 @@ export function MissionFlowShell({
 
         {flow.step === "question" && currentTurn && (
           <StepBuddyQuestion
+            assignmentStudentId={assignmentStudentId}
+            turnOrder={currentTurn.turnOrder}
             questionLabel={characterProfile.questionLabel}
             prompt={currentTurn.prompt}
             hintLadder={currentTurn.hintLadder}
@@ -530,6 +532,8 @@ export function MissionFlowShell({
 
         {flow.step === "aiFeedback" && flow.originalFeedback && (
           <StepAiEvaluationFeedback
+            assignmentStudentId={assignmentStudentId}
+            turnOrder={currentTurn.turnOrder}
             mode="original"
             outcome={flow.originalFeedback.kind}
             transcript={flow.originalFeedback.transcript}
@@ -553,6 +557,8 @@ export function MissionFlowShell({
 
         {flow.step === "repeat" && currentTurn && (
           <StepImprovedRepeat
+            assignmentStudentId={assignmentStudentId}
+            turnOrder={currentTurn.turnOrder}
             originalTranscript={flow.originalTranscript}
             improvedSentenceIntro={characterProfile.improvedSentenceIntro}
             targetExample={flow.improvedSentence ?? currentTurn.targetExample}
@@ -564,6 +570,8 @@ export function MissionFlowShell({
 
         {flow.step === "repeatFeedback" && flow.repeatFeedback && (
           <StepAiEvaluationFeedback
+            assignmentStudentId={assignmentStudentId}
+            turnOrder={currentTurn.turnOrder}
             mode="repeat"
             outcome={flow.repeatFeedback.kind}
             transcript={flow.repeatFeedback.transcript}
@@ -583,6 +591,7 @@ export function MissionFlowShell({
 
         {flow.step === "transition" && (
           <StepTurnTransition
+            assignmentStudentId={assignmentStudentId}
             transitionMessage={characterProfile.turnTransition}
             onNextTurn={handleNextTurn}
           />
@@ -590,6 +599,7 @@ export function MissionFlowShell({
 
         {flow.step === "complete" && (
           <StepMissionComplete
+            assignmentStudentId={assignmentStudentId}
             completionHeading={characterProfile.completionHeading}
             completionBody={characterProfile.completionBody}
           />
