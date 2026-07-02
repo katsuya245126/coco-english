@@ -1,5 +1,9 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/db/types";
+import {
+  errorTypeToLabel,
+  type PronunciationStarBand,
+} from "@/domain/pronunciation/scoring";
 
 const DEFAULT_AUDIO_BUCKET = "student-audio";
 const SIGNED_AUDIO_URL_TTL_SECONDS = 300;
@@ -55,6 +59,12 @@ type AudioClipEvidenceRow = {
   processing_status: AudioProcessingStatus;
 };
 
+type PronunciationScoreRow = {
+  audio_clip_id: string;
+  star_band: number;
+  word_scores: unknown;
+};
+
 type AudioClipSignerRow = {
   id: string;
   object_key: string | null;
@@ -62,10 +72,16 @@ type AudioClipSignerRow = {
   deleted_at: string | null;
 };
 
+export type AttemptPronunciationScoreEvidence = {
+  starBand: PronunciationStarBand;
+  words: { word: string; label: string }[];
+};
+
 export type AttemptAudioClipEvidence = {
   id: string;
   clipKind: AudioClipKind;
   processingStatus: AudioProcessingStatus;
+  pronunciationScore?: AttemptPronunciationScoreEvidence | null;
 };
 
 export type AttemptTurnEvidence = {
@@ -129,11 +145,34 @@ function mapAttemptMetadata(row: AttemptOwnershipRow) {
   };
 }
 
-function mapClip(row: AudioClipEvidenceRow): AttemptAudioClipEvidence {
+function mapPronunciationScore(
+  row: PronunciationScoreRow,
+): AttemptPronunciationScoreEvidence {
+  const wordScores = Array.isArray(row.word_scores) ? row.word_scores : [];
+
+  return {
+    starBand: row.star_band as PronunciationStarBand,
+    words: wordScores.map((entry) => {
+      const word = entry as { word?: unknown; errorType?: unknown };
+      return {
+        word: typeof word.word === "string" ? word.word : "",
+        label: errorTypeToLabel(
+          typeof word.errorType === "string" ? word.errorType : undefined,
+        ),
+      };
+    }),
+  };
+}
+
+function mapClip(
+  row: AudioClipEvidenceRow,
+  scoresByAudioClipId: Map<string, AttemptPronunciationScoreEvidence>,
+): AttemptAudioClipEvidence {
   return {
     id: row.id,
     clipKind: row.clip_kind,
     processingStatus: row.processing_status,
+    pronunciationScore: scoresByAudioClipId.get(row.id) ?? null,
   };
 }
 
@@ -285,9 +324,37 @@ export async function getAttemptEvidenceForTeacher(input: {
       throw new Error(`Unable to load audio clips: ${clips.error.message}`);
     }
 
-    for (const clip of (clips.data ?? []) as AudioClipEvidenceRow[]) {
+    const clipRows = (clips.data ?? []) as AudioClipEvidenceRow[];
+    const audioClipIds = clipRows.map((clip) => clip.id);
+    const scoresByAudioClipId = new Map<
+      string,
+      AttemptPronunciationScoreEvidence
+    >();
+
+    if (audioClipIds.length > 0) {
+      const scores = await supabase
+        .from("pronunciation_scores")
+        .select("audio_clip_id, star_band, word_scores")
+        .in("audio_clip_id", audioClipIds);
+
+      if (scores.error) {
+        throw new Error(
+          `Unable to load pronunciation scores: ${scores.error.message}`,
+        );
+      }
+
+      for (const scoreRow of (scores.data ??
+        []) as PronunciationScoreRow[]) {
+        scoresByAudioClipId.set(
+          scoreRow.audio_clip_id,
+          mapPronunciationScore(scoreRow),
+        );
+      }
+    }
+
+    for (const clip of clipRows) {
       const existing = clipsByTurnId.get(clip.attempt_turn_id) ?? [];
-      existing.push(mapClip(clip));
+      existing.push(mapClip(clip, scoresByAudioClipId));
       clipsByTurnId.set(clip.attempt_turn_id, existing);
     }
   }

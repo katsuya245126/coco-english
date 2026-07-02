@@ -20,6 +20,11 @@ function createMockSupabase(options: {
   clipObjectKey?: string | null;
   clipStatus?: string;
   clipDeletedAt?: string | null;
+  pronunciationScores?: Array<{
+    audio_clip_id: string;
+    star_band: number;
+    word_scores: Array<{ word: string; errorType?: string }>;
+  }>;
 } = {}) {
   const operations: Operation[] = [];
   const createSignedUrl = vi.fn(async () => ({
@@ -165,6 +170,21 @@ function createMockSupabase(options: {
             error: null,
           }).then(resolve);
         }
+        if (table === "pronunciation_scores") {
+          return Promise.resolve({
+            data: options.pronunciationScores ?? [
+              {
+                audio_clip_id: "clip-1",
+                star_band: 3,
+                word_scores: [
+                  { word: "I", errorType: "None" },
+                  { word: "wake", errorType: "Mispronunciation" },
+                ],
+              },
+            ],
+            error: null,
+          }).then(resolve);
+        }
         return Promise.resolve({ data: [], error: null }).then(resolve);
       },
     };
@@ -222,11 +242,19 @@ describe("teacher audio evidence service", () => {
           id: "clip-1",
           clipKind: "original_answer",
           processingStatus: "transcribed",
+          pronunciationScore: {
+            starBand: 3,
+            words: [
+              { word: "I", label: "Clear" },
+              { word: "wake", label: "Mispronounced" },
+            ],
+          },
         },
         {
           id: "clip-2",
           clipKind: "repeat_attempt",
           processingStatus: "transcribed",
+          pronunciationScore: null,
         },
       ],
     });
@@ -247,6 +275,39 @@ describe("teacher audio evidence service", () => {
       ]),
     );
     expect(JSON.stringify(evidence)).not.toContain("signedUrl");
+
+    const scoresLookup = mockSupabase.operations.find(
+      (operation) => operation.table === "pronunciation_scores",
+    );
+    expect(scoresLookup?.inFilters).toEqual(
+      expect.arrayContaining([
+        ["audio_clip_id", expect.arrayContaining(["clip-1", "clip-2"])],
+      ]),
+    );
+    expect(JSON.stringify(evidence)).not.toContain("accuracy_score");
+    expect(JSON.stringify(evidence)).not.toContain("accuracyScore");
+    expect(JSON.stringify(evidence)).not.toContain("pronunciation_score");
+  });
+
+  it("attaches null pronunciationScore for a clip with no matching score row", async () => {
+    mockSupabase = createMockSupabase({ pronunciationScores: [] });
+    const { getAttemptEvidenceForTeacher } = await import(
+      "@/server/teacher/audio-evidence"
+    );
+
+    const evidence = await getAttemptEvidenceForTeacher({
+      teacherId: "teacher-1",
+      attemptId: "attempt-1",
+    });
+
+    expect(evidence?.turns[0].audioClips[0]).toMatchObject({
+      id: "clip-1",
+      pronunciationScore: null,
+    });
+    expect(evidence?.turns[0].audioClips[1]).toMatchObject({
+      id: "clip-2",
+      pronunciationScore: null,
+    });
   });
 
   it("returns null when the teacher does not own the attempt", async () => {
