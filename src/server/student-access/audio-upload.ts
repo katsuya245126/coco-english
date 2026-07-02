@@ -351,6 +351,9 @@ export async function uploadAttemptAudioClip(
       return { ok: false, error: "invalid_audio", retryable: false };
     }
 
+    const audioBytes = await input.file.arrayBuffer();
+    const createAudioBlob = () => new Blob([audioBytes], { type: input.mimeType });
+
     const { data: turn, error: turnError } = await supabase
       .from("attempt_turns")
       .upsert(
@@ -392,7 +395,7 @@ export async function uploadAttemptAudioClip(
 
     const { error: uploadError } = await supabase.storage
       .from(getStudentAudioBucketId())
-      .upload(objectKey, input.file, {
+      .upload(objectKey, createAudioBlob(), {
         contentType: input.mimeType,
         upsert: false,
       });
@@ -417,7 +420,7 @@ export async function uploadAttemptAudioClip(
 
     const transcribe = deps.transcribeAudioFile ?? transcribeAudioFile;
     const transcription = await transcribe({
-      file: input.file,
+      file: createAudioBlob(),
       mimeType: input.mimeType,
     });
 
@@ -451,7 +454,7 @@ export async function uploadAttemptAudioClip(
 
     const score = deps.scorePronunciation ?? scorePronunciation;
     const scoringPromise = score({
-      file: input.file,
+      file: createAudioBlob(),
       referenceText: pronunciationReferenceText,
       durationMs: input.durationMs,
     });

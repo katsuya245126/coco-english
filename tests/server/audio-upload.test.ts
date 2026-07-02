@@ -27,9 +27,11 @@ function audioInput(overrides: {
   body?: string;
   mimeType?: string;
   durationMs?: number;
+  file?: Blob;
 } = {}) {
   const body = overrides.body ?? "voice";
   const mimeType = overrides.mimeType ?? "audio/webm";
+  const file = overrides.file ?? new Blob([body], { type: mimeType });
 
   return {
     studentId: "student-1",
@@ -37,7 +39,7 @@ function audioInput(overrides: {
     attemptId: "attempt-1",
     turnOrder: overrides.turnOrder ?? 1,
     clipKind: overrides.clipKind ?? "original_answer",
-    file: new Blob([body], { type: mimeType }),
+    file,
     mimeType,
     durationMs: overrides.durationMs ?? 1200,
     byteSize: body.length,
@@ -711,6 +713,65 @@ describe("uploadAttemptAudioClip", () => {
       pronunciation_score: 87,
       star_band: 3,
     });
+  });
+
+  it("passes a fresh readable blob to pronunciation scoring after upload/transcription consumers", async () => {
+    mockSupabase = createMockSupabase();
+    mockSupabase.storage.from = vi.fn(() => ({
+      upload: vi.fn(async (_key: string, file: Blob) => {
+        await file.arrayBuffer();
+        return { error: null };
+      }),
+    })) as typeof mockSupabase.storage.from;
+
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    let readCount = 0;
+    const oneShotFile = new Blob(["voice"], { type: "audio/webm" });
+    Object.defineProperty(oneShotFile, "arrayBuffer", {
+      value: vi.fn(async () => {
+        readCount += 1;
+        if (readCount > 1) {
+          throw new Error("original blob already consumed");
+        }
+        return new TextEncoder().encode("voice").buffer;
+      }),
+    });
+
+    const scorePronunciation = vi.fn(async ({ file }: { file: Blob }) => {
+      await expect(file.arrayBuffer()).resolves.toBeInstanceOf(ArrayBuffer);
+      return {
+        ok: true as const,
+        score: {
+          accuracyScore: 88,
+          fluencyScore: 90,
+          completenessScore: 95,
+          pronunciationScore: 87,
+          starBand: 3 as const,
+          referenceText: "I like playing soccer after school.",
+          wordScores: [],
+        },
+      };
+    });
+
+    const result = await uploadAttemptAudioClip(
+      audioInput({ file: oneShotFile }),
+      {
+        transcribeAudioFile: successfulTranscriber("I like apples."),
+        evaluateOriginalTurn: successfulOriginalEvaluator(),
+        scorePronunciation,
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true, audioClipId: "clip-1" });
+    expect(scorePronunciation).toHaveBeenCalled();
+    expect(
+      mockSupabase.operations.some(
+        (operation) => operation.table === "pronunciation_scores",
+      ),
+    ).toBe(true);
   });
 
   it("uses the improved sentence as reference text for repeat attempts", async () => {
