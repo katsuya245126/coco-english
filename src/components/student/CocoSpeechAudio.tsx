@@ -94,8 +94,12 @@ export function CocoSpeechAudio({
           return;
         }
 
+        // The signed URL is resolved, but the audio file itself still has to
+        // download/buffer before it can play. Stay in "loading" so the speaker
+        // button doesn't look ready-to-tap before sound is actually possible —
+        // the <audio> element's onCanPlay handler promotes it to "ready" once
+        // playback is genuinely possible (T-08 low-end-device UX, D-02/D-03).
         setAudioUrl(payload.audioUrl);
-        setState("ready");
       } catch {
         // Aborted fetch (descriptor change/unmount) or network failure — the
         // speaker control degrades to an error affordance, text is untouched.
@@ -117,11 +121,16 @@ export function CocoSpeechAudio({
     line.characterId,
   ]);
 
-  // Opportunistic autoplay (D-01), attempted once per resolved URL so an ended
-  // clip does not loop. A rejected play() promise (blocked autoplay) is caught
-  // directly so it never surfaces as an unhandled rejection (D-02, D-03). The
-  // "playing" state is driven by the element's onPlay handler.
-  useEffect(() => {
+  // Opportunistic autoplay (D-01) is attempted from the <audio> element's
+  // onCanPlay handler (see below) rather than a ref-timing-dependent effect:
+  // the element renders conditionally on audioUrl, so audioRef.current can still
+  // be null in an effect that runs in the same commit. Driving autoplay off
+  // canplay guarantees the element exists AND is buffered enough to play.
+  function handleCanPlay() {
+    // Promote to "ready" unless already playing (canplay can re-fire after a
+    // buffer refill mid-playback).
+    setState((prev) => (prev === "playing" ? prev : "ready"));
+
     if (!audioUrl) return;
     if (autoplayedUrlRef.current === audioUrl) return;
     const el = audioRef.current;
@@ -129,10 +138,10 @@ export function CocoSpeechAudio({
 
     autoplayedUrlRef.current = audioUrl;
     el.play().catch(() => {
-      // Autoplay blocked — remain ready so the student can tap replay.
-      setState("ready");
+      // Autoplay blocked — remain ready so the student can tap replay (D-02).
+      setState((prev) => (prev === "playing" ? prev : "ready"));
     });
-  }, [audioUrl]);
+  }
 
   function handleReplay() {
     const el = audioRef.current;
@@ -176,6 +185,16 @@ export function CocoSpeechAudio({
           ref={audioRef}
           src={audioUrl}
           preload="auto"
+          // Promote to "ready" only once the browser can actually play the
+          // buffered audio — not merely when the signed URL was fetched. This
+          // stops the speaker button from looking tappable before sound is
+          // possible. Guard against clobbering the active "playing" state, since
+          // canplay can fire again after buffering during playback.
+          onCanPlay={handleCanPlay}
+          // Mid-stream buffer starvation (common on low-end devices / slow
+          // networks): drop back to a loading affordance until playback resumes.
+          onWaiting={() => setState((prev) => (prev === "error" ? prev : "loading"))}
+          onPlaying={() => setState("playing")}
           onPlay={() => setState("playing")}
           onEnded={() => setState("ready")}
           onError={() => setState("error")}
