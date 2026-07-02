@@ -22,7 +22,7 @@ REQ-ID categories continue from v1 with new codes: VOICE, PRON, MASCOT, CHAT, SC
 ### PRON — Pronunciation Scoring (point release v2.2)
 
 - [x] **PRON-01**: The app scores a student's spoken turn against the target sentence using a pronunciation-assessment API, reusing the per-turn audio and target/improved sentences already captured in v1.
-- [ ] **PRON-02**: The vendor is **Azure AI Speech Pronunciation Assessment** (pay-per-second; free tier expected to cover the current 6-student/1-class-week volume at ~$0/mo). A documented FERPA/COPPA data-use understanding exists for this new vendor before student audio is sent.
+- [x] **PRON-02**: The vendor is **Azure AI Speech Pronunciation Assessment** (pay-per-second; free tier expected to cover the current 6-student/1-class-week volume at ~$0/mo). A documented FERPA/COPPA data-use understanding exists for this new vendor before student audio is sent.
 - [ ] **PRON-03**: Scoring accuracy is validated against this app's own students' stored v1 audio before student-facing results are trusted (guard against over-penalizing young Korean/ESL non-native speech).
 - [ ] **PRON-04**: Students see pronunciation feedback as encouraging qualitative bands/stars/color and word-level "what to fix" highlights — never a raw numeric score — preserving the app's balanced, no-harsh-failure correction style.
 - [ ] **PRON-05**: Teacher review surfaces the per-word pronunciation breakdown as a diagnostic (additive to the existing transcript-first review UI), never displacing the transcript.
@@ -79,7 +79,7 @@ Each v2.0 requirement is mapped to exactly one phase. 23/23 mapped, no orphans.
 | VOICE-03 | Phase 8 (v2.1 Coco Voice) | Complete |
 | VOICE-04 | Phase 8 (v2.1 Coco Voice) | Complete — accepted with residual Chromebook/older-tablet risk |
 | PRON-01 | Phase 9 (v2.2 Pronunciation Scoring) | Complete |
-| PRON-02 | Phase 9 (v2.2 Pronunciation Scoring) | Pending |
+| PRON-02 | Phase 9 (v2.2 Pronunciation Scoring) | Complete |
 | PRON-03 | Phase 9 (v2.2 Pronunciation Scoring) | Pending |
 | PRON-04 | Phase 9 (v2.2 Pronunciation Scoring) | Pending |
 | PRON-05 | Phase 9 (v2.2 Pronunciation Scoring) | Pending |
