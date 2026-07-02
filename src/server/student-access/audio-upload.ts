@@ -26,6 +26,7 @@ import {
 import { transcribeAudioFile } from "@/server/audio/transcription";
 import { DEFAULT_COCO_TTS_VOICE } from "@/domain/audio/tts";
 import { warmTtsAudioCache } from "@/server/audio/tts-cache";
+import { scorePronunciation } from "@/server/audio/pronunciation-scorer";
 import {
   evaluateOriginalTurn,
   evaluateRepeatTurn,
@@ -90,6 +91,7 @@ export type UploadAttemptAudioClipDeps = {
   evaluateOriginalTurn?: typeof evaluateOriginalTurn;
   evaluateRepeatTurn?: typeof evaluateRepeatTurn;
   warmTtsAudioCache?: typeof warmTtsAudioCache;
+  scorePronunciation?: typeof scorePronunciation;
 };
 
 type StoredOriginalTurnEvaluation = {
@@ -441,6 +443,19 @@ export async function uploadAttemptAudioClip(
     const transcript = transcription.text;
     let originalEvaluation: StoredOriginalTurnEvaluation | undefined;
     let repeatEvaluation: StoredRepeatTurnEvaluation | undefined;
+
+    const pronunciationReferenceText =
+      input.clipKind === "original_answer"
+        ? snapshotTurn.targetExample
+        : turn.improved_sentence ?? snapshotTurn.targetExample;
+
+    const score = deps.scorePronunciation ?? scorePronunciation;
+    const scoringPromise = score({
+      file: input.file,
+      referenceText: pronunciationReferenceText,
+      durationMs: input.durationMs,
+    });
+
     const turnWrite =
       input.clipKind === "original_answer"
         ? await (async () => {
@@ -539,6 +554,49 @@ export async function uploadAttemptAudioClip(
         .eq("id", audioClip.id);
 
       return { ok: false, error: "db_error", retryable: true };
+    }
+
+    try {
+      const scoring = await scoringPromise;
+      if (scoring.ok) {
+        const scoreUpsert = await supabase.from("pronunciation_scores").upsert(
+          {
+            audio_clip_id: audioClip.id,
+            provider: "azure_speech",
+            reference_text: scoring.score.referenceText,
+            accuracy_score: scoring.score.accuracyScore,
+            fluency_score: scoring.score.fluencyScore,
+            completeness_score: scoring.score.completenessScore,
+            pronunciation_score: scoring.score.pronunciationScore,
+            star_band: scoring.score.starBand,
+            word_scores: scoring.score.wordScores as unknown as Json,
+          },
+          { onConflict: "audio_clip_id" },
+        );
+
+        if (scoreUpsert.error) {
+          log("warn", "audio.pronunciation_scoring_failed", {
+            assignmentStudentId: input.assignmentStudentId,
+            attemptId: input.attemptId,
+            turnOrder: input.turnOrder,
+            error: scoreUpsert.error.message,
+          });
+        }
+      } else {
+        log("warn", "audio.pronunciation_scoring_failed", {
+          assignmentStudentId: input.assignmentStudentId,
+          attemptId: input.attemptId,
+          turnOrder: input.turnOrder,
+          error: scoring.error,
+        });
+      }
+    } catch (error) {
+      log("warn", "audio.pronunciation_scoring_failed", {
+        assignmentStudentId: input.assignmentStudentId,
+        attemptId: input.attemptId,
+        turnOrder: input.turnOrder,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
 
     if (
