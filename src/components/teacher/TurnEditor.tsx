@@ -1,6 +1,8 @@
 "use client";
 
 import type { MissionTurnInput } from "@/domain/mission/schemas";
+import { HoverButton } from "@/components/ui/HoverButton";
+import { secondaryHover } from "@/components/ui/hover-styles";
 
 type TurnEditorProps = {
   turns: MissionTurnInput[];
@@ -50,13 +52,14 @@ export function TurnEditor({ turns, onChange, errors = {} }: TurnEditorProps) {
     <section style={panelStyle}>
       <div style={sectionHeaderStyle}>
         <h2 style={headingStyle}>Turns</h2>
-        <button
+        <HoverButton
           type="button"
           onClick={() => onChange([...turns, { ...emptyTurn }])}
           style={secondaryButtonStyle}
+          hoverStyle={secondaryHover}
         >
           Add turn
-        </button>
+        </HoverButton>
       </div>
 
       {errors.turns ? (
@@ -73,15 +76,16 @@ export function TurnEditor({ turns, onChange, errors = {} }: TurnEditorProps) {
             <div style={sectionHeaderStyle}>
               <h3 style={labelStyle}>Turn {index + 1}</h3>
               {turns.length > 1 ? (
-                <button
+                <HoverButton
                   type="button"
                   onClick={() =>
                     onChange(turns.filter((_, turnIndex) => turnIndex !== index))
                   }
                   style={destructiveTextButtonStyle}
+                  hoverStyle={secondaryHover}
                 >
                   Remove turn
-                </button>
+                </HoverButton>
               ) : null}
             </div>
 
@@ -235,6 +239,7 @@ const secondaryButtonStyle: React.CSSProperties = {
   fontSize: 16,
   cursor: "pointer",
   minHeight: 44,
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const destructiveTextButtonStyle: React.CSSProperties = {
@@ -247,4 +252,5 @@ const destructiveTextButtonStyle: React.CSSProperties = {
   fontWeight: 600,
   cursor: "pointer",
   minHeight: 44,
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };

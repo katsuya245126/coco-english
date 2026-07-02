@@ -11,6 +11,8 @@ import type {
 } from "@/server/classroom/roster-service";
 import { RosterPasteForm } from "@/components/teacher/RosterPasteForm";
 import { PinActions } from "@/components/teacher/PinActions";
+import { HoverButton } from "@/components/ui/HoverButton";
+import { primaryHover, secondaryHover } from "@/components/ui/hover-styles";
 
 type RosterEditorProps = {
   classId: string;
@@ -65,24 +67,26 @@ export function RosterEditor({ classId, roster }: RosterEditorProps) {
         }}
       >
         <div role="tablist" aria-label="Add mode" style={{ display: "flex", gap: 8 }}>
-          <button
+          <HoverButton
             type="button"
             role="tab"
             aria-selected={mode === "paste"}
             onClick={() => setMode("paste")}
             style={mode === "paste" ? segmentActive : segment}
+            hoverStyle={mode === "paste" ? primaryHover : secondaryHover}
           >
             Paste names
-          </button>
-          <button
+          </HoverButton>
+          <HoverButton
             type="button"
             role="tab"
             aria-selected={mode === "one"}
             onClick={() => setMode("one")}
             style={mode === "one" ? segmentActive : segment}
+            hoverStyle={mode === "one" ? primaryHover : secondaryHover}
           >
             Add one
-          </button>
+          </HoverButton>
         </div>
 
         {mode === "paste" ? (
@@ -106,9 +110,9 @@ export function RosterEditor({ classId, roster }: RosterEditorProps) {
                   }}
                 />
               </label>
-              <button type="submit" style={primaryButton}>
+              <HoverButton type="submit" style={primaryButton} hoverStyle={primaryHover}>
                 Add students
-              </button>
+              </HoverButton>
             </form>
             {addedPin ? (
               <p aria-live="polite" style={{ fontSize: 14, color: "#177245", margin: 0 }}>
@@ -165,7 +169,7 @@ export function RosterEditor({ classId, roster }: RosterEditorProps) {
                     <span style={{ color: "#177245" }}>Active</span>
                   </td>
                   <td style={tdStyle}>
-                    <button
+                    <HoverButton
                       type="button"
                       onClick={() => handleArchive(student.id)}
                       disabled={busyId === student.id}
@@ -177,10 +181,12 @@ export function RosterEditor({ classId, roster }: RosterEditorProps) {
                         fontSize: 14,
                         cursor: "pointer",
                         color: "#B42318",
+                        transition: "background 0.15s ease, border-color 0.15s ease",
                       }}
+                      hoverStyle={secondaryHover}
                     >
                       Archive student
-                    </button>
+                    </HoverButton>
                   </td>
                 </tr>
               ))}
@@ -201,6 +207,7 @@ const segment: React.CSSProperties = {
   fontWeight: 600,
   cursor: "pointer",
   color: "#4B5563",
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const segmentActive: React.CSSProperties = {
@@ -219,6 +226,7 @@ const primaryButton: React.CSSProperties = {
   fontSize: 14,
   fontWeight: 600,
   cursor: "pointer",
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const thStyle: React.CSSProperties = {

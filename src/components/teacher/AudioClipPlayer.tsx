@@ -5,6 +5,8 @@ import {
   loadAudioClipUrlAction,
   type LoadAudioClipUrlActionResult,
 } from "@/app/teacher/evidence/[attemptId]/actions";
+import { HoverButton } from "@/components/ui/HoverButton";
+import { primaryHover } from "@/components/ui/hover-styles";
 
 type AudioClipPlayerProps = {
   audioClipId: string;
@@ -42,14 +44,15 @@ export function AudioClipPlayer({
       <div style={headerStyle}>
         <span style={labelStyle}>{label}</span>
         {!signedUrl ? (
-          <button
+          <HoverButton
             type="button"
             onClick={handleLoadAudio}
             disabled={pending}
             style={buttonStyle}
+            hoverStyle={primaryHover}
           >
             {pending ? "Preparing audio..." : "Load audio"}
-          </button>
+          </HoverButton>
         ) : null}
       </div>
 
@@ -99,6 +102,7 @@ const buttonStyle: React.CSSProperties = {
   fontSize: 14,
   fontWeight: 600,
   cursor: "pointer",
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const audioStyle: React.CSSProperties = {

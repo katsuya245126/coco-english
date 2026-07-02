@@ -6,6 +6,12 @@ import type { TeacherClass } from "@/server/classroom/class-service";
 import { archiveClassAction } from "@/app/teacher/classes/actions";
 import { ClassForm } from "@/components/teacher/ClassForm";
 import { ShareClassDialog } from "@/components/teacher/ShareClassDialog";
+import { HoverButton } from "@/components/ui/HoverButton";
+import {
+  primaryHover,
+  secondaryHover,
+  dangerHover,
+} from "@/components/ui/hover-styles";
 
 type ClassListProps = {
   classes: TeacherClass[];
@@ -55,13 +61,14 @@ export function ClassList({ classes }: ClassListProps) {
         <h1 style={{ fontSize: 28, fontWeight: 600, lineHeight: 1.2, margin: 0 }}>
           Classes
         </h1>
-        <button
+        <HoverButton
           type="button"
           onClick={() => setDialog({ kind: "create" })}
           style={primaryButtonStyle}
+          hoverStyle={primaryHover}
         >
           Create class
-        </button>
+        </HoverButton>
       </div>
 
       {error ? (
@@ -142,7 +149,7 @@ export function ClassList({ classes }: ClassListProps) {
               </div>
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button
+                <HoverButton
                   type="button"
                   onClick={() =>
                     setDialog({
@@ -153,10 +160,11 @@ export function ClassList({ classes }: ClassListProps) {
                     })
                   }
                   style={secondaryButtonStyle}
+                  hoverStyle={secondaryHover}
                 >
                   Share
-                </button>
-                <button
+                </HoverButton>
+                <HoverButton
                   type="button"
                   onClick={() =>
                     setDialog({
@@ -166,10 +174,11 @@ export function ClassList({ classes }: ClassListProps) {
                     })
                   }
                   style={secondaryButtonStyle}
+                  hoverStyle={secondaryHover}
                 >
                   Edit
-                </button>
-                <button
+                </HoverButton>
+                <HoverButton
                   type="button"
                   onClick={() =>
                     setDialog({
@@ -179,9 +188,10 @@ export function ClassList({ classes }: ClassListProps) {
                     })
                   }
                   style={destructiveTextButtonStyle}
+                  hoverStyle={secondaryHover}
                 >
                   Archive
-                </button>
+                </HoverButton>
               </div>
             </div>
           ))}
@@ -228,21 +238,23 @@ export function ClassList({ classes }: ClassListProps) {
               but class history stays saved.
             </p>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button
+              <HoverButton
                 type="button"
                 onClick={() => setDialog({ kind: "none" })}
                 style={secondaryButtonStyle}
+                hoverStyle={secondaryHover}
               >
                 Cancel
-              </button>
-              <button
+              </HoverButton>
+              <HoverButton
                 type="button"
                 onClick={() => handleArchive(dialog.classId)}
                 disabled={archiving}
                 style={destructiveButtonStyle}
+                hoverStyle={dangerHover}
               >
                 Archive class
-              </button>
+              </HoverButton>
             </div>
           </div>
         </div>
@@ -260,6 +272,7 @@ const primaryButtonStyle: React.CSSProperties = {
   fontSize: 16,
   fontWeight: 600,
   cursor: "pointer",
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const secondaryButtonStyle: React.CSSProperties = {
@@ -271,6 +284,7 @@ const secondaryButtonStyle: React.CSSProperties = {
   fontSize: 14,
   cursor: "pointer",
   minHeight: 44,
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const destructiveTextButtonStyle: React.CSSProperties = {
@@ -283,6 +297,7 @@ const destructiveTextButtonStyle: React.CSSProperties = {
   fontWeight: 600,
   cursor: "pointer",
   minHeight: 44,
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const overlayStyle: React.CSSProperties = {
@@ -314,4 +329,5 @@ const destructiveButtonStyle: React.CSSProperties = {
   fontSize: 16,
   fontWeight: 600,
   cursor: "pointer",
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };

@@ -6,6 +6,8 @@ import {
   setStudentPinAction,
 } from "@/app/teacher/classes/[id]/actions";
 import type { GeneratedPin } from "@/server/classroom/roster-service";
+import { HoverButton } from "@/components/ui/HoverButton";
+import { secondaryHover } from "@/components/ui/hover-styles";
 
 type PinActionsProps = {
   classId: string;
@@ -83,13 +85,14 @@ export function PinActions({ classId, studentId }: PinActionsProps) {
           >
             {state.pin}
           </span>
-          <button
+          <HoverButton
             type="button"
             onClick={() => copy(state.pin)}
             style={secondaryButton}
+            hoverStyle={secondaryHover}
           >
             {state.copied ? "Copied" : "Copy"}
-          </button>
+          </HoverButton>
         </div>
         <span style={{ fontSize: 12, color: "#B45309" }}>
           Record this now — it will not be shown again.
@@ -101,22 +104,24 @@ export function PinActions({ classId, studentId }: PinActionsProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <div style={{ display: "flex", gap: 8 }}>
-        <button
+        <HoverButton
           type="button"
           onClick={handleReset}
           disabled={state.status === "working"}
           style={secondaryButton}
+          hoverStyle={secondaryHover}
         >
           Reset PIN
-        </button>
-        <button
+        </HoverButton>
+        <HoverButton
           type="button"
           onClick={() => setChanging((value) => !value)}
           disabled={state.status === "working"}
           style={secondaryButton}
+          hoverStyle={secondaryHover}
         >
           Change PIN
-        </button>
+        </HoverButton>
       </div>
 
       {changing ? (
@@ -141,9 +146,9 @@ export function PinActions({ classId, studentId }: PinActionsProps) {
               }}
             />
           </label>
-          <button type="submit" style={secondaryButton}>
+          <HoverButton type="submit" style={secondaryButton} hoverStyle={secondaryHover}>
             Save
-          </button>
+          </HoverButton>
         </form>
       ) : null}
 
@@ -164,4 +169,5 @@ const secondaryButton: React.CSSProperties = {
   fontSize: 14,
   cursor: "pointer",
   color: "#111827",
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };

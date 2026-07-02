@@ -6,6 +6,12 @@ import {
   updateClassAction,
   type ClassActionResult,
 } from "@/app/teacher/classes/actions";
+import { HoverButton } from "@/components/ui/HoverButton";
+import {
+  primaryHover,
+  secondaryHover,
+  subtleHover,
+} from "@/components/ui/hover-styles";
 
 type ClassFormProps = {
   // When editing, the existing class id + name; when creating, both omitted.
@@ -58,14 +64,15 @@ export function ClassForm({ classId, initialName, onClose }: ClassFormProps) {
           <h2 style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.25, margin: 0 }}>
             {isEditing ? "Edit class" : "Create class"}
           </h2>
-          <button
+          <HoverButton
             type="button"
             aria-label="Close"
             onClick={onClose}
             style={closeButtonStyle}
+            hoverStyle={subtleHover}
           >
             ×
-          </button>
+          </HoverButton>
         </div>
 
         <form action={handleSubmit}>
@@ -96,12 +103,22 @@ export function ClassForm({ classId, initialName, onClose }: ClassFormProps) {
           ) : null}
 
           <div style={{ display: "flex", gap: 8, marginTop: 24, justifyContent: "flex-end" }}>
-            <button type="button" onClick={onClose} style={secondaryButtonStyle}>
+            <HoverButton
+              type="button"
+              onClick={onClose}
+              style={secondaryButtonStyle}
+              hoverStyle={secondaryHover}
+            >
               Cancel
-            </button>
-            <button type="submit" disabled={submitting} style={primaryButtonStyle}>
+            </HoverButton>
+            <HoverButton
+              type="submit"
+              disabled={submitting}
+              style={primaryButtonStyle}
+              hoverStyle={primaryHover}
+            >
               Save class
-            </button>
+            </HoverButton>
           </div>
         </form>
       </div>
@@ -155,6 +172,7 @@ const primaryButtonStyle: React.CSSProperties = {
   fontSize: 16,
   fontWeight: 600,
   cursor: "pointer",
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const secondaryButtonStyle: React.CSSProperties = {
@@ -165,6 +183,7 @@ const secondaryButtonStyle: React.CSSProperties = {
   borderRadius: 6,
   fontSize: 16,
   cursor: "pointer",
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const closeButtonStyle: React.CSSProperties = {
@@ -176,4 +195,6 @@ const closeButtonStyle: React.CSSProperties = {
   color: "#6B7280",
   minWidth: 44,
   minHeight: 44,
+  borderRadius: 6,
+  transition: "background 0.15s ease",
 };

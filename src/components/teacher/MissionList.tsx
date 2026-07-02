@@ -1,10 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { AssignableClass } from "@/server/mission/assign-service";
 import type { TeacherMission } from "@/server/mission/mission-service";
 import { AssignDialog } from "@/components/teacher/AssignDialog";
+import { HoverButton } from "@/components/ui/HoverButton";
+import { HoverLink } from "@/components/ui/HoverLink";
+import { primaryHover, secondaryHover } from "@/components/ui/hover-styles";
 
 type MissionListProps = {
   missions: TeacherMission[];
@@ -28,9 +30,9 @@ export function MissionList({ missions, assignableClasses }: MissionListProps) {
     <div>
       <div style={headerStyle}>
         <h1 style={titleStyle}>Missions</h1>
-        <Link href="/teacher/missions/new" style={primaryLinkStyle}>
+        <HoverLink href="/teacher/missions/new" style={primaryLinkStyle} hoverStyle={primaryHover}>
           Create mission
-        </Link>
+        </HoverLink>
       </div>
 
       {success ? (
@@ -45,9 +47,9 @@ export function MissionList({ missions, assignableClasses }: MissionListProps) {
           <p style={{ fontSize: 16, lineHeight: 1.5, color: "#4B5563", margin: "8px 0 24px" }}>
             Create your first mission to assign speaking homework to a class.
           </p>
-          <Link href="/teacher/missions/new" style={primaryLinkStyle}>
+          <HoverLink href="/teacher/missions/new" style={primaryLinkStyle} hoverStyle={primaryHover}>
             Create mission
-          </Link>
+          </HoverLink>
         </section>
       ) : (
         <section aria-label="Mission list" style={listStyle}>
@@ -75,17 +77,22 @@ export function MissionList({ missions, assignableClasses }: MissionListProps) {
                 </p>
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <Link href={`/teacher/missions/${mission.id}`} style={secondaryLinkStyle}>
+                <HoverLink
+                  href={`/teacher/missions/${mission.id}`}
+                  style={secondaryLinkStyle}
+                  hoverStyle={secondaryHover}
+                >
                   Edit
-                </Link>
+                </HoverLink>
                 {assignableClasses.length > 0 ? (
-                  <button
+                  <HoverButton
                     type="button"
                     onClick={() => setAssigningMission(mission)}
                     style={primaryButtonStyle}
+                    hoverStyle={primaryHover}
                   >
                     Assign to class
-                  </button>
+                  </HoverButton>
                 ) : (
                   <span style={{ fontSize: 14, color: "#6B7280", alignSelf: "center" }}>
                     You have no classes with active students. Create a class and add students first.
@@ -159,6 +166,7 @@ const primaryLinkStyle: React.CSSProperties = {
   fontSize: 16,
   fontWeight: 600,
   textDecoration: "none",
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const secondaryLinkStyle: React.CSSProperties = {
@@ -172,6 +180,7 @@ const secondaryLinkStyle: React.CSSProperties = {
   borderRadius: 6,
   fontSize: 14,
   textDecoration: "none",
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const primaryButtonStyle: React.CSSProperties = {
@@ -184,6 +193,7 @@ const primaryButtonStyle: React.CSSProperties = {
   fontWeight: 600,
   cursor: "pointer",
   minHeight: 44,
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const successStyle: React.CSSProperties = {

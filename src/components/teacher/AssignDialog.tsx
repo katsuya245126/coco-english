@@ -6,6 +6,12 @@ import {
   type AssignMissionActionResult,
 } from "@/app/teacher/missions/actions";
 import type { AssignableClass } from "@/server/mission/assign-service";
+import { HoverButton } from "@/components/ui/HoverButton";
+import {
+  primaryHover,
+  secondaryHover,
+  subtleHover,
+} from "@/components/ui/hover-styles";
 
 type AssignDialogProps = {
   missionId: string;
@@ -64,9 +70,15 @@ export function AssignDialog({
       <form onSubmit={handleSubmit} style={panelStyle}>
         <div style={headerStyle}>
           <h2 style={headingStyle}>Assign mission</h2>
-          <button type="button" aria-label="Close" onClick={onClose} style={closeButtonStyle}>
+          <HoverButton
+            type="button"
+            aria-label="Close"
+            onClick={onClose}
+            style={closeButtonStyle}
+            hoverStyle={subtleHover}
+          >
             ×
-          </button>
+          </HoverButton>
         </div>
 
         <p style={{ fontSize: 16, margin: "0 0 16px", color: "#111827" }}>
@@ -128,16 +140,22 @@ export function AssignDialog({
         ) : null}
 
         <div style={footerStyle}>
-          <button type="button" onClick={onClose} style={secondaryButtonStyle}>
+          <HoverButton
+            type="button"
+            onClick={onClose}
+            style={secondaryButtonStyle}
+            hoverStyle={secondaryHover}
+          >
             Cancel
-          </button>
-          <button
+          </HoverButton>
+          <HoverButton
             type="submit"
             disabled={submitting || classes.length === 0}
             style={primaryButtonStyle}
+            hoverStyle={primaryHover}
           >
             {submitting ? "Assigning..." : "Assign homework"}
-          </button>
+          </HoverButton>
         </div>
       </form>
     </div>
@@ -214,6 +232,7 @@ const primaryButtonStyle: React.CSSProperties = {
   fontWeight: 600,
   cursor: "pointer",
   minHeight: 44,
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const secondaryButtonStyle: React.CSSProperties = {
@@ -225,6 +244,7 @@ const secondaryButtonStyle: React.CSSProperties = {
   fontSize: 16,
   cursor: "pointer",
   minHeight: 44,
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const closeButtonStyle: React.CSSProperties = {
@@ -236,4 +256,6 @@ const closeButtonStyle: React.CSSProperties = {
   color: "#6B7280",
   minWidth: 44,
   minHeight: 44,
+  borderRadius: 6,
+  transition: "background 0.15s ease",
 };

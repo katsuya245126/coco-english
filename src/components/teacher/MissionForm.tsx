@@ -16,6 +16,8 @@ import type { GeneratedMissionDraft } from "@/domain/ai/mission-generation";
 import type { MissionWithTurns } from "@/server/mission/mission-service";
 import { createEmptyTurn, TurnEditor } from "@/components/teacher/TurnEditor";
 import { MissionDraftPanel } from "@/components/teacher/MissionDraftPanel";
+import { HoverButton } from "@/components/ui/HoverButton";
+import { primaryHover, secondaryHover } from "@/components/ui/hover-styles";
 
 type MissionFormProps = {
   mode: "create" | "edit";
@@ -175,17 +177,19 @@ export function MissionForm({
       <TurnEditor turns={turns} onChange={setTurns} />
 
       <div style={footerStyle}>
-        <button
+        <HoverButton
           type="button"
           onClick={() => router.push("/teacher/missions")}
           style={secondaryButtonStyle}
+          hoverStyle={secondaryHover}
         >
           Cancel
-        </button>
-        <button
+        </HoverButton>
+        <HoverButton
           type="submit"
           disabled={submitting}
           style={primaryButtonStyle}
+          hoverStyle={primaryHover}
         >
           {saved ? (
             "Saved ✓"
@@ -199,7 +203,7 @@ export function MissionForm({
           ) : (
             "Save mission"
           )}
-        </button>
+        </HoverButton>
       </div>
     </form>
   );
@@ -288,6 +292,7 @@ const primaryButtonStyle: React.CSSProperties = {
   fontWeight: 600,
   cursor: "pointer",
   minHeight: 44,
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const secondaryButtonStyle: React.CSSProperties = {
@@ -299,6 +304,7 @@ const secondaryButtonStyle: React.CSSProperties = {
   fontSize: 16,
   cursor: "pointer",
   minHeight: 44,
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const errorStyle: React.CSSProperties = {

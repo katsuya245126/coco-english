@@ -1,6 +1,8 @@
-import Link from "next/link";
 import { requireTeacherProfile } from "@/server/auth/teacher-profile";
 import { MissionForm } from "@/components/teacher/MissionForm";
+import { HoverButton } from "@/components/ui/HoverButton";
+import { HoverLink } from "@/components/ui/HoverLink";
+import { secondaryHover, subtleHover } from "@/components/ui/hover-styles";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +14,9 @@ export default async function NewMissionPage() {
       <div style={headerStyle}>
         <div>
           <p style={eyebrowStyle}>
-            <Link href="/teacher/missions" style={linkStyle}>
+            <HoverLink href="/teacher/missions" style={linkStyle} hoverStyle={subtleHover}>
               Missions
-            </Link>
+            </HoverLink>
           </p>
           <h1 style={titleStyle}>New mission</h1>
         </div>
@@ -37,16 +39,16 @@ function MissionShell(props: {
           {props.displayName}
         </span>
         <nav style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <Link href="/teacher" style={navLinkStyle}>
+          <HoverLink href="/teacher" style={navLinkStyle} hoverStyle={subtleHover}>
             Classes
-          </Link>
-          <Link href="/teacher/missions" style={navLinkStyle}>
+          </HoverLink>
+          <HoverLink href="/teacher/missions" style={navLinkStyle} hoverStyle={subtleHover}>
             Missions
-          </Link>
+          </HoverLink>
           <form action="/auth/logout" method="post">
-            <button type="submit" style={logoutButtonStyle}>
+            <HoverButton type="submit" style={logoutButtonStyle} hoverStyle={secondaryHover}>
               Log out
-            </button>
+            </HoverButton>
           </form>
         </nav>
       </header>
@@ -80,6 +82,8 @@ const navLinkStyle: React.CSSProperties = {
   textDecoration: "none",
   fontSize: 14,
   fontWeight: 600,
+  borderRadius: 6,
+  transition: "background 0.15s ease",
 };
 
 const logoutButtonStyle: React.CSSProperties = {
@@ -90,6 +94,7 @@ const logoutButtonStyle: React.CSSProperties = {
   fontSize: 14,
   cursor: "pointer",
   color: "#111827",
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const mainStyle: React.CSSProperties = {
@@ -121,4 +126,6 @@ const eyebrowStyle: React.CSSProperties = {
 const linkStyle: React.CSSProperties = {
   color: "#2563EB",
   textDecoration: "none",
+  borderRadius: 6,
+  transition: "background 0.15s ease",
 };

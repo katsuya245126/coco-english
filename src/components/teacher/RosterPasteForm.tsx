@@ -7,6 +7,8 @@ import {
   normalizeRosterName,
   parseRosterPaste,
 } from "@/domain/classroom/roster-parser";
+import { HoverButton } from "@/components/ui/HoverButton";
+import { primaryHover, secondaryHover } from "@/components/ui/hover-styles";
 
 type RosterPasteFormProps = {
   classId: string;
@@ -108,9 +110,9 @@ export function RosterPasteForm({ classId }: RosterPasteFormProps) {
             roster: {save.result.skippedExisting.join(", ")}.
           </p>
         ) : null}
-        <button type="button" onClick={() => setSave({ status: "idle" })} style={secondaryButton}>
+        <HoverButton type="button" onClick={() => setSave({ status: "idle" })} style={secondaryButton} hoverStyle={secondaryHover}>
           Add more students
-        </button>
+        </HoverButton>
       </div>
     );
   }
@@ -191,13 +193,14 @@ export function RosterPasteForm({ classId }: RosterPasteFormProps) {
         </span>
       ) : null}
 
-      <button
+      <HoverButton
         type="submit"
         disabled={save.status === "saving" || saveableCount === 0}
         style={primaryButton}
+        hoverStyle={primaryHover}
       >
         Add students
-      </button>
+      </HoverButton>
     </form>
   );
 }
@@ -232,6 +235,7 @@ const primaryButton: React.CSSProperties = {
   fontWeight: 600,
   cursor: "pointer",
   alignSelf: "flex-start",
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const secondaryButton: React.CSSProperties = {
@@ -243,4 +247,5 @@ const secondaryButton: React.CSSProperties = {
   cursor: "pointer",
   color: "#111827",
   alignSelf: "flex-start",
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };

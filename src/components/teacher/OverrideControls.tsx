@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { overrideAssignmentStatusAction } from "@/app/teacher/evidence/[attemptId]/actions";
 import type { AssignmentStudentStatus } from "@/domain/foundation/status";
+import { HoverButton } from "@/components/ui/HoverButton";
+import { secondaryHover } from "@/components/ui/hover-styles";
 
 // ─── Types ───
 
@@ -247,14 +249,15 @@ export function OverrideControls({
             )}
 
             <div style={dialogActionsStyle}>
-              <button
+              <HoverButton
                 type="button"
                 onClick={handleCancel}
                 disabled={submitting}
                 style={cancelButtonStyle}
+                hoverStyle={secondaryHover}
               >
                 Cancel
-              </button>
+              </HoverButton>
               <button
                 type="button"
                 onClick={handleConfirm}
@@ -400,6 +403,7 @@ const cancelButtonStyle: React.CSSProperties = {
   fontWeight: 600,
   color: "#111827",
   cursor: "pointer",
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const confirmButtonStyle: React.CSSProperties = {

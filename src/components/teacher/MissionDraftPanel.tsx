@@ -10,6 +10,8 @@ import type {
   GenerateMissionDraftInput,
 } from "@/domain/ai/mission-generation";
 import type { MissionLevel } from "@/domain/mission/schemas";
+import { HoverButton } from "@/components/ui/HoverButton";
+import { primaryHover, secondaryHover } from "@/components/ui/hover-styles";
 
 type MissionDraftPanelProps = {
   targetPattern: string;
@@ -73,18 +75,19 @@ export function MissionDraftPanel({
             before assigning.
           </p>
         </div>
-        <button
+        <HoverButton
           type="button"
           onClick={handleGenerate}
           disabled={status === "generating"}
           style={primaryButtonStyle}
+          hoverStyle={primaryHover}
         >
           {status === "generating"
             ? "Creating a mission draft..."
             : draft
               ? "Generate again"
               : "Generate draft"}
-        </button>
+        </HoverButton>
       </div>
 
       <div aria-live="polite" style={statusAreaStyle}>
@@ -109,16 +112,17 @@ export function MissionDraftPanel({
             </p>
             <DraftPreview draft={draft} />
             <div style={actionsStyle}>
-              <button
+              <HoverButton
                 type="button"
                 onClick={() => onUseDraft(draft)}
                 style={primaryButtonStyle}
+                hoverStyle={primaryHover}
               >
                 Use draft
-              </button>
-              <button type="button" style={secondaryButtonStyle}>
+              </HoverButton>
+              <HoverButton type="button" style={secondaryButtonStyle} hoverStyle={secondaryHover}>
                 Keep editing
-              </button>
+              </HoverButton>
             </div>
           </div>
         ) : null}
@@ -316,6 +320,7 @@ const primaryButtonStyle: React.CSSProperties = {
   fontWeight: 600,
   cursor: "pointer",
   minHeight: 44,
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const secondaryButtonStyle: React.CSSProperties = {
@@ -327,6 +332,7 @@ const secondaryButtonStyle: React.CSSProperties = {
   fontSize: 16,
   cursor: "pointer",
   minHeight: 44,
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const successStyle: React.CSSProperties = {

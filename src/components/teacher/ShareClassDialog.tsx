@@ -6,6 +6,13 @@ import {
   resetJoinCodeAction,
   type ClassActionResult,
 } from "@/app/teacher/classes/actions";
+import { HoverButton } from "@/components/ui/HoverButton";
+import {
+  primaryHover,
+  secondaryHover,
+  dangerHover,
+  subtleHover,
+} from "@/components/ui/hover-styles";
 
 type ShareClassDialogProps = {
   classId: string;
@@ -106,14 +113,15 @@ export function ShareClassDialog({
           <h2 style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.25, margin: 0 }}>
             {className}
           </h2>
-          <button
+          <HoverButton
             type="button"
             aria-label="Close"
             onClick={onClose}
             style={closeButtonStyle}
+            hoverStyle={subtleHover}
           >
             ×
-          </button>
+          </HoverButton>
         </div>
 
         <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 8px" }}>
@@ -133,17 +141,18 @@ export function ShareClassDialog({
         </p>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-          <button type="button" onClick={handleCopyLink} style={primaryButtonStyle}>
+          <HoverButton type="button" onClick={handleCopyLink} style={primaryButtonStyle} hoverStyle={primaryHover}>
             Share join link
-          </button>
-          <button
+          </HoverButton>
+          <HoverButton
             type="button"
             onClick={() => setShowQr((value) => !value)}
             style={secondaryButtonStyle}
+            hoverStyle={secondaryHover}
             aria-expanded={showQr}
           >
             Show QR code
-          </button>
+          </HoverButton>
         </div>
 
         <p aria-live="polite" style={{ fontSize: 14, color: "#177245", margin: 0, minHeight: 20 }}>
@@ -193,32 +202,35 @@ export function ShareClassDialog({
               Remembered devices can still return to this class.
             </p>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button
+              <HoverButton
                 type="button"
                 onClick={() => setConfirmingReset(false)}
                 style={secondaryButtonStyle}
+                hoverStyle={secondaryHover}
               >
                 Cancel
-              </button>
-              <button
+              </HoverButton>
+              <HoverButton
                 type="button"
                 onClick={handleReset}
                 disabled={resetting}
                 style={destructiveButtonStyle}
+                hoverStyle={dangerHover}
               >
                 Reset join code
-              </button>
+              </HoverButton>
             </div>
           </div>
         ) : (
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button
+            <HoverButton
               type="button"
               onClick={() => setConfirmingReset(true)}
               style={destructiveTextButtonStyle}
+              hoverStyle={secondaryHover}
             >
               Reset join code
-            </button>
+            </HoverButton>
           </div>
         )}
       </div>
@@ -263,6 +275,7 @@ const primaryButtonStyle: React.CSSProperties = {
   fontWeight: 600,
   cursor: "pointer",
   minHeight: 44,
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const secondaryButtonStyle: React.CSSProperties = {
@@ -274,6 +287,7 @@ const secondaryButtonStyle: React.CSSProperties = {
   fontSize: 16,
   cursor: "pointer",
   minHeight: 44,
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const destructiveButtonStyle: React.CSSProperties = {
@@ -285,6 +299,7 @@ const destructiveButtonStyle: React.CSSProperties = {
   fontSize: 16,
   fontWeight: 600,
   cursor: "pointer",
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const destructiveTextButtonStyle: React.CSSProperties = {
@@ -296,6 +311,7 @@ const destructiveTextButtonStyle: React.CSSProperties = {
   fontSize: 14,
   fontWeight: 600,
   cursor: "pointer",
+  transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
 const closeButtonStyle: React.CSSProperties = {
@@ -307,4 +323,6 @@ const closeButtonStyle: React.CSSProperties = {
   color: "#6B7280",
   minWidth: 44,
   minHeight: 44,
+  borderRadius: 6,
+  transition: "background 0.15s ease",
 };
