@@ -3,6 +3,7 @@ import { requireTeacherProfile } from "@/server/auth/teacher-profile";
 import { getAttemptEvidenceForTeacher } from "@/server/teacher/audio-evidence";
 import { AudioClipPlayer } from "@/components/teacher/AudioClipPlayer";
 import { OverrideControls } from "@/components/teacher/OverrideControls";
+import { PronunciationDiagnosticPanel } from "@/components/teacher/PronunciationDiagnosticPanel";
 import { HoverButton } from "@/components/ui/HoverButton";
 import { HoverLink } from "@/components/ui/HoverLink";
 import { secondaryHover, subtleHover } from "@/components/ui/hover-styles";
@@ -135,6 +136,7 @@ function TurnEvidenceSection({ turn }: { turn: AttemptTurnEvidence }) {
         transcript={turn.originalTranscript}
       />
       <AnnotationGrid turn={turn} />
+      <PronunciationDiagnosticList clips={turn.audioClips} />
       {turn.improvedSentence && (
         <TranscriptBlock
           label="Improved sentence"
@@ -156,6 +158,27 @@ function TurnEvidenceSection({ turn }: { turn: AttemptTurnEvidence }) {
       <AudioClipList label="Original answer audio" clips={originalClips} />
       <AudioClipList label="Repeat attempt audio" clips={repeatClips} />
     </article>
+  );
+}
+
+function PronunciationDiagnosticList({
+  clips,
+}: {
+  clips: AttemptAudioClipEvidence[];
+}) {
+  if (clips.length === 0) {
+    return null;
+  }
+
+  return (
+    <div style={pronunciationListStyle}>
+      {clips.map((clip) => (
+        <PronunciationDiagnosticPanel
+          key={clip.id}
+          pronunciationScore={clip.pronunciationScore}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -396,6 +419,12 @@ const audioListStyle: React.CSSProperties = {
   display: "grid",
   gap: 8,
   marginTop: 12,
+};
+
+const pronunciationListStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 8,
+  marginBottom: 16,
 };
 
 const annotationGridStyle: React.CSSProperties = {
