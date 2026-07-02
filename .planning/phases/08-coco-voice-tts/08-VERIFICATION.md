@@ -2,7 +2,7 @@
 phase: 08-coco-voice-tts
 verified: 2026-07-02
 automated_status: pass
-manual_status: human_needed
+manual_status: accepted_with_risk
 ---
 
 # Phase 08 — Verification Record (Coco Voice / TTS)
@@ -38,7 +38,7 @@ No full-suite command was blocked or skipped outright — every command listed i
 | VOICE-01 | OpenAI `gpt-4o-mini-tts` through current SDK, server-only | **PASS (automated)** | `tests/server/tts-generator.test.ts` (fake client, missing-key branch, provider-failure branch); `tests/domain/tts-ui-source.test.ts` "Student/server TTS boundary" suite confirms no client module imports OpenAI or the server adapter. |
 | VOICE-02 | Replay any spoken Coco line | **PASS (automated)** | `tests/domain/tts-ui-source.test.ts` confirms icon-only `aria-label="Play Coco"` control wired into `StepBuddyQuestion`, `StepImprovedRepeat`, `StepTurnTransition`, `StepMissionComplete`; `tests/e2e/student-coco-voice.spec.ts` confirms rejected `play()` promises are caught, not thrown. |
 | VOICE-03 | Content-hash cache avoids regeneration | **PASS (automated)** | `tests/server/tts-cache.test.ts`: "returns cacheStatus hit on the second identical request with exactly one provider call total" — `fakeGenerateTtsAudio` asserted `toHaveBeenCalledTimes(1)` across both the first (miss) and second (hit) identical requests. Server-computed hash only; forged `contentHash`/`transcript` fields are proven not to reach the provider call or cache row (D-10, T-08-03). |
-| VOICE-04 | Standard audio on low-end device | **PENDING — human_needed** | Automated: `tests/domain/tts-ui-source.test.ts` and `tests/e2e/student-coco-voice.spec.ts` confirm standard `<audio>` element usage, no `getUserMedia` call for playback, and text-only degrade on error. **Real low-end-device (Chromebook / older tablet) playback has NOT been performed.** See Manual UAT section below. |
+| VOICE-04 | Standard audio on low-end device | **ACCEPTED WITH RISK (manual smoke pass on available devices)** | Automated: `tests/domain/tts-ui-source.test.ts` and `tests/e2e/student-coco-voice.spec.ts` confirm standard `<audio>` element usage, no `getUserMedia` call for playback, and text-only degrade on error. Human smoke test on available real devices passed: Samsung S23 and Mac (2026-07-02). Chromebook / older-tablet coverage was unavailable and is explicitly accepted as residual risk for Phase 8 closeout. |
 
 ## Cache-Hit Proof (VOICE-03 detail)
 
@@ -57,7 +57,9 @@ Source: `tests/server/tts-cache.test.ts`, test `"returns cacheStatus hit on the 
 
 ## Manual UAT — Low-End Device Playback (VOICE-04)
 
-**Status: PENDING / human_needed.** This section has NOT been completed. No real Chromebook or older tablet has been used to verify Coco voice playback for this phase as of this verification pass.
+**Status: ACCEPTED WITH RISK.** The originally requested Chromebook / older-tablet check could not be completed because no such device was available. The product owner manually smoke-tested the deployed preview on a Samsung S23 and a Mac on 2026-07-02 and reported that Coco voice works. Phase 8 is closed with this constrained manual evidence and an explicit residual risk that older Chromebook/tablet behavior remains untested.
+
+Preview tested: `https://coco-english-8wjwv5uoj-johnteacher.vercel.app`
 
 ### Required steps (to be performed by a human on real hardware)
 
@@ -73,16 +75,17 @@ Source: `tests/server/tts-cache.test.ts`, test `"returns cacheStatus hit on the 
    - Recording and mission completion remain possible even if Coco's voice never plays (T-08-06, D-15).
 7. Record below: device model/class, OS + browser + version, date tested, and PASS/FAIL for each of steps 2-6.
 
-### Evidence table (fill in when performed)
+### Evidence table
 
 | Device | OS / Browser | Date | Cache-miss playback | Replay | Cache-hit playback | Recording unaffected | Failure does not block completion | Result |
 |--------|--------------|------|----------------------|--------|----------------------|------------------------|-------------------------------------|--------|
-| _(not yet tested)_ | | | | | | | | **PENDING** |
+| Samsung S23 | Android / browser version not captured | 2026-07-02 | Reported working in manual smoke test | Not separately recorded | Not separately recorded | Not separately recorded | Not separately recorded | **PASS (limited smoke)** |
+| Mac | macOS / browser version not captured | 2026-07-02 | Reported working in manual smoke test | Not separately recorded | Not separately recorded | Not separately recorded | Not separately recorded | **PASS (limited smoke)** |
 
-**If no low-end device is available:** this section remains `human_needed` for VOICE-04, and Phase 8 is NOT represented as fully verified. The automated evidence above proves the code path is correct (standard `<audio>` element, no microphone permission requested, error-state text-only degrade, cache-hit provider-call-count proof) but does not substitute for real low-end-device confirmation.
+**Residual risk accepted:** Chromebook / older-tablet playback remains untested. The automated evidence above proves the code path is correct (standard `<audio>` element, no microphone permission requested, error-state text-only degrade, cache-hit provider-call-count proof), and the available-device smoke tests prove real-device playback on Samsung S23 and Mac. This is accepted as sufficient to close Phase 8, with older school-device confirmation deferred until such hardware is available.
 
 ## Overall Phase 8 Verification Status
 
 - **Automated:** PASS (VOICE-01, VOICE-02, VOICE-03 fully proven by automated tests; VOICE-04's automated/source-level portion also passes).
-- **Manual:** PENDING (VOICE-04 real-device UAT not yet performed — human_needed).
-- **Phase 8 is NOT represented as fully verified** until the Manual UAT section above is completed with a PASS result, or an explicit risk-acceptance decision is recorded in its place.
+- **Manual:** ACCEPTED WITH RISK (Samsung S23 + Mac smoke tests passed; Chromebook / older tablet unavailable).
+- **Phase 8 closeout:** COMPLETE as of 2026-07-02 with explicit residual risk for untested older school-device hardware.

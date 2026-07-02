@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Coco Comes Alive
-current_phase: 08
-current_phase_name: coco-voice-tts
-status: executing
-stopped_at: Phase 08 Plan 05 paused at Task 3 blocking human-verify checkpoint (VOICE-04 low-end-device UAT)
-last_updated: "2026-07-02T01:33:33.617Z"
+current_phase: 09
+current_phase_name: pronunciation-scoring
+status: ready_for_planning
+stopped_at: Phase 08 closed with Samsung S23 + Mac voice playback smoke tests; Chromebook/older-tablet coverage accepted as residual risk
+last_updated: "2026-07-02T13:45:00+09:00"
 last_activity: 2026-07-02
-last_activity_desc: Phase 08 Plan 05 Task 1/2 complete; paused at Task 3 blocking human-verify checkpoint
+last_activity_desc: Phase 08 closed after preview smoke test on Samsung S23 and Mac; VOICE-04 older-device residual risk accepted
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 4
-  percent: 16
+  completed_plans: 5
+  percent: 20
 ---
 
 # Project State
@@ -24,16 +24,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-01)
 
 **Core value:** Students must complete useful spoken English practice outside class, and teachers must be able to verify that it happened.
-**Current focus:** Phase 08 — coco-voice-tts
+**Current focus:** Phase 09 — pronunciation-scoring
 
 ## Current Position
 
-Phase: 08 (coco-voice-tts) — EXECUTING
-Plan: 5 of 5 (paused at Task 3 blocking human-verify checkpoint — VOICE-04 low-end-device UAT)
-Status: Executing Phase 08
-Last activity: 2026-07-02 — Plan 05 Task 1/2 complete, Task 3 checkpoint pending human action
+Phase: 09 (pronunciation-scoring) — READY FOR PLANNING
+Previous phase: 08 (coco-voice-tts) — COMPLETE with residual older-device risk accepted
+Status: Ready to plan Phase 09
+Last activity: 2026-07-02 — Phase 08 preview smoke-tested on Samsung S23 and Mac; Chromebook/older-tablet coverage unavailable and accepted as residual risk
 
-Progress: [█████░░░░░] 58%
+Progress: [██░░░░░░░░] 20%
 
 ## Performance Metrics
 
@@ -133,7 +133,8 @@ Recent decisions affecting current work:
 - [Phase ?]: 07-04: Storage-first ordering in purgeExpiredAudio; CRON_SECRET !cronSecret check; zero-dependency stdout logger (PILOT-03, PILOT-04, T-07-10)
 - [Phase 07]: Live UAT after 07-03 drove product changes beyond the plan: "closed" renamed to "late" (past-due assignments stay launchable), new "retry" display status for teacher-reopened attempts, completed->needs_retry added to LEGAL_TRANSITIONS, occurred_at column removed from override audit insert.
 - [Phase 07]: Post-merge gate closed 2026-07-01 — assignment-list.test.ts expectations updated to match the late/retry rename, logger.test.ts vi.spyOn typecheck fixed via a typed helper function (commit c7039220). Full suite 33/33 files green, tsc clean.
-- [Phase ?]: Phase 8 Plan 05: Task 1 voice wiring for transition/completion was already complete from Plan 04 (commit 36de2edb); Plan 05 fixed pre-existing tsc/eslint errors in tts-cache.test.ts blocking verification, recorded full automated verification evidence in 08-VERIFICATION.md, and paused at the Task 3 blocking checkpoint (VOICE-04 real low-end-device UAT) awaiting human action.
+- [Phase ?]: Phase 8 Plan 05: Task 1 voice wiring for transition/completion was already complete from Plan 04 (commit 36de2edb); Plan 05 fixed pre-existing tsc/eslint errors in tts-cache.test.ts blocking verification and recorded full automated verification evidence in 08-VERIFICATION.md.
+- [Phase 08]: Closed 2026-07-02 after preview deployment smoke test on Samsung S23 and Mac. Chromebook/older-tablet VOICE-04 coverage was unavailable and explicitly accepted as residual risk; see 08-VERIFICATION.md.
 
 ### Pending Todos
 
@@ -144,7 +145,7 @@ None yet.
 - [Phase 5]: RESOLVED 2026-07-01 — mobile mic/recording verified on real iOS Safari + Android Chrome; UAT 9/9 Pass, 05-04 closed.
 - [Phase 6]: OpenAI model defaults, quality, and pricing should be rechecked before paid classroom pilots.
 - [Milestone close]: Phase 02, Phase 04, and Phase 06 retain human_needed pilot-readiness checks; these were acknowledged and deferred at v1.0 closeout.
-- Phase 8 Plan 05 Task 3 (VOICE-04 low-end-device UAT) requires human action on a real Chromebook or older tablet - see .planning/phases/08-coco-voice-tts/08-VERIFICATION.md Manual UAT section for exact steps.
+- Phase 8 VOICE-04 residual risk: Samsung S23 + Mac smoke tests passed, but Chromebook/older-tablet coverage was unavailable and accepted at closeout. Re-test on older school hardware when available, especially before broad classroom rollout.
 
 ## Deferred Items
 
@@ -158,6 +159,6 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 ## Session Continuity
 
-Last session: 2026-07-02T01:33:25.797Z
-Stopped at: Phase 08 Plan 05 paused at Task 3 blocking human-verify checkpoint (VOICE-04 low-end-device UAT)
-Resume file: .planning/phases/08-coco-voice-tts/08-VERIFICATION.md
+Last session: 2026-07-02T13:45:00+09:00
+Stopped at: Phase 09 ready for planning
+Resume file: .planning/ROADMAP.md

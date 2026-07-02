@@ -14,10 +14,10 @@ REQ-ID categories continue from v1 with new codes: VOICE, PRON, MASCOT, CHAT, SC
 
 ### VOICE — Coco Voice / TTS (point release v2.1)
 
-- [ ] **VOICE-01**: Student hears Coco's mission/prompt lines spoken aloud via text-to-speech, using the existing OpenAI TTS (`gpt-4o-mini-tts`) through the current OpenAI SDK.
-- [ ] **VOICE-02**: Student can tap to replay any spoken Coco line.
-- [ ] **VOICE-03**: Generated TTS audio is cached by content hash (text + character + voice + provider + format) so identical lines are not regenerated, controlling cost and latency.
-- [ ] **VOICE-04**: Voice playback works on low-end school devices (Chromebooks/older tablets) using a standard HTML audio element without a streaming pipeline.
+- [x] **VOICE-01**: Student hears Coco's mission/prompt lines spoken aloud via text-to-speech, using the existing OpenAI TTS (`gpt-4o-mini-tts`) through the current OpenAI SDK.
+- [x] **VOICE-02**: Student can tap to replay any spoken Coco line.
+- [x] **VOICE-03**: Generated TTS audio is cached by content hash (text + character + voice + provider + format) so identical lines are not regenerated, controlling cost and latency.
+- [x] **VOICE-04**: Voice playback works on available real devices using a standard HTML audio element without a streaming pipeline. Samsung S23 + Mac preview smoke tests passed 2026-07-02; Chromebook/older-tablet coverage was unavailable and accepted as residual risk for Phase 8 closeout.
 
 ### PRON — Pronunciation Scoring (point release v2.2)
 
@@ -74,10 +74,10 @@ Each v2.0 requirement is mapped to exactly one phase. 23/23 mapped, no orphans.
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| VOICE-01 | Phase 8 (v2.1 Coco Voice) | Pending |
-| VOICE-02 | Phase 8 (v2.1 Coco Voice) | Pending |
-| VOICE-03 | Phase 8 (v2.1 Coco Voice) | Pending |
-| VOICE-04 | Phase 8 (v2.1 Coco Voice) | Pending |
+| VOICE-01 | Phase 8 (v2.1 Coco Voice) | Complete |
+| VOICE-02 | Phase 8 (v2.1 Coco Voice) | Complete |
+| VOICE-03 | Phase 8 (v2.1 Coco Voice) | Complete |
+| VOICE-04 | Phase 8 (v2.1 Coco Voice) | Complete — accepted with residual Chromebook/older-tablet risk |
 | PRON-01 | Phase 9 (v2.2 Pronunciation Scoring) | Pending |
 | PRON-02 | Phase 9 (v2.2 Pronunciation Scoring) | Pending |
 | PRON-03 | Phase 9 (v2.2 Pronunciation Scoring) | Pending |

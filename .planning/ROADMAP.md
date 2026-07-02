@@ -30,7 +30,7 @@ Archive:
 
 **Milestone Goal:** Transform Coco English from a functional homework form into an immersive, character-driven speaking experience — Coco speaks, appears on screen, converses naturally, and scores pronunciation — while keeping the teacher-linked homework loop and teacher-verifiability intact. Ships as five independently-shippable point releases (v2.1 → v2.5), each verified in production before the next begins. All schema changes are additive; the v1 server-owned status/audit core is untouched.
 
-- [ ] **Phase 8: Coco Voice (TTS)** - Coco's mission/prompt lines are spoken aloud with caching and low-end-device playback. All 5 plans executed; VOICE-04 real low-end-device UAT still human_needed (paused at blocking checkpoint 2026-07-02).
+- [x] **Phase 8: Coco Voice (TTS)** - Coco's mission/prompt lines are spoken aloud with caching and standard `<audio>` playback. All 5 plans executed; automated verification passed; Samsung S23 + Mac preview smoke tests passed; Chromebook/older-tablet coverage unavailable and accepted as residual risk at closeout (2026-07-02).
 - [ ] **Phase 9: Pronunciation Scoring** - Students get encouraging, banded pronunciation feedback; teachers see word-level diagnostic detail.
 - [ ] **Phase 10: Mascot (VN-style)** - Coco appears on screen as a 2D character with an audio-driven speaking state.
 - [ ] **Phase 11: Coco Chat (dynamic turns + scene framing)** - Missions get a scene premise and an optional bounded, moderated dynamic conversation mode.
@@ -136,7 +136,7 @@ Phases execute in numeric order: 8 → 9 → 10 → 11 → 12
 | 5. Voice Capture and Evidence Storage | v1.0 | 5/5 | Complete | 2026-06-27 |
 | 6. AI Mission and Turn Intelligence | v1.0 | 4/4 | Complete | 2026-06-29 |
 | 7. Teacher Review and Pilot Readiness | v1.0 | 4/4 | Complete | 2026-07-01 |
-| 8. Coco Voice (TTS) | v2.0 | 5/5 | Complete   | 2026-07-02 |
+| 8. Coco Voice (TTS) | v2.0 | 5/5 | Complete (accepted with residual low-end-device risk) | 2026-07-02 |
 | 9. Pronunciation Scoring | v2.0 | 0/TBD | Not started | - |
 | 10. Mascot (VN-style) | v2.0 | 0/TBD | Not started | - |
 | 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 0/TBD | Not started | - |
@@ -144,4 +144,4 @@ Phases execute in numeric order: 8 → 9 → 10 → 11 → 12
 
 ## Next Up
 
-Run `/gsd-plan-phase 8` to plan Coco Voice (TTS), the first v2.0 point release.
+Run `/gsd-plan-phase 9` to plan Pronunciation Scoring, the next v2.0 point release.
