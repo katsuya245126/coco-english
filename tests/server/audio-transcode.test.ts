@@ -1,4 +1,6 @@
 import { EventEmitter } from "node:events";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { PassThrough, Writable } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 
@@ -37,6 +39,13 @@ function createFakeSpawn(behavior: {
 }
 
 describe("transcodeToWav", () => {
+  it("keeps ffmpeg-static externalized from the Next server bundle", () => {
+    const nextConfig = readFileSync(join(process.cwd(), "next.config.ts"), "utf8");
+
+    expect(nextConfig).toContain("serverExternalPackages");
+    expect(nextConfig).toContain('"ffmpeg-static"');
+  });
+
   it("resolves a WAV buffer from a happy-path fake ffmpeg process", async () => {
     const { transcodeToWav } = await import("@/server/audio/audio-transcode");
     const fakeWav = Buffer.from("RIFF....WAVEfmt ");
