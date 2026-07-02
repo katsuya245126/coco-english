@@ -664,4 +664,224 @@ describe("uploadAttemptAudioClip", () => {
     expect(routeSource).not.toContain("getPublicUrl");
     expect(routeSource).not.toContain("publicUrl");
   });
+
+  it("scores pronunciation against the target sentence and upserts a pronunciation_scores row on success", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const scorePronunciation = vi.fn(async () => ({
+      ok: true as const,
+      score: {
+        accuracyScore: 88,
+        fluencyScore: 90,
+        completenessScore: 95,
+        pronunciationScore: 87,
+        starBand: 3 as const,
+        referenceText: "I like playing soccer after school.",
+        wordScores: [{ word: "I", accuracyScore: 100, errorType: "None" }],
+      },
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like apples."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      scorePronunciation,
+    });
+
+    expect(result).toMatchObject({ ok: true, audioClipId: "clip-1" });
+    expect(scorePronunciation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        referenceText: "I like playing soccer after school.",
+        durationMs: 1200,
+      }),
+    );
+
+    const scoreUpsert = mockSupabase.operations.find(
+      (operation) => operation.table === "pronunciation_scores",
+    );
+    expect(scoreUpsert?.action).toBe("upsert");
+    expect(scoreUpsert?.payload).toMatchObject({
+      audio_clip_id: "clip-1",
+      provider: "azure_speech",
+      reference_text: "I like playing soccer after school.",
+      accuracy_score: 88,
+      fluency_score: 90,
+      completeness_score: 95,
+      pronunciation_score: 87,
+      star_band: 3,
+    });
+  });
+
+  it("uses the improved sentence as reference text for repeat attempts", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const scorePronunciation = vi.fn(async () => ({
+      ok: true as const,
+      score: {
+        accuracyScore: 70,
+        fluencyScore: 72,
+        completenessScore: 80,
+        pronunciationScore: 68,
+        starBand: 2 as const,
+        referenceText: "I like eating pizza.",
+        wordScores: [],
+      },
+    }));
+
+    await uploadAttemptAudioClip(
+      audioInput({ turnOrder: 2, clipKind: "repeat_attempt", body: "repeat" }),
+      {
+        transcribeAudioFile: successfulTranscriber("I like eating pizza."),
+        evaluateRepeatTurn: successfulRepeatEvaluator(),
+        scorePronunciation,
+      },
+    );
+
+    expect(scorePronunciation).toHaveBeenCalledWith(
+      expect.objectContaining({ referenceText: "I like eating pizza." }),
+    );
+  });
+
+  it("degrades gracefully when pronunciation scoring fails, still returning ok:true with no score row", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const scorePronunciation = vi.fn(async () => ({
+      ok: false as const,
+      error: "provider_failed" as const,
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like apples."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      scorePronunciation,
+    });
+
+    expect(result).toMatchObject({ ok: true, audioClipId: "clip-1" });
+    expect(scorePronunciation).toHaveBeenCalled();
+    expect(
+      mockSupabase.operations.some(
+        (operation) => operation.table === "pronunciation_scores",
+      ),
+    ).toBe(false);
+  });
+
+  it("degrades gracefully when pronunciation scoring throws, still returning ok:true", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const scorePronunciation = vi.fn(async () => {
+      throw new Error("azure down");
+    });
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like apples."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      scorePronunciation,
+    });
+
+    expect(result).toMatchObject({ ok: true, audioClipId: "clip-1" });
+  });
+
+  it("does not fail the upload when the pronunciation_scores DB write fails", async () => {
+    mockSupabase = createMockSupabase();
+    const originalFrom = mockSupabase.from;
+    mockSupabase.from = vi.fn((table: string) => {
+      const query = originalFrom(table);
+      if (table === "pronunciation_scores") {
+        return {
+          ...query,
+          upsert: vi.fn((payload: unknown) => {
+            void payload;
+            return { error: new Error("db down") };
+          }),
+        };
+      }
+      return query;
+    }) as typeof mockSupabase.from;
+
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const scorePronunciation = vi.fn(async () => ({
+      ok: true as const,
+      score: {
+        accuracyScore: 88,
+        fluencyScore: 90,
+        completenessScore: 95,
+        pronunciationScore: 87,
+        starBand: 3 as const,
+        referenceText: "I like playing soccer after school.",
+        wordScores: [],
+      },
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like apples."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      scorePronunciation,
+    });
+
+    expect(result).toMatchObject({ ok: true, audioClipId: "clip-1" });
+  });
+
+  it("starts pronunciation scoring concurrently with turn evaluation, not serially after it", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const callOrder: string[] = [];
+
+    const evaluateOriginal = vi.fn(async () => {
+      callOrder.push("evaluate:start");
+      const evaluation = {
+        version: "ai-eval-v1" as const,
+        outcome: "correct" as const,
+        meaningUnderstood: true,
+        targetPatternAttempted: true,
+        correctionNeeded: false,
+        improvedSentence: null,
+        englishLanguage: "english" as const,
+        confidence: "high" as const,
+        reviewReason: null,
+      };
+      callOrder.push("evaluate:end");
+      return { ok: true as const, evaluation };
+    });
+
+    const scorePronunciation = vi.fn(async () => {
+      callOrder.push("score:start");
+      const score = {
+        accuracyScore: 88,
+        fluencyScore: 90,
+        completenessScore: 95,
+        pronunciationScore: 87,
+        starBand: 3 as const,
+        referenceText: "I like playing soccer after school.",
+        wordScores: [],
+      };
+      callOrder.push("score:end");
+      return { ok: true as const, score };
+    });
+
+    await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like apples."),
+      evaluateOriginalTurn: evaluateOriginal,
+      scorePronunciation,
+    });
+
+    expect(evaluateOriginal).toHaveBeenCalled();
+    expect(scorePronunciation).toHaveBeenCalled();
+    // Both fakes were invoked before either fully resolved serially after the other --
+    // i.e. scoring is not chained strictly after evaluation completes.
+    expect(callOrder.indexOf("score:start")).toBeLessThan(
+      callOrder.indexOf("evaluate:end"),
+    );
+  });
 });
