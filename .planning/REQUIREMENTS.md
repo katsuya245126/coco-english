@@ -26,7 +26,7 @@ REQ-ID categories continue from v1 with new codes: VOICE, PRON, MASCOT, CHAT, SC
 - [ ] **PRON-03**: Scoring accuracy is validated against this app's own students' stored v1 audio before student-facing results are trusted (guard against over-penalizing young Korean/ESL non-native speech).
 - [ ] **PRON-04**: Students see pronunciation feedback as encouraging qualitative bands/stars/color and word-level "what to fix" highlights — never a raw numeric score — preserving the app's balanced, no-harsh-failure correction style.
 - [ ] **PRON-05**: Teacher review surfaces the per-word pronunciation breakdown as a diagnostic (additive to the existing transcript-first review UI), never displacing the transcript.
-- [ ] **PRON-06**: Pronunciation scores are stored in a dedicated `pronunciation_scores` table keyed on the audio clip, independent of the existing turn-evaluation data (different provider, independently re-scorable).
+- [x] **PRON-06**: Pronunciation scores are stored in a dedicated `pronunciation_scores` table keyed on the audio clip, independent of the existing turn-evaluation data (different provider, independently re-scorable).
 
 ### MASCOT — VN-Style Mascot (point release v2.3)
 
@@ -83,7 +83,7 @@ Each v2.0 requirement is mapped to exactly one phase. 23/23 mapped, no orphans.
 | PRON-03 | Phase 9 (v2.2 Pronunciation Scoring) | Pending |
 | PRON-04 | Phase 9 (v2.2 Pronunciation Scoring) | Pending |
 | PRON-05 | Phase 9 (v2.2 Pronunciation Scoring) | Pending |
-| PRON-06 | Phase 9 (v2.2 Pronunciation Scoring) | Pending |
+| PRON-06 | Phase 9 (v2.2 Pronunciation Scoring) | Complete |
 | MASCOT-01 | Phase 10 (v2.3 Mascot) | Pending |
 | MASCOT-02 | Phase 10 (v2.3 Mascot) | Pending |
 | MASCOT-03 | Phase 10 (v2.3 Mascot) | Pending |

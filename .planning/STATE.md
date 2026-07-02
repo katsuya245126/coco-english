@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 09
 current_phase_name: pronunciation-scoring
 status: executing
-stopped_at: "Phase 09 plan 02 complete (pronunciation_scores schema pushed and verified live on Supabase; checkpoint resolved; PRON-06 satisfied)"
-last_updated: "2026-07-02T12:49:17.000Z"
+stopped_at: Phase 09 plan 02 complete (pronunciation_scores schema pushed and verified live on Supabase; checkpoint resolved; PRON-06 satisfied)
+last_updated: "2026-07-02T12:53:03.901Z"
 last_activity: 2026-07-02
-last_activity_desc: "Phase 09 plan 02 checkpoint resolved (supabase db push confirmed by user, independently verified via read-only supabase migration list; PRON-06 satisfied)"
+last_activity_desc: "Phase 09 plan 02 checkpoint resolved: user confirmed `supabase db push` applied the pronunciation_scores migration; independently verified via read-only `supabase migration list` (202607020001 present in both Local and Remote columns). PRON-06 satisfied."
 progress:
   total_phases: 5
   completed_phases: 1
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 
 Phase: 09 (pronunciation-scoring) — EXECUTING
 Previous phase: 08 (coco-voice-tts) — COMPLETE with residual older-device risk accepted
-Status: Executing Phase 09 (plan 01 checkpoint resolved; plan 03 also complete; plan 02 has commits but summary/finalization still pending)
-Last activity: 2026-07-02 — Phase 09 plan 01 checkpoint approved by operator ("1. Confirmed."): Azure Speech data-use note confirmed accurate, F0-tier resource provisioned, AZURE_SPEECH_KEY/AZURE_SPEECH_REGION set in local .env. PRON-02 pre-send gate satisfied.
+Status: Executing Phase 09 (plans 01, 02, and 03 complete; plan 02's checkpoint resolved with `supabase db push` independently verified live via `supabase migration list`)
+Last activity: 2026-07-02 — Phase 09 plan 02 checkpoint resolved: user confirmed `supabase db push` applied the pronunciation_scores migration; independently verified via read-only `supabase migration list` (202607020001 present in both Local and Remote columns). PRON-06 satisfied.
 
 Progress: [███████░░░] 73%
 
@@ -140,6 +140,7 @@ Recent decisions affecting current work:
 - [Phase 08]: Closed 2026-07-02 after preview deployment smoke test on Samsung S23 and Mac. Chromebook/older-tablet VOICE-04 coverage was unavailable and explicitly accepted as residual risk; see 08-VERIFICATION.md.
 - [Phase 09]: 09-03: Azure recognizer wired through an injectable PronunciationRecognizerFactory returning a plain PronunciationRecognitionRaw shape so tests never construct a real SDK SpeechRecognizer or call the paid Azure API; guard order missing_api_key -> audio_too_long -> transcode_failed -> provider_failed.
 - [Phase 09]: 09-01: Azure AI Speech data-use note confirmed accurate by operator; Azure Speech resource (F0 tier) provisioned with AZURE_SPEECH_KEY/AZURE_SPEECH_REGION set in local .env — PRON-02 pre-send gate satisfied before any downstream plan calls the live Azure API.
+- [Phase 09]: 09-02: pronunciation_scores table pushed live via user-run supabase db push; is_audio_clip_owner RLS helper extends is_attempt_turn_owner's ownership chain one join-hop; checkpoint independently verified read-only via supabase migration list rather than trusted blindly.
 
 ### Pending Todos
 
@@ -164,6 +165,6 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 ## Session Continuity
 
-Last session: 2026-07-02T12:55:00.000Z
-Stopped at: Phase 09 plan 01 checkpoint resolved (PRON-02 gate satisfied)
-Resume file: .planning/phases/09-pronunciation-scoring/09-02-PLAN.md
+Last session: 2026-07-02T12:53:03.894Z
+Stopped at: Phase 09 plans 01, 02, 03 complete (PRON-02 and PRON-06 gates satisfied; scoring engine built)
+Resume file: .planning/phases/09-pronunciation-scoring/09-04-PLAN.md
