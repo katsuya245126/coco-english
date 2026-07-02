@@ -4,17 +4,17 @@ milestone: v2.0
 milestone_name: — Coco Comes Alive
 current_phase: 09
 current_phase_name: pronunciation-scoring
-status: ready_to_execute
-stopped_at: Phase 09 planned (6 plans, 4 waves, checker passed)
-last_updated: "2026-07-02T11:30:00.000Z"
+status: executing
+stopped_at: "Phase 09 plan 03 complete (pronunciation-scoring engine: transcode, Azure adapter, star-band domain module)"
+last_updated: "2026-07-02T12:31:40.131Z"
 last_activity: 2026-07-02
-last_activity_desc: Phase 09 planned — 6 plans in 4 waves, plan-checker passed, all 6 PRON requirements and 8 context decisions covered
+last_activity_desc: "Phase 09 plan 03 executed (PRON-01 scoring engine: audio-transcode.ts, pronunciation-scorer.ts, domain/pronunciation/scoring.ts)"
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 11
-  completed_plans: 5
-  percent: 20
+  completed_plans: 6
+  percent: 55
 ---
 
 # Project State
@@ -28,12 +28,12 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 
 ## Current Position
 
-Phase: 09 (pronunciation-scoring) — READY TO EXECUTE
+Phase: 09 (pronunciation-scoring) — EXECUTING
 Previous phase: 08 (coco-voice-tts) — COMPLETE with residual older-device risk accepted
-Status: Ready to execute Phase 09 (6 plans, 4 waves)
-Last activity: 2026-07-02 — Phase 09 planned: 6 plans in 4 waves, plan-checker passed, all requirements/decisions covered
+Status: Executing Phase 09 (plan 03 of 6 complete)
+Last activity: 2026-07-02 — Phase 09 plan 03 executed (PRON-01 scoring engine: audio-transcode.ts, pronunciation-scorer.ts, domain/pronunciation/scoring.ts)
 
-Progress: [██░░░░░░░░] 20%
+Progress: [██████░░░░] 55%
 
 ## Performance Metrics
 
@@ -75,6 +75,7 @@ Progress: [██░░░░░░░░] 20%
 | Phase 06 P02 | 7min | 2 tasks | 5 files |
 | Phase 06 P04 | 15min | 2 tasks | 11 files |
 | Phase 07 P04 | 4min | 2 tasks | 9 files |
+| Phase 09 P03 | 6min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -135,6 +136,7 @@ Recent decisions affecting current work:
 - [Phase 07]: Post-merge gate closed 2026-07-01 — assignment-list.test.ts expectations updated to match the late/retry rename, logger.test.ts vi.spyOn typecheck fixed via a typed helper function (commit c7039220). Full suite 33/33 files green, tsc clean.
 - [Phase ?]: Phase 8 Plan 05: Task 1 voice wiring for transition/completion was already complete from Plan 04 (commit 36de2edb); Plan 05 fixed pre-existing tsc/eslint errors in tts-cache.test.ts blocking verification and recorded full automated verification evidence in 08-VERIFICATION.md.
 - [Phase 08]: Closed 2026-07-02 after preview deployment smoke test on Samsung S23 and Mac. Chromebook/older-tablet VOICE-04 coverage was unavailable and explicitly accepted as residual risk; see 08-VERIFICATION.md.
+- [Phase 09]: 09-03: Azure recognizer wired through an injectable PronunciationRecognizerFactory returning a plain PronunciationRecognitionRaw shape so tests never construct a real SDK SpeechRecognizer or call the paid Azure API; guard order missing_api_key -> audio_too_long -> transcode_failed -> provider_failed.
 
 ### Pending Todos
 
@@ -159,6 +161,6 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 ## Session Continuity
 
-Last session: 2026-07-02T10:22:58.806Z
+Last session: 2026-07-02T12:27:47.023Z
 Stopped at: Phase 09 UI-SPEC approved
 Resume file: .planning/phases/09-pronunciation-scoring/09-UI-SPEC.md
