@@ -72,8 +72,16 @@ Archive:
   5. Pronunciation scores are stored in a dedicated `pronunciation_scores` table keyed on the audio clip, independent of existing turn-evaluation data.
   6. A documented FERPA/COPPA data-use note for Azure Speech exists before any student audio is sent to the vendor.
 
-**Plans**: TBD
-**Research flag**: Needs an explicit accuracy-validation pass (Azure vs. real stored student audio for this app's 6 students) as a phase task before score-band thresholds are finalized — not literature research, empirical validation.
+**Plans**: 6 plans
+
+- [ ] 09-01-PLAN.md — FERPA/COPPA Azure data-use note + server-only env vars (PRON-02)
+- [ ] 09-02-PLAN.md — pronunciation_scores table, RLS, grants + live schema push (PRON-06)
+- [ ] 09-03-PLAN.md — install Azure SDK + ffmpeg-static; transcode, scorer adapter, score→star mapping (PRON-01)
+- [ ] 09-04-PLAN.md — wire scoring inline into upload pipeline + persist scores (PRON-01)
+- [ ] 09-05-PLAN.md — teacher per-word diagnostic panel + D-04 calibration gate (PRON-03, PRON-05)
+- [ ] 09-06-PLAN.md — inline student star band, no raw score (PRON-04)
+
+**Research flag**: Needs an explicit accuracy-validation pass (Azure vs. real stored student audio for this app's 6 students) as a phase task before score-band thresholds are finalized — not literature research, empirical validation. (Handled by the D-04 calibration checkpoint in 09-05, which gates the 09-06 student-facing stars.)
 
 ### Phase 10: Mascot (VN-style)
 
@@ -137,7 +145,7 @@ Phases execute in numeric order: 8 → 9 → 10 → 11 → 12
 | 6. AI Mission and Turn Intelligence | v1.0 | 4/4 | Complete | 2026-06-29 |
 | 7. Teacher Review and Pilot Readiness | v1.0 | 4/4 | Complete | 2026-07-01 |
 | 8. Coco Voice (TTS) | v2.0 | 5/5 | Complete (accepted with residual low-end-device risk) | 2026-07-02 |
-| 9. Pronunciation Scoring | v2.0 | 0/TBD | Not started | - |
+| 9. Pronunciation Scoring | v2.0 | 0/6 | Planned | - |
 | 10. Mascot (VN-style) | v2.0 | 0/TBD | Not started | - |
 | 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 0/TBD | Not started | - |
 | 12. UI Overhaul | v2.0 | 0/TBD | Not started | - |
