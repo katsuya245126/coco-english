@@ -43,6 +43,17 @@ describe("CocoSpeechAudio replay UI source contract (VOICE-02, D-12, D-13)", () 
     expect(source).toContain("<audio");
   });
 
+  it("uses an inline SVG speaker icon instead of emoji glyphs", () => {
+    const source = readSource("src/components/student/CocoSpeechAudio.tsx");
+
+    expect(source).toContain("function SpeakerIcon");
+    expect(source).toContain("<svg");
+    expect(source).toContain('stroke: "currentColor"');
+    expect(source).toContain('fill="currentColor"');
+    expect(source).toMatch(/M15\.54 8\.46a5 5 0 0 1 0 7\.07/);
+    expect(source).not.toMatch(/[🔈🔊🔇…]/u);
+  });
+
   it("uses a standard audio element, catches rejected play() promises, and exposes loading/ready/playing/error states", () => {
     const source = readSource("src/components/student/CocoSpeechAudio.tsx");
 
