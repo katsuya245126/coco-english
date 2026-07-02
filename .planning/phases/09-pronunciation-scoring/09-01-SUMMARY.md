@@ -89,7 +89,17 @@ Already completed by the operator as part of this checkpoint: Azure AI Speech re
 ## Next Phase Readiness
 - PRON-02 pre-send gate is satisfied: the data-use note exists, env vars are documented, and a real Azure Speech key + region are provisioned and available locally.
 - Plans 09-04 (transcode + scorer adapter live wiring) and 09-05 (teacher diagnostic panel) can now proceed to call the real Azure API when they reach that point, using the operator's provisioned credentials.
-- Note: 09-02 (pronunciation_scores table/RLS/grants) also has commits on main but no SUMMARY.md yet — that finalization gap is out of scope for this plan and tracked separately.
+- 09-02 (pronunciation_scores table/RLS/grants) and 09-03 (scoring engine) were also finalized in this working session; all of 09-01/09-02/09-03 now have committed SUMMARY.md files. Phase 09 next moves to 09-04.
+
+## Self-Check: PASSED
+
+- FOUND: docs/azure-speech-data-use.md
+- FOUND: .env.example AZURE_SPEECH_KEY / AZURE_SPEECH_REGION entries (verified via committed diff in 9487cf6b)
+- FOUND: commit 7d6a4f85 (docs(09-01): add Azure Speech FERPA/COPPA data-use note)
+- FOUND: commit 9487cf6b (docs(09-01): document Azure Speech env vars in .env.example)
+- FOUND: commit 4cfbd7a5 (docs(09-01): add plan summary)
+- FOUND: commit c2b84a82 (docs(09-01): complete Azure Speech data-use note and env-var plan)
+- FOUND: .planning/phases/09-pronunciation-scoring/09-01-SUMMARY.md
 
 ---
 *Phase: 09-pronunciation-scoring*
