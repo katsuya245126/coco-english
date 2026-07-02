@@ -2,9 +2,10 @@
 phase: 08
 slug: coco-voice-tts
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-07-01
+updated: 2026-07-02
 ---
 
 # Phase 08 — Validation Strategy
@@ -38,10 +39,10 @@ created: 2026-07-01
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 08-W0-01 | TBD | 0 | VOICE-01 | T-08-01 | OpenAI TTS stays server-only; missing key/provider failures are handled without paid calls in tests. | unit | `npx vitest run tests/server/tts-generator.test.ts` | no W0 | pending |
-| 08-W0-02 | TBD | 0 | VOICE-02 | T-08-02 | Inline replay button is accessible and does not expose provider internals. | unit/static | `npx vitest run tests/domain/tts.test.ts tests/domain/tts-ui-source.test.ts` | no W0 | pending |
-| 08-W0-03 | TBD | 0 | VOICE-03 | T-08-03 | Server computes canonical cache key; second identical request is a cache hit with no provider call. | unit/integration | `npx vitest run tests/server/tts-cache.test.ts` | no W0 | pending |
-| 08-W0-04 | TBD | 0 | VOICE-04 | T-08-04 | Playback uses standard `<audio>` and degrades to text-only if voice fails. | static + browser + manual UAT | `npx vitest run tests/domain/tts-ui-source.test.ts && npx playwright test tests/e2e/student-coco-voice.spec.ts` plus real device script | no W0 | pending |
+| 08-W0-01 | 01/03 | 0 | VOICE-01 | T-08-01 | OpenAI TTS stays server-only; missing key/provider failures are handled without paid calls in tests. | unit | `npx vitest run tests/server/tts-generator.test.ts` | yes | green |
+| 08-W0-02 | 01/04/05 | 0 | VOICE-02 | T-08-02 | Inline replay button is accessible and does not expose provider internals. | unit/static | `npx vitest run tests/domain/tts.test.ts tests/domain/tts-ui-source.test.ts` | yes | green |
+| 08-W0-03 | 01/03 | 0 | VOICE-03 | T-08-03 | Server computes canonical cache key; second identical request is a cache hit with no provider call. | unit/integration | `npx vitest run tests/server/tts-cache.test.ts` | yes | green |
+| 08-W0-04 | 01/04/05 | 0 | VOICE-04 | T-08-04 | Playback uses standard `<audio>` and degrades to text-only if voice fails. | static + browser + manual UAT | `npx vitest run tests/domain/tts-ui-source.test.ts && npx playwright test tests/e2e/student-coco-voice.spec.ts` plus real device script | yes | green (automated); manual UAT human_needed — see 08-VERIFICATION.md |
 
 *Status values: pending, green, red, flaky*
 
@@ -49,12 +50,12 @@ created: 2026-07-01
 
 ## Wave 0 Requirements
 
-- [ ] `tests/domain/tts.test.ts` — canonical hash inputs, voiced-line eligibility rules, no student transcript voicing.
-- [ ] `tests/domain/tts-ui-source.test.ts` — inline replay UI source contracts, no OpenAI client import in student client modules, standard `<audio>` usage, no transcript descriptors.
-- [ ] `tests/server/tts-generator.test.ts` — fake OpenAI speech client, missing key branch, provider failure branch, response format/model assertions.
-- [ ] `tests/server/tts-cache.test.ts` — cache miss/upload/insert path, cache hit/no provider call path, duplicate/concurrency-safe behavior.
-- [ ] `tests/e2e/student-coco-voice.spec.ts` — browser-required autoplay/audio fallback behavior only; static/source assertions belong in Vitest.
-- [ ] Manual UAT checklist in the final verification artifact for Chromebook or older tablet playback.
+- [x] `tests/domain/tts.test.ts` — canonical hash inputs, voiced-line eligibility rules, no student transcript voicing.
+- [x] `tests/domain/tts-ui-source.test.ts` — inline replay UI source contracts, no OpenAI client import in student client modules, standard `<audio>` usage, no transcript descriptors.
+- [x] `tests/server/tts-generator.test.ts` — fake OpenAI speech client, missing key branch, provider failure branch, response format/model assertions.
+- [x] `tests/server/tts-cache.test.ts` — cache miss/upload/insert path, cache hit/no provider call path, duplicate/concurrency-safe behavior.
+- [x] `tests/e2e/student-coco-voice.spec.ts` — browser-required autoplay/audio fallback behavior only; static/source assertions belong in Vitest.
+- [x] Manual UAT checklist in the final verification artifact for Chromebook or older tablet playback. Checklist exists in `08-VERIFICATION.md`; the UAT itself remains `human_needed`.
 
 ---
 
@@ -69,12 +70,12 @@ created: 2026-07-01
 
 ## Validation Sign-Off
 
-- [ ] All tasks have automated verify commands or Wave 0 dependencies.
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify.
-- [ ] Wave 0 covers all missing test references.
-- [ ] No watch-mode flags in verification commands.
-- [ ] Automated quick feedback latency remains under 30 seconds after Wave 0.
-- [ ] Real low-end-device UAT is completed before phase verification.
-- [ ] `nyquist_compliant: true` set in frontmatter after Wave 0 and sampling map are satisfied.
+- [x] All tasks have automated verify commands or Wave 0 dependencies.
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify.
+- [x] Wave 0 covers all missing test references.
+- [x] No watch-mode flags in verification commands.
+- [x] Automated quick feedback latency remains under 30 seconds after Wave 0 (`tests/domain/tts-ui-source.test.ts` etc. complete in well under 1s; full suite in ~2s).
+- [ ] Real low-end-device UAT is completed before phase verification. **NOT completed — human_needed, see `08-VERIFICATION.md`.**
+- [x] `nyquist_compliant: true` set in frontmatter after Wave 0 and sampling map are satisfied.
 
-**Approval:** pending
+**Approval:** automated checks approved 2026-07-02; phase not fully approved until VOICE-04 manual UAT completes (see `08-VERIFICATION.md`).
