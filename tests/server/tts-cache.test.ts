@@ -23,7 +23,7 @@ function createMockSupabase(
   } = {},
 ) {
   const operations: Operation[] = [];
-  let cacheRow = options.cacheRow ?? null;
+  let cacheRow: unknown = options.cacheRow ?? null;
   const upload = vi.fn(async () => ({
     error: options.uploadError ?? null,
   }));
@@ -56,7 +56,7 @@ function createMockSupabase(
         operation.payload = payload;
         operations.push(operation);
         if (table === "tts_audio_cache") {
-          cacheRow = payload as {} | null;
+          cacheRow = payload;
         }
         return query;
       }),
