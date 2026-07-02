@@ -2,9 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { missionSnapshotSchema } from "@/domain/mission/schemas";
 
 let mockSupabase: unknown;
+const mockWarmTtsAudioCache = vi.fn();
 
 vi.mock("@/lib/supabase/server-auth", () => ({
   createSupabaseServerClient: async () => mockSupabase,
+}));
+
+vi.mock("@/server/audio/tts-cache", () => ({
+  warmTtsAudioCache: mockWarmTtsAudioCache,
 }));
 
 const {
@@ -40,6 +45,12 @@ const turnRows = [
 describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockWarmTtsAudioCache.mockResolvedValue({
+      ok: true,
+      warmed: 0,
+      skipped: 0,
+      failed: 0,
+    });
   });
 
   it("builds a D-05/D-07 full denormalized snapshot including MISS-04 character id", () => {
@@ -111,6 +122,93 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
         }),
       }),
     );
+  });
+
+  it("warms predictable Coco voice lines from the assignment snapshot after assignment succeeds", async () => {
+    const rpc = vi.fn(async () => ({
+      data: {
+        out_assignment_id: "assignment-1",
+        out_active_student_count: 2,
+        out_class_name: "Blue Class",
+      },
+      error: null,
+    }));
+    const supabase = {
+      from: vi.fn((table: string) => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn(async () => ({
+                data: table === "missions" ? missionRow : null,
+                error: null,
+              })),
+            })),
+            order: vi.fn(async () => ({ data: turnRows, error: null })),
+          })),
+        })),
+      })),
+      rpc,
+    };
+    mockSupabase = supabase;
+
+    await assignMissionToClass({
+      teacherId: "teacher-1",
+      missionId: missionRow.id,
+      classId: "22222222-2222-4222-8222-222222222222",
+      dueAt: null,
+    });
+
+    expect(mockWarmTtsAudioCache).toHaveBeenCalledWith(
+      expect.objectContaining({
+        characterId: "default-buddy",
+        voice: "marin",
+        texts: expect.arrayContaining([
+          "What food do you like?",
+          "Good job! Ready for the next one.",
+          "Nice! Here is a better way to say it:",
+          "Mission complete! Great work! You finished all 1 turns. Your teacher will see your answers.",
+        ]),
+      }),
+    );
+  });
+
+  it("does not fail assignment creation when TTS cache warming fails", async () => {
+    mockWarmTtsAudioCache.mockRejectedValueOnce(new Error("tts down"));
+    const rpc = vi.fn(async () => ({
+      data: {
+        out_assignment_id: "assignment-1",
+        out_active_student_count: 2,
+        out_class_name: "Blue Class",
+      },
+      error: null,
+    }));
+    const supabase = {
+      from: vi.fn((table: string) => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn(async () => ({
+                data: table === "missions" ? missionRow : null,
+                error: null,
+              })),
+            })),
+            order: vi.fn(async () => ({ data: turnRows, error: null })),
+          })),
+        })),
+      })),
+      rpc,
+    };
+    mockSupabase = supabase;
+
+    await expect(assignMissionToClass({
+      teacherId: "teacher-1",
+      missionId: missionRow.id,
+      classId: "22222222-2222-4222-8222-222222222222",
+      dueAt: null,
+    })).resolves.toMatchObject({
+      assignmentId: "assignment-1",
+      activeStudentCount: 2,
+    });
   });
 
   it("preserves stored snapshot after live mission edit (D-05, D-06, D-14)", () => {

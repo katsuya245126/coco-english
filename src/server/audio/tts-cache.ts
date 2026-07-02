@@ -56,6 +56,19 @@ export type GetOrCreateTtsAudioResult =
   | { ok: true; cacheStatus: "hit" | "miss"; audioUrl: string; mimeType: string }
   | { ok: false; error: GetOrCreateTtsAudioError };
 
+export type WarmTtsAudioCacheInput = {
+  characterId: string;
+  voice: string;
+  texts: string[];
+};
+
+export type WarmTtsAudioCacheResult = {
+  ok: true;
+  warmed: number;
+  skipped: number;
+  failed: number;
+};
+
 export type GetOrCreateTtsAudioDeps = {
   generateTtsAudio?: (input: {
     text: string;
@@ -69,6 +82,138 @@ export type GetOrCreateTtsAudioDeps = {
  */
 function buildObjectKey(contentHash: string): string {
   return `${TTS_PROVIDER}/${contentHash}.mp3`;
+}
+
+async function getOrCreateCachedTtsObject(
+  input: {
+    characterId: string;
+    voice: string;
+    text: string;
+  },
+  deps?: GetOrCreateTtsAudioDeps,
+): Promise<
+  | { ok: true; cacheStatus: "hit" | "miss"; objectKey: string; mimeType: string }
+  | { ok: false; error: Exclude<GetOrCreateTtsAudioError, "not_found"> }
+> {
+  const characterId = input.characterId;
+  const voice: TtsVoice = ttsVoiceSchema.safeParse(input.voice).success
+    ? (input.voice as TtsVoice)
+    : DEFAULT_COCO_TTS_VOICE;
+  const text = input.text;
+  const generate = deps?.generateTtsAudio ?? defaultGenerateTtsAudio;
+  const supabase = createSupabaseServiceClient();
+
+  const contentHash = computeTtsContentHash({
+    text,
+    characterId,
+    voice,
+    provider: TTS_PROVIDER,
+    model: TTS_MODEL,
+    responseFormat: TTS_RESPONSE_FORMAT,
+  });
+
+  const { data: cachedRow } = await supabase
+    .from("tts_audio_cache")
+    .select("id, object_key, mime_type")
+    .eq("content_hash", contentHash)
+    .maybeSingle();
+
+  if (cachedRow?.object_key) {
+    await supabase
+      .from("tts_audio_cache")
+      .update({ last_accessed_at: new Date().toISOString() })
+      .eq("id", cachedRow.id);
+
+    return {
+      ok: true,
+      cacheStatus: "hit",
+      objectKey: cachedRow.object_key,
+      mimeType: cachedRow.mime_type ?? "audio/mpeg",
+    };
+  }
+
+  const generated = await generate({ text, voice });
+  if (!generated.ok) {
+    log("warn", "audio.tts_generation_failed", {
+      provider: TTS_PROVIDER,
+      model: TTS_MODEL,
+      voice,
+      error: generated.error,
+    });
+    return { ok: false, error: "generation_failed" };
+  }
+
+  const objectKey = buildObjectKey(contentHash);
+  const byteSize = generated.audio.size;
+
+  const uploadResult = await supabase.storage
+    .from(TTS_AUDIO_BUCKET)
+    .upload(objectKey, generated.audio, {
+      contentType: generated.mimeType,
+      upsert: true,
+    });
+
+  if (uploadResult.error) {
+    log("warn", "audio.tts_upload_failed", {
+      provider: TTS_PROVIDER,
+      model: TTS_MODEL,
+      voice,
+    });
+    return { ok: false, error: "storage_failed" };
+  }
+
+  await supabase.from("tts_audio_cache").upsert(
+    {
+      content_hash: contentHash,
+      provider: TTS_PROVIDER,
+      model: TTS_MODEL,
+      voice,
+      response_format: TTS_RESPONSE_FORMAT,
+      character_id: characterId,
+      object_key: objectKey,
+      mime_type: generated.mimeType,
+      byte_size: byteSize,
+    },
+    { onConflict: "content_hash" },
+  );
+
+  return {
+    ok: true,
+    cacheStatus: "miss",
+    objectKey,
+    mimeType: generated.mimeType,
+  };
+}
+
+export async function warmTtsAudioCache(
+  input: WarmTtsAudioCacheInput,
+  deps?: GetOrCreateTtsAudioDeps,
+): Promise<WarmTtsAudioCacheResult> {
+  const uniqueTexts = Array.from(
+    new Set(input.texts.map((text) => text.trim()).filter(Boolean)),
+  );
+
+  let warmed = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const text of uniqueTexts) {
+    const result = await getOrCreateCachedTtsObject({
+      characterId: input.characterId,
+      voice: input.voice,
+      text,
+    }, deps);
+
+    if (!result.ok) {
+      failed += 1;
+    } else if (result.cacheStatus === "hit") {
+      skipped += 1;
+    } else {
+      warmed += 1;
+    }
+  }
+
+  return { ok: true, warmed, skipped, failed };
 }
 
 export async function getOrCreateTtsAudio(
@@ -88,7 +233,6 @@ export async function getOrCreateTtsAudio(
     : DEFAULT_COCO_TTS_VOICE;
   const text = input.text;
 
-  const generate = deps?.generateTtsAudio ?? defaultGenerateTtsAudio;
   const supabase = createSupabaseServiceClient();
 
   // 1. Ownership gate — assignment must belong to this student (T-08-04).
@@ -103,98 +247,19 @@ export async function getOrCreateTtsAudio(
     return { ok: false, error: "not_found" };
   }
 
-  // 2. Server-computed canonical content hash (VOICE-03, T-08-03).
-  const contentHash = computeTtsContentHash({
-    text,
+  const cached = await getOrCreateCachedTtsObject({
     characterId,
     voice,
-    provider: TTS_PROVIDER,
-    model: TTS_MODEL,
-    responseFormat: TTS_RESPONSE_FORMAT,
-  });
+    text,
+  }, deps);
 
-  // 3. Cache lookup — a hit never calls the provider.
-  const { data: cachedRow } = await supabase
-    .from("tts_audio_cache")
-    .select("id, object_key, mime_type")
-    .eq("content_hash", contentHash)
-    .maybeSingle();
-
-  if (cachedRow?.object_key) {
-    const signed = await supabase.storage
-      .from(TTS_AUDIO_BUCKET)
-      .createSignedUrl(cachedRow.object_key, SIGNED_TTS_URL_TTL_SECONDS);
-
-    if (signed.error || !signed.data?.signedUrl) {
-      return { ok: false, error: "storage_failed" };
-    }
-
-    // Best-effort access metadata update; never blocks playback.
-    await supabase
-      .from("tts_audio_cache")
-      .update({ last_accessed_at: new Date().toISOString() })
-      .eq("id", cachedRow.id);
-
-    return {
-      ok: true,
-      cacheStatus: "hit",
-      audioUrl: signed.data.signedUrl,
-      mimeType: cachedRow.mime_type ?? "audio/mpeg",
-    };
+  if (!cached.ok) {
+    return { ok: false, error: cached.error };
   }
 
-  // 4. Cache miss — one validated provider call (T-08-02).
-  const generated = await generate({ text, voice });
-  if (!generated.ok) {
-    log("warn", "audio.tts_generation_failed", {
-      provider: TTS_PROVIDER,
-      model: TTS_MODEL,
-      voice,
-      error: generated.error,
-    });
-    return { ok: false, error: "generation_failed" };
-  }
-
-  const objectKey = buildObjectKey(contentHash);
-  const byteSize = generated.audio.size;
-
-  // 5. Upload to the private bucket. A failure writes no cache row (D-15).
-  const uploadResult = await supabase.storage
-    .from(TTS_AUDIO_BUCKET)
-    .upload(objectKey, generated.audio, {
-      contentType: generated.mimeType,
-      upsert: true,
-    });
-
-  if (uploadResult.error) {
-    log("warn", "audio.tts_upload_failed", {
-      provider: TTS_PROVIDER,
-      model: TTS_MODEL,
-      voice,
-    });
-    return { ok: false, error: "storage_failed" };
-  }
-
-  // 6. Persist cache metadata (content_hash is server-computed only).
-  await supabase.from("tts_audio_cache").upsert(
-    {
-      content_hash: contentHash,
-      provider: TTS_PROVIDER,
-      model: TTS_MODEL,
-      voice,
-      response_format: TTS_RESPONSE_FORMAT,
-      character_id: characterId,
-      object_key: objectKey,
-      mime_type: generated.mimeType,
-      byte_size: byteSize,
-    },
-    { onConflict: "content_hash" },
-  );
-
-  // 7. Signed URL from the private bucket (T-08-05).
   const signed = await supabase.storage
     .from(TTS_AUDIO_BUCKET)
-    .createSignedUrl(objectKey, SIGNED_TTS_URL_TTL_SECONDS);
+    .createSignedUrl(cached.objectKey, SIGNED_TTS_URL_TTL_SECONDS);
 
   if (signed.error || !signed.data?.signedUrl) {
     return { ok: false, error: "storage_failed" };
@@ -202,8 +267,8 @@ export async function getOrCreateTtsAudio(
 
   return {
     ok: true,
-    cacheStatus: "miss",
+    cacheStatus: cached.cacheStatus,
     audioUrl: signed.data.signedUrl,
-    mimeType: generated.mimeType,
+    mimeType: cached.mimeType,
   };
 }

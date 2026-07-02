@@ -302,3 +302,85 @@ describe("getOrCreateTtsAudio (VOICE-03)", () => {
     expect(mockSupabase.createSignedUrl).toHaveBeenCalled();
   });
 });
+
+describe("warmTtsAudioCache", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    mockSupabase = createMockSupabase();
+    process.env.OPENAI_API_KEY = "test-key";
+  });
+
+  it("warms trusted server-resolved text without assignment ownership lookup or signed URL creation", async () => {
+    const { warmTtsAudioCache } = await import("@/server/audio/tts-cache");
+    const fakeGenerateTtsAudio = vi.fn(async () => ({
+      ok: true as const,
+      audio: new Blob(["fake-mp3-bytes"], { type: "audio/mpeg" }),
+      mimeType: "audio/mpeg" as const,
+    }));
+
+    const result = await warmTtsAudioCache({
+      characterId: "default-buddy",
+      voice: "marin",
+      texts: ["What food do you like?"],
+    }, {
+      generateTtsAudio: fakeGenerateTtsAudio,
+    });
+
+    expect(result).toEqual({ ok: true, warmed: 1, skipped: 0, failed: 0 });
+    expect(fakeGenerateTtsAudio).toHaveBeenCalledWith({
+      text: "What food do you like?",
+      voice: "marin",
+    });
+    expect(
+      mockSupabase.operations.some(
+        (operation) => operation.table === "assignment_students",
+      ),
+    ).toBe(false);
+    expect(mockSupabase.createSignedUrl).not.toHaveBeenCalled();
+  });
+
+  it("deduplicates blank and repeated warming text so identical lines generate once", async () => {
+    const { warmTtsAudioCache } = await import("@/server/audio/tts-cache");
+    const fakeGenerateTtsAudio = vi.fn(async () => ({
+      ok: true as const,
+      audio: new Blob(["fake-mp3-bytes"], { type: "audio/mpeg" }),
+      mimeType: "audio/mpeg" as const,
+    }));
+
+    const result = await warmTtsAudioCache({
+      characterId: "default-buddy",
+      voice: "marin",
+      texts: ["Good job!", " ", "Good job!"],
+    }, {
+      generateTtsAudio: fakeGenerateTtsAudio,
+    });
+
+    expect(result).toEqual({ ok: true, warmed: 1, skipped: 0, failed: 0 });
+    expect(fakeGenerateTtsAudio).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports provider failures without throwing or writing cache rows", async () => {
+    const { warmTtsAudioCache } = await import("@/server/audio/tts-cache");
+    const fakeGenerateTtsAudio = vi.fn(async () => ({
+      ok: false as const,
+      error: "provider_failed" as const,
+    }));
+
+    const result = await warmTtsAudioCache({
+      characterId: "default-buddy",
+      voice: "marin",
+      texts: ["What food do you like?"],
+    }, {
+      generateTtsAudio: fakeGenerateTtsAudio,
+    });
+
+    expect(result).toEqual({ ok: true, warmed: 0, skipped: 0, failed: 1 });
+    expect(
+      mockSupabase.operations.some(
+        (operation) =>
+          operation.table === "tts_audio_cache" &&
+          operation.action === "upsert",
+      ),
+    ).toBe(false);
+  });
+});

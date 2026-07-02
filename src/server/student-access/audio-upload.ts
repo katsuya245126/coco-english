@@ -24,6 +24,8 @@ import {
   type RepeatTurnEvaluation,
 } from "@/domain/ai/turn-evaluation";
 import { transcribeAudioFile } from "@/server/audio/transcription";
+import { DEFAULT_COCO_TTS_VOICE } from "@/domain/audio/tts";
+import { warmTtsAudioCache } from "@/server/audio/tts-cache";
 import {
   evaluateOriginalTurn,
   evaluateRepeatTurn,
@@ -87,6 +89,7 @@ export type UploadAttemptAudioClipDeps = {
   transcribeAudioFile?: typeof transcribeAudioFile;
   evaluateOriginalTurn?: typeof evaluateOriginalTurn;
   evaluateRepeatTurn?: typeof evaluateRepeatTurn;
+  warmTtsAudioCache?: typeof warmTtsAudioCache;
 };
 
 type StoredOriginalTurnEvaluation = {
@@ -536,6 +539,27 @@ export async function uploadAttemptAudioClip(
         .eq("id", audioClip.id);
 
       return { ok: false, error: "db_error", retryable: true };
+    }
+
+    if (
+      input.clipKind === "original_answer" &&
+      originalEvaluation?.improvedSentence
+    ) {
+      try {
+        const warm = deps.warmTtsAudioCache ?? warmTtsAudioCache;
+        await warm({
+          characterId: snapshot.characterId,
+          voice: DEFAULT_COCO_TTS_VOICE,
+          texts: [originalEvaluation.improvedSentence],
+        });
+      } catch (error) {
+        log("warn", "audio.tts_improved_sentence_warmup_failed", {
+          assignmentStudentId: input.assignmentStudentId,
+          attemptId: input.attemptId,
+          turnOrder: input.turnOrder,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
 
     const { error: updateError } = await supabase

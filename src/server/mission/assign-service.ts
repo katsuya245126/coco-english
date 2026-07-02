@@ -4,6 +4,10 @@ import {
 } from "@/domain/mission/schemas";
 import { createSupabaseServerClient } from "@/lib/supabase/server-auth";
 import type { Json } from "@/lib/db/types";
+import { DEFAULT_COCO_TTS_VOICE } from "@/domain/audio/tts";
+import { getCharacterProfile } from "@/domain/character/profile";
+import { warmTtsAudioCache } from "@/server/audio/tts-cache";
+import { log } from "@/server/logging/logger";
 
 export type AssignableClass = {
   id: string;
@@ -61,6 +65,17 @@ export function buildMissionSnapshot(input: {
   return missionSnapshotSchema.parse(snapshot);
 }
 
+function collectAssignmentWarmupLines(snapshot: MissionSnapshot): string[] {
+  const profile = getCharacterProfile(snapshot.characterId);
+
+  return [
+    ...snapshot.turns.map((turn) => turn.prompt),
+    profile.turnTransition,
+    profile.improvedSentenceIntro,
+    `${profile.completionHeading} ${profile.completionBody(snapshot.requiredTurns)}`,
+  ];
+}
+
 export async function assignMissionToClass(input: {
   teacherId: string;
   missionId: string;
@@ -112,6 +127,20 @@ export async function assignMissionToClass(input: {
   }
 
   const row = Array.isArray(assigned.data) ? assigned.data[0] : assigned.data;
+  try {
+    await warmTtsAudioCache({
+      characterId: snapshot.characterId,
+      voice: DEFAULT_COCO_TTS_VOICE,
+      texts: collectAssignmentWarmupLines(snapshot),
+    });
+  } catch (error) {
+    log("warn", "audio.tts_assignment_warmup_failed", {
+      missionId: input.missionId,
+      classId: input.classId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   return {
     assignmentId: row.out_assignment_id,
     activeStudentCount: row.out_active_student_count,

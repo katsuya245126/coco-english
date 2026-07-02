@@ -373,6 +373,59 @@ describe("uploadAttemptAudioClip", () => {
     });
   });
 
+  it("warms Coco TTS for an improved sentence after original-turn evaluation writes it", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const warmTtsAudioCache = vi.fn(async () => ({
+      ok: true as const,
+      warmed: 1,
+      skipped: 0,
+      failed: 0,
+    }));
+
+    await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I play soccer"),
+      evaluateOriginalTurn: successfulOriginalEvaluator({
+        outcome: "needs_correction",
+        correctionNeeded: true,
+        improvedSentence: "I like playing soccer after school.",
+      }),
+      warmTtsAudioCache,
+    });
+
+    expect(warmTtsAudioCache).toHaveBeenCalledWith({
+      characterId: "default-buddy",
+      voice: "marin",
+      texts: ["I like playing soccer after school."],
+    });
+  });
+
+  it("does not fail audio upload when improved-sentence TTS warming fails", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I play soccer"),
+      evaluateOriginalTurn: successfulOriginalEvaluator({
+        outcome: "needs_correction",
+        correctionNeeded: true,
+        improvedSentence: "I like playing soccer after school.",
+      }),
+      warmTtsAudioCache: vi.fn(async () => {
+        throw new Error("tts down");
+      }),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      audioClipId: "clip-1",
+      processingStatus: "transcribed",
+    });
+  });
+
   it("evaluates repeat attempts before writing repeat_transcript and repeat_accepted", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
