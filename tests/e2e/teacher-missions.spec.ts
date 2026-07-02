@@ -68,9 +68,7 @@ test("manual mission authoring path is env-aware and excludes later-phase featur
   await page.getByLabel("Topic").fill("After school");
   await page.getByLabel("Level").selectOption("elementary");
   await page.getByLabel("Buddy question").fill("What do you like doing?");
-  await page
-    .getByLabel("Target-form example")
-    .fill("I like playing soccer.");
+  await page.getByLabel("Example answer").fill("I like playing soccer.");
   await page.getByLabel("Hint 1: Target pattern").fill("I like ___ing.");
   await page.getByLabel("Hint 2: Word bank").fill("like, play, soccer");
   await page.getByLabel("Hint 3: Full example").fill("I like playing soccer.");

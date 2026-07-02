@@ -26,7 +26,7 @@ export const missionTurnInputSchema = z.object({
   targetExample: z
     .string()
     .trim()
-    .min(1, "Target-form example is required."),
+    .min(1, "Example answer is required."),
   hintLadder: hintLadderSchema,
 });
 

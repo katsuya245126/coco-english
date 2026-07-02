@@ -99,9 +99,9 @@ export function TurnEditor({ turns, onChange, errors = {} }: TurnEditorProps) {
             />
             <Field
               id={`turn-${index}-target`}
-              label="Target-form example"
+              label="Example answer"
               value={turn.targetExample}
-              placeholder="The ideal student answer using the target pattern"
+              placeholder="One correct student answer using the target pattern"
               error={errors[`turns.${index}.targetExample`]}
               onChange={(value) => updateTurn(index, { targetExample: value })}
             />
