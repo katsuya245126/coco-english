@@ -11,10 +11,19 @@ export const primaryHover: React.CSSProperties = {
   background: "#1D4ED8",
 };
 
-/** Outline / ghost secondary action. Tints the surface and darkens the border. */
+/**
+ * Outline / ghost secondary action. Tints the surface and darkens the border.
+ *
+ * Uses the `border` shorthand (not `borderColor`) to match the base styles it
+ * layers over — every base pairs `secondaryHover` with either `border: "1px
+ * solid …"` or `border: "none"`. Overriding the same shorthand property keeps
+ * the rendered style's key set stable across hover/unhover, avoiding React's
+ * "removing a style property during rerender" warning that fires when a
+ * non-shorthand (`borderColor`) is layered over a shorthand (`border`).
+ */
 export const secondaryHover: React.CSSProperties = {
   background: "#F3F4F6",
-  borderColor: "#9CA3AF",
+  border: "1px solid #9CA3AF",
 };
 
 /** Destructive action (base background #B42318 / #DC2626). Darkens on hover. */
