@@ -30,7 +30,7 @@ Archive:
 
 **Milestone Goal:** Transform Coco English from a functional homework form into an immersive, character-driven speaking experience — Coco speaks, appears on screen, converses naturally, and scores pronunciation — while keeping the teacher-linked homework loop and teacher-verifiability intact. Ships as five independently-shippable point releases (v2.1 → v2.5), each verified in production before the next begins. All schema changes are additive; the v1 server-owned status/audit core is untouched.
 
-- [ ] **Phase 8: Coco Voice (TTS)** - Coco's mission/prompt lines are spoken aloud with caching and low-end-device playback.
+- [ ] **Phase 8: Coco Voice (TTS)** - Coco's mission/prompt lines are spoken aloud with caching and low-end-device playback. All 5 plans executed; VOICE-04 real low-end-device UAT still human_needed (paused at blocking checkpoint 2026-07-02).
 - [ ] **Phase 9: Pronunciation Scoring** - Students get encouraging, banded pronunciation feedback; teachers see word-level diagnostic detail.
 - [ ] **Phase 10: Mascot (VN-style)** - Coco appears on screen as a 2D character with an audio-driven speaking state.
 - [ ] **Phase 11: Coco Chat (dynamic turns + scene framing)** - Missions get a scene premise and an optional bounded, moderated dynamic conversation mode.
@@ -50,13 +50,13 @@ Archive:
   3. Requesting the same line (same text + character + voice + provider + format) a second time serves a cached result instead of calling the TTS provider again — verified via a cache-hit check, not just visual playback.
   4. Voice playback works using a standard HTML `<audio>` element (no streaming pipeline) tested on a real low-end school device (Chromebook or older tablet), not just a dev machine.
 
-**Plans**: 4/5 plans executed
+**Plans**: 5/5 plans complete
 
 - [x] 08-01-PLAN.md
 - [x] 08-02-PLAN.md
 - [x] 08-03-PLAN.md
 - [x] 08-04-PLAN.md
-- [ ] 08-05-PLAN.md
+- [x] 08-05-PLAN.md
 
 ### Phase 9: Pronunciation Scoring
 
@@ -136,7 +136,7 @@ Phases execute in numeric order: 8 → 9 → 10 → 11 → 12
 | 5. Voice Capture and Evidence Storage | v1.0 | 5/5 | Complete | 2026-06-27 |
 | 6. AI Mission and Turn Intelligence | v1.0 | 4/4 | Complete | 2026-06-29 |
 | 7. Teacher Review and Pilot Readiness | v1.0 | 4/4 | Complete | 2026-07-01 |
-| 8. Coco Voice (TTS) | v2.0 | 4/5 | In Progress|  |
+| 8. Coco Voice (TTS) | v2.0 | 5/5 | Complete   | 2026-07-02 |
 | 9. Pronunciation Scoring | v2.0 | 0/TBD | Not started | - |
 | 10. Mascot (VN-style) | v2.0 | 0/TBD | Not started | - |
 | 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 0/TBD | Not started | - |
