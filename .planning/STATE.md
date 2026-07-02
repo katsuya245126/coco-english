@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 09
 current_phase_name: pronunciation-scoring
 status: executing
-stopped_at: Phase 09 plan 02 complete (pronunciation_scores schema pushed and verified live on Supabase; checkpoint resolved; PRON-06 satisfied)
-last_updated: "2026-07-02T12:53:03.901Z"
+stopped_at: "Phase 09 plans 01, 02, 03 complete (Azure data-use gate + pronunciation_scores schema + scoring engine); plan 04 next"
+last_updated: "2026-07-02T12:55:00.000Z"
 last_activity: 2026-07-02
-last_activity_desc: "Phase 09 plan 02 checkpoint resolved: user confirmed `supabase db push` applied the pronunciation_scores migration; independently verified via read-only `supabase migration list` (202607020001 present in both Local and Remote columns). PRON-06 satisfied."
+last_activity_desc: "Phase 09 plans 01-03 all complete: 09-01 checkpoint resolved (PRON-02 Azure data-use gate satisfied), 09-02 checkpoint resolved (pronunciation_scores schema pushed live, PRON-06 satisfied), 09-03 scoring engine built (transcode, Azure adapter, star-band domain module)"
 progress:
   total_phases: 5
   completed_phases: 1
