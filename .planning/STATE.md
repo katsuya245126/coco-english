@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 09
 current_phase_name: pronunciation-scoring
 status: ready_for_planning
-stopped_at: Phase 08 closed with Samsung S23 + Mac voice playback smoke tests; Chromebook/older-tablet coverage accepted as residual risk
-last_updated: "2026-07-02T13:45:00+09:00"
+stopped_at: Phase 09 context gathered
+last_updated: "2026-07-02T10:04:10.223Z"
 last_activity: 2026-07-02
-last_activity_desc: Phase 08 closed after preview smoke test on Samsung S23 and Mac; VOICE-04 older-device residual risk accepted
+last_activity_desc: Phase 08 preview smoke-tested on Samsung S23 and Mac; Chromebook/older-tablet coverage unavailable and accepted as residual risk
 progress:
   total_phases: 5
   completed_phases: 1
@@ -159,6 +159,6 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 ## Session Continuity
 
-Last session: 2026-07-02T13:45:00+09:00
-Stopped at: Phase 09 ready for planning
-Resume file: .planning/ROADMAP.md
+Last session: 2026-07-02T10:04:10.215Z
+Stopped at: Phase 09 context gathered
+Resume file: .planning/phases/09-pronunciation-scoring/09-CONTEXT.md
