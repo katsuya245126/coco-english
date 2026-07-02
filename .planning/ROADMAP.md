@@ -72,7 +72,7 @@ Archive:
   5. Pronunciation scores are stored in a dedicated `pronunciation_scores` table keyed on the audio clip, independent of existing turn-evaluation data.
   6. A documented FERPA/COPPA data-use note for Azure Speech exists before any student audio is sent to the vendor.
 
-**Plans**: 3/6 plans executed
+**Plans**: 4/6 plans executed
 **Wave 1**
 
 - [x] 09-01-PLAN.md — FERPA/COPPA Azure data-use note + server-only env vars (PRON-02)
@@ -81,7 +81,7 @@ Archive:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 09-04-PLAN.md — wire scoring inline into upload pipeline + persist scores (PRON-01)
+- [x] 09-04-PLAN.md — wire scoring inline into upload pipeline + persist scores (PRON-01)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -155,7 +155,7 @@ Phases execute in numeric order: 8 → 9 → 10 → 11 → 12
 | 6. AI Mission and Turn Intelligence | v1.0 | 4/4 | Complete | 2026-06-29 |
 | 7. Teacher Review and Pilot Readiness | v1.0 | 4/4 | Complete | 2026-07-01 |
 | 8. Coco Voice (TTS) | v2.0 | 5/5 | Complete (accepted with residual low-end-device risk) | 2026-07-02 |
-| 9. Pronunciation Scoring | v2.0 | 3/6 | In Progress|  |
+| 9. Pronunciation Scoring | v2.0 | 4/6 | In Progress|  |
 | 10. Mascot (VN-style) | v2.0 | 0/TBD | Not started | - |
 | 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 0/TBD | Not started | - |
 | 12. UI Overhaul | v2.0 | 0/TBD | Not started | - |

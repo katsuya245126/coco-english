@@ -5,16 +5,16 @@ milestone_name: — Coco Comes Alive
 current_phase: 09
 current_phase_name: pronunciation-scoring
 status: executing
-stopped_at: "Phase 09 plans 01, 02, 03 complete (Azure data-use gate + pronunciation_scores schema + scoring engine); plan 04 next"
-last_updated: "2026-07-02T12:55:00.000Z"
+stopped_at: Phase 09 plan 04 complete (pronunciation scoring wired inline into audio upload pipeline, PRON-01 satisfied end-to-end at pipeline level)
+last_updated: "2026-07-02T13:01:35.479Z"
 last_activity: 2026-07-02
-last_activity_desc: "Phase 09 plans 01-03 all complete: 09-01 checkpoint resolved (PRON-02 Azure data-use gate satisfied), 09-02 checkpoint resolved (pronunciation_scores schema pushed live, PRON-06 satisfied), 09-03 scoring engine built (transcode, Azure adapter, star-band domain module)"
+last_activity_desc: "Phase 09 plan 02 checkpoint resolved: user confirmed `supabase db push` applied the pronunciation_scores migration; independently verified via read-only `supabase migration list` (202607020001 present in both Local and Remote columns). PRON-06 satisfied."
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 11
-  completed_plans: 8
-  percent: 73
+  completed_plans: 9
+  percent: 20
 ---
 
 # Project State
@@ -30,10 +30,10 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 
 Phase: 09 (pronunciation-scoring) — EXECUTING
 Previous phase: 08 (coco-voice-tts) — COMPLETE with residual older-device risk accepted
-Status: Executing Phase 09 (plans 01, 02, and 03 complete; plan 02's checkpoint resolved with `supabase db push` independently verified live via `supabase migration list`)
-Last activity: 2026-07-02 — Phase 09 plan 02 checkpoint resolved: user confirmed `supabase db push` applied the pronunciation_scores migration; independently verified via read-only `supabase migration list` (202607020001 present in both Local and Remote columns). PRON-06 satisfied.
+Status: Executing Phase 09 (plans 01, 02, 03, and 04 complete; plan 04 wired Azure pronunciation scoring inline into the audio upload pipeline, PRON-01 satisfied end-to-end at the pipeline level; plan 05 next)
+Last activity: 2026-07-02 — Phase 09 plan 04 complete: pronunciation scoring wired inline into uploadAttemptAudioClip, running concurrently with turn evaluation and upserting pronunciation_scores rows keyed on audio_clip_id, degrading gracefully on any failure (PRON-01).
 
-Progress: [███████░░░] 73%
+Progress: [████████░░] 82%
 
 ## Performance Metrics
 
@@ -78,6 +78,7 @@ Progress: [███████░░░] 73%
 | Phase 09 P03 | 6min | 3 tasks | 8 files |
 | Phase 09 P01 | 3min | 3 tasks | 2 files |
 | Phase 09 P02 | 30min | 3 tasks | 2 files |
+| Phase 09 P04 | 12min | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -141,6 +142,7 @@ Recent decisions affecting current work:
 - [Phase 09]: 09-03: Azure recognizer wired through an injectable PronunciationRecognizerFactory returning a plain PronunciationRecognitionRaw shape so tests never construct a real SDK SpeechRecognizer or call the paid Azure API; guard order missing_api_key -> audio_too_long -> transcode_failed -> provider_failed.
 - [Phase 09]: 09-01: Azure AI Speech data-use note confirmed accurate by operator; Azure Speech resource (F0 tier) provisioned with AZURE_SPEECH_KEY/AZURE_SPEECH_REGION set in local .env — PRON-02 pre-send gate satisfied before any downstream plan calls the live Azure API.
 - [Phase 09]: 09-02: pronunciation_scores table pushed live via user-run supabase db push; is_audio_clip_owner RLS helper extends is_attempt_turn_owner's ownership chain one join-hop; checkpoint independently verified read-only via supabase migration list rather than trusted blindly.
+- [Phase ?]: 09-04: Reference text passed to scorePronunciation is the turn's target/improved sentence, not the raw transcript; scoring is started concurrently with turn evaluation and awaited only after turnWrite succeeds
 
 ### Pending Todos
 
@@ -165,6 +167,6 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 ## Session Continuity
 
-Last session: 2026-07-02T12:53:03.894Z
-Stopped at: Phase 09 plans 01, 02, 03 complete (PRON-02 and PRON-06 gates satisfied; scoring engine built)
-Resume file: .planning/phases/09-pronunciation-scoring/09-04-PLAN.md
+Last session: 2026-07-02T13:01:35.473Z
+Stopped at: Phase 09 plan 04 complete (pronunciation scoring wired inline into audio upload pipeline, PRON-01 satisfied end-to-end at pipeline level)
+Resume file: .planning/phases/09-pronunciation-scoring/09-05-PLAN.md
