@@ -37,6 +37,9 @@ Out of scope: backfilling scores for attempts completed before this phase ships;
 ### Backfill Scope
 - **D-08:** **Forward-only, no backfill.** Only attempts completed after this phase ships get scored. Attempts completed before this phase are not retroactively scored; the teacher's diagnostic panel simply shows no pronunciation data (empty/not-yet-available state) for those older attempts. No bulk Azure-call backfill job.
 
+### Pronunciation Feedback Coherence
+- **D-09:** Pronunciation feedback must use a coherent **practice sentence**: the sentence shown to the student for retry, the sentence used as the Azure pronunciation reference, and the sentence containing the selected focus word/sound must align. The teacher's example answer is not the default pronunciation reference for valid alternate free-response answers. Meaning correction and pronunciation practice are separate. See `.planning/phases/09-pronunciation-scoring/09-PRONUNCIATION-FEEDBACK-DESIGN.md`.
+
 ### Claude's Discretion
 - Exact Azure SDK integration approach, API call shape, and env var naming (following the existing `.env.example` pattern used for other vendor keys).
 - Exact mapping from Azure's accuracy/fluency/completeness score dimensions into the 1-3 star scale — informed by D-04's manual calibration pass.
