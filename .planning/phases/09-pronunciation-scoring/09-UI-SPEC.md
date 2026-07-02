@@ -1,10 +1,11 @@
 ---
 phase: 09
 slug: pronunciation-scoring
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-07-02
+reviewed_at: 2026-07-02
 ---
 
 # Phase 09 — UI Design Contract
