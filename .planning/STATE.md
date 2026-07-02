@@ -4,15 +4,15 @@ milestone: v2.0
 milestone_name: — Coco Comes Alive
 current_phase: 09
 current_phase_name: pronunciation-scoring
-status: ready_for_planning
-stopped_at: Phase 09 context gathered
-last_updated: "2026-07-02T10:04:10.223Z"
+status: ready_to_execute
+stopped_at: Phase 09 planned (6 plans, 4 waves, checker passed)
+last_updated: "2026-07-02T11:30:00.000Z"
 last_activity: 2026-07-02
-last_activity_desc: Phase 08 preview smoke-tested on Samsung S23 and Mac; Chromebook/older-tablet coverage unavailable and accepted as residual risk
+last_activity_desc: Phase 09 planned — 6 plans in 4 waves, plan-checker passed, all 6 PRON requirements and 8 context decisions covered
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 5
+  total_plans: 11
   completed_plans: 5
   percent: 20
 ---
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 
 ## Current Position
 
-Phase: 09 (pronunciation-scoring) — READY FOR PLANNING
+Phase: 09 (pronunciation-scoring) — READY TO EXECUTE
 Previous phase: 08 (coco-voice-tts) — COMPLETE with residual older-device risk accepted
-Status: Ready to plan Phase 09
-Last activity: 2026-07-02 — Phase 08 preview smoke-tested on Samsung S23 and Mac; Chromebook/older-tablet coverage unavailable and accepted as residual risk
+Status: Ready to execute Phase 09 (6 plans, 4 waves)
+Last activity: 2026-07-02 — Phase 09 planned: 6 plans in 4 waves, plan-checker passed, all requirements/decisions covered
 
 Progress: [██░░░░░░░░] 20%
 
@@ -159,6 +159,6 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 ## Session Continuity
 
-Last session: 2026-07-02T10:04:10.215Z
-Stopped at: Phase 09 context gathered
-Resume file: .planning/phases/09-pronunciation-scoring/09-CONTEXT.md
+Last session: 2026-07-02T10:22:58.806Z
+Stopped at: Phase 09 UI-SPEC approved
+Resume file: .planning/phases/09-pronunciation-scoring/09-UI-SPEC.md

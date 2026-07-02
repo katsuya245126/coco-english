@@ -73,12 +73,22 @@ Archive:
   6. A documented FERPA/COPPA data-use note for Azure Speech exists before any student audio is sent to the vendor.
 
 **Plans**: 6 plans
+**Wave 1**
 
 - [ ] 09-01-PLAN.md — FERPA/COPPA Azure data-use note + server-only env vars (PRON-02)
 - [ ] 09-02-PLAN.md — pronunciation_scores table, RLS, grants + live schema push (PRON-06)
 - [ ] 09-03-PLAN.md — install Azure SDK + ffmpeg-static; transcode, scorer adapter, score→star mapping (PRON-01)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 09-04-PLAN.md — wire scoring inline into upload pipeline + persist scores (PRON-01)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 09-05-PLAN.md — teacher per-word diagnostic panel + D-04 calibration gate (PRON-03, PRON-05)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 09-06-PLAN.md — inline student star band, no raw score (PRON-04)
 
 **Research flag**: Needs an explicit accuracy-validation pass (Azure vs. real stored student audio for this app's 6 students) as a phase task before score-band thresholds are finalized — not literature research, empirical validation. (Handled by the D-04 calibration checkpoint in 09-05, which gates the 09-06 student-facing stars.)

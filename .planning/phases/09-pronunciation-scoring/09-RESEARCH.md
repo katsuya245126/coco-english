@@ -379,7 +379,7 @@ export async function transcodeToWav(input: Blob): Promise<Buffer> {
 
 **None of these block planning** — they are implementation-detail confirmations the planner/executor should verify during the phase, not blockers to scoping tasks now.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should pronunciation scoring failures (Azure down, transcode failure) block the student's existing feedback flow, or degrade gracefully?**
    - What we know: D-01 says scoring "runs automatically inline" and should be "ready by the time the student sees feedback." The existing pattern for AI evaluation failures (`provider_failed`, `schema_failed`) routes to teacher review rather than blocking the student.
