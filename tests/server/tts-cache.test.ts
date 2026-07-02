@@ -56,7 +56,7 @@ function createMockSupabase(
         operation.payload = payload;
         operations.push(operation);
         if (table === "tts_audio_cache") {
-          cacheRow = payload;
+          cacheRow = payload as {} | null;
         }
         return query;
       }),
@@ -249,7 +249,7 @@ describe("getOrCreateTtsAudio (VOICE-03)", () => {
 
   it("never sends transcript fields to TTS and never trusts a client-supplied content hash", async () => {
     const { getOrCreateTtsAudio } = await import("@/server/audio/tts-cache");
-    const fakeGenerateTtsAudio = vi.fn(async () => ({
+    const fakeGenerateTtsAudio = vi.fn(async (_input: unknown) => ({
       ok: true as const,
       audio: new Blob(["fake-mp3-bytes"], { type: "audio/mpeg" }),
       mimeType: "audio/mpeg" as const,
@@ -260,12 +260,13 @@ describe("getOrCreateTtsAudio (VOICE-03)", () => {
         ...baseInput(),
         // Even if a caller attempts to pass these fields, the service must not
         // forward them to the provider or trust a forged hash.
-        ...( { contentHash: "forged-hash", transcript: "student said this" } as never),
-      },
+        contentHash: "forged-hash",
+        transcript: "student said this",
+      } as unknown as Parameters<typeof getOrCreateTtsAudio>[0],
       { generateTtsAudio: fakeGenerateTtsAudio },
     );
 
-    const [generateInput] = fakeGenerateTtsAudio.mock.calls[0] ?? [];
+    const generateInput = fakeGenerateTtsAudio.mock.calls[0]?.[0];
     expect(generateInput).not.toHaveProperty("transcript");
     expect(generateInput).not.toHaveProperty("contentHash");
 
