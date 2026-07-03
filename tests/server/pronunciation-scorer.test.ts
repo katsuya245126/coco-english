@@ -42,7 +42,7 @@ function fakeAzureResult(overrides?: Partial<Record<string, number>>) {
 describe("scorePronunciation", () => {
   it("resolves a derived star band from an injected fake recognizer and transcode", async () => {
     const { scorePronunciation } = await import("@/server/audio/pronunciation-scorer");
-    const { scoreToStarBand } = await import("@/domain/pronunciation/scoring");
+    const { computeBandScore, scoreToStarBand } = await import("@/domain/pronunciation/scoring");
 
     const azureResult = fakeAzureResult({ pronunciationScore: 85 });
     const client = createFakeRecognizerFactory(azureResult);
@@ -64,7 +64,8 @@ describe("scorePronunciation", () => {
         fluencyScore: 88,
         completenessScore: 92,
         pronunciationScore: 85,
-        starBand: scoreToStarBand(85),
+        // Band derives from the accuracy/fluency blend, not the raw Azure score.
+        starBand: scoreToStarBand(computeBandScore(90, 88)),
         referenceText: "I like apples.",
         wordScores: [
           { word: "I", accuracyScore: 95, errorType: "None" },
@@ -146,11 +147,18 @@ describe("scorePronunciation", () => {
     expect(client).not.toHaveBeenCalled();
   });
 
-  it("carries the raw score only inside the internal detail, deriving starBand rather than passing a raw score through", async () => {
+  it("bands off the accuracy/fluency blend so a well-pronounced but halting read is not sunk to 1 star", async () => {
     const { scorePronunciation } = await import("@/server/audio/pronunciation-scorer");
-    const { scoreToStarBand } = await import("@/domain/pronunciation/scoring");
+    const { computeBandScore, scoreToStarBand } = await import("@/domain/pronunciation/scoring");
 
-    const azureResult = fakeAzureResult({ pronunciationScore: 40 });
+    // Real over-penalization case from D-04 calibration (student 2 - sample 3):
+    // accuracy 85, fluency 40 -> Azure blended score 40 -> would be 1 star,
+    // but the 60/40 accuracy-led blend lifts it to a 2-star band.
+    const azureResult = fakeAzureResult({
+      accuracyScore: 85,
+      fluencyScore: 40,
+      pronunciationScore: 40,
+    });
     const client = createFakeRecognizerFactory(azureResult);
     const transcodeToWav = createFakeTranscode({ ok: true, wav: FAKE_WAV });
 
@@ -163,9 +171,12 @@ describe("scorePronunciation", () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.score.starBand).toBe(scoreToStarBand(40));
-      expect(result.score.starBand).not.toBe(result.score.pronunciationScore);
-      expect([1, 2, 3]).toContain(result.score.starBand);
+      expect(result.score.starBand).toBe(scoreToStarBand(computeBandScore(85, 40)));
+      // Blend bands strictly higher than the raw Azure score alone would.
+      expect(result.score.starBand).toBeGreaterThan(scoreToStarBand(40));
+      expect(result.score.starBand).toBe(2);
+      // Raw score is still carried through as diagnostic detail, untouched.
+      expect(result.score.pronunciationScore).toBe(40);
     }
   });
 });

@@ -5,15 +5,15 @@ milestone_name: — Coco Comes Alive
 current_phase: 09
 current_phase_name: pronunciation-scoring
 status: executing
-stopped_at: Phase 09 plan 05 calibration sample report generated; human threshold approval still pending before 09-05 can close
-last_updated: "2026-07-03T09:02:33+09:00"
+stopped_at: Phase 09 plan 05 complete (D-04 calibration gate cleared); ready to execute 09-06 student-facing stars
+last_updated: "2026-07-03T09:55:00+09:00"
 last_activity: 2026-07-03
-last_activity_desc: "Phase 09 plan 05 calibration samples scored from 12 pre-app student homework recordings; local calibration report generated under /Users/john/Downloads/calibration-samples. Current thresholds (great >=80, good >=60) produced 2 three-star, 7 two-star, and 3 one-star results. Awaiting explicit operator approval before creating 09-05-SUMMARY.md or proceeding to 09-06."
+last_activity_desc: "Phase 09 plan 05 CLOSED. D-04 calibration gate cleared: operator scored 12 real pre-app student homework recordings against Azure, listened to borderline samples, and approved an accuracy-led 60/40 accuracy/fluency band blend (thresholds unchanged at 80/60; only the input to them changed). Distribution shifted 2/7/3 -> 2/9/1. Teacher per-word diagnostic panel shipped. 09-05-SUMMARY.md written; full test suite green (355 passed). 09-06 student-facing stars now unblocked."
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 11
-  completed_plans: 9
+  completed_plans: 10
   percent: 20
 ---
 

@@ -25,6 +25,43 @@ export const STAR_BAND_THRESHOLDS = {
   good: 60,
 } as const;
 
+/**
+ * Star-band weighting (calibration-owned, D-04 checkpoint 2026-07-03).
+ *
+ * Azure's blended `PronNScore` lets a very low fluency drag an otherwise
+ * accurate read down to the 1-star "you failed" band — e.g. a child who said
+ * the words correctly but haltingly (accuracy 85 / fluency 40) scored 58.8 and
+ * banded 1-star. For young non-native kids doing drill homework, accuracy is
+ * the lesson and fluency mostly reflects reading pace/nerves, so we lead on
+ * accuracy but still let fluency count. Verified against 12 real pre-app
+ * student samples: 60/40 gives a 2/9/1 distribution and holds only genuinely
+ * unintelligible reads at 1-star.
+ *
+ * Tunable: change the split and re-run the calibration script to re-check the
+ * distribution before shipping student-facing stars.
+ */
+export const STAR_BAND_WEIGHTS = {
+  accuracy: 0.6,
+  fluency: 0.4,
+} as const;
+
+/**
+ * Blend accuracy and fluency into the score used for star banding.
+ * When fluency is unavailable, falls back to accuracy alone.
+ */
+export function computeBandScore(
+  accuracyScore: number,
+  fluencyScore: number | null | undefined,
+): number {
+  if (fluencyScore === null || fluencyScore === undefined) {
+    return accuracyScore;
+  }
+  return (
+    STAR_BAND_WEIGHTS.accuracy * accuracyScore +
+    STAR_BAND_WEIGHTS.fluency * fluencyScore
+  );
+}
+
 export function scoreToStarBand(pronScore: number): PronunciationStarBand {
   if (pronScore >= STAR_BAND_THRESHOLDS.great) return 3;
   if (pronScore >= STAR_BAND_THRESHOLDS.good) return 2;

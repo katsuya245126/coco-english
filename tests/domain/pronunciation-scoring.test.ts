@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  computeBandScore,
   errorTypeToLabel,
   scoreToStarBand,
   STAR_BAND_COPY,
@@ -36,6 +37,30 @@ describe("scoreToStarBand", () => {
 
   it("never returns 0 or a failure state for a negative score", () => {
     expect(scoreToStarBand(-5)).toBe(1);
+  });
+});
+
+describe("computeBandScore", () => {
+  it("blends accuracy and fluency 60/40", () => {
+    // 0.6*85 + 0.4*40 = 67
+    expect(computeBandScore(85, 40)).toBeCloseTo(67, 5);
+  });
+
+  it("lifts a well-pronounced but halting read (acc 85 / flu 40) to a 2-star band", () => {
+    expect(scoreToStarBand(computeBandScore(85, 40))).toBe(2);
+  });
+
+  it("keeps a genuinely unintelligible read (acc 52 / flu 32) at 1 star", () => {
+    // 0.6*52 + 0.4*32 = 44
+    expect(scoreToStarBand(computeBandScore(52, 32))).toBe(1);
+  });
+
+  it("falls back to accuracy alone when fluency is null", () => {
+    expect(computeBandScore(72, null)).toBe(72);
+  });
+
+  it("falls back to accuracy alone when fluency is undefined", () => {
+    expect(computeBandScore(72, undefined)).toBe(72);
   });
 });
 

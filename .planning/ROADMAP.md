@@ -72,7 +72,7 @@ Archive:
   5. Pronunciation scores are stored in a dedicated `pronunciation_scores` table keyed on the audio clip, independent of existing turn-evaluation data.
   6. A documented FERPA/COPPA data-use note for Azure Speech exists before any student audio is sent to the vendor.
 
-**Plans**: 4/6 plans executed
+**Plans**: 5/6 plans executed
 **Wave 1**
 
 - [x] 09-01-PLAN.md — FERPA/COPPA Azure data-use note + server-only env vars (PRON-02)
@@ -85,7 +85,7 @@ Archive:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 09-05-PLAN.md — teacher per-word diagnostic panel + D-04 calibration gate (PRON-03, PRON-05)
+- [x] 09-05-PLAN.md — teacher per-word diagnostic panel + D-04 calibration gate (PRON-03, PRON-05)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 

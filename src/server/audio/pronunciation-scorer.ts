@@ -9,7 +9,7 @@
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { log } from "@/server/logging/logger";
 import { transcodeToWav as defaultTranscodeToWav, type TranscodeResult } from "@/server/audio/audio-transcode";
-import { scoreToStarBand, type PronunciationStarBand, type WordScore } from "@/domain/pronunciation/scoring";
+import { computeBandScore, scoreToStarBand, type PronunciationStarBand, type WordScore } from "@/domain/pronunciation/scoring";
 
 const MAX_PRONUNCIATION_AUDIO_MS = 30_000;
 
@@ -174,7 +174,8 @@ export async function scorePronunciation(
       region,
     });
 
-    const starBand = scoreToStarBand(raw.pronunciationScore);
+    const bandScore = computeBandScore(raw.accuracyScore, raw.fluencyScore);
+    const starBand = scoreToStarBand(bandScore);
 
     return {
       ok: true,

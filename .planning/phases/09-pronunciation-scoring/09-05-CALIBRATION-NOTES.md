@@ -1,7 +1,7 @@
 # Phase 09 Plan 05 Calibration Notes
 
 **Date:** 2026-07-03
-**Status:** Calibration sample report generated; threshold approval pending
+**Status:** APPROVED — operator listened to representative samples and signed off on the 60/40 accuracy/fluency band weighting (D-04 gate cleared).
 
 ## What Was Run
 
@@ -82,17 +82,40 @@ fields:
 This supports the saved D-09/fine-grained feedback direction and should be
 considered when implementing phoneme-level parsing.
 
-## Pending Human Decision
+## Decision (D-04 gate cleared, 2026-07-03)
 
-The 09-05 calibration checkpoint is **not approved yet**.
+The operator listened to representative samples — including the borderline
+`student 2 - sample 3` (accuracy 85 / fluency 40) — and confirmed the outcome.
 
-The operator still needs to review/listen to representative samples and choose
-one of:
+**Approved change:** the star band is now derived from an accuracy-led blend
+rather than Azure's raw `PronNScore`. Thresholds are unchanged (`great >= 80`,
+`good >= 60`); the *input* to those thresholds is now:
 
-1. Approve current thresholds: `great >= 80`, `good >= 60`.
-2. Lower `good` slightly, for example to `55`, if the 58-ish samples feel too
-   harsh as 1 star.
-3. Adjust both thresholds if the teacher judgment disagrees with the star bands.
+```
+bandScore = 0.6 * accuracyScore + 0.4 * fluencyScore
+```
 
-Do not create `09-05-SUMMARY.md` or proceed to 09-06 student-facing stars until
-the operator explicitly approves the calibration threshold decision.
+(falls back to accuracy alone when fluency is unavailable).
+
+**Rationale:** Azure's default blend let a very low fluency drag an accurate
+read into the 1-star "you failed" band — the exact over-penalization PRON-03
+guards against. For young non-native kids doing drill homework, accuracy is the
+lesson and fluency mostly reflects reading pace/nerves, so accuracy leads while
+fluency still counts.
+
+**Effect on the 12 calibration samples:** distribution shifts from `2/7/3` to
+`2/9/1`. Only the genuinely unintelligible read (`student 2 - sample 1`, acc 52
+/ flu 32) stays at 1 star; the well-pronounced-but-halting samples move to 2
+stars.
+
+**Implemented in:**
+
+- `src/domain/pronunciation/scoring.ts` — `STAR_BAND_WEIGHTS` (0.6 / 0.4) and
+  `computeBandScore(accuracy, fluency)`.
+- `src/server/audio/pronunciation-scorer.ts` — bands off `computeBandScore(...)`;
+  raw `pronunciationScore` still stored as teacher diagnostic detail.
+
+**Tunable later:** change `STAR_BAND_WEIGHTS` (or the thresholds) and re-run the
+calibration script to re-check the distribution before it reaches students.
+
+09-06 student-facing stars are now unblocked.
