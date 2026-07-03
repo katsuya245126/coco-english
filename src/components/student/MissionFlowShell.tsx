@@ -12,6 +12,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import type { MissionSnapshotTurn } from "@/domain/mission/schemas";
+import type { PronunciationStarBand } from "@/domain/pronunciation/scoring";
 import {
   startAttemptAction,
   completeMissionAction,
@@ -43,17 +44,22 @@ export type FlowStep =
   | "complete";
 
 type OriginalFeedback =
-  | { kind: "acceptedOriginal"; transcript: string }
-  | { kind: "needsCorrection"; transcript: string; improvedSentence: string }
-  | { kind: "retryOriginal"; transcript: string }
-  | { kind: "teacherReview"; transcript: string };
+  | { kind: "acceptedOriginal"; transcript: string; starBand?: PronunciationStarBand | null }
+  | {
+      kind: "needsCorrection";
+      transcript: string;
+      improvedSentence: string;
+      starBand?: PronunciationStarBand | null;
+    }
+  | { kind: "retryOriginal"; transcript: string; starBand?: PronunciationStarBand | null }
+  | { kind: "teacherReview"; transcript: string; starBand?: PronunciationStarBand | null };
 
 export type RepeatFeedbackCompatibility = "repeatAccepted" | "teacherReview";
 
 type RepeatFeedback =
-  | { kind: "repeatAccepted"; transcript: string }
-  | { kind: "repeatRetry"; transcript: string }
-  | { kind: "repeatReview"; transcript: string };
+  | { kind: "repeatAccepted"; transcript: string; starBand?: PronunciationStarBand | null }
+  | { kind: "repeatRetry"; transcript: string; starBand?: PronunciationStarBand | null }
+  | { kind: "repeatReview"; transcript: string; starBand?: PronunciationStarBand | null };
 
 type FlowState = {
   turnIndex: number;
@@ -149,6 +155,7 @@ export function MissionFlowShell({
       outcome?: string;
       improvedSentence?: string | null;
     };
+    starBand?: PronunciationStarBand | null;
   };
 
   async function uploadVoiceClip(input: {
@@ -178,6 +185,7 @@ export function MissionFlowShell({
           transcript?: string;
           error?: string;
           evaluation?: UploadVoiceClipPayload["evaluation"];
+          starBand?: PronunciationStarBand | null;
         }
       | null;
     if (
@@ -195,25 +203,28 @@ export function MissionFlowShell({
     return {
       transcript: payload.transcript,
       evaluation: payload.evaluation,
+      starBand: payload.starBand,
     };
   }
 
   function repeatFeedbackFromEvaluation(
     transcript: string,
     evaluation: UploadVoiceClipPayload["evaluation"],
+    starBand?: PronunciationStarBand | null,
   ): RepeatFeedback {
     if (evaluation?.outcome === "retry_repeat") {
-      return { kind: "repeatRetry", transcript };
+      return { kind: "repeatRetry", transcript, starBand };
     }
     if (evaluation?.outcome === "teacher" + "_" + "review") {
-      return { kind: "repeatReview", transcript };
+      return { kind: "repeatReview", transcript, starBand };
     }
-    return { kind: "repeatAccepted", transcript };
+    return { kind: "repeatAccepted", transcript, starBand };
   }
 
   function feedbackFromEvaluation(
     transcript: string,
     evaluation: UploadVoiceClipPayload["evaluation"],
+    starBand?: PronunciationStarBand | null,
   ): OriginalFeedback {
     const teacherReviewOutcome = "teacher" + "_" + "review";
     if (evaluation?.outcome === "needs_correction" && evaluation.improvedSentence) {
@@ -221,15 +232,16 @@ export function MissionFlowShell({
         kind: "needsCorrection",
         transcript,
         improvedSentence: evaluation.improvedSentence,
+        starBand,
       };
     }
     if (evaluation?.outcome === "retry_original") {
-      return { kind: "retryOriginal", transcript };
+      return { kind: "retryOriginal", transcript, starBand };
     }
     if (evaluation?.outcome === teacherReviewOutcome) {
-      return { kind: "teacherReview", transcript };
+      return { kind: "teacherReview", transcript, starBand };
     }
-    return { kind: "acceptedOriginal", transcript };
+    return { kind: "acceptedOriginal", transcript, starBand };
   }
 
   function revokeAudioUrls() {
@@ -265,6 +277,7 @@ export function MissionFlowShell({
     const originalFeedback = feedbackFromEvaluation(
       transcript,
       upload.evaluation,
+      upload.starBand,
     );
 
     const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
@@ -316,6 +329,7 @@ export function MissionFlowShell({
     const repeatFeedback = repeatFeedbackFromEvaluation(
       transcript,
       upload.evaluation,
+      upload.starBand,
     );
 
     const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
@@ -543,6 +557,7 @@ export function MissionFlowShell({
                 ? flow.originalFeedback.improvedSentence
                 : null
             }
+            starBand={flow.originalFeedback.starBand}
             onContinue={
               flow.originalFeedback.kind === "needsCorrection"
                 ? continueToRepeat
@@ -577,6 +592,7 @@ export function MissionFlowShell({
             transcript={flow.repeatFeedback.transcript}
             audioUrl={repeatAudioUrlRef.current ?? undefined}
             improvedSentence={flow.improvedSentence}
+            starBand={flow.repeatFeedback.starBand}
             onContinue={
               flow.repeatFeedback.kind === "repeatRetry"
                 ? undefined
