@@ -10,6 +10,10 @@ import {
   stepCardStyle,
 } from "@/components/student/styles";
 import { CocoSpeechAudio } from "@/components/student/CocoSpeechAudio";
+import {
+  STAR_BAND_COPY,
+  type PronunciationStarBand,
+} from "@/domain/pronunciation/scoring";
 
 type OriginalOutcome =
   | "checking"
@@ -28,6 +32,7 @@ type StepAiEvaluationFeedbackProps = {
   transcript?: string | null;
   audioUrl?: string;
   improvedSentence?: string | null;
+  starBand?: PronunciationStarBand | null;
   onContinue?: () => void | Promise<void>;
   onRetry?: () => void;
   isSubmitting?: boolean;
@@ -41,6 +46,7 @@ export function StepAiEvaluationFeedback({
   transcript,
   audioUrl,
   improvedSentence,
+  starBand,
   onContinue,
   onRetry,
   isSubmitting = false,
@@ -62,6 +68,7 @@ export function StepAiEvaluationFeedback({
         <div style={evaluationSuccessStyle}>
           <h2 style={headingInlineStyle}>Nice answer!</h2>
         </div>
+        <PronunciationStars starBand={starBand} />
         <button
           type="button"
           style={{ ...primaryButtonStyle, marginTop: 16 }}
@@ -93,6 +100,7 @@ export function StepAiEvaluationFeedback({
           </div>
           <p style={sentenceStyle}>{improvedSentence}</p>
         </div>
+        <PronunciationStars starBand={starBand} />
         <p style={{ ...bodyInlineStyle, marginTop: 16 }}>
           Now say it out loud.
         </p>
@@ -149,6 +157,7 @@ export function StepAiEvaluationFeedback({
         <div style={evaluationSuccessStyle}>
           <h2 style={headingInlineStyle}>Good repeat.</h2>
         </div>
+        <PronunciationStars starBand={starBand} />
         <button
           type="button"
           style={{ ...primaryButtonStyle, marginTop: 16 }}
@@ -198,6 +207,40 @@ function Transcript({ transcript }: { transcript?: string | null }) {
       </p>
       <p style={{ fontSize: 16, color: "#111827", margin: 0, lineHeight: 1.5 }}>
         {transcript}
+      </p>
+    </div>
+  );
+}
+
+function PronunciationStars({
+  starBand,
+}: {
+  starBand?: PronunciationStarBand | null;
+}) {
+  if (starBand === null || starBand === undefined) return null;
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
+        Your pronunciation:
+      </p>
+      <div style={{ display: "flex", gap: 4 }} aria-hidden="true">
+        {[1, 2, 3].map((slot) => (
+          <span
+            key={slot}
+            style={{
+              fontSize: 20,
+              fontWeight: 600,
+              color: slot <= starBand ? "#F59E0B" : "#D1D5DB",
+              lineHeight: 1,
+            }}
+          >
+            {slot <= starBand ? "★" : "☆"}
+          </span>
+        ))}
+      </div>
+      <p style={{ fontSize: 16, color: "#4B5563", margin: "4px 0 0", lineHeight: 1.5 }}>
+        {STAR_BAND_COPY[starBand]}
       </p>
     </div>
   );
