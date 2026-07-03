@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 09
 current_phase_name: pronunciation-scoring
 status: executing
-stopped_at: Phase 09 plan 04 complete (pronunciation scoring wired inline into audio upload pipeline, PRON-01 satisfied end-to-end at pipeline level)
-last_updated: "2026-07-02T13:01:35.479Z"
-last_activity: 2026-07-02
-last_activity_desc: "Phase 09 plan 02 checkpoint resolved: user confirmed `supabase db push` applied the pronunciation_scores migration; independently verified via read-only `supabase migration list` (202607020001 present in both Local and Remote columns). PRON-06 satisfied."
+stopped_at: Phase 09 plan 05 calibration sample report generated; human threshold approval still pending before 09-05 can close
+last_updated: "2026-07-03T09:02:33+09:00"
+last_activity: 2026-07-03
+last_activity_desc: "Phase 09 plan 05 calibration samples scored from 12 pre-app student homework recordings; local calibration report generated under /Users/john/Downloads/calibration-samples. Current thresholds (great >=80, good >=60) produced 2 three-star, 7 two-star, and 3 one-star results. Awaiting explicit operator approval before creating 09-05-SUMMARY.md or proceeding to 09-06."
 progress:
   total_phases: 5
   completed_phases: 1
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 
 Phase: 09 (pronunciation-scoring) — EXECUTING
 Previous phase: 08 (coco-voice-tts) — COMPLETE with residual older-device risk accepted
-Status: Executing Phase 09 (plans 01, 02, 03, and 04 complete; plan 04 wired Azure pronunciation scoring inline into the audio upload pipeline, PRON-01 satisfied end-to-end at the pipeline level; plan 05 next)
-Last activity: 2026-07-02 — Phase 09 plan 04 complete: pronunciation scoring wired inline into uploadAttemptAudioClip, running concurrently with turn evaluation and upserting pronunciation_scores rows keyed on audio_clip_id, degrading gracefully on any failure (PRON-01).
+Status: Executing Phase 09 (plans 01, 02, 03, and 04 complete; plan 05 teacher diagnostic implementation is in place, and calibration sample scoring has been run, but the blocking human threshold approval is still pending)
+Last activity: 2026-07-03 — Phase 09 plan 05 calibration sample report generated from 12 pre-app student homework recordings. Current thresholds (`great >= 80`, `good >= 60`) yielded 2 three-star, 7 two-star, and 3 one-star samples. Operator must explicitly approve or adjust thresholds before 09-05 closes and 09-06 student-facing stars proceed.
 
 Progress: [████████░░] 82%
 
@@ -143,10 +143,12 @@ Recent decisions affecting current work:
 - [Phase 09]: 09-01: Azure AI Speech data-use note confirmed accurate by operator; Azure Speech resource (F0 tier) provisioned with AZURE_SPEECH_KEY/AZURE_SPEECH_REGION set in local .env — PRON-02 pre-send gate satisfied before any downstream plan calls the live Azure API.
 - [Phase 09]: 09-02: pronunciation_scores table pushed live via user-run supabase db push; is_audio_clip_owner RLS helper extends is_attempt_turn_owner's ownership chain one join-hop; checkpoint independently verified read-only via supabase migration list rather than trusted blindly.
 - [Phase ?]: 09-04: Reference text passed to scorePronunciation is the turn's target/improved sentence, not the raw transcript; scoring is started concurrently with turn evaluation and awaited only after turnWrite succeeds
+- [Phase 09]: 09-05 calibration sample report generated 2026-07-03 from 12 pre-app homework recordings (9 m4a, 3 amr). Current thresholds (`great >=80`, `good >=60`) yielded 2x 3-star, 7x 2-star, 3x 1-star. Local reports live at `/Users/john/Downloads/calibration-samples/calibration-report.md` and `.json`; threshold approval remains pending.
+- [Phase 09]: 09-05 calibration found the Azure SDK helper can fail on longer phrase-list samples with `throwIfNullOrUndefined:json` even when raw Azure JSON contains valid pronunciation/phoneme data. Future phoneme-level parsing should prefer raw `NBest[0].PronunciationAssessment`, `Words`, and `Phonemes` fields.
 
 ### Pending Todos
 
-None yet.
+- [Phase 09]: Operator must review the 09-05 calibration report/listen to representative samples and explicitly approve current thresholds (`great >= 80`, `good >= 60`) or request threshold changes before `09-05-SUMMARY.md` is created.
 
 ### Blockers/Concerns
 
@@ -167,6 +169,6 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 ## Session Continuity
 
-Last session: 2026-07-02T13:01:35.473Z
-Stopped at: Phase 09 plan 04 complete (pronunciation scoring wired inline into audio upload pipeline, PRON-01 satisfied end-to-end at pipeline level)
+Last session: 2026-07-03T09:02:33+09:00
+Stopped at: Phase 09 plan 05 calibration sample report generated; blocking human threshold approval pending
 Resume file: .planning/phases/09-pronunciation-scoring/09-05-PLAN.md

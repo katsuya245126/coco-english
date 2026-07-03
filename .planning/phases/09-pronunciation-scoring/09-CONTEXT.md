@@ -58,6 +58,7 @@ Out of scope: backfilling scores for attempts completed before this phase ships;
 - `.planning/ROADMAP.md` — Phase 9 goal, dependency on Phase 7 (stored audio, target/improved sentences, teacher review UI), requirements (PRON-01–06), success criteria, and the explicit research flag calling for empirical accuracy validation (not literature research) before score-band thresholds are finalized.
 - `.planning/REQUIREMENTS.md` — Requirement definitions for PRON-01 through PRON-06.
 - `.planning/STATE.md` — Current phase status; v2.0 milestone context (Coco Comes Alive), Phase 9 is v2.2 point release.
+- `.planning/phases/09-pronunciation-scoring/09-05-CALIBRATION-NOTES.md` — Current 09-05 calibration checkpoint status: 12 pre-app homework samples scored, current threshold distribution recorded, explicit operator threshold approval still pending before 09-05 can close.
 
 ### Prior Phase Contracts
 - `.planning/phases/07-teacher-review-and-pilot-readiness/07-CONTEXT.md` — Evidence page structure, on-demand/collapsed detail pattern (D-08, D-13 precedent), server-owned audited status transitions.
