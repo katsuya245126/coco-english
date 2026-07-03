@@ -408,17 +408,17 @@ Not applicable — this is a greenfield feature phase (new columns, new adapter,
 
 ## Open Questions
 
-1. **Where does moderation-flag metadata live — a new column on `attempt_turns`, or a new small table?**
+1. **Where does moderation-flag metadata live — a new column on `attempt_turns`, or a new small table?** *(RESOLVED — adopted in plan 11-01: a single additive `attempt_turns.moderation_event jsonb null` column, not a new table.)*
    - What we know: CONTEXT.md's "Claude's Discretion" section explicitly defers this ("where flagged-turn metadata is stored — all schema changes must be additive"). D-16 needs enough data to render a collapsed flag explaining "what happened" (retried line / canned fallback / flagged student input).
    - What's unclear: Whether a single `jsonb` column (`attempt_turns.moderation_flag`) is sufficient, or whether a dedicated table (mirroring the `pronunciation_scores` precedent from Phase 9) is cleaner for future querying/reporting.
    - Recommendation: A `jsonb` column on `attempt_turns` (e.g., `attempt_turns.moderation_event jsonb null`) is simplest and sufficient at this project's scale (6 students); a dedicated table would mirror Phase 9 but adds a join for no clear benefit at this volume. Planner should decide and record explicitly rather than defer further.
 
-2. **Exact wind-down turn-count trigger and closing-line mechanics.**
+2. **Exact wind-down turn-count trigger and closing-line mechanics.** *(RESOLVED — adopted in plan 11-03: `windDown = nextTurnOrder >= 6`, triggered purely relative to the fixed hard cap of 8, independent of `required_turns`.)*
    - What we know: D-05 requires wind-down steering "as the turn count approaches the cap" and a delivered closing line at the cap. The precise trigger turn is explicitly Claude's discretion.
    - What's unclear: Whether wind-down should scale with `required_turns` (e.g., "2 turns before whichever is sooner: required_turns extension point or hard cap") or always trigger relative to the fixed 8.
    - Recommendation: Trigger wind-down steering purely relative to the fixed hard cap (e.g., turn 6+ of 8), independent of the teacher's `required_turns` setting — this keeps the two numbers (completion credit vs. hard ceiling) cleanly separate per Pitfall 4 above.
 
-3. **Does the AI-06 "mission-flow.ts imports no AI client" boundary need a thin orchestration seam, or can mission-flow.ts call the new adapters directly?**
+3. **Does the AI-06 "mission-flow.ts imports no AI client" boundary need a thin orchestration seam, or can mission-flow.ts call the new adapters directly?** *(RESOLVED — adopted in plan 11-03: conversation-generation + moderation are orchestrated in `audio-upload.ts` (the same layer that already calls `turn-evaluator`); `mission-flow.ts` gains only the cap gate + `recordCocoLine` persistence and imports no AI client.)*
    - What we know: The existing structural rule is enforced by a source-contract check (per STATE.md 06-01) that keeps OpenAI out of `mission-flow.ts` directly — but `mission-flow.ts` already doesn't import `turn-evaluator.ts` or `mission-generator.ts` itself either; those are called from the Next.js server actions / route layer, not from `mission-flow.ts`.
    - What's unclear: Whether the new `conversation-generator.ts`/`content-moderation.ts` calls should be orchestrated from the same action/route layer that currently calls `turn-evaluator.ts` for original/repeat evaluation, keeping `mission-flow.ts` purely as the turn-recording/persistence service it already is.
    - Recommendation: Follow the existing layering exactly — confirm during planning where `evaluateOriginalTurn`/`evaluateRepeatTurn` are currently invoked (likely a server action, not `mission-flow.ts` itself) and place the new conversation-generation + moderation calls at that same layer, with `mission-flow.ts` continuing to only own turn-cap counting and persistence.
