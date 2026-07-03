@@ -4,17 +4,17 @@ milestone: v2.0
 milestone_name: — Coco Comes Alive
 current_phase: 09
 current_phase_name: pronunciation-scoring
-status: executing
-stopped_at: Phase 09 plan 05 complete (D-04 calibration gate cleared); ready to execute 09-06 student-facing stars
-last_updated: "2026-07-03T09:55:00+09:00"
+status: complete
+stopped_at: Phase 11 context gathered
+last_updated: "2026-07-03T07:17:50.435Z"
 last_activity: 2026-07-03
-last_activity_desc: "Phase 09 plan 05 CLOSED. D-04 calibration gate cleared: operator scored 12 real pre-app student homework recordings against Azure, listened to borderline samples, and approved an accuracy-led 60/40 accuracy/fluency band blend (thresholds unchanged at 80/60; only the input to them changed). Distribution shifted 2/7/3 -> 2/9/1. Teacher per-word diagnostic panel shipped. 09-05-SUMMARY.md written; full test suite green (355 passed). 09-06 student-facing stars now unblocked."
+last_activity_desc: Phase 09 closed; 09-06 student-facing stars shipped, checkpoint verified, full suite green
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 11
-  completed_plans: 10
-  percent: 20
+  completed_plans: 11
+  percent: 40
 ---
 
 # Project State
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-01)
 
 **Core value:** Students must complete useful spoken English practice outside class, and teachers must be able to verify that it happened.
-**Current focus:** Phase 09 — pronunciation-scoring
+**Current focus:** Phase 10 — coco-mascot (not yet planned)
 
 ## Current Position
 
-Phase: 09 (pronunciation-scoring) — EXECUTING
+Phase: 09 (pronunciation-scoring) — COMPLETE
 Previous phase: 08 (coco-voice-tts) — COMPLETE with residual older-device risk accepted
-Status: Executing Phase 09 (plans 01, 02, 03, and 04 complete; plan 05 teacher diagnostic implementation is in place, and calibration sample scoring has been run, but the blocking human threshold approval is still pending)
-Last activity: 2026-07-03 — Phase 09 plan 05 calibration sample report generated from 12 pre-app student homework recordings. Current thresholds (`great >= 80`, `good >= 60`) yielded 2 three-star, 7 two-star, and 3 one-star samples. Operator must explicitly approve or adjust thresholds before 09-05 closes and 09-06 student-facing stars proceed.
+Status: Phase 09 complete; Phase 10 (mascot) not yet planned (CONTEXT.md does not exist)
+Last activity: 2026-07-03 — Phase 09 closed; 09-06 student-facing stars shipped, checkpoint verified, full suite green
 
 Progress: [████████░░] 82%
 
@@ -146,9 +146,13 @@ Recent decisions affecting current work:
 - [Phase 09]: 09-05 calibration sample report generated 2026-07-03 from 12 pre-app homework recordings (9 m4a, 3 amr). Current thresholds (`great >=80`, `good >=60`) yielded 2x 3-star, 7x 2-star, 3x 1-star. Local reports live at `/Users/john/Downloads/calibration-samples/calibration-report.md` and `.json`; threshold approval remains pending.
 - [Phase 09]: 09-05 calibration found the Azure SDK helper can fail on longer phrase-list samples with `throwIfNullOrUndefined:json` even when raw Azure JSON contains valid pronunciation/phoneme data. Future phoneme-level parsing should prefer raw `NBest[0].PronunciationAssessment`, `Words`, and `Phonemes` fields.
 
+- [Phase 09]: 09-06 shipped starBand end-to-end through the upload result, route JSON, MissionFlowShell, and a new PronunciationStars sub-component in StepAiEvaluationFeedback; checkpoint manually verified. Phase 09 is now fully complete (6/6 plans).
+- [Phase 09]: During 09-06 checkpoint verification, two bugs were found and fixed via debug sessions (see `.planning/debug/resolved/`): original-answer words-to-practice used the target sentence as reference text instead of the transcript (could yield empty chips on a diverging free-form answer); teacher-review outcomes still passed a retry handler that led to a guaranteed `audio_upload_failed`. Both fixed with regression tests.
+- [Phase 09]: Additional out-of-roadmap fixes landed in the same commits: Korean-transcript rejection in transcription/audio-upload, mission deletion in the teacher mission list, and a login-page "back to role choice" link. None of these are tracked as their own phase/plan — see `09-06-SUMMARY.md` follow-up section.
+
 ### Pending Todos
 
-- [Phase 09]: Operator must review the 09-05 calibration report/listen to representative samples and explicitly approve current thresholds (`great >= 80`, `good >= 60`) or request threshold changes before `09-05-SUMMARY.md` is created.
+None currently pending.
 
 ### Blockers/Concerns
 
@@ -169,6 +173,6 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 ## Session Continuity
 
-Last session: 2026-07-03T09:02:33+09:00
-Stopped at: Phase 09 plan 05 calibration sample report generated; blocking human threshold approval pending
-Resume file: .planning/phases/09-pronunciation-scoring/09-05-PLAN.md
+Last session: 2026-07-03T07:17:50.421Z
+Stopped at: Phase 11 context gathered
+Resume file: .planning/phases/11-coco-chat-dynamic-turns-scene-framing/11-CONTEXT.md
