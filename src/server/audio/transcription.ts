@@ -9,6 +9,8 @@ import OpenAI from "openai";
 import { log } from "@/server/logging/logger";
 
 const DEFAULT_TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe";
+const HANGUL_SCRIPT = /[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7AF]+/gu;
+const ENGLISH_LETTER = /[A-Za-z]/;
 
 export type TranscriptionError =
   | "missing_api_key"
@@ -70,6 +72,14 @@ function createClient(apiKey: string): TranscriptionClient {
   return new OpenAI({ apiKey }) as TranscriptionClient;
 }
 
+function englishOnlyTranscript(text: string) {
+  return text
+    .replace(HANGUL_SCRIPT, " ")
+    .replace(/\s+([.,!?;:])/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export async function transcribeAudioFile(
   input: TranscribeAudioFileInput,
   deps?: TranscribeAudioFileDeps,
@@ -93,9 +103,9 @@ export async function transcribeAudioFile(
       language: "en",
       prompt: "The student is a Korean ESL learner speaking English. Transcribe only the English words spoken.",
     });
-    const text = response.text?.trim() ?? "";
+    const text = englishOnlyTranscript(response.text ?? "");
 
-    if (!text) {
+    if (!text || !ENGLISH_LETTER.test(text)) {
       log("error", "audio.transcription_failed", { error: "empty_transcript" });
       return { ok: false, error: "empty_transcript" };
     }

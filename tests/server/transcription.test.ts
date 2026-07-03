@@ -55,6 +55,36 @@ describe("transcribeAudioFile", () => {
     );
   });
 
+  it("removes Korean script from provider output before returning a transcript", async () => {
+    const { transcribeAudioFile } = await import("@/server/audio/transcription");
+    const client = createFakeClient({ text: "I like 축구 after school." });
+
+    const result = await transcribeAudioFile(
+      {
+        file: new Blob(["voice"], { type: "audio/webm" }),
+        mimeType: "audio/webm",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toEqual({ ok: true, text: "I like after school." });
+  });
+
+  it("rejects Korean-only provider output instead of storing it as the answer", async () => {
+    const { transcribeAudioFile } = await import("@/server/audio/transcription");
+    const client = createFakeClient({ text: "나는 방과 후에 축구를 좋아해요." });
+
+    const result = await transcribeAudioFile(
+      {
+        file: new Blob(["voice"], { type: "audio/webm" }),
+        mimeType: "audio/webm",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toEqual({ ok: false, error: "empty_transcript" });
+  });
+
   it("uses the configured transcription model when none is provided", async () => {
     const { transcribeAudioFile } = await import("@/server/audio/transcription");
     const client = createFakeClient({ text: "Hello Coco." });
