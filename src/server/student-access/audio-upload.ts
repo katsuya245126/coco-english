@@ -27,6 +27,7 @@ import { transcribeAudioFile } from "@/server/audio/transcription";
 import { DEFAULT_COCO_TTS_VOICE } from "@/domain/audio/tts";
 import { warmTtsAudioCache } from "@/server/audio/tts-cache";
 import { scorePronunciation } from "@/server/audio/pronunciation-scorer";
+import type { PronunciationStarBand } from "@/domain/pronunciation/scoring";
 import {
   evaluateOriginalTurn,
   evaluateRepeatTurn,
@@ -74,6 +75,7 @@ export type UploadAttemptAudioClipResult =
       processingStatus: "transcribed";
       transcript: string;
       evaluation?: StoredOriginalTurnEvaluation | StoredRepeatTurnEvaluation;
+      starBand: PronunciationStarBand | null;
     }
   | {
       ok: false;
@@ -559,6 +561,8 @@ export async function uploadAttemptAudioClip(
       return { ok: false, error: "db_error", retryable: true };
     }
 
+    let starBand: PronunciationStarBand | null = null;
+
     try {
       const scoring = await scoringPromise;
       if (scoring.ok) {
@@ -584,6 +588,8 @@ export async function uploadAttemptAudioClip(
             turnOrder: input.turnOrder,
             error: scoreUpsert.error.message,
           });
+        } else {
+          starBand = scoring.score.starBand;
         }
       } else {
         log("warn", "audio.pronunciation_scoring_failed", {
@@ -649,6 +655,7 @@ export async function uploadAttemptAudioClip(
       processingStatus: "transcribed",
       transcript,
       evaluation: originalEvaluation ?? repeatEvaluation,
+      starBand,
     };
   } catch {
     return { ok: false, error: "db_error", retryable: true };

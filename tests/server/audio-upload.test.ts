@@ -691,7 +691,11 @@ describe("uploadAttemptAudioClip", () => {
       scorePronunciation,
     });
 
-    expect(result).toMatchObject({ ok: true, audioClipId: "clip-1" });
+    expect(result).toMatchObject({
+      ok: true,
+      audioClipId: "clip-1",
+      starBand: 3,
+    });
     expect(scorePronunciation).toHaveBeenCalledWith(
       expect.objectContaining({
         referenceText: "I like playing soccer after school.",
@@ -713,6 +717,10 @@ describe("uploadAttemptAudioClip", () => {
       pronunciation_score: 87,
       star_band: 3,
     });
+
+    expect(result).not.toHaveProperty("accuracyScore");
+    expect(result).not.toHaveProperty("pronunciationScore");
+    expect(JSON.stringify(result)).not.toContain("accuracyScore");
   });
 
   it("passes a fresh readable blob to pronunciation scoring after upload/transcription consumers", async () => {
@@ -822,7 +830,11 @@ describe("uploadAttemptAudioClip", () => {
       scorePronunciation,
     });
 
-    expect(result).toMatchObject({ ok: true, audioClipId: "clip-1" });
+    expect(result).toMatchObject({
+      ok: true,
+      audioClipId: "clip-1",
+      starBand: null,
+    });
     expect(scorePronunciation).toHaveBeenCalled();
     expect(
       mockSupabase.operations.some(
@@ -846,7 +858,11 @@ describe("uploadAttemptAudioClip", () => {
       scorePronunciation,
     });
 
-    expect(result).toMatchObject({ ok: true, audioClipId: "clip-1" });
+    expect(result).toMatchObject({
+      ok: true,
+      audioClipId: "clip-1",
+      starBand: null,
+    });
   });
 
   it("does not fail the upload when the pronunciation_scores DB write fails", async () => {
@@ -889,7 +905,11 @@ describe("uploadAttemptAudioClip", () => {
       scorePronunciation,
     });
 
-    expect(result).toMatchObject({ ok: true, audioClipId: "clip-1" });
+    expect(result).toMatchObject({
+      ok: true,
+      audioClipId: "clip-1",
+      starBand: null,
+    });
   });
 
   it("starts pronunciation scoring concurrently with turn evaluation, not serially after it", async () => {
