@@ -72,12 +72,16 @@ function createClient(apiKey: string): TranscriptionClient {
   return new OpenAI({ apiKey }) as TranscriptionClient;
 }
 
-function englishOnlyTranscript(text: string) {
+export function normalizeEnglishTranscript(text: string) {
   return text
     .replace(HANGUL_SCRIPT, " ")
     .replace(/\s+([.,!?;:])/g, "$1")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+export function hasEnglishTranscript(text: string) {
+  return ENGLISH_LETTER.test(text);
 }
 
 export async function transcribeAudioFile(
@@ -103,9 +107,9 @@ export async function transcribeAudioFile(
       language: "en",
       prompt: "The student is a Korean ESL learner speaking English. Transcribe only the English words spoken.",
     });
-    const text = englishOnlyTranscript(response.text ?? "");
+    const text = normalizeEnglishTranscript(response.text ?? "");
 
-    if (!text || !ENGLISH_LETTER.test(text)) {
+    if (!text || !hasEnglishTranscript(text)) {
       log("error", "audio.transcription_failed", { error: "empty_transcript" });
       return { ok: false, error: "empty_transcript" };
     }

@@ -23,7 +23,11 @@ import {
   type RepeatTurnDecision,
   type RepeatTurnEvaluation,
 } from "@/domain/ai/turn-evaluation";
-import { transcribeAudioFile } from "@/server/audio/transcription";
+import {
+  hasEnglishTranscript,
+  normalizeEnglishTranscript,
+  transcribeAudioFile,
+} from "@/server/audio/transcription";
 import { DEFAULT_COCO_TTS_VOICE } from "@/domain/audio/tts";
 import { warmTtsAudioCache } from "@/server/audio/tts-cache";
 import { scorePronunciation } from "@/server/audio/pronunciation-scorer";
@@ -450,7 +454,26 @@ export async function uploadAttemptAudioClip(
       };
     }
 
-    const transcript = transcription.text;
+    const transcript = normalizeEnglishTranscript(transcription.text);
+    if (!transcript || !hasEnglishTranscript(transcript)) {
+      await supabase
+        .from("audio_clips")
+        .update({
+          object_key: objectKey,
+          mime_type: input.mimeType,
+          duration_ms: input.durationMs,
+          byte_size: input.byteSize,
+          processing_status: "failed",
+        })
+        .eq("id", audioClip.id);
+
+      return {
+        ok: false,
+        error: "transcription_failed_retryable",
+        retryable: true,
+      };
+    }
+
     let originalEvaluation: StoredOriginalTurnEvaluation | undefined;
     let repeatEvaluation: StoredRepeatTurnEvaluation | undefined;
 

@@ -532,6 +532,85 @@ describe("uploadAttemptAudioClip", () => {
     ).toBe(false);
   });
 
+  it("rejects Korean-only transcripts before evaluation or transcript writes", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const evaluateOriginal = successfulOriginalEvaluator();
+    const scorePronunciation = vi.fn(async () => ({
+      ok: true as const,
+      score: {
+        accuracyScore: 88,
+        fluencyScore: 90,
+        completenessScore: 95,
+        pronunciationScore: 87,
+        starBand: 3 as const,
+        referenceText: "I like soccer.",
+        wordScores: [],
+      },
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("나는 방과 후에 축구를 좋아해요."),
+      evaluateOriginalTurn: evaluateOriginal,
+      scorePronunciation,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "transcription_failed_retryable",
+      retryable: true,
+    });
+    expect(evaluateOriginal).not.toHaveBeenCalled();
+    expect(scorePronunciation).not.toHaveBeenCalled();
+    expect(
+      mockSupabase.operations.some(
+        (operation) =>
+          operation.table === "attempt_turns" &&
+          typeof operation.payload === "object" &&
+          operation.payload !== null &&
+          ("original_transcript" in operation.payload ||
+            "repeat_transcript" in operation.payload),
+      ),
+    ).toBe(false);
+  });
+
+  it("cleans mixed English and Korean transcripts before evaluation and writes", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const evaluateOriginal = successfulOriginalEvaluator();
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like 축구 after school."),
+      evaluateOriginalTurn: evaluateOriginal,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      transcript: "I like after school.",
+    });
+    expect(evaluateOriginal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transcript: "I like after school.",
+      }),
+    );
+
+    const transcriptWrite = mockSupabase.operations.find(
+      (operation) =>
+        operation.table === "attempt_turns" &&
+        operation.action === "upsert" &&
+        typeof operation.payload === "object" &&
+        operation.payload !== null &&
+        "original_transcript" in operation.payload,
+    );
+
+    expect(transcriptWrite?.payload).toMatchObject({
+      original_transcript: "I like after school.",
+    });
+  });
+
   it("rejects closed assignments and attempts before creating audio rows", async () => {
     mockSupabase = createMockSupabase({ assignmentStatus: "completed" });
     const { uploadAttemptAudioClip } = await import(
