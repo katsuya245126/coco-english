@@ -4,9 +4,9 @@ milestone: v2.0
 milestone_name: — Coco Comes Alive
 current_phase: 09
 current_phase_name: pronunciation-scoring
-status: complete
-stopped_at: Phase 11 context gathered
-last_updated: "2026-07-03T07:17:50.435Z"
+status: executing
+stopped_at: Phase 11 UI-SPEC approved
+last_updated: "2026-07-03T11:57:11.804Z"
 last_activity: 2026-07-03
 last_activity_desc: Phase 09 closed; 09-06 student-facing stars shipped, checkpoint verified, full suite green
 progress:
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 
 Phase: 09 (pronunciation-scoring) — COMPLETE
 Previous phase: 08 (coco-voice-tts) — COMPLETE with residual older-device risk accepted
-Status: Phase 09 complete; Phase 10 (mascot) not yet planned (CONTEXT.md does not exist)
+Status: Ready to execute
 Last activity: 2026-07-03 — Phase 09 closed; 09-06 student-facing stars shipped, checkpoint verified, full suite green
 
 Progress: [████████░░] 82%
@@ -173,6 +173,6 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 ## Session Continuity
 
-Last session: 2026-07-03T07:17:50.421Z
-Stopped at: Phase 11 context gathered
-Resume file: .planning/phases/11-coco-chat-dynamic-turns-scene-framing/11-CONTEXT.md
+Last session: 2026-07-03T07:42:00.397Z
+Stopped at: Phase 11 UI-SPEC approved
+Resume file: .planning/phases/11-coco-chat-dynamic-turns-scene-framing/11-UI-SPEC.md
