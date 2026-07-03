@@ -31,7 +31,7 @@ Archive:
 **Milestone Goal:** Transform Coco English from a functional homework form into an immersive, character-driven speaking experience — Coco speaks, appears on screen, converses naturally, and scores pronunciation — while keeping the teacher-linked homework loop and teacher-verifiability intact. Ships as five independently-shippable point releases (v2.1 → v2.5), each verified in production before the next begins. All schema changes are additive; the v1 server-owned status/audit core is untouched.
 
 - [x] **Phase 8: Coco Voice (TTS)** - Coco's mission/prompt lines are spoken aloud with caching and standard `<audio>` playback. All 5 plans executed; automated verification passed; Samsung S23 + Mac preview smoke tests passed; Chromebook/older-tablet coverage unavailable and accepted as residual risk at closeout (2026-07-02).
-- [ ] **Phase 9: Pronunciation Scoring** - Students get encouraging, banded pronunciation feedback; teachers see word-level diagnostic detail.
+- [x] **Phase 9: Pronunciation Scoring** - Students get encouraging, banded pronunciation feedback; teachers see word-level diagnostic detail.
 - [ ] **Phase 10: Mascot (VN-style)** - Coco appears on screen as a 2D character with an audio-driven speaking state.
 - [ ] **Phase 11: Coco Chat (dynamic turns + scene framing)** - Missions get a scene premise and an optional bounded, moderated dynamic conversation mode.
 - [ ] **Phase 12: UI Overhaul** - One cohesive visual pass unifying voice, mascot, and chat, gated on a full prior-phase UAT re-run.
@@ -72,7 +72,7 @@ Archive:
   5. Pronunciation scores are stored in a dedicated `pronunciation_scores` table keyed on the audio clip, independent of existing turn-evaluation data.
   6. A documented FERPA/COPPA data-use note for Azure Speech exists before any student audio is sent to the vendor.
 
-**Plans**: 5/6 plans executed
+**Plans**: 6/6 plans executed
 **Wave 1**
 
 - [x] 09-01-PLAN.md — FERPA/COPPA Azure data-use note + server-only env vars (PRON-02)
@@ -89,7 +89,7 @@ Archive:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 09-06-PLAN.md — inline student star band, no raw score (PRON-04)
+- [x] 09-06-PLAN.md — inline student star band, no raw score (PRON-04)
 
 **Research flag**: Needs an explicit accuracy-validation pass (Azure vs. real stored student audio for this app's 6 students) as a phase task before score-band thresholds are finalized — not literature research, empirical validation. (Handled by the D-04 calibration checkpoint in 09-05, which gates the 09-06 student-facing stars.)
 
@@ -124,8 +124,28 @@ Archive:
   6. Every Coco output is moderated/safety-checked before it is shown or spoken to a student.
   7. Coco's dynamically generated lines are persisted (`attempt_turns.coco_line`) and the full exchange is teacher-reviewable as a transcript using the existing review UI, with the target pattern visually identifiable in the transcript.
 
-**Plans**: TBD
-**Research flag**: Highest-risk release in the milestone — needs the deepest phase-specific research/spike on (a) per-turn re-grounding prompt design to prevent drift, (b) moderation-endpoint integration pattern, (c) UI pattern for target-pattern transcript markup, and a concrete UAT/manual-review deliverable confirming drift/safety guardrails hold in practice. Recommend `/gsd-plan-phase --research-phase 11`.
+**Plans**: 7 plans
+
+**Wave 1** *(parallel foundation)*
+
+- [ ] 11-01-PLAN.md — additive migration (missions.scene_premise/conversation_mode, attempt_turns.coco_line/moderation_event) + conditional snapshot refine + live push (SCENE-01, CHAT-01, CHAT-06)
+- [ ] 11-02-PLAN.md — conversation-generator + fail-closed content-moderation adapters, domain schemas, fallback lines, FERPA/COPPA moderation data-use note (CHAT-01, CHAT-02, CHAT-04, CHAT-05)
+
+**Wave 2** *(server orchestration, blocked on Wave 1)*
+
+- [ ] 11-03-PLAN.md — hard-turn-cap gate + coco_line persistence (mission-flow), conversation orchestration with dual-direction moderation + retry-once + shared fallback (audio-upload), scene-premise generation in mission draft (CHAT-01, CHAT-03, CHAT-05, CHAT-06, SCENE-01)
+
+**Wave 3** *(parallel UI, blocked on Wave 2)*
+
+- [ ] 11-04-PLAN.md — student scene-premise card (unvoiced) + "Coco is thinking…" step + dynamic-line playback (SCENE-01, CHAT-02)
+- [ ] 11-05-PLAN.md — teacher mission form: conversation-mode toggle, 3-8 required-turns field, editable scene-premise + generate action (SCENE-01, CHAT-01)
+- [ ] 11-06-PLAN.md — teacher evidence page: header pattern chip + premise, Coco-said row, pattern-used badge, collapsed moderation flag (CHAT-06, SCENE-01)
+
+**Wave 4** *(manual-review gate, blocked on Wave 3)*
+
+- [ ] 11-07-PLAN.md — roadmap-mandated manual-review UAT: rubric + real scored transcripts confirming on-pattern-ness, moderation-in-practice, personality, and 8-turn cap/wind-down (CHAT-02, CHAT-03, CHAT-04, CHAT-05)
+
+**Research flag**: Highest-risk release in the milestone — needs the deepest phase-specific research/spike on (a) per-turn re-grounding prompt design to prevent drift, (b) moderation-endpoint integration pattern, (c) UI pattern for target-pattern transcript markup, and a concrete UAT/manual-review deliverable confirming drift/safety guardrails hold in practice. Research + UI-SPEC complete; the manual-review deliverable is planned as 11-07.
 
 ### Phase 12: UI Overhaul
 
@@ -155,11 +175,11 @@ Phases execute in numeric order: 8 → 9 → 10 → 11 → 12
 | 6. AI Mission and Turn Intelligence | v1.0 | 4/4 | Complete | 2026-06-29 |
 | 7. Teacher Review and Pilot Readiness | v1.0 | 4/4 | Complete | 2026-07-01 |
 | 8. Coco Voice (TTS) | v2.0 | 5/5 | Complete (accepted with residual low-end-device risk) | 2026-07-02 |
-| 9. Pronunciation Scoring | v2.0 | 4/6 | In Progress|  |
+| 9. Pronunciation Scoring | v2.0 | 6/6 | Complete | 2026-07-03 |
 | 10. Mascot (VN-style) | v2.0 | 0/TBD | Not started | - |
-| 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 0/TBD | Not started | - |
+| 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 0/7 | Planned | - |
 | 12. UI Overhaul | v2.0 | 0/TBD | Not started | - |
 
 ## Next Up
 
-Run `/gsd-plan-phase 9` to plan Pronunciation Scoring, the next v2.0 point release.
+Run `/gsd-discuss-phase 10` (or `/gsd-plan-phase 10`) to plan Mascot (VN-style), the next v2.0 point release.
