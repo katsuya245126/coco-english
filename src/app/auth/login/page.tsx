@@ -9,12 +9,17 @@ export default function LoginPage() {
     <AuthFormShell
       title="Log in"
       footer={
-        <span>
-          Need an account?{" "}
-          <Link href="/auth/signup" style={{ color: "#4B5563" }}>
-            Create teacher account
+        <div style={{ display: "grid", gap: 8 }}>
+          <Link href="/" style={{ color: "#4B5563" }}>
+            Back to role choice
           </Link>
-        </span>
+          <span>
+            Need an account?{" "}
+            <Link href="/auth/signup" style={{ color: "#4B5563" }}>
+              Create teacher account
+            </Link>
+          </span>
+        </div>
       }
     >
       <LoginForm />

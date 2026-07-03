@@ -88,3 +88,61 @@ export function errorTypeToLabel(errorType: string | undefined): string {
   if (!errorType) return "Clear";
   return ERROR_TYPE_LABELS[errorType] ?? "Clear";
 }
+
+export type WordHighlight = {
+  word: string;
+  label: string;
+};
+
+const MAX_WORDS_TO_PRACTICE = 3;
+
+/**
+ * ErrorTypes that mean the student actually said the word but said it
+ * imperfectly. Deliberately excludes "Omission"/"Insertion": those compare
+ * the audio against the mission's target/model sentence, so a student who
+ * gave a correct-but-different free-form answer would rack up "missing"
+ * words they never intended to say (e.g. target-sentence vocabulary absent
+ * from their own valid answer) — confusing and simply wrong to present as
+ * pronunciation practice.
+ */
+const PRACTICE_ELIGIBLE_ERROR_TYPES = new Set(["Mispronunciation", "Monotone"]);
+
+/** Lowercase, punctuation-stripped word tokens for transcript matching. */
+function tokenizeWords(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .split(/[^a-z']+/i)
+      .map((token) => token.replace(/^'+|'+$/g, ""))
+      .filter(Boolean),
+  );
+}
+
+function normalizeWord(word: string): string {
+  return word.toLowerCase().replace(/^'+|'+$/g, "");
+}
+
+/**
+ * Student-facing "words to work on" (PRON-04): the subset of wordScores the
+ * student actually attempted but said imperfectly, capped so a child sees a
+ * short focused list rather than a full per-word transcript breakdown.
+ *
+ * `wordScores` come from Azure scoring the audio against the mission's TARGET
+ * sentence, not against what the student said — so a word can only be surfaced
+ * if it also appears in the student's own transcript. This guards against
+ * showing practice words the student never uttered (e.g. target-sentence
+ * vocabulary Azure flagged as "missing", or phantom words its recognizer
+ * hallucinated from unclear/bilingual audio).
+ */
+export function wordsToPractice(
+  wordScores: WordScore[] | undefined,
+  transcript?: string,
+): WordHighlight[] {
+  if (!wordScores) return [];
+  const spokenWords = transcript ? tokenizeWords(transcript) : null;
+  return wordScores
+    .filter((entry) => PRACTICE_ELIGIBLE_ERROR_TYPES.has(entry.errorType))
+    .filter((entry) => spokenWords === null || spokenWords.has(normalizeWord(entry.word)))
+    .slice(0, MAX_WORDS_TO_PRACTICE)
+    .map((entry) => ({ word: entry.word, label: errorTypeToLabel(entry.errorType) }));
+}

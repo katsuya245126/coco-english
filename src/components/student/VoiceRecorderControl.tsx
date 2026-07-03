@@ -336,16 +336,7 @@ export function VoiceRecorderControl({
         onClick={handleAction}
         disabled={disabled || state === "waiting-permission" || state === "success"}
       >
-        {isProcessing ? (
-          <span
-            style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
-          >
-            <span className="spinner" aria-hidden="true" />
-            Saving…
-          </span>
-        ) : (
-          actionLabel()
-        )}
+        {isProcessing ? "Please wait" : actionLabel()}
       </button>
     </div>
   );

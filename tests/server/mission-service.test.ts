@@ -6,7 +6,7 @@ vi.mock("@/lib/supabase/server-auth", () => ({
   createSupabaseServerClient: async () => mockSupabase,
 }));
 
-const { createMission, updateMission } = await import(
+const { createMission, updateMission, deleteMission } = await import(
   "@/server/mission/mission-service"
 );
 
@@ -86,5 +86,85 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
     await expect(
       updateMission({ ...badInput, missionId: "mission-1" }),
     ).rejects.toThrow(/required turns/i);
+  });
+
+  it("deletes an unassigned mission owned by the teacher", async () => {
+    const calls: Array<{ table: string; action: string; filters: Array<[string, unknown]> }> = [];
+    const makeDeleteQuery = (table: string) => {
+      const filters: Array<[string, unknown]> = [];
+      return {
+        eq: vi.fn((column: string, value: unknown) => {
+          filters.push([column, value]);
+          return {
+            eq: vi.fn((nextColumn: string, nextValue: unknown) => {
+              filters.push([nextColumn, nextValue]);
+              calls.push({ table, action: "delete", filters });
+              return { error: null };
+            }),
+          };
+        }),
+      };
+    };
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === "assignments") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(async () => ({ data: [], error: null })),
+            })),
+          };
+        }
+        if (table === "missions") {
+          return {
+            delete: vi.fn(() => makeDeleteQuery(table)),
+          };
+        }
+        throw new Error(`Unexpected table ${table}`);
+      }),
+    };
+    mockSupabase = supabase;
+
+    await deleteMission({ teacherId: "teacher-1", missionId: "mission-1" });
+
+    expect(calls).toEqual([
+      {
+        table: "missions",
+        action: "delete",
+        filters: [
+          ["id", "mission-1"],
+          ["teacher_id", "teacher-1"],
+        ],
+      },
+    ]);
+  });
+
+  it("rejects deleting a mission that already has assignments", async () => {
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === "assignments") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(async () => ({
+                data: [{ id: "assignment-1" }],
+                error: null,
+              })),
+            })),
+          };
+        }
+        if (table === "missions") {
+          return {
+            delete: vi.fn(() => {
+              throw new Error("delete should not be called");
+            }),
+          };
+        }
+        throw new Error(`Unexpected table ${table}`);
+      }),
+    };
+    mockSupabase = supabase;
+
+    await expect(
+      deleteMission({ teacherId: "teacher-1", missionId: "mission-1" }),
+    ).rejects.toThrow(/assigned/i);
   });
 });

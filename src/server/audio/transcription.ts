@@ -22,7 +22,12 @@ export type TranscriptionResult =
 export type TranscriptionClient = {
   audio: {
     transcriptions: {
-      create(input: { file: File; model: string; prompt?: string }): Promise<{ text?: string | null }>;
+      create(input: {
+        file: File;
+        model: string;
+        language?: string;
+        prompt?: string;
+      }): Promise<{ text?: string | null }>;
     };
   };
 };
@@ -82,7 +87,11 @@ export async function transcribeAudioFile(
     const response = await client.audio.transcriptions.create({
       file: transcriptFile,
       model: resolveModel(input, deps),
-      prompt: "The student is an ESL learner speaking English or Korean.",
+      // Pins the output language so a Korean word mid-sentence doesn't cause
+      // Whisper-family models to switch the whole transcript to Korean — a
+      // known failure mode with code-switched/bilingual audio.
+      language: "en",
+      prompt: "The student is a Korean ESL learner speaking English. Transcribe only the English words spoken.",
     });
     const text = response.text?.trim() ?? "";
 

@@ -79,6 +79,20 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(shellSource).not.toContain("teacher_review");
   });
 
+  it("teacher-review feedback does not offer record-again actions after server status leaves the recorder flow", () => {
+    const shellSource = readFileSync(
+      "src/components/student/MissionFlowShell.tsx",
+      "utf8",
+    );
+
+    expect(shellSource).toMatch(
+      /onRetry=\{[\s\S]*flow\.originalFeedback\.kind === "teacherReview"[\s\S]*\?[\s\S]*undefined/,
+    );
+    expect(shellSource).toMatch(
+      /onRetry=\{[\s\S]*flow\.repeatFeedback\.kind === "repeatReview"[\s\S]*\?[\s\S]*undefined/,
+    );
+  });
+
   it("review routing is service-owned, audited, and AI-attributed", () => {
     const missionFlowSource = readFileSync(
       "src/server/student-access/mission-flow.ts",

@@ -11,7 +11,14 @@ import { missionSnapshotSchema } from "@/domain/mission/schemas";
 // SECURITY: server-only by construction (service-role client). Never import
 // from a "use client" module.
 
-export type AssignmentDisplayStatus = "start" | "continue" | "retry" | "done" | "late";
+export type AssignmentDisplayStatus =
+  | "start"
+  | "continue"
+  | "retry"
+  | "done"
+  | "late"
+  | "missed"
+  | "review";
 
 export type StudentAssignmentListItem = {
   assignmentStudentId: string;
@@ -92,8 +99,11 @@ export async function listStudentAssignments(
       displayStatus = isPastDue ? "late" : "start";
     } else if (row.status === "started") {
       displayStatus = isPastDue ? "late" : "continue";
+    } else if (row.status === "missed") {
+      displayStatus = "missed";
+    } else if (row.status === "teacher_review") {
+      displayStatus = "review";
     } else {
-      // missed, teacher_review — not student-actionable.
       displayStatus = "late";
     }
 

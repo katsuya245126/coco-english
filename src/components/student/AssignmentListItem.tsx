@@ -76,6 +76,8 @@ const BADGE_STYLES: Record<
   retry: badgeRetryStyle,
   done: badgeDoneStyle,
   late: badgeLateStyle,
+  missed: badgeLateStyle,
+  review: badgeRetryStyle,
 };
 
 const BADGE_LABELS: Record<
@@ -87,6 +89,8 @@ const BADGE_LABELS: Record<
   retry: "Retry",
   done: "Done",
   late: "Late",
+  missed: "Missed",
+  review: "Teacher review",
 };
 
 function formatDueDate(dueAt: string | null): string {
@@ -117,8 +121,7 @@ export function AssignmentListItem({
   const isLaunchable =
     item.displayStatus === "start" ||
     item.displayStatus === "continue" ||
-    item.displayStatus === "retry" ||
-    item.displayStatus === "late";
+    item.displayStatus === "retry";
 
   if (isLaunchable) {
     return (

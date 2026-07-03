@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { deleteMissionAction } from "@/app/teacher/missions/actions";
 import type { AssignableClass } from "@/server/mission/assign-service";
 import type { TeacherMission } from "@/server/mission/mission-service";
 import { AssignDialog } from "@/components/teacher/AssignDialog";
 import { HoverButton } from "@/components/ui/HoverButton";
 import { HoverLink } from "@/components/ui/HoverLink";
-import { primaryHover, secondaryHover } from "@/components/ui/hover-styles";
+import {
+  dangerHover,
+  primaryHover,
+  secondaryHover,
+} from "@/components/ui/hover-styles";
 
 type MissionListProps = {
   missions: TeacherMission[];
@@ -18,6 +23,10 @@ export function MissionList({ missions, assignableClasses }: MissionListProps) {
     null,
   );
   const [success, setSuccess] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [deletingMissionId, setDeletingMissionId] = useState<string | null>(null);
+  const [disabledDeleteTooltipMissionId, setDisabledDeleteTooltipMissionId] =
+    useState<string | null>(null);
 
   // Auto-dismiss success message after 5 seconds (UI-SPEC requirement)
   useEffect(() => {
@@ -25,6 +34,24 @@ export function MissionList({ missions, assignableClasses }: MissionListProps) {
     const timer = setTimeout(() => setSuccess(null), 5000);
     return () => clearTimeout(timer);
   }, [success]);
+
+  async function handleDeleteMission(mission: TeacherMission) {
+    if (mission.assignmentCount > 0) return;
+    const confirmed = window.confirm(`Delete mission "${mission.title}"?`);
+    if (!confirmed) return;
+
+    setError(null);
+    setDeletingMissionId(mission.id);
+    const result = await deleteMissionAction(mission.id);
+    setDeletingMissionId(null);
+
+    if (result.ok) {
+      setSuccess("Mission deleted.");
+      return;
+    }
+
+    setError(result.error);
+  }
 
   return (
     <div>
@@ -38,6 +65,11 @@ export function MissionList({ missions, assignableClasses }: MissionListProps) {
       {success ? (
         <p aria-live="polite" style={successStyle}>
           {success}
+        </p>
+      ) : null}
+      {error ? (
+        <p aria-live="polite" style={errorStyle}>
+          {error}
         </p>
       ) : null}
 
@@ -98,6 +130,61 @@ export function MissionList({ missions, assignableClasses }: MissionListProps) {
                     You have no classes with active students. Create a class and add students first.
                   </span>
                 )}
+                <span
+                  style={deleteButtonWrapperStyle}
+                  tabIndex={mission.assignmentCount > 0 ? 0 : undefined}
+                  onMouseEnter={() => {
+                    if (mission.assignmentCount > 0) {
+                      setDisabledDeleteTooltipMissionId(mission.id);
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    if (disabledDeleteTooltipMissionId === mission.id) {
+                      setDisabledDeleteTooltipMissionId(null);
+                    }
+                  }}
+                  onFocus={() => {
+                    if (mission.assignmentCount > 0) {
+                      setDisabledDeleteTooltipMissionId(mission.id);
+                    }
+                  }}
+                  onBlur={() => {
+                    if (disabledDeleteTooltipMissionId === mission.id) {
+                      setDisabledDeleteTooltipMissionId(null);
+                    }
+                  }}
+                >
+                  <HoverButton
+                    type="button"
+                    onClick={() => handleDeleteMission(mission)}
+                    style={
+                      mission.assignmentCount > 0
+                        ? disabledDangerButtonStyle
+                        : dangerButtonStyle
+                    }
+                    hoverStyle={dangerHover}
+                    disabled={
+                      mission.assignmentCount > 0 || deletingMissionId === mission.id
+                    }
+                    aria-label={`Delete mission ${mission.title}`}
+                    aria-describedby={
+                      mission.assignmentCount > 0
+                        ? `delete-mission-tooltip-${mission.id}`
+                        : undefined
+                    }
+                  >
+                    {deletingMissionId === mission.id ? "Deleting..." : "Delete"}
+                  </HoverButton>
+                  {disabledDeleteTooltipMissionId === mission.id ? (
+                    <span
+                      id={`delete-mission-tooltip-${mission.id}`}
+                      role="tooltip"
+                      style={disabledDeleteTooltipStyle}
+                    >
+                      Assigned missions cannot be deleted.
+                    </span>
+                  ) : null}
+                </span>
               </div>
             </div>
           ))}
@@ -152,7 +239,7 @@ const listStyle: React.CSSProperties = {
   background: "#FFFFFF",
   border: "1px solid #E5E7EB",
   borderRadius: 8,
-  overflow: "hidden",
+  overflow: "visible",
 };
 
 const primaryLinkStyle: React.CSSProperties = {
@@ -196,8 +283,56 @@ const primaryButtonStyle: React.CSSProperties = {
   transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
+const dangerButtonStyle: React.CSSProperties = {
+  padding: "10px 16px",
+  background: "#B42318",
+  color: "#FFFFFF",
+  border: "none",
+  borderRadius: 6,
+  fontSize: 14,
+  fontWeight: 600,
+  cursor: "pointer",
+  minHeight: 44,
+  transition: "background 0.15s ease, border-color 0.15s ease",
+};
+
+const deleteButtonWrapperStyle: React.CSSProperties = {
+  display: "inline-flex",
+  position: "relative",
+};
+
+const disabledDangerButtonStyle: React.CSSProperties = {
+  ...dangerButtonStyle,
+  background: "#E5E7EB",
+  color: "#6B7280",
+  cursor: "default",
+  pointerEvents: "none",
+};
+
+const disabledDeleteTooltipStyle: React.CSSProperties = {
+  position: "absolute",
+  right: 0,
+  top: "calc(100% + 8px)",
+  zIndex: 20,
+  padding: "6px 8px",
+  background: "#111827",
+  color: "#FFFFFF",
+  borderRadius: 6,
+  boxShadow: "0 8px 20px rgba(17, 24, 39, 0.18)",
+  fontSize: 12,
+  fontWeight: 600,
+  lineHeight: 1.3,
+  whiteSpace: "nowrap",
+};
+
 const successStyle: React.CSSProperties = {
   color: "#177245",
+  fontSize: 14,
+  margin: "0 0 16px",
+};
+
+const errorStyle: React.CSSProperties = {
+  color: "#B42318",
   fontSize: 14,
   margin: "0 0 16px",
 };

@@ -35,6 +35,26 @@ describe("transcribeAudioFile", () => {
     );
   });
 
+  it("pins the transcription language to English so a mid-sentence Korean word doesn't flip the whole transcript to Korean", async () => {
+    const { transcribeAudioFile } = await import("@/server/audio/transcription");
+    const client = createFakeClient({ text: "I like apples." });
+
+    await transcribeAudioFile(
+      {
+        file: new Blob(["voice"], { type: "audio/webm" }),
+        mimeType: "audio/webm",
+        model: "test-transcribe",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(client.audio.transcriptions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        language: "en",
+      }),
+    );
+  });
+
   it("uses the configured transcription model when none is provided", async () => {
     const { transcribeAudioFile } = await import("@/server/audio/transcription");
     const client = createFakeClient({ text: "Hello Coco." });

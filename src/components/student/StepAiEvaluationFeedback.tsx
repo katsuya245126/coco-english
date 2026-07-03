@@ -13,6 +13,7 @@ import { CocoSpeechAudio } from "@/components/student/CocoSpeechAudio";
 import {
   STAR_BAND_COPY,
   type PronunciationStarBand,
+  type WordHighlight,
 } from "@/domain/pronunciation/scoring";
 
 type OriginalOutcome =
@@ -33,6 +34,14 @@ type StepAiEvaluationFeedbackProps = {
   audioUrl?: string;
   improvedSentence?: string | null;
   starBand?: PronunciationStarBand | null;
+  wordsToPractice?: WordHighlight[];
+  /**
+   * True on a 1-star result the student hasn't yet retried this turn — hides
+   * Continue so a retry is the only way forward. Never true after a retry
+   * (even another 1-star), so a genuinely struggling student is never
+   * trapped on one turn (D-04 checkpoint decision, 2026-07-03).
+   */
+  forceRetryBeforeContinue?: boolean;
   onContinue?: () => void | Promise<void>;
   onRetry?: () => void;
   isSubmitting?: boolean;
@@ -47,6 +56,8 @@ export function StepAiEvaluationFeedback({
   audioUrl,
   improvedSentence,
   starBand,
+  wordsToPractice,
+  forceRetryBeforeContinue = false,
   onContinue,
   onRetry,
   isSubmitting = false,
@@ -64,20 +75,25 @@ export function StepAiEvaluationFeedback({
   if (outcome === "acceptedOriginal") {
     return (
       <div style={stepCardStyle} aria-live="polite">
-        <Transcript transcript={transcript} />
+        <Transcript transcript={transcript} audioUrl={audioUrl} />
         <div style={evaluationSuccessStyle}>
           <h2 style={headingInlineStyle}>Nice answer!</h2>
         </div>
         <PronunciationStars starBand={starBand} />
-        <button
-          type="button"
-          style={{ ...primaryButtonStyle, marginTop: 16 }}
-          onClick={onContinue}
-          disabled={isSubmitting}
-        >
-          Continue practice
-        </button>
-        <RecordingReview audioUrl={audioUrl} onRetry={onRetry} />
+        <WordsToPractice words={wordsToPractice} />
+        {forceRetryBeforeContinue ? (
+          <RecordAgainRequiredNotice />
+        ) : (
+          <button
+            type="button"
+            style={{ ...primaryButtonStyle, marginTop: 16 }}
+            onClick={onContinue}
+            disabled={isSubmitting}
+          >
+            Continue practice
+          </button>
+        )}
+        <RecordingReview onRetry={onRetry} />
       </div>
     );
   }
@@ -85,34 +101,39 @@ export function StepAiEvaluationFeedback({
   if (outcome === "needsCorrection") {
     return (
       <div style={stepCardStyle} aria-live="polite">
-        <Transcript transcript={transcript} />
+        <Transcript transcript={transcript} audioUrl={audioUrl} />
         <div style={{ ...improvedSentenceCardStyle, marginTop: transcript ? 16 : 0 }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-            <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
-                  Nice try! Here is a clearer way to say it:
+          <div style={improvedSentenceHeaderStyle}>
+            <p style={improvedSentenceLabelStyle}>
+              Nice try! Here is a clearer way to say it:
             </p>
-            {/* Voice only Coco-style feedback + improved sentence (D-09).
-                The transcript above is never voiced (D-10). */}
+            {/* Voice reads the actual improved sentence (D-07). The
+                transcript above is never voiced (D-10). */}
             <CocoSpeechAudio
               assignmentStudentId={assignmentStudentId}
-              line={{ lineKind: "coco_feedback", turnOrder }}
+              line={{ lineKind: "improved_sentence", turnOrder }}
             />
           </div>
           <p style={sentenceStyle}>{improvedSentence}</p>
         </div>
         <PronunciationStars starBand={starBand} />
+        <WordsToPractice words={wordsToPractice} />
         <p style={{ ...bodyInlineStyle, marginTop: 16 }}>
           Now say it out loud.
         </p>
-        <button
-          type="button"
-          style={{ ...primaryButtonStyle, marginTop: 8 }}
-          onClick={onContinue}
-          disabled={isSubmitting}
-        >
-          Continue practice
-        </button>
-        <RecordingReview audioUrl={audioUrl} onRetry={onRetry} />
+        <RecordingReview onRetry={onRetry} />
+        {forceRetryBeforeContinue ? (
+          <RecordAgainRequiredNotice />
+        ) : (
+          <button
+            type="button"
+            style={{ ...secondaryButtonStyle, marginTop: 12 }}
+            onClick={onContinue}
+            disabled={isSubmitting}
+          >
+            Continue practice
+          </button>
+        )}
       </div>
     );
   }
@@ -120,11 +141,11 @@ export function StepAiEvaluationFeedback({
   if (outcome === "retryOriginal") {
     return (
       <div style={stepCardStyle} aria-live="polite" role="alert">
-        <Transcript transcript={transcript} />
+        <Transcript transcript={transcript} audioUrl={audioUrl} />
         <div style={{ ...evaluationErrorStyle, marginTop: transcript ? 16 : 0 }}>
           <h2 style={headingInlineStyle}>Try that in English.</h2>
         </div>
-        <RecordingReview audioUrl={audioUrl} onRetry={onRetry} />
+        <RecordingReview onRetry={onRetry} />
       </div>
     );
   }
@@ -132,7 +153,7 @@ export function StepAiEvaluationFeedback({
   if (outcome === "teacherReview" || outcome === "repeatReview") {
     return (
       <div style={stepCardStyle} aria-live="polite">
-        <Transcript transcript={transcript} />
+        <Transcript transcript={transcript} audioUrl={audioUrl} />
         <div style={{ ...evaluationReviewStyle, marginTop: transcript ? 16 : 0 }}>
           <p style={badgeStyle}>Teacher review</p>
           <h2 style={headingInlineStyle}>Your teacher will check this answer.</h2>
@@ -145,7 +166,7 @@ export function StepAiEvaluationFeedback({
         >
           Continue mission
         </button>
-        <RecordingReview audioUrl={audioUrl} onRetry={onRetry} />
+        <RecordingReview onRetry={onRetry} />
       </div>
     );
   }
@@ -153,30 +174,35 @@ export function StepAiEvaluationFeedback({
   if (outcome === "repeatAccepted") {
     return (
       <div style={stepCardStyle} aria-live="polite">
-        <Transcript transcript={transcript} />
+        <Transcript transcript={transcript} audioUrl={audioUrl} />
         <div style={evaluationSuccessStyle}>
           <h2 style={headingInlineStyle}>Good repeat.</h2>
         </div>
         <PronunciationStars starBand={starBand} />
-        <button
-          type="button"
-          style={{ ...primaryButtonStyle, marginTop: 16 }}
-          onClick={onContinue}
-          disabled={isSubmitting}
-        >
-          Continue mission
-        </button>
-        <RecordingReview audioUrl={audioUrl} onRetry={onRetry} />
+        <WordsToPractice words={wordsToPractice} />
+        {forceRetryBeforeContinue ? (
+          <RecordAgainRequiredNotice />
+        ) : (
+          <button
+            type="button"
+            style={{ ...primaryButtonStyle, marginTop: 16 }}
+            onClick={onContinue}
+            disabled={isSubmitting}
+          >
+            Continue mission
+          </button>
+        )}
+        <RecordingReview onRetry={onRetry} />
       </div>
     );
   }
 
   return (
     <div style={stepCardStyle} aria-live="polite" role="alert">
-      <Transcript transcript={transcript} />
+      <Transcript transcript={transcript} audioUrl={audioUrl} />
       {improvedSentence && (
         <div style={{ ...improvedSentenceCardStyle, marginTop: transcript ? 16 : 0 }}>
-          <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
+          <p style={{ ...improvedSentenceLabelStyle, marginBottom: 8 }}>
             Say this sentence:
           </p>
           <p style={sentenceStyle}>{improvedSentence}</p>
@@ -188,17 +214,23 @@ export function StepAiEvaluationFeedback({
       </div>
       <button
         type="button"
-        style={{ ...primaryButtonStyle, marginTop: 16 }}
+        style={{ ...recordAgainButtonStyle, marginTop: 16 }}
         onClick={onRetry}
       >
+        <MicIcon />
         Try again
       </button>
-      <RecordingReview audioUrl={audioUrl} onRetry={undefined} />
     </div>
   );
 }
 
-function Transcript({ transcript }: { transcript?: string | null }) {
+function Transcript({
+  transcript,
+  audioUrl,
+}: {
+  transcript?: string | null;
+  audioUrl?: string;
+}) {
   if (!transcript) return null;
   return (
     <div>
@@ -208,6 +240,9 @@ function Transcript({ transcript }: { transcript?: string | null }) {
       <p style={{ fontSize: 16, color: "#111827", margin: 0, lineHeight: 1.5 }}>
         {transcript}
       </p>
+      {audioUrl && (
+        <audio controls src={audioUrl} style={{ height: 36, width: "100%", marginTop: 8 }} />
+      )}
     </div>
   );
 }
@@ -246,19 +281,114 @@ function PronunciationStars({
   );
 }
 
-function RecordingReview({ audioUrl, onRetry }: { audioUrl?: string; onRetry?: () => void }) {
-  if (!audioUrl && !onRetry) return null;
+function WordsToPractice({ words }: { words?: WordHighlight[] }) {
+  if (!words || words.length === 0) return null;
+
+  function speakWord(word: string) {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(word);
+    utterance.lang = "en-US";
+    utterance.rate = 0.85;
+    window.speechSynthesis.speak(utterance);
+  }
+
   return (
-    <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #E5E7EB", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-      {audioUrl && (
-        <audio controls src={audioUrl} style={{ height: 36, flex: 1, minWidth: 180 }} />
-      )}
-      {onRetry && (
-        <button type="button" onClick={onRetry} style={{ fontSize: 14, color: "#6B7280", background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>
-          Record again
-        </button>
-      )}
+    <div style={{ marginTop: 12 }}>
+      <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
+        Words to practice — tap to hear:
+      </p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {words.map((entry, index) => (
+          <button
+            key={`${entry.word}-${index}`}
+            type="button"
+            onClick={() => speakWord(entry.word)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 14,
+              fontWeight: 600,
+              color: "#B45309",
+              background: "#FEF3C7",
+              border: "1px solid #F59E0B",
+              borderRadius: 999,
+              padding: "6px 12px",
+              lineHeight: 1.25,
+              cursor: "pointer",
+            }}
+          >
+            <SmallSpeakerIcon />
+            {entry.word}
+          </button>
+        ))}
+      </div>
     </div>
+  );
+}
+
+function SmallSpeakerIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M11 5 6 9H2v6h4l5 4V5z" fill="currentColor" stroke="none" />
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+    </svg>
+  );
+}
+
+function RecordAgainRequiredNotice() {
+  return (
+    <p
+      role="status"
+      style={{ fontSize: 14, color: "#4B5563", margin: "16px 0 0", lineHeight: 1.5 }}
+    >
+      Give it one more try before you continue!
+    </p>
+  );
+}
+
+function RecordingReview({ onRetry }: { onRetry?: () => void }) {
+  if (!onRetry) return null;
+  return (
+    <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #E5E7EB" }}>
+      <button type="button" onClick={onRetry} style={recordAgainButtonStyle}>
+        <MicIcon />
+        Record again
+      </button>
+    </div>
+  );
+}
+
+function MicIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" />
+      <path d="M19 11a7 7 0 0 1-14 0" />
+      <path d="M12 18v3" />
+    </svg>
   );
 }
 
@@ -285,10 +415,60 @@ const sentenceStyle: CSSProperties = {
   lineHeight: 1.25,
 };
 
+// Header row: the "clearer way to say it" label and the Coco speaker button
+// share a vertically-centered baseline so the 44px button never floats above
+// the text. The label carries no bottom margin — the card's own padding and the
+// row's spacing give the sentence beneath consistent breathing room.
+const improvedSentenceHeaderStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  marginBottom: 12,
+};
+
+const improvedSentenceLabelStyle: CSSProperties = {
+  fontSize: 14,
+  fontWeight: 600,
+  color: "#4B5563",
+  margin: 0,
+  lineHeight: 1.4,
+};
+
 const badgeStyle: CSSProperties = {
   display: "inline-block",
   fontSize: 14,
   fontWeight: 600,
   color: "#B45309",
   margin: "0 0 8px",
+};
+
+const recordAgainButtonStyle: CSSProperties = {
+  width: "100%",
+  minHeight: 44,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  padding: "12px 16px",
+  background: "#2563EB",
+  color: "#FFFFFF",
+  border: "none",
+  borderRadius: 6,
+  fontSize: 16,
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
+const secondaryButtonStyle: CSSProperties = {
+  width: "100%",
+  minHeight: 44,
+  padding: "12px 16px",
+  background: "#FFFFFF",
+  color: "#374151",
+  border: "1px solid #D1D5DB",
+  borderRadius: 6,
+  fontSize: 15,
+  fontWeight: 600,
+  cursor: "pointer",
 };

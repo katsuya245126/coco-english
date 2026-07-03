@@ -125,7 +125,7 @@ describe("listStudentAssignments — needs_retry reopen (D-10)", () => {
     expect(items[0].displayStatus).toBe("retry");
   });
 
-  it("maps missed to displayStatus 'late' (not affected by needs_retry change)", async () => {
+  it("maps missed to displayStatus 'missed' so it is not mislabeled as a launchable late mission", async () => {
     _mockRows = [makeRow("missed", null)];
 
     const { listStudentAssignments } = await import(
@@ -134,10 +134,10 @@ describe("listStudentAssignments — needs_retry reopen (D-10)", () => {
 
     const items = await listStudentAssignments("student-1");
     expect(items).toHaveLength(1);
-    expect(items[0].displayStatus).toBe("late");
+    expect(items[0].displayStatus).toBe("missed");
   });
 
-  it("maps teacher_review to displayStatus 'late'", async () => {
+  it("maps teacher_review to displayStatus 'review' so it is not mislabeled as late", async () => {
     _mockRows = [makeRow("teacher_review", null)];
 
     const { listStudentAssignments } = await import(
@@ -146,6 +146,6 @@ describe("listStudentAssignments — needs_retry reopen (D-10)", () => {
 
     const items = await listStudentAssignments("student-1");
     expect(items).toHaveLength(1);
-    expect(items[0].displayStatus).toBe("late");
+    expect(items[0].displayStatus).toBe("review");
   });
 });

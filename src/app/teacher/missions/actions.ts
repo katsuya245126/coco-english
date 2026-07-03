@@ -16,6 +16,7 @@ import { generateMissionDraft } from "@/server/ai/mission-generator";
 import { assignMissionToClass } from "@/server/mission/assign-service";
 import {
   createMission,
+  deleteMission,
   updateMission,
 } from "@/server/mission/mission-service";
 
@@ -24,6 +25,9 @@ const GENERIC_FAILURE =
 
 const ASSIGN_FAILURE =
   "We could not assign this mission. Please try again.";
+
+const DELETE_FAILURE =
+  "We could not delete this mission. Assigned missions cannot be deleted.";
 
 const DRAFT_SCHEMA_FAILURE =
   "The draft did not match the mission format. Try again or write the mission manually.";
@@ -46,6 +50,10 @@ export type GenerateMissionDraftActionResult =
       error: string;
       reason: "invalid-input" | "failed-schema" | "service-failed";
     };
+
+export type DeleteMissionActionResult =
+  | { ok: true }
+  | { ok: false; error: string };
 
 function parseTurns(value: FormDataEntryValue | null): unknown {
   if (typeof value !== "string") {
@@ -124,6 +132,28 @@ export async function updateMissionAction(
     return { ok: true, missionId: mission.id };
   } catch {
     return { ok: false, error: GENERIC_FAILURE };
+  }
+}
+
+export async function deleteMissionAction(
+  missionId: string,
+): Promise<DeleteMissionActionResult> {
+  const profile = await requireTeacherProfile();
+  const parsed = missionIdSchema.safeParse({ missionId });
+
+  if (!parsed.success) {
+    return { ok: false, error: DELETE_FAILURE };
+  }
+
+  try {
+    await deleteMission({
+      teacherId: profile.id,
+      missionId: parsed.data.missionId,
+    });
+    revalidatePath("/teacher/missions");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: DELETE_FAILURE };
   }
 }
 

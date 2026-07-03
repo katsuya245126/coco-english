@@ -12,7 +12,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import type { MissionSnapshotTurn } from "@/domain/mission/schemas";
-import type { PronunciationStarBand } from "@/domain/pronunciation/scoring";
+import type {
+  PronunciationStarBand,
+  WordHighlight,
+} from "@/domain/pronunciation/scoring";
 import {
   startAttemptAction,
   completeMissionAction,
@@ -44,22 +47,53 @@ export type FlowStep =
   | "complete";
 
 type OriginalFeedback =
-  | { kind: "acceptedOriginal"; transcript: string; starBand?: PronunciationStarBand | null }
+  | {
+      kind: "acceptedOriginal";
+      transcript: string;
+      starBand?: PronunciationStarBand | null;
+      wordsToPractice?: WordHighlight[];
+    }
   | {
       kind: "needsCorrection";
       transcript: string;
       improvedSentence: string;
       starBand?: PronunciationStarBand | null;
+      wordsToPractice?: WordHighlight[];
     }
-  | { kind: "retryOriginal"; transcript: string; starBand?: PronunciationStarBand | null }
-  | { kind: "teacherReview"; transcript: string; starBand?: PronunciationStarBand | null };
+  | {
+      kind: "retryOriginal";
+      transcript: string;
+      starBand?: PronunciationStarBand | null;
+      wordsToPractice?: WordHighlight[];
+    }
+  | {
+      kind: "teacherReview";
+      transcript: string;
+      starBand?: PronunciationStarBand | null;
+      wordsToPractice?: WordHighlight[];
+    };
 
 export type RepeatFeedbackCompatibility = "repeatAccepted" | "teacherReview";
 
 type RepeatFeedback =
-  | { kind: "repeatAccepted"; transcript: string; starBand?: PronunciationStarBand | null }
-  | { kind: "repeatRetry"; transcript: string; starBand?: PronunciationStarBand | null }
-  | { kind: "repeatReview"; transcript: string; starBand?: PronunciationStarBand | null };
+  | {
+      kind: "repeatAccepted";
+      transcript: string;
+      starBand?: PronunciationStarBand | null;
+      wordsToPractice?: WordHighlight[];
+    }
+  | {
+      kind: "repeatRetry";
+      transcript: string;
+      starBand?: PronunciationStarBand | null;
+      wordsToPractice?: WordHighlight[];
+    }
+  | {
+      kind: "repeatReview";
+      transcript: string;
+      starBand?: PronunciationStarBand | null;
+      wordsToPractice?: WordHighlight[];
+    };
 
 type FlowState = {
   turnIndex: number;
@@ -70,6 +104,10 @@ type FlowState = {
   improvedSentence: string | null;
   originalFeedback: OriginalFeedback | null;
   repeatFeedback: RepeatFeedback | null;
+  // True once the student has retried a recording on the current turn — a
+  // 1-star result only forces a retry the first time, so this never traps a
+  // student who genuinely struggles with a turn (D-04 checkpoint decision).
+  hasRetriedThisTurn: boolean;
 };
 
 export type CharacterProfileLines = {
@@ -114,12 +152,19 @@ export function MissionFlowShell({
     improvedSentence: null,
     originalFeedback: null,
     repeatFeedback: null,
+    hasRetriedThisTurn: false,
   });
 
   const [attemptId, setAttemptId] = useState<string | null>(initialAttemptId);
   const [actionError, setActionError] = useState<string | null>(null);
   const originalAudioUrlRef = useRef<string | null>(null);
   const repeatAudioUrlRef = useRef<string | null>(null);
+
+  // Guards against an in-flight upload/score request resolving after a
+  // newer one (e.g. a slow first attempt's response landing after a
+  // quick "record again" retry) and overwriting fresher feedback state.
+  const [isSubmittingVoice, setIsSubmittingVoice] = useState(false);
+  const submissionTokenRef = useRef(0);
 
   // ─── Resume notice (D-04) ───
   const [showResumeNotice, setShowResumeNotice] = useState(isResume);
@@ -156,6 +201,7 @@ export function MissionFlowShell({
       improvedSentence?: string | null;
     };
     starBand?: PronunciationStarBand | null;
+    wordsToPractice?: WordHighlight[];
   };
 
   async function uploadVoiceClip(input: {
@@ -186,6 +232,7 @@ export function MissionFlowShell({
           error?: string;
           evaluation?: UploadVoiceClipPayload["evaluation"];
           starBand?: PronunciationStarBand | null;
+          wordsToPractice?: WordHighlight[];
         }
       | null;
     if (
@@ -204,6 +251,7 @@ export function MissionFlowShell({
       transcript: payload.transcript,
       evaluation: payload.evaluation,
       starBand: payload.starBand,
+      wordsToPractice: payload.wordsToPractice,
     };
   }
 
@@ -211,20 +259,22 @@ export function MissionFlowShell({
     transcript: string,
     evaluation: UploadVoiceClipPayload["evaluation"],
     starBand?: PronunciationStarBand | null,
+    wordsToPractice?: WordHighlight[],
   ): RepeatFeedback {
     if (evaluation?.outcome === "retry_repeat") {
-      return { kind: "repeatRetry", transcript, starBand };
+      return { kind: "repeatRetry", transcript, starBand, wordsToPractice };
     }
     if (evaluation?.outcome === "teacher" + "_" + "review") {
-      return { kind: "repeatReview", transcript, starBand };
+      return { kind: "repeatReview", transcript, starBand, wordsToPractice };
     }
-    return { kind: "repeatAccepted", transcript, starBand };
+    return { kind: "repeatAccepted", transcript, starBand, wordsToPractice };
   }
 
   function feedbackFromEvaluation(
     transcript: string,
     evaluation: UploadVoiceClipPayload["evaluation"],
     starBand?: PronunciationStarBand | null,
+    wordsToPractice?: WordHighlight[],
   ): OriginalFeedback {
     const teacherReviewOutcome = "teacher" + "_" + "review";
     if (evaluation?.outcome === "needs_correction" && evaluation.improvedSentence) {
@@ -233,15 +283,16 @@ export function MissionFlowShell({
         transcript,
         improvedSentence: evaluation.improvedSentence,
         starBand,
+        wordsToPractice,
       };
     }
     if (evaluation?.outcome === "retry_original") {
-      return { kind: "retryOriginal", transcript, starBand };
+      return { kind: "retryOriginal", transcript, starBand, wordsToPractice };
     }
     if (evaluation?.outcome === teacherReviewOutcome) {
-      return { kind: "teacherReview", transcript, starBand };
+      return { kind: "teacherReview", transcript, starBand, wordsToPractice };
     }
-    return { kind: "acceptedOriginal", transcript, starBand };
+    return { kind: "acceptedOriginal", transcript, starBand, wordsToPractice };
   }
 
   function revokeAudioUrls() {
@@ -260,99 +311,127 @@ export function MissionFlowShell({
     // Dismiss resume notice on first submit (D-04)
     setShowResumeNotice(false);
 
-    if (originalAudioUrlRef.current) URL.revokeObjectURL(originalAudioUrlRef.current);
-    originalAudioUrlRef.current = URL.createObjectURL(recording.blob);
+    const token = ++submissionTokenRef.current;
+    setIsSubmittingVoice(true);
 
-    const aid = await ensureAttempt();
-    if (!aid) {
-      throw new Error("attempt_start_failed");
-    }
+    try {
+      if (originalAudioUrlRef.current) URL.revokeObjectURL(originalAudioUrlRef.current);
+      originalAudioUrlRef.current = URL.createObjectURL(recording.blob);
 
-    const upload = await uploadVoiceClip({
-      recording,
-      aid,
-      clipKind: "original_answer",
-    });
-    const transcript = upload.transcript;
-    const originalFeedback = feedbackFromEvaluation(
-      transcript,
-      upload.evaluation,
-      upload.starBand,
-    );
-
-    const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
-    if (isFinalTurn && originalFeedback.kind === "acceptedOriginal") {
-      const result = await completeMissionAction({
-        assignmentStudentId,
-        attemptId: aid,
-        requiredTurns,
-      });
-      if (!result.ok) {
-        setActionError("Something went wrong. Try again, or ask your teacher for help.");
-        throw new Error("mission_complete_failed");
+      const aid = await ensureAttempt();
+      if (!aid) {
+        throw new Error("attempt_start_failed");
       }
-      setFlow((prev) => ({ ...prev, step: "complete", originalTranscript: transcript, originalFeedback, repeatFeedback: null }));
-      return;
-    }
 
-    setFlow((prev) => ({
-      ...prev,
-      step: "aiFeedback",
-      originalTranscript: transcript,
-      repeatTranscript: null,
-      improvedSentence:
-        originalFeedback.kind === "needsCorrection"
-          ? originalFeedback.improvedSentence
-          : null,
-      originalFeedback,
-      repeatFeedback: null,
-    }));
+      const upload = await uploadVoiceClip({
+        recording,
+        aid,
+        clipKind: "original_answer",
+      });
+
+      // A newer submission has started since this one began — discard this
+      // stale result so it can never overwrite fresher feedback state.
+      if (token !== submissionTokenRef.current) return;
+
+      const transcript = upload.transcript;
+      const originalFeedback = feedbackFromEvaluation(
+        transcript,
+        upload.evaluation,
+        upload.starBand,
+        upload.wordsToPractice,
+      );
+
+      const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
+      if (isFinalTurn && originalFeedback.kind === "acceptedOriginal") {
+        const result = await completeMissionAction({
+          assignmentStudentId,
+          attemptId: aid,
+          requiredTurns,
+        });
+        if (token !== submissionTokenRef.current) return;
+        if (!result.ok) {
+          setActionError("Something went wrong. Try again, or ask your teacher for help.");
+          throw new Error("mission_complete_failed");
+        }
+        setFlow((prev) => ({ ...prev, step: "complete", originalTranscript: transcript, originalFeedback, repeatFeedback: null }));
+        return;
+      }
+
+      setFlow((prev) => ({
+        ...prev,
+        step: "aiFeedback",
+        originalTranscript: transcript,
+        repeatTranscript: null,
+        improvedSentence:
+          originalFeedback.kind === "needsCorrection"
+            ? originalFeedback.improvedSentence
+            : null,
+        originalFeedback,
+        repeatFeedback: null,
+      }));
+    } finally {
+      if (token === submissionTokenRef.current) setIsSubmittingVoice(false);
+    }
   }
 
   async function handleSubmitRepeatVoice(recording: RepeatVoiceClip) {
     setActionError(null);
 
-    if (repeatAudioUrlRef.current) URL.revokeObjectURL(repeatAudioUrlRef.current);
-    repeatAudioUrlRef.current = URL.createObjectURL(recording.blob);
+    const token = ++submissionTokenRef.current;
+    setIsSubmittingVoice(true);
 
-    const aid = await ensureAttempt();
-    if (!aid) {
-      throw new Error("attempt_start_failed");
-    }
+    try {
+      if (repeatAudioUrlRef.current) URL.revokeObjectURL(repeatAudioUrlRef.current);
+      repeatAudioUrlRef.current = URL.createObjectURL(recording.blob);
 
-    const upload = await uploadVoiceClip({
-      recording,
-      aid,
-      clipKind: "repeat_attempt",
-    });
-    const transcript = upload.transcript;
-    const repeatFeedback = repeatFeedbackFromEvaluation(
-      transcript,
-      upload.evaluation,
-      upload.starBand,
-    );
-
-    const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
-    if (isFinalTurn && repeatFeedback.kind === "repeatAccepted") {
-      const result = await completeMissionAction({
-        assignmentStudentId,
-        attemptId: aid,
-        requiredTurns,
-      });
-      if (!result.ok) {
-        setActionError("Something went wrong. Try again, or ask your teacher for help.");
-        throw new Error("mission_complete_failed");
+      const aid = await ensureAttempt();
+      if (!aid) {
+        throw new Error("attempt_start_failed");
       }
-      setFlow((prev) => ({ ...prev, repeatTranscript: transcript, repeatFeedback, step: "complete" }));
-      return;
-    }
 
-    setFlow((prev) => ({
-      ...prev,
-      repeatTranscript: transcript,
-      repeatFeedback,
-      step: "repeatFeedback",
-    }));
+      const upload = await uploadVoiceClip({
+        recording,
+        aid,
+        clipKind: "repeat_attempt",
+      });
+
+      // A newer submission has started since this one began — discard this
+      // stale result so it can never overwrite fresher feedback state.
+      if (token !== submissionTokenRef.current) return;
+
+      const transcript = upload.transcript;
+      const repeatFeedback = repeatFeedbackFromEvaluation(
+        transcript,
+        upload.evaluation,
+        upload.starBand,
+        upload.wordsToPractice,
+      );
+
+      const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
+      if (isFinalTurn && repeatFeedback.kind === "repeatAccepted") {
+        const result = await completeMissionAction({
+          assignmentStudentId,
+          attemptId: aid,
+          requiredTurns,
+        });
+        if (token !== submissionTokenRef.current) return;
+        if (!result.ok) {
+          setActionError("Something went wrong. Try again, or ask your teacher for help.");
+          throw new Error("mission_complete_failed");
+        }
+        setFlow((prev) => ({ ...prev, repeatTranscript: transcript, repeatFeedback, step: "complete" }));
+        return;
+      }
+
+      setFlow((prev) => ({
+        ...prev,
+        repeatTranscript: transcript,
+        repeatFeedback,
+        step: "repeatFeedback",
+      }));
+    } finally {
+      if (token === submissionTokenRef.current) setIsSubmittingVoice(false);
+    }
   }
 
   async function finishRepeatFeedback() {
@@ -421,6 +500,8 @@ export function MissionFlowShell({
   }
 
   function retryOriginal() {
+    submissionTokenRef.current += 1;
+    setIsSubmittingVoice(false);
     revokeAudioUrls();
     setFlow((prev) => ({
       ...prev,
@@ -430,10 +511,30 @@ export function MissionFlowShell({
       improvedSentence: null,
       originalFeedback: null,
       repeatFeedback: null,
+      hasRetriedThisTurn: true,
+    }));
+  }
+
+  // "Record again" after a needsCorrection result: the student was just shown
+  // an improved sentence to say, so send them to the repeat step (which shows
+  // that sentence + Coco audio) rather than the bare question page — otherwise
+  // they can't remember what they were supposed to say.
+  function retryWithImprovedSentence() {
+    submissionTokenRef.current += 1;
+    setIsSubmittingVoice(false);
+    revokeAudioUrls();
+    setFlow((prev) => ({
+      ...prev,
+      step: "repeat",
+      repeatTranscript: null,
+      repeatFeedback: null,
+      hasRetriedThisTurn: true,
     }));
   }
 
   function retryRepeat() {
+    submissionTokenRef.current += 1;
+    setIsSubmittingVoice(false);
     if (repeatAudioUrlRef.current) {
       URL.revokeObjectURL(repeatAudioUrlRef.current);
       repeatAudioUrlRef.current = null;
@@ -443,6 +544,7 @@ export function MissionFlowShell({
       step: "repeat",
       repeatTranscript: null,
       repeatFeedback: null,
+      hasRetriedThisTurn: true,
     }));
   }
 
@@ -476,6 +578,7 @@ export function MissionFlowShell({
         improvedSentence: null,
         originalFeedback: null,
         repeatFeedback: null,
+        hasRetriedThisTurn: false,
       });
     }
   }
@@ -540,7 +643,7 @@ export function MissionFlowShell({
             hintLevel={flow.hintLevel}
             onRevealHint={handleRevealHint}
             onVoiceRecorded={handleSubmitOriginalVoice}
-            isSubmitting={false}
+            isSubmitting={isSubmittingVoice}
           />
         )}
 
@@ -558,6 +661,10 @@ export function MissionFlowShell({
                 : null
             }
             starBand={flow.originalFeedback.starBand}
+            wordsToPractice={flow.originalFeedback.wordsToPractice}
+            forceRetryBeforeContinue={
+              flow.originalFeedback.starBand === 1 && !flow.hasRetriedThisTurn
+            }
             onContinue={
               flow.originalFeedback.kind === "needsCorrection"
                 ? continueToRepeat
@@ -565,8 +672,14 @@ export function MissionFlowShell({
                   ? finishTeacherReviewFeedback
                   : finishAcceptedOriginal
             }
-            onRetry={retryOriginal}
-            isSubmitting={false}
+            onRetry={
+              flow.originalFeedback.kind === "teacherReview"
+                ? undefined
+                : flow.originalFeedback.kind === "needsCorrection"
+                  ? retryWithImprovedSentence
+                  : retryOriginal
+            }
+            isSubmitting={isSubmittingVoice}
           />
         )}
 
@@ -579,7 +692,7 @@ export function MissionFlowShell({
             targetExample={flow.improvedSentence ?? currentTurn.targetExample}
             repeatInstruction={characterProfile.repeatInstruction}
             onVoiceRecorded={handleSubmitRepeatVoice}
-            isSubmitting={false}
+            isSubmitting={isSubmittingVoice}
           />
         )}
 
@@ -593,6 +706,10 @@ export function MissionFlowShell({
             audioUrl={repeatAudioUrlRef.current ?? undefined}
             improvedSentence={flow.improvedSentence}
             starBand={flow.repeatFeedback.starBand}
+            wordsToPractice={flow.repeatFeedback.wordsToPractice}
+            forceRetryBeforeContinue={
+              flow.repeatFeedback.starBand === 1 && !flow.hasRetriedThisTurn
+            }
             onContinue={
               flow.repeatFeedback.kind === "repeatRetry"
                 ? undefined
@@ -600,8 +717,12 @@ export function MissionFlowShell({
                   ? finishTeacherReviewFeedback
                   : finishRepeatFeedback
             }
-            onRetry={retryRepeat}
-            isSubmitting={false}
+            onRetry={
+              flow.repeatFeedback.kind === "repeatReview"
+                ? undefined
+                : retryRepeat
+            }
+            isSubmitting={isSubmittingVoice}
           />
         )}
 

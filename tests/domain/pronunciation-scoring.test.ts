@@ -4,6 +4,7 @@ import {
   errorTypeToLabel,
   scoreToStarBand,
   STAR_BAND_COPY,
+  wordsToPractice,
 } from "@/domain/pronunciation/scoring";
 
 describe("scoreToStarBand", () => {
@@ -113,5 +114,104 @@ describe("errorTypeToLabel", () => {
 
   it("defaults an undefined ErrorType to Clear", () => {
     expect(errorTypeToLabel(undefined)).toBe("Clear");
+  });
+});
+
+describe("wordsToPractice", () => {
+  it("includes Mispronunciation entries", () => {
+    expect(
+      wordsToPractice([
+        { word: "cat", accuracyScore: 40, errorType: "Mispronunciation" },
+      ]),
+    ).toEqual([{ word: "cat", label: "Mispronounced" }]);
+  });
+
+  it("includes Monotone entries", () => {
+    expect(
+      wordsToPractice([{ word: "cat", accuracyScore: 90, errorType: "Monotone" }]),
+    ).toEqual([{ word: "cat", label: "Flat tone" }]);
+  });
+
+  it("excludes None entries", () => {
+    expect(
+      wordsToPractice([{ word: "cat", accuracyScore: 100, errorType: "None" }]),
+    ).toEqual([]);
+  });
+
+  it("excludes Omission entries — target-sentence words the student never said should not appear as practice words", () => {
+    expect(
+      wordsToPractice([{ word: "games", accuracyScore: 0, errorType: "Omission" }]),
+    ).toEqual([]);
+  });
+
+  it("excludes Insertion entries", () => {
+    expect(
+      wordsToPractice([{ word: "um", accuracyScore: 0, errorType: "Insertion" }]),
+    ).toEqual([]);
+  });
+
+  it("filters a mixed list down to only pronunciation-eligible words", () => {
+    expect(
+      wordsToPractice([
+        { word: "I", accuracyScore: 100, errorType: "None" },
+        { word: "games", accuracyScore: 0, errorType: "Omission" },
+        { word: "cat", accuracyScore: 40, errorType: "Mispronunciation" },
+      ]),
+    ).toEqual([{ word: "cat", label: "Mispronounced" }]);
+  });
+
+  it("caps the result at 3 words", () => {
+    const result = wordsToPractice([
+      { word: "a", accuracyScore: 40, errorType: "Mispronunciation" },
+      { word: "b", accuracyScore: 40, errorType: "Mispronunciation" },
+      { word: "c", accuracyScore: 40, errorType: "Mispronunciation" },
+      { word: "d", accuracyScore: 40, errorType: "Mispronunciation" },
+    ]);
+    expect(result).toHaveLength(3);
+  });
+
+  it("returns an empty array for undefined wordScores", () => {
+    expect(wordsToPractice(undefined)).toEqual([]);
+  });
+
+  it("only surfaces mispronounced words the student actually said (transcript intersection)", () => {
+    // Azure scored against the TARGET sentence "I am going to Seoul and eat
+    // ramen" and flagged target words the student never uttered. The student
+    // actually said "I am Seoul and eat ramen" — so "going" must not appear.
+    expect(
+      wordsToPractice(
+        [
+          { word: "going", accuracyScore: 30, errorType: "Mispronunciation" },
+          { word: "ramen", accuracyScore: 40, errorType: "Mispronunciation" },
+        ],
+        "I am Seoul and eat ramen.",
+      ),
+    ).toEqual([{ word: "ramen", label: "Mispronounced" }]);
+  });
+
+  it("drops a phantom word absent from the transcript even when Azure flagged it", () => {
+    expect(
+      wordsToPractice(
+        [{ word: "play", accuracyScore: 20, errorType: "Mispronunciation" }],
+        "I am Seoul and eat ramen.",
+      ),
+    ).toEqual([]);
+  });
+
+  it("matches transcript words case-insensitively and ignores punctuation", () => {
+    expect(
+      wordsToPractice(
+        [{ word: "Ramen", accuracyScore: 40, errorType: "Mispronunciation" }],
+        "I eat RAMEN!",
+      ),
+    ).toEqual([{ word: "Ramen", label: "Mispronounced" }]);
+  });
+
+  it("keeps all mispronounced words when no transcript is provided (backward compatible)", () => {
+    expect(
+      wordsToPractice([
+        { word: "cat", accuracyScore: 40, errorType: "Mispronunciation" },
+      ]),
+    ).toEqual([{ word: "cat", label: "Mispronounced" }]);
   });
 });

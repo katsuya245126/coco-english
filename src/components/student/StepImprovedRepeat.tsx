@@ -61,8 +61,16 @@ export function StepImprovedRepeat({
       {/* Improved / model sentence area — voiced (D-07). The transcript block
           above is deliberately NOT voiced (D-10). */}
       <div style={{ ...improvedSentenceCardStyle, marginTop: originalTranscript ? 16 : 0 }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-          <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            marginBottom: 12,
+          }}
+        >
+          <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: 0, lineHeight: 1.4 }}>
             {improvedSentenceIntro}
           </p>
           <CocoSpeechAudio

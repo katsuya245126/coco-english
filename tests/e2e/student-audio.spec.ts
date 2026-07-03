@@ -43,6 +43,7 @@ test("student audio transcription states use classroom-safe copy", async () => {
   );
 
   expect(recorderSource).toContain("Saving…");
+  expect(recorderSource.match(/Saving…/g) ?? []).toHaveLength(1);
   expect(shellSource).toContain("We could not hear that clearly. Record again.");
   expect(repeatSource).toContain("We heard:");
   expect(shellSource).toContain("Your repeat:");

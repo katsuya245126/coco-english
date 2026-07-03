@@ -27,7 +27,11 @@ import { transcribeAudioFile } from "@/server/audio/transcription";
 import { DEFAULT_COCO_TTS_VOICE } from "@/domain/audio/tts";
 import { warmTtsAudioCache } from "@/server/audio/tts-cache";
 import { scorePronunciation } from "@/server/audio/pronunciation-scorer";
-import type { PronunciationStarBand } from "@/domain/pronunciation/scoring";
+import {
+  wordsToPractice,
+  type PronunciationStarBand,
+  type WordHighlight,
+} from "@/domain/pronunciation/scoring";
 import {
   evaluateOriginalTurn,
   evaluateRepeatTurn,
@@ -76,6 +80,7 @@ export type UploadAttemptAudioClipResult =
       transcript: string;
       evaluation?: StoredOriginalTurnEvaluation | StoredRepeatTurnEvaluation;
       starBand: PronunciationStarBand | null;
+      wordsToPractice: WordHighlight[];
     }
   | {
       ok: false;
@@ -451,7 +456,7 @@ export async function uploadAttemptAudioClip(
 
     const pronunciationReferenceText =
       input.clipKind === "original_answer"
-        ? snapshotTurn.targetExample
+        ? transcript
         : turn.improved_sentence ?? snapshotTurn.targetExample;
 
     const score = deps.scorePronunciation ?? scorePronunciation;
@@ -562,6 +567,7 @@ export async function uploadAttemptAudioClip(
     }
 
     let starBand: PronunciationStarBand | null = null;
+    let wordHighlights: WordHighlight[] = [];
 
     try {
       const scoring = await scoringPromise;
@@ -590,6 +596,7 @@ export async function uploadAttemptAudioClip(
           });
         } else {
           starBand = scoring.score.starBand;
+          wordHighlights = wordsToPractice(scoring.score.wordScores, transcript);
         }
       } else {
         log("warn", "audio.pronunciation_scoring_failed", {
@@ -656,6 +663,7 @@ export async function uploadAttemptAudioClip(
       transcript,
       evaluation: originalEvaluation ?? repeatEvaluation,
       starBand,
+      wordsToPractice: wordHighlights,
     };
   } catch {
     return { ok: false, error: "db_error", retryable: true };

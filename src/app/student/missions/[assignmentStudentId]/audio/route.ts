@@ -83,6 +83,7 @@ export async function POST(request: Request, context: RouteContext) {
       transcript: result.transcript,
       evaluation: result.evaluation,
       starBand: result.starBand,
+      wordsToPractice: result.wordsToPractice,
     });
   }
 

@@ -667,7 +667,7 @@ describe("uploadAttemptAudioClip", () => {
     expect(routeSource).not.toContain("publicUrl");
   });
 
-  it("scores pronunciation against the target sentence and upserts a pronunciation_scores row on success", async () => {
+  it("scores original-answer pronunciation against the transcript and upserts a pronunciation_scores row on success", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
     );
@@ -680,13 +680,19 @@ describe("uploadAttemptAudioClip", () => {
         completenessScore: 95,
         pronunciationScore: 87,
         starBand: 3 as const,
-        referenceText: "I like playing soccer after school.",
-        wordScores: [{ word: "I", accuracyScore: 100, errorType: "None" }],
+        referenceText: "I like playing soccer.",
+        wordScores: [
+          { word: "I", accuracyScore: 100, errorType: "None" },
+          { word: "playing", accuracyScore: 40, errorType: "Mispronunciation" },
+        ],
       },
     }));
 
     const result = await uploadAttemptAudioClip(audioInput(), {
-      transcribeAudioFile: successfulTranscriber("I like apples."),
+      // Transcript contains "playing" so the mispronounced word is one the
+      // student actually said — wordsToPractice intersects against the
+      // transcript, so a word absent from it is never surfaced.
+      transcribeAudioFile: successfulTranscriber("I like playing soccer."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       scorePronunciation,
     });
@@ -695,10 +701,11 @@ describe("uploadAttemptAudioClip", () => {
       ok: true,
       audioClipId: "clip-1",
       starBand: 3,
+      wordsToPractice: [{ word: "playing", label: "Mispronounced" }],
     });
     expect(scorePronunciation).toHaveBeenCalledWith(
       expect.objectContaining({
-        referenceText: "I like playing soccer after school.",
+        referenceText: "I like playing soccer.",
         durationMs: 1200,
       }),
     );
@@ -710,7 +717,7 @@ describe("uploadAttemptAudioClip", () => {
     expect(scoreUpsert?.payload).toMatchObject({
       audio_clip_id: "clip-1",
       provider: "azure_speech",
-      reference_text: "I like playing soccer after school.",
+      reference_text: "I like playing soccer.",
       accuracy_score: 88,
       fluency_score: 90,
       completeness_score: 95,
@@ -721,6 +728,42 @@ describe("uploadAttemptAudioClip", () => {
     expect(result).not.toHaveProperty("accuracyScore");
     expect(result).not.toHaveProperty("pronunciationScore");
     expect(JSON.stringify(result)).not.toContain("accuracyScore");
+  });
+
+  it("does not surface target-sentence words the student never said as words to practice", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    // Even if a scorer returns words absent from the transcript, they should
+    // not reach the student-facing practice list.
+    const scorePronunciation = vi.fn(async () => ({
+      ok: true as const,
+      score: {
+        accuracyScore: 55,
+        fluencyScore: 60,
+        completenessScore: 40,
+        pronunciationScore: 50,
+        starBand: 1 as const,
+        referenceText: "I like playing soccer after school.",
+        wordScores: [
+          { word: "I", accuracyScore: 100, errorType: "None" },
+          { word: "playing", accuracyScore: 30, errorType: "Mispronunciation" },
+          { word: "soccer", accuracyScore: 20, errorType: "Mispronunciation" },
+        ],
+      },
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like apples."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      scorePronunciation,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      wordsToPractice: [],
+    });
   });
 
   it("passes a fresh readable blob to pronunciation scoring after upload/transcription consumers", async () => {
@@ -834,6 +877,7 @@ describe("uploadAttemptAudioClip", () => {
       ok: true,
       audioClipId: "clip-1",
       starBand: null,
+      wordsToPractice: [],
     });
     expect(scorePronunciation).toHaveBeenCalled();
     expect(
