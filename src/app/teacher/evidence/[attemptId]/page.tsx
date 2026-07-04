@@ -107,7 +107,11 @@ export default async function AttemptEvidencePage({
 
         <section aria-label="Turn transcripts" style={turnListStyle}>
           {evidence.turns.map((turn) => (
-            <TurnEvidenceSection key={turn.id} turn={turn} />
+            <TurnEvidenceSection
+              key={turn.id}
+              turn={turn}
+              attemptId={evidence.attemptId}
+            />
           ))}
         </section>
 
@@ -120,7 +124,13 @@ export default async function AttemptEvidencePage({
   );
 }
 
-function TurnEvidenceSection({ turn }: { turn: AttemptTurnEvidence }) {
+function TurnEvidenceSection({
+  turn,
+  attemptId,
+}: {
+  turn: AttemptTurnEvidence;
+  attemptId: string;
+}) {
   const originalClips = turn.audioClips.filter(
     (clip) => clip.clipKind === "original_answer",
   );
@@ -131,12 +141,15 @@ function TurnEvidenceSection({ turn }: { turn: AttemptTurnEvidence }) {
   return (
     <article style={turnCardStyle}>
       <h2 style={turnHeadingStyle}>Turn {turn.turnOrder}</h2>
+      {turn.question && (
+        <TranscriptBlock label="Question asked" transcript={turn.question} />
+      )}
       <TranscriptBlock
         label="Original answer"
         transcript={turn.originalTranscript}
       />
       <AnnotationGrid turn={turn} />
-      <PronunciationDiagnosticList clips={turn.audioClips} />
+      <PronunciationDiagnosticList clips={turn.audioClips} attemptId={attemptId} />
       {turn.improvedSentence && (
         <TranscriptBlock
           label="Improved sentence"
@@ -163,8 +176,10 @@ function TurnEvidenceSection({ turn }: { turn: AttemptTurnEvidence }) {
 
 function PronunciationDiagnosticList({
   clips,
+  attemptId,
 }: {
   clips: AttemptAudioClipEvidence[];
+  attemptId: string;
 }) {
   if (clips.length === 0) {
     return null;
@@ -176,6 +191,8 @@ function PronunciationDiagnosticList({
         <PronunciationDiagnosticPanel
           key={clip.id}
           pronunciationScore={clip.pronunciationScore}
+          audioClipId={clip.id}
+          attemptId={attemptId}
         />
       ))}
     </div>

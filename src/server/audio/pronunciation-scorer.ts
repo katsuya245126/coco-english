@@ -9,9 +9,9 @@
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { log } from "@/server/logging/logger";
 import { transcodeToWav as defaultTranscodeToWav, type TranscodeResult } from "@/server/audio/audio-transcode";
-import { computeBandScore, scoreToStarBand, type PronunciationStarBand, type WordScore } from "@/domain/pronunciation/scoring";
+import { computeBandScore, scoreToStarBand, type PhonemeScore, type PronunciationStarBand, type WordScore } from "@/domain/pronunciation/scoring";
 
-const MAX_PRONUNCIATION_AUDIO_MS = 30_000;
+const MAX_PRONUNCIATION_AUDIO_MS = 60_000;
 
 export type PronunciationScoreError =
   | "missing_api_key"
@@ -107,19 +107,39 @@ function createRecognizerFactory(): PronunciationRecognizerFactory {
               const parsed = jsonResult ? JSON.parse(jsonResult) : null;
               const rawWords = parsed?.NBest?.[0]?.Words ?? [];
 
-              const words: WordScore[] = rawWords.map((word: Record<string, unknown>) => ({
-                word: typeof word.Word === "string" ? word.Word : "",
-                accuracyScore:
-                  typeof (word.PronunciationAssessment as Record<string, unknown> | undefined)
-                    ?.AccuracyScore === "number"
-                    ? ((word.PronunciationAssessment as Record<string, unknown>).AccuracyScore as number)
-                    : 0,
-                errorType:
-                  typeof (word.PronunciationAssessment as Record<string, unknown> | undefined)
-                    ?.ErrorType === "string"
-                    ? ((word.PronunciationAssessment as Record<string, unknown>).ErrorType as string)
-                    : "None",
-              }));
+              const words: WordScore[] = rawWords.map((word: Record<string, unknown>) => {
+                const assessment = word.PronunciationAssessment as
+                  | Record<string, unknown>
+                  | undefined;
+                const rawPhonemes = Array.isArray(word.Phonemes) ? word.Phonemes : [];
+                const phonemes: PhonemeScore[] = rawPhonemes
+                  .map((entry: Record<string, unknown>) => {
+                    const pa = entry.PronunciationAssessment as
+                      | Record<string, unknown>
+                      | undefined;
+                    return {
+                      phoneme: typeof entry.Phoneme === "string" ? entry.Phoneme : "",
+                      accuracyScore:
+                        typeof pa?.AccuracyScore === "number"
+                          ? (pa.AccuracyScore as number)
+                          : 0,
+                    };
+                  })
+                  .filter((entry: PhonemeScore) => entry.phoneme !== "");
+
+                return {
+                  word: typeof word.Word === "string" ? word.Word : "",
+                  accuracyScore:
+                    typeof assessment?.AccuracyScore === "number"
+                      ? (assessment.AccuracyScore as number)
+                      : 0,
+                  errorType:
+                    typeof assessment?.ErrorType === "string"
+                      ? (assessment.ErrorType as string)
+                      : "None",
+                  ...(phonemes.length > 0 ? { phonemes } : {}),
+                };
+              });
 
               resolve({
                 accuracyScore: pronunciationResult.accuracyScore,

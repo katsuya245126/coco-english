@@ -80,6 +80,27 @@ function createMockSupabase(options: {
                       students: { display_name: "Mina" },
                       assignments: {
                         title: "Daily routines",
+                        // Minimal/seeded snapshot shape: uses `order` (not
+                        // `turnOrder`) and omits strict-schema fields. The
+                        // evidence reader must still surface prompts.
+                        mission_snapshot: {
+                          missionId: "11111111-1111-1111-1111-111111111111",
+                          title: "Daily routines",
+                          requiredTurns: 2,
+                          characterId: "default-buddy",
+                          turns: [
+                            {
+                              order: 1,
+                              prompt: "What time do you wake up?",
+                              targetExample: "I wake up at seven.",
+                            },
+                            {
+                              order: 2,
+                              prompt: "What do you eat for breakfast?",
+                              targetExample: "I eat breakfast.",
+                            },
+                          ],
+                        },
                         classes: { teacher_id: "teacher-1" },
                       },
                     },
@@ -232,6 +253,7 @@ describe("teacher audio evidence service", () => {
     });
     expect(evidence?.turns[0]).toMatchObject({
       turnOrder: 1,
+      question: "What time do you wake up?",
       originalTranscript: "I wake up at seven.",
       repeatTranscript: "I wake up at seven.",
       meaningResult: "Understood",
@@ -259,6 +281,7 @@ describe("teacher audio evidence service", () => {
       ],
     });
     expect(evidence?.turns[1]).toMatchObject({
+      question: "What do you eat for breakfast?",
       meaningResult: "Needs teacher check",
       targetPatternResult: "Needs teacher check",
       repeatResult: "Needs teacher check",

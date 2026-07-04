@@ -2,7 +2,9 @@ import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/db/types";
 import {
   errorTypeToLabel,
+  soundsToWorkOn,
   type PronunciationStarBand,
+  type WordScore,
 } from "@/domain/pronunciation/scoring";
 
 const DEFAULT_AUDIO_BUCKET = "student-audio";
@@ -33,6 +35,7 @@ type AttemptOwnershipRow = {
     assignments: NestedRelation<{
       id: string;
       title: string;
+      mission_snapshot: unknown;
       classes: NestedRelation<{
         id: string;
         teacher_id: string;
@@ -62,6 +65,7 @@ type AudioClipEvidenceRow = {
 type PronunciationScoreRow = {
   audio_clip_id: string;
   star_band: number;
+  reference_text: string | null;
   word_scores: unknown;
 };
 
@@ -75,6 +79,11 @@ type AudioClipSignerRow = {
 export type AttemptPronunciationScoreEvidence = {
   starBand: PronunciationStarBand;
   words: { word: string; label: string }[];
+  soundsToWorkOn: {
+    label: string;
+    ipa: string;
+    exampleWord: string;
+  }[];
 };
 
 export type AttemptAudioClipEvidence = {
@@ -87,6 +96,7 @@ export type AttemptAudioClipEvidence = {
 export type AttemptTurnEvidence = {
   id: string;
   turnOrder: number;
+  question: string | null;
   originalTranscript: string | null;
   improvedSentence: string | null;
   repeatTranscript: string | null;
@@ -145,23 +155,99 @@ function mapAttemptMetadata(row: AttemptOwnershipRow) {
   };
 }
 
+/**
+ * Read each turn's buddy question from the assignment's mission snapshot,
+ * keyed by turn order.
+ *
+ * The snapshot is intentionally parsed defensively rather than via
+ * `missionSnapshotSchema`: older/seeded snapshots use `order` instead of
+ * `turnOrder` and omit fields the strict schema requires (targetPattern,
+ * hintLadder, etc.). A strict parse would reject those and drop every
+ * question. Evidence display only needs `prompt`, so we tolerate any shape
+ * that carries a turn order and a prompt string.
+ */
+function readTurnQuestionsByOrder(row: AttemptOwnershipRow): Map<number, string> {
+  const questionsByOrder = new Map<number, string>();
+  const assignment = one(one(row.assignment_students)?.assignments);
+  const snapshot = assignment?.mission_snapshot;
+
+  if (typeof snapshot !== "object" || snapshot === null) {
+    return questionsByOrder;
+  }
+
+  const turns = (snapshot as { turns?: unknown }).turns;
+  if (!Array.isArray(turns)) return questionsByOrder;
+
+  for (const entry of turns) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const turn = entry as { turnOrder?: unknown; order?: unknown; prompt?: unknown };
+    const order =
+      typeof turn.turnOrder === "number"
+        ? turn.turnOrder
+        : typeof turn.order === "number"
+          ? turn.order
+          : null;
+    if (order === null || typeof turn.prompt !== "string") continue;
+    const prompt = turn.prompt.trim();
+    if (prompt) questionsByOrder.set(order, prompt);
+  }
+
+  return questionsByOrder;
+}
+
 function mapPronunciationScore(
   row: PronunciationScoreRow,
 ): AttemptPronunciationScoreEvidence {
-  const wordScores = Array.isArray(row.word_scores) ? row.word_scores : [];
+  const wordScores = parseWordScores(row.word_scores);
 
   return {
     starBand: row.star_band as PronunciationStarBand,
-    words: wordScores.map((entry) => {
-      const word = entry as { word?: unknown; errorType?: unknown };
-      return {
-        word: typeof word.word === "string" ? word.word : "",
-        label: errorTypeToLabel(
-          typeof word.errorType === "string" ? word.errorType : undefined,
-        ),
-      };
-    }),
+    words: wordScores.map((word) => ({
+      word: word.word,
+      label: errorTypeToLabel(word.errorType),
+    })),
+    // reference_text for an original-answer clip is the student's own
+    // transcript, so it correctly scopes sounds to words they actually said.
+    soundsToWorkOn: soundsToWorkOn(
+      wordScores,
+      row.reference_text ?? undefined,
+    ).map(({ label, ipa, exampleWord }) => ({ label, ipa, exampleWord })),
   };
+}
+
+/** Defensively parse the stored `word_scores` jsonb into typed WordScores. */
+function parseWordScores(raw: unknown): WordScore[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((entry) => {
+    const word = entry as {
+      word?: unknown;
+      accuracyScore?: unknown;
+      errorType?: unknown;
+      phonemes?: unknown;
+    };
+    const phonemes = Array.isArray(word.phonemes)
+      ? word.phonemes
+          .map((p) => {
+            const phoneme = p as { phoneme?: unknown; accuracyScore?: unknown };
+            return {
+              phoneme: typeof phoneme.phoneme === "string" ? phoneme.phoneme : "",
+              accuracyScore:
+                typeof phoneme.accuracyScore === "number"
+                  ? phoneme.accuracyScore
+                  : 0,
+            };
+          })
+          .filter((p) => p.phoneme !== "")
+      : undefined;
+
+    return {
+      word: typeof word.word === "string" ? word.word : "",
+      accuracyScore:
+        typeof word.accuracyScore === "number" ? word.accuracyScore : 0,
+      errorType: typeof word.errorType === "string" ? word.errorType : "None",
+      ...(phonemes && phonemes.length > 0 ? { phonemes } : {}),
+    };
+  });
 }
 
 function mapClip(
@@ -240,10 +326,12 @@ function mapReviewReason(row: AttemptTurnRow) {
 function mapTurn(
   row: AttemptTurnRow,
   clipsByTurnId: Map<string, AttemptAudioClipEvidence[]>,
+  questionsByOrder: Map<number, string>,
 ): AttemptTurnEvidence {
   return {
     id: row.id,
     turnOrder: row.turn_order,
+    question: questionsByOrder.get(row.turn_order) ?? null,
     originalTranscript: row.original_transcript,
     improvedSentence: row.improved_sentence,
     repeatTranscript: row.repeat_transcript,
@@ -280,6 +368,7 @@ export async function getAttemptEvidenceForTeacher(input: {
           assignments!inner(
             id,
             title,
+            mission_snapshot,
             classes!inner(id, teacher_id)
           )
         )
@@ -334,7 +423,7 @@ export async function getAttemptEvidenceForTeacher(input: {
     if (audioClipIds.length > 0) {
       const scores = await supabase
         .from("pronunciation_scores")
-        .select("audio_clip_id, star_band, word_scores")
+        .select("audio_clip_id, star_band, reference_text, word_scores")
         .in("audio_clip_id", audioClipIds);
 
       if (scores.error) {
@@ -359,7 +448,9 @@ export async function getAttemptEvidenceForTeacher(input: {
     }
   }
 
-  const metadata = mapAttemptMetadata(attempt.data as AttemptOwnershipRow);
+  const ownershipRow = attempt.data as AttemptOwnershipRow;
+  const metadata = mapAttemptMetadata(ownershipRow);
+  const questionsByOrder = readTurnQuestionsByOrder(ownershipRow);
 
   return {
     attemptId: attempt.data.id,
@@ -375,7 +466,9 @@ export async function getAttemptEvidenceForTeacher(input: {
     reviewReason: attempt.data.needs_review_reason,
     attemptCount: metadata.attemptCount,
     highestHintLevel: metadata.highestHintLevel,
-    turns: turnRows.map((turn) => mapTurn(turn, clipsByTurnId)),
+    turns: turnRows.map((turn) =>
+      mapTurn(turn, clipsByTurnId, questionsByOrder),
+    ),
   };
 }
 
@@ -442,4 +535,46 @@ export async function createSignedAudioUrlForTeacher(input: {
   }
 
   return { signedUrl: signed.data.signedUrl };
+}
+
+/**
+ * Returns true only if the given teacher owns the attempt the clip belongs to
+ * (clip → turn → attempt → assignment → class → teacher_id). Used to authorize
+ * teacher-triggered actions on a clip (e.g. re-scoring pronunciation) before
+ * the service-role reprocess path runs.
+ */
+export async function teacherOwnsAudioClip(input: {
+  teacherId: string;
+  audioClipId: string;
+}): Promise<boolean> {
+  const supabase = createSupabaseServiceClient();
+
+  const clip = await supabase
+    .from("audio_clips")
+    .select(
+      `
+        id,
+        attempt_turns!inner(
+          attempts!inner(
+            assignment_students!attempts_assignment_student_id_fkey!inner(
+              assignments!inner(
+                classes!inner(teacher_id)
+              )
+            )
+          )
+        )
+      `,
+    )
+    .eq("id", input.audioClipId)
+    .eq(
+      "attempt_turns.attempts.assignment_students.assignments.classes.teacher_id",
+      input.teacherId,
+    )
+    .maybeSingle();
+
+  if (clip.error) {
+    throw new Error(`Unable to verify audio clip ownership: ${clip.error.message}`);
+  }
+
+  return clip.data !== null;
 }

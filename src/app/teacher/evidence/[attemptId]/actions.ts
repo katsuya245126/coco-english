@@ -1,10 +1,15 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { requireTeacherProfile } from "@/server/teacher/auth";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { assertTransitionRequest } from "@/domain/foundation/status";
 import type { AssignmentStudentStatus } from "@/domain/foundation/status";
-import { createSignedAudioUrlForTeacher } from "@/server/teacher/audio-evidence";
+import {
+  createSignedAudioUrlForTeacher,
+  teacherOwnsAudioClip,
+} from "@/server/teacher/audio-evidence";
+import { reprocessClipPronunciation } from "@/server/audio/pronunciation-reprocess";
 
 export type LoadAudioClipUrlActionResult =
   | { ok: true; signedUrl: string }
@@ -28,6 +33,64 @@ export async function loadAudioClipUrlAction(
   }
 
   return { ok: true, signedUrl: signed.signedUrl };
+}
+
+// ─── Reprocess pronunciation action ───
+
+export type ReprocessPronunciationActionResult =
+  | { ok: true }
+  | {
+      ok: false;
+      error: "unauthorized" | "already_scored" | "unavailable" | "failed";
+    };
+
+/**
+ * Teacher-triggered re-score of a clip whose pronunciation scoring failed (or
+ * never ran) at upload time. Ownership is enforced via teacherOwnsAudioClip
+ * before the service-role reprocess path touches the clip.
+ *
+ * `attemptId` is used only to revalidate the evidence page so the newly-scored
+ * detail shows without a manual refresh.
+ */
+export async function reprocessPronunciationAction(input: {
+  audioClipId: string;
+  attemptId: string;
+}): Promise<ReprocessPronunciationActionResult> {
+  if (!input.audioClipId.trim()) {
+    return { ok: false, error: "unavailable" };
+  }
+
+  const profile = await requireTeacherProfile();
+
+  const owns = await teacherOwnsAudioClip({
+    teacherId: profile.id,
+    audioClipId: input.audioClipId,
+  });
+  if (!owns) {
+    return { ok: false, error: "unauthorized" };
+  }
+
+  const result = await reprocessClipPronunciation({
+    audioClipId: input.audioClipId,
+  });
+
+  if (result.ok) {
+    revalidatePath(`/teacher/evidence/${input.attemptId}`);
+    return { ok: true };
+  }
+
+  if (result.error === "already_scored") {
+    return { ok: false, error: "already_scored" };
+  }
+  if (
+    result.error === "clip_unavailable" ||
+    result.error === "not_found" ||
+    result.error === "no_reference_text"
+  ) {
+    return { ok: false, error: "unavailable" };
+  }
+
+  return { ok: false, error: "failed" };
 }
 
 // ─── Override action ───

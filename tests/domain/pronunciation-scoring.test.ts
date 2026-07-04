@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   computeBandScore,
   errorTypeToLabel,
+  phonemeLabel,
   scoreToStarBand,
+  soundsToWorkOn,
   STAR_BAND_COPY,
   wordsToPractice,
 } from "@/domain/pronunciation/scoring";
@@ -213,5 +215,119 @@ describe("wordsToPractice", () => {
         { word: "cat", accuracyScore: 40, errorType: "Mispronunciation" },
       ]),
     ).toEqual([{ word: "cat", label: "Mispronounced" }]);
+  });
+});
+
+describe("phonemeLabel", () => {
+  it("maps ARPAbet consonants to plain label + IPA", () => {
+    expect(phonemeLabel("dh")).toEqual({ label: "th", ipa: "ð" });
+    expect(phonemeLabel("r")).toEqual({ label: "r", ipa: "r" });
+    expect(phonemeLabel("th")).toEqual({ label: "th", ipa: "θ" });
+  });
+
+  it("strips Azure stress digits and is case-insensitive", () => {
+    expect(phonemeLabel("AH0")).toEqual({ label: "uh", ipa: "ʌ" });
+    expect(phonemeLabel("EY1")).toEqual({ label: "ay", ipa: "eɪ" });
+  });
+
+  it("falls back to the raw phoneme when unmapped", () => {
+    expect(phonemeLabel("xx")).toEqual({ label: "xx", ipa: "xx" });
+  });
+});
+
+describe("soundsToWorkOn", () => {
+  it("surfaces weak phonemes with an example word and IPA", () => {
+    const result = soundsToWorkOn(
+      [
+        {
+          word: "friends",
+          accuracyScore: 9,
+          errorType: "Mispronunciation",
+          phonemes: [
+            { phoneme: "f", accuracyScore: 12 },
+            { phoneme: "r", accuracyScore: 14 },
+            { phoneme: "eh", accuracyScore: 80 },
+          ],
+        },
+      ],
+      "I play with my friends",
+    );
+
+    expect(result).toEqual([
+      { label: "f", ipa: "f", exampleWord: "friends", accuracyScore: 12 },
+      { label: "r", ipa: "r", exampleWord: "friends", accuracyScore: 14 },
+    ]);
+  });
+
+  it("ignores phonemes at or above the weak threshold", () => {
+    expect(
+      soundsToWorkOn([
+        {
+          word: "cat",
+          accuracyScore: 90,
+          errorType: "None",
+          phonemes: [
+            { phoneme: "k", accuracyScore: 90 },
+            { phoneme: "ae", accuracyScore: 50 },
+          ],
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("deduplicates a sound to its lowest-scoring occurrence", () => {
+    const result = soundsToWorkOn([
+      {
+        word: "red",
+        accuracyScore: 30,
+        errorType: "Mispronunciation",
+        phonemes: [{ phoneme: "r", accuracyScore: 40 }],
+      },
+      {
+        word: "car",
+        accuracyScore: 20,
+        errorType: "Mispronunciation",
+        phonemes: [{ phoneme: "r", accuracyScore: 10 }],
+      },
+    ]);
+
+    expect(result).toEqual([
+      { label: "r", ipa: "r", exampleWord: "car", accuracyScore: 10 },
+    ]);
+  });
+
+  it("only counts phonemes from words the student actually said", () => {
+    // "playground" is in the target but NOT the transcript -> its weak sounds
+    // must not surface.
+    const result = soundsToWorkOn(
+      [
+        {
+          word: "playground",
+          accuracyScore: 19,
+          errorType: "Mispronunciation",
+          phonemes: [{ phoneme: "r", accuracyScore: 5 }],
+        },
+        {
+          word: "the",
+          accuracyScore: 60,
+          errorType: "None",
+          phonemes: [{ phoneme: "dh", accuracyScore: 18 }],
+        },
+      ],
+      "the",
+    );
+
+    expect(result).toEqual([
+      { label: "th", ipa: "ð", exampleWord: "the", accuracyScore: 18 },
+    ]);
+  });
+
+  it("returns [] when no phoneme data is present", () => {
+    expect(
+      soundsToWorkOn([
+        { word: "cat", accuracyScore: 40, errorType: "Mispronunciation" },
+      ]),
+    ).toEqual([]);
+    expect(soundsToWorkOn(undefined)).toEqual([]);
   });
 });

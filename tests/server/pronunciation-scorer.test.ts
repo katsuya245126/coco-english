@@ -131,14 +131,14 @@ describe("scorePronunciation", () => {
     expect(result).toEqual({ ok: false, error: "provider_failed" });
   });
 
-  it("rejects audio longer than 30 seconds before any transcode or recognizer call", async () => {
+  it("rejects audio longer than 60 seconds before any transcode or recognizer call", async () => {
     const { scorePronunciation } = await import("@/server/audio/pronunciation-scorer");
 
     const client = createFakeRecognizerFactory(fakeAzureResult());
     const transcodeToWav = createFakeTranscode({ ok: true, wav: FAKE_WAV });
 
     const result = await scorePronunciation(
-      { ...baseInput(), durationMs: 30_001 },
+      { ...baseInput(), durationMs: 60_001 },
       { apiKey: "test-key", region: "eastus", client, transcodeToWav },
     );
 

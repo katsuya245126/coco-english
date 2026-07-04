@@ -14,10 +14,18 @@
 
 export type PronunciationStarBand = 1 | 2 | 3;
 
+export type PhonemeScore = {
+  /** ARPAbet phoneme code from Azure, e.g. "dh", "r", "ah". */
+  phoneme: string;
+  accuracyScore: number;
+};
+
 export type WordScore = {
   word: string;
   accuracyScore: number;
   errorType: string;
+  /** Per-phoneme accuracy (Phoneme granularity). Optional: older rows omit it. */
+  phonemes?: PhonemeScore[];
 };
 
 export const STAR_BAND_THRESHOLDS = {
@@ -145,4 +153,130 @@ export function wordsToPractice(
     .filter((entry) => spokenWords === null || spokenWords.has(normalizeWord(entry.word)))
     .slice(0, MAX_WORDS_TO_PRACTICE)
     .map((entry) => ({ word: entry.word, label: errorTypeToLabel(entry.errorType) }));
+}
+
+/**
+ * ARPAbet (Azure's phoneme codes) -> a teacher-friendly plain label plus IPA.
+ * Azure emits stress digits on vowels (e.g. "ah0", "ey1"); callers strip those
+ * before lookup. Codes not in this map fall back to the raw phoneme so an
+ * unmapped sound is still shown rather than dropped.
+ */
+const ARPABET_LABELS: Record<string, { label: string; ipa: string }> = {
+  // Consonants
+  b: { label: "b", ipa: "b" },
+  ch: { label: "ch", ipa: "tʃ" },
+  d: { label: "d", ipa: "d" },
+  dh: { label: "th", ipa: "ð" },
+  f: { label: "f", ipa: "f" },
+  g: { label: "g", ipa: "ɡ" },
+  hh: { label: "h", ipa: "h" },
+  jh: { label: "j", ipa: "dʒ" },
+  k: { label: "k", ipa: "k" },
+  l: { label: "l", ipa: "l" },
+  m: { label: "m", ipa: "m" },
+  n: { label: "n", ipa: "n" },
+  ng: { label: "ng", ipa: "ŋ" },
+  p: { label: "p", ipa: "p" },
+  r: { label: "r", ipa: "r" },
+  s: { label: "s", ipa: "s" },
+  sh: { label: "sh", ipa: "ʃ" },
+  t: { label: "t", ipa: "t" },
+  th: { label: "th", ipa: "θ" },
+  v: { label: "v", ipa: "v" },
+  w: { label: "w", ipa: "w" },
+  y: { label: "y", ipa: "j" },
+  z: { label: "z", ipa: "z" },
+  zh: { label: "zh", ipa: "ʒ" },
+  // Vowels
+  aa: { label: "ah", ipa: "ɑ" },
+  ae: { label: "a", ipa: "æ" },
+  ah: { label: "uh", ipa: "ʌ" },
+  ao: { label: "aw", ipa: "ɔ" },
+  aw: { label: "ow", ipa: "aʊ" },
+  ax: { label: "uh", ipa: "ə" },
+  ay: { label: "i", ipa: "aɪ" },
+  eh: { label: "e", ipa: "ɛ" },
+  er: { label: "er", ipa: "ɝ" },
+  ey: { label: "ay", ipa: "eɪ" },
+  ih: { label: "i", ipa: "ɪ" },
+  iy: { label: "ee", ipa: "i" },
+  ow: { label: "oh", ipa: "oʊ" },
+  oy: { label: "oy", ipa: "ɔɪ" },
+  uh: { label: "uu", ipa: "ʊ" },
+  uw: { label: "oo", ipa: "u" },
+};
+
+/** Strip Azure's trailing stress digit and lowercase: "AH0" -> "ah". */
+function normalizePhoneme(phoneme: string): string {
+  return phoneme.toLowerCase().replace(/\d+$/, "");
+}
+
+export function phonemeLabel(phoneme: string): { label: string; ipa: string } {
+  const key = normalizePhoneme(phoneme);
+  return ARPABET_LABELS[key] ?? { label: key, ipa: key };
+}
+
+export type SoundToWorkOn = {
+  /** Plain teacher-facing label, e.g. "r" or "th". */
+  label: string;
+  /** IPA symbol, e.g. "r" or "θ". */
+  ipa: string;
+  /** A word the student actually said where this sound scored poorly. */
+  exampleWord: string;
+  /** Lowest observed accuracy for this sound across the student's words (0-100). */
+  accuracyScore: number;
+};
+
+/** Below this per-phoneme accuracy a sound counts as needing work. */
+const PHONEME_WEAK_THRESHOLD = 50;
+const MAX_SOUNDS_TO_WORK_ON = 5;
+
+/**
+ * Teacher-facing "sounds to work on": aggregates the weak phonemes across the
+ * words the student actually said into a short, deduplicated list of sounds.
+ *
+ * Like {@link wordsToPractice}, a phoneme is only considered if it comes from a
+ * word present in the student's own transcript — Azure scores against the
+ * target sentence, so words the student never uttered would otherwise surface
+ * phantom sounds. Each sound is reported once, tagged with the lowest-scoring
+ * example word so the teacher has something concrete to model.
+ */
+export function soundsToWorkOn(
+  wordScores: WordScore[] | undefined,
+  transcript?: string,
+): SoundToWorkOn[] {
+  if (!wordScores) return [];
+  const spokenWords = transcript ? tokenizeWords(transcript) : null;
+
+  // phoneme key -> best (lowest-accuracy) occurrence
+  const worst = new Map<string, SoundToWorkOn>();
+
+  for (const word of wordScores) {
+    if (spokenWords !== null && !spokenWords.has(normalizeWord(word.word))) {
+      continue;
+    }
+    if (!word.phonemes) continue;
+
+    for (const phoneme of word.phonemes) {
+      if (phoneme.accuracyScore >= PHONEME_WEAK_THRESHOLD) continue;
+      const key = normalizePhoneme(phoneme.phoneme);
+      if (!key) continue;
+
+      const existing = worst.get(key);
+      if (existing && existing.accuracyScore <= phoneme.accuracyScore) {
+        continue;
+      }
+      const { label, ipa } = phonemeLabel(phoneme.phoneme);
+      worst.set(key, {
+        label,
+        ipa,
+        exampleWord: word.word,
+        accuracyScore: phoneme.accuracyScore,
+      });
+    }
+  }
+
+  return [...worst.values()]
+    .sort((a, b) => a.accuracyScore - b.accuracyScore)
+    .slice(0, MAX_SOUNDS_TO_WORK_ON);
 }
