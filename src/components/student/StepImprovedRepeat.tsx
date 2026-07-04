@@ -92,7 +92,7 @@ export function StepImprovedRepeat({
       <div>
         <VoiceRecorderControl
           mode="repeat"
-          maxSeconds={20}
+          maxSeconds={60}
           disabled={isSubmitting}
           onRecorded={(blob, metadata) =>
             onVoiceRecorded({
