@@ -123,7 +123,7 @@ export default async function StudentProfilePage({
                     </p>
                     <p style={{ fontSize: 14, color: "#4B5563", margin: "4px 0 0" }}>
                       Weak in {sound.weakCount} of {sound.totalCount} words · avg{" "}
-                      {sound.averageAccuracy}/100 · e.g. "{sound.exampleWord}"
+                      {sound.averageAccuracy}/100 · e.g. &quot;{sound.exampleWord}&quot;
                     </p>
                   </div>
                 </article>
