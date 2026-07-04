@@ -1,4 +1,4 @@
-export const MAX_RECORDING_MS = 20000;
+export const MAX_RECORDING_MS = 60000;
 
 export const AUDIO_MIME_CANDIDATES = [
   "audio/webm;codecs=opus",
