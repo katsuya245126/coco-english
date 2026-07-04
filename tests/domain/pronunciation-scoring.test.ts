@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   computeBandScore,
   errorTypeToLabel,
+  MIN_PHONEME_OBSERVATIONS,
   phonemeLabel,
   scoreToStarBand,
   soundsToWorkOn,
   STAR_BAND_COPY,
+  studentSoundProfile,
   wordsToPractice,
 } from "@/domain/pronunciation/scoring";
 
@@ -329,5 +331,146 @@ describe("soundsToWorkOn", () => {
       ]),
     ).toEqual([]);
     expect(soundsToWorkOn(undefined)).toEqual([]);
+  });
+});
+
+describe("studentSoundProfile", () => {
+  // Helper: build N clips each containing one word with one weak `r`, so a
+  // phoneme can be pushed over the MIN_PHONEME_OBSERVATIONS gate concisely.
+  function weakRClips(n: number) {
+    return Array.from({ length: n }, (_, i) => ({
+      wordScores: [
+        {
+          word: "red",
+          accuracyScore: 20,
+          errorType: "Mispronunciation",
+          phonemes: [{ phoneme: "r", accuracyScore: 20 + i }],
+        },
+      ],
+      transcript: "red",
+    }));
+  }
+
+  it("returns [] for no clips", () => {
+    expect(studentSoundProfile([])).toEqual([]);
+  });
+
+  it("excludes a phoneme observed fewer than MIN_PHONEME_OBSERVATIONS times", () => {
+    expect(studentSoundProfile(weakRClips(MIN_PHONEME_OBSERVATIONS - 1))).toEqual(
+      [],
+    );
+  });
+
+  it("reports a phoneme once it clears the observation gate", () => {
+    const result = studentSoundProfile(weakRClips(MIN_PHONEME_OBSERVATIONS));
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      label: "r",
+      ipa: "r",
+      weakCount: MIN_PHONEME_OBSERVATIONS,
+      totalCount: MIN_PHONEME_OBSERVATIONS,
+      exampleWord: "red",
+    });
+  });
+
+  it("computes averageAccuracy across all occurrences (weak and non-weak)", () => {
+    const accuracies = [10, 20, 30, 40, 90];
+    const clips = accuracies.map((a) => ({
+      wordScores: [
+        {
+          word: "car",
+          accuracyScore: a,
+          errorType: "Mispronunciation",
+          phonemes: [{ phoneme: "r", accuracyScore: a }],
+        },
+      ],
+      transcript: "car",
+    }));
+    const result = studentSoundProfile(clips);
+    expect(result[0]).toMatchObject({
+      totalCount: 5,
+      weakCount: 4,
+      averageAccuracy: 38,
+    });
+  });
+
+  it("picks the lowest-scoring occurrence as the example word", () => {
+    const clips = [
+      ...weakRClips(MIN_PHONEME_OBSERVATIONS),
+      {
+        wordScores: [
+          {
+            word: "grrr",
+            accuracyScore: 3,
+            errorType: "Mispronunciation",
+            phonemes: [{ phoneme: "r", accuracyScore: 3 }],
+          },
+        ],
+        transcript: "grrr",
+      },
+    ];
+    expect(studentSoundProfile(clips)[0].exampleWord).toBe("grrr");
+  });
+
+  it("scopes per-clip: a word never spoken in a clip contributes nothing", () => {
+    const clips = Array.from({ length: MIN_PHONEME_OBSERVATIONS }, () => ({
+      wordScores: [
+        {
+          word: "playground",
+          accuracyScore: 5,
+          errorType: "Mispronunciation",
+          phonemes: [{ phoneme: "r", accuracyScore: 5 }],
+        },
+      ],
+      transcript: "the",
+    }));
+    expect(studentSoundProfile(clips)).toEqual([]);
+  });
+
+  it("excludes phonemes that are never weak even if observed enough", () => {
+    const clips = Array.from({ length: MIN_PHONEME_OBSERVATIONS }, () => ({
+      wordScores: [
+        {
+          word: "cat",
+          accuracyScore: 90,
+          errorType: "None",
+          phonemes: [{ phoneme: "k", accuracyScore: 90 }],
+        },
+      ],
+      transcript: "cat",
+    }));
+    expect(studentSoundProfile(clips)).toEqual([]);
+  });
+
+  it("ranks by weak ratio desc, then average accuracy asc, capped at MAX", () => {
+    const codes = ["r", "th", "f", "s", "l", "v"];
+    const clips = codes.flatMap((code, idx) =>
+      Array.from({ length: MIN_PHONEME_OBSERVATIONS }, () => ({
+        wordScores: [
+          {
+            word: code,
+            accuracyScore: 10 + idx,
+            errorType: "Mispronunciation",
+            phonemes: [{ phoneme: code, accuracyScore: 10 + idx }],
+          },
+        ],
+        transcript: code,
+      })),
+    );
+    const result = studentSoundProfile(clips);
+    expect(result).toHaveLength(5); // MAX_SOUNDS_TO_WORK_ON
+  });
+
+  it("ignores words without phoneme data without throwing", () => {
+    expect(
+      studentSoundProfile([
+        {
+          wordScores: [
+            { word: "cat", accuracyScore: 40, errorType: "Mispronunciation" },
+          ],
+          transcript: "cat",
+        },
+      ]),
+    ).toEqual([]);
   });
 });

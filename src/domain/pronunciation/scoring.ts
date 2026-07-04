@@ -280,3 +280,121 @@ export function soundsToWorkOn(
     .sort((a, b) => a.accuracyScore - b.accuracyScore)
     .slice(0, MAX_SOUNDS_TO_WORK_ON);
 }
+
+export type StudentClipScore = {
+  /** All word scores Azure returned for the clip. */
+  wordScores: WordScore[];
+  /** The clip's transcript — "what the student actually said". */
+  transcript: string;
+};
+
+export type StudentSoundWeakness = {
+  /** Plain teacher-facing label, e.g. "th". */
+  label: string;
+  /** IPA symbol, e.g. "θ". */
+  ipa: string;
+  /** Attempted words containing this phoneme that scored below threshold. */
+  weakCount: number;
+  /** Attempted words containing this phoneme (weak or not). */
+  totalCount: number;
+  /** Mean accuracy across all occurrences (0-100), rounded. */
+  averageAccuracy: number;
+  /** A real word the student said where this sound scored weakest. */
+  exampleWord: string;
+};
+
+/**
+ * Minimum times a phoneme must be observed across a student's attempted words
+ * before it can be reported as a weakness. Guards against a single bad-audio
+ * clip (Azure scores many sounds near-zero when it can't hear) branding a
+ * student as weak in sounds they only "failed" once. See design doc.
+ */
+export const MIN_PHONEME_OBSERVATIONS = 5;
+
+type PhonemeTally = {
+  weakCount: number;
+  totalCount: number;
+  sumAccuracy: number;
+  lowestAccuracy: number;
+  exampleWord: string;
+  label: string;
+  ipa: string;
+};
+
+/**
+ * Teacher-facing per-student "sounds to work on", accumulated across all of a
+ * student's scored clips. Unlike the per-clip {@link soundsToWorkOn} (which
+ * dedups to the single worst occurrence in one clip), this tallies frequency
+ * and average accuracy per phoneme over time and only surfaces a sound once it
+ * has been observed at least {@link MIN_PHONEME_OBSERVATIONS} times.
+ *
+ * Transcript scoping is applied PER CLIP: within each clip only phonemes from
+ * words present in that clip's transcript are counted, because Azure scores
+ * against the mission's target sentence, not what the student said. A word
+ * counts only for the clip(s) where the student actually uttered it.
+ */
+export function studentSoundProfile(
+  clips: StudentClipScore[],
+): StudentSoundWeakness[] {
+  const tallies = new Map<string, PhonemeTally>();
+
+  for (const clip of clips) {
+    const spokenWords = tokenizeWords(clip.transcript);
+
+    for (const word of clip.wordScores) {
+      if (!spokenWords.has(normalizeWord(word.word))) continue;
+      if (!word.phonemes) continue;
+
+      for (const phoneme of word.phonemes) {
+        const key = normalizePhoneme(phoneme.phoneme);
+        if (!key) continue;
+
+        let tally = tallies.get(key);
+        if (!tally) {
+          const { label, ipa } = phonemeLabel(phoneme.phoneme);
+          tally = {
+            weakCount: 0,
+            totalCount: 0,
+            sumAccuracy: 0,
+            lowestAccuracy: Infinity,
+            exampleWord: word.word,
+            label,
+            ipa,
+          };
+          tallies.set(key, tally);
+        }
+
+        tally.totalCount += 1;
+        tally.sumAccuracy += phoneme.accuracyScore;
+
+        if (phoneme.accuracyScore < PHONEME_WEAK_THRESHOLD) {
+          tally.weakCount += 1;
+          if (phoneme.accuracyScore < tally.lowestAccuracy) {
+            tally.lowestAccuracy = phoneme.accuracyScore;
+            tally.exampleWord = word.word;
+          }
+        }
+      }
+    }
+  }
+
+  return [...tallies.values()]
+    .filter(
+      (t) => t.totalCount >= MIN_PHONEME_OBSERVATIONS && t.weakCount > 0,
+    )
+    .map((t) => ({
+      label: t.label,
+      ipa: t.ipa,
+      weakCount: t.weakCount,
+      totalCount: t.totalCount,
+      averageAccuracy: Math.round(t.sumAccuracy / t.totalCount),
+      exampleWord: t.exampleWord,
+    }))
+    .sort((a, b) => {
+      const ratioA = a.weakCount / a.totalCount;
+      const ratioB = b.weakCount / b.totalCount;
+      if (ratioB !== ratioA) return ratioB - ratioA; // weaker ratio first
+      return a.averageAccuracy - b.averageAccuracy; // then lower average first
+    })
+    .slice(0, MAX_SOUNDS_TO_WORK_ON);
+}
