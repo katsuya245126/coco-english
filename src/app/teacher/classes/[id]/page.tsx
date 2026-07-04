@@ -111,6 +111,69 @@ export default async function ClassReviewDashboard({
           </p>
         </div>
 
+        <section style={{ marginBottom: 32 }}>
+          <h2
+            style={{
+              fontSize: 20,
+              fontWeight: 600,
+              lineHeight: 1.25,
+              margin: "0 0 12px",
+            }}
+          >
+            Students
+          </h2>
+
+          {roster.length === 0 ? (
+            <div
+              style={{
+                padding: 16,
+                border: "1px solid #D1D5DB",
+                borderRadius: 8,
+                background: "#FFFFFF",
+              }}
+            >
+              <p style={{ margin: 0, fontSize: 14, color: "#4B5563" }}>
+                No students in this class yet.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 8 }}>
+              {roster.map((student) => (
+                <Link
+                  key={student.id}
+                  href={`/teacher/students/${student.id}`}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 16,
+                    padding: 16,
+                    border: "1px solid #D1D5DB",
+                    borderRadius: 8,
+                    background: "#FFFFFF",
+                    textDecoration: "none",
+                    color: "#111827",
+                  }}
+                >
+                  <span style={{ fontSize: 16, fontWeight: 600 }}>
+                    {student.displayName}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: "#2563EB",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    View sounds →
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+
         <section>
           <h2
             style={{
