@@ -459,6 +459,8 @@ describe("studentSoundProfile", () => {
     );
     const result = studentSoundProfile(clips);
     expect(result).toHaveLength(5); // MAX_SOUNDS_TO_WORK_ON
+    expect(result.map((r) => r.label)).toEqual(["r", "th", "f", "s", "l"]);
+    expect(result.map((r) => r.label)).not.toContain("v");
   });
 
   it("ignores words without phoneme data without throwing", () => {
