@@ -131,7 +131,7 @@ function getStudentAudioBucketId() {
   return process.env.STUDENT_AUDIO_BUCKET || DEFAULT_AUDIO_BUCKET;
 }
 
-function one<T>(relation: NestedRelation<T>): T | null {
+export function one<T>(relation: NestedRelation<T>): T | null {
   if (Array.isArray(relation)) return relation[0] ?? null;
   return relation ?? null;
 }

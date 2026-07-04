@@ -1,5 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server-auth";
-import { parseWordScores } from "@/server/teacher/audio-evidence";
+import { one, parseWordScores } from "@/server/teacher/audio-evidence";
 import {
   studentSoundProfile,
   type StudentClipScore,
@@ -112,11 +112,9 @@ export async function getStudentProfileHeader(
   const row = student.data as unknown as {
     id: string;
     display_name: string;
-    classes: { name: string } | { name: string }[];
+    classes: { name: string } | { name: string }[] | null;
   };
-  const className = Array.isArray(row.classes)
-    ? row.classes[0]?.name ?? ""
-    : row.classes?.name ?? "";
+  const className = one(row.classes)?.name ?? "";
 
   return {
     studentId: row.id,
