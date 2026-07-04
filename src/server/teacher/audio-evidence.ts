@@ -216,7 +216,7 @@ function mapPronunciationScore(
 }
 
 /** Defensively parse the stored `word_scores` jsonb into typed WordScores. */
-function parseWordScores(raw: unknown): WordScore[] {
+export function parseWordScores(raw: unknown): WordScore[] {
   if (!Array.isArray(raw)) return [];
   return raw.map((entry) => {
     const word = entry as {
