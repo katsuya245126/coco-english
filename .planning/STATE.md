@@ -4,11 +4,11 @@ milestone: v2.0
 milestone_name: — Coco Comes Alive
 current_phase: 09
 current_phase_name: pronunciation-scoring
-status: executing
-stopped_at: Phase 11 UI-SPEC approved
-last_updated: "2026-07-03T11:57:11.804Z"
-last_activity: 2026-07-03
-last_activity_desc: Phase 09 closed; 09-06 student-facing stars shipped, checkpoint verified, full suite green
+status: between-phases
+stopped_at: Phase 09 closed; Codex sound-profile/archiving/mascot handoff merged to main
+last_updated: "2026-07-05T00:00:00.000Z"
+last_activity: 2026-07-05
+last_activity_desc: Codex handoff merged to main (3 commits), branch hygiene run, suite green; STATE reconciled. Phase 11 planned but Phase 10 unplanned; next = plan Phase 10.
 progress:
   total_phases: 5
   completed_phases: 2
@@ -30,10 +30,18 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 
 Phase: 09 (pronunciation-scoring) — COMPLETE
 Previous phase: 08 (coco-voice-tts) — COMPLETE with residual older-device risk accepted
-Status: Ready to execute
-Last activity: 2026-07-03 — Phase 09 closed; 09-06 student-facing stars shipped, checkpoint verified, full suite green
+Status: Between phases — Phase 11 is planned (7 plans, UI-SPEC approved) but Phase 10 (Mascot) is unplanned. Roadmap order is 10 → 11; next action = plan Phase 10.
+Last activity: 2026-07-05 — Codex handoff merged to main + branch hygiene; STATE reconciled
 
 Progress: [████████░░] 82%
+
+**Codex handoff (merged to main 2026-07-05, branch feature/per-student-sound-profile deleted):**
+- Per-student sound-profile work (committed by Codex): phoneme-level diagnostics, aggregator, teacher detail page, roster linking, clip reprocess.
+- Sound-profile follow-on threaded through turn evaluator / audio upload / student flow (commit b67fce37).
+- Mission archiving + cancel-assignments feature: migration 202607050001 (missions.archived_at, assignments.canceled_at) already pushed live to Supabase; archived view, archive/restore actions, assignment dialog (commit 63682dca). Fixes a `missions.archived_at does not exist` runtime error on /teacher/missions.
+- Coco mascot sprite set (7 expressions + alpha variants) committed for Phase 10 (commit 8661cb65); .planning/debug/ alpha-pipeline scratch is now gitignored.
+- Stale recorder-cap test corrected 20s → 60s to match shipped 52ea4c17. Full suite 411 passed / 4 skipped, tsc clean.
+- None of the above is tracked as its own GSD phase/plan — it landed via the Codex handoff.
 
 ## Performance Metrics
 
@@ -173,6 +181,7 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 ## Session Continuity
 
-Last session: 2026-07-03T07:42:00.397Z
-Stopped at: Phase 11 UI-SPEC approved
-Resume file: .planning/phases/11-coco-chat-dynamic-turns-scene-framing/11-UI-SPEC.md
+Last session: 2026-07-05
+Stopped at: Codex handoff merged to main; STATE reconciled; ready to plan Phase 10 (Mascot)
+Resume action: /gsd-plan-phase 10 (Phase 11 already planned but sequenced after 10)
+Note: Phase 11 planning artifacts exist at .planning/phases/11-coco-chat-dynamic-turns-scene-framing/ but Phase 10 has no directory yet.
