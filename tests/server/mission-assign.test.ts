@@ -296,9 +296,11 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
         // assignments table — return 2 rows to simulate active assignments
         return {
           select: vi.fn(() => ({
-            eq: vi.fn(async () => ({
-              data: [{ id: "a1" }, { id: "a2" }],
-              error: null,
+            eq: vi.fn(() => ({
+              is: vi.fn(async () => ({
+                data: [{ id: "a1" }, { id: "a2" }],
+                error: null,
+              })),
             })),
           })),
         };

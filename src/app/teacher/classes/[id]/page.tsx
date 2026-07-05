@@ -55,6 +55,7 @@ export default async function ClassReviewDashboard({
     .from("assignments")
     .select("id, title, due_at, created_at")
     .eq("class_id", classId)
+    .is("canceled_at", null)
     .order("due_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 

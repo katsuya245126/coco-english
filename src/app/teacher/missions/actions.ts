@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { requireTeacherProfile } from "@/server/auth/teacher-profile";
 import { missionDraftInputSchema } from "@/domain/ai/mission-generation";
 import type {
@@ -15,9 +16,14 @@ import {
 import { generateMissionDraft } from "@/server/ai/mission-generator";
 import { assignMissionToClass } from "@/server/mission/assign-service";
 import {
+  archiveMission,
+  cancelMissionAssignment,
   createMission,
   deleteMission,
+  listMissionAssignmentsForTeacher,
+  restoreMission,
   updateMission,
+  type MissionAssignmentSummary,
 } from "@/server/mission/mission-service";
 
 const GENERIC_FAILURE =
@@ -28,6 +34,15 @@ const ASSIGN_FAILURE =
 
 const DELETE_FAILURE =
   "We could not delete this mission. Assigned missions cannot be deleted.";
+
+const ARCHIVE_FAILURE =
+  "We could not archive this mission. Please try again.";
+
+const RESTORE_FAILURE =
+  "We could not restore this mission. Please try again.";
+
+const CANCEL_ASSIGNMENT_FAILURE =
+  "We could not cancel this assignment. Please try again.";
 
 const DRAFT_SCHEMA_FAILURE =
   "The draft did not match the mission format. Try again or write the mission manually.";
@@ -54,6 +69,27 @@ export type GenerateMissionDraftActionResult =
 export type DeleteMissionActionResult =
   | { ok: true }
   | { ok: false; error: string };
+
+export type ArchiveMissionActionResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
+export type RestoreMissionActionResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
+export type CancelMissionAssignmentActionResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
+export type ListMissionAssignmentsActionResult =
+  | { ok: true; assignments: MissionAssignmentSummary[] }
+  | { ok: false; error: string };
+
+const cancelMissionAssignmentSchema = z.object({
+  missionId: z.string().uuid("Invalid mission reference."),
+  assignmentId: z.string().uuid("Invalid assignment reference."),
+});
 
 function parseTurns(value: FormDataEntryValue | null): unknown {
   if (typeof value !== "string") {
@@ -154,6 +190,97 @@ export async function deleteMissionAction(
     return { ok: true };
   } catch {
     return { ok: false, error: DELETE_FAILURE };
+  }
+}
+
+export async function archiveMissionAction(
+  missionId: string,
+): Promise<ArchiveMissionActionResult> {
+  const profile = await requireTeacherProfile();
+  const parsed = missionIdSchema.safeParse({ missionId });
+
+  if (!parsed.success) {
+    return { ok: false, error: ARCHIVE_FAILURE };
+  }
+
+  try {
+    await archiveMission({
+      teacherId: profile.id,
+      missionId: parsed.data.missionId,
+    });
+    revalidatePath("/teacher/missions");
+    revalidatePath("/teacher/missions/archived");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: ARCHIVE_FAILURE };
+  }
+}
+
+export async function restoreMissionAction(
+  missionId: string,
+): Promise<RestoreMissionActionResult> {
+  const profile = await requireTeacherProfile();
+  const parsed = missionIdSchema.safeParse({ missionId });
+
+  if (!parsed.success) {
+    return { ok: false, error: RESTORE_FAILURE };
+  }
+
+  try {
+    await restoreMission({
+      teacherId: profile.id,
+      missionId: parsed.data.missionId,
+    });
+    revalidatePath("/teacher/missions");
+    revalidatePath("/teacher/missions/archived");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: RESTORE_FAILURE };
+  }
+}
+
+export async function cancelMissionAssignmentAction(
+  input: unknown,
+): Promise<CancelMissionAssignmentActionResult> {
+  const profile = await requireTeacherProfile();
+  const parsed = cancelMissionAssignmentSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return { ok: false, error: CANCEL_ASSIGNMENT_FAILURE };
+  }
+
+  try {
+    await cancelMissionAssignment({
+      teacherId: profile.id,
+      missionId: parsed.data.missionId,
+      assignmentId: parsed.data.assignmentId,
+    });
+    revalidatePath("/teacher/missions");
+    revalidatePath("/student/home");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: CANCEL_ASSIGNMENT_FAILURE };
+  }
+}
+
+export async function listMissionAssignmentsAction(
+  missionId: string,
+): Promise<ListMissionAssignmentsActionResult> {
+  const profile = await requireTeacherProfile();
+  const parsed = missionIdSchema.safeParse({ missionId });
+
+  if (!parsed.success) {
+    return { ok: false, error: CANCEL_ASSIGNMENT_FAILURE };
+  }
+
+  try {
+    const assignments = await listMissionAssignmentsForTeacher({
+      teacherId: profile.id,
+      missionId: parsed.data.missionId,
+    });
+    return { ok: true, assignments };
+  } catch {
+    return { ok: false, error: CANCEL_ASSIGNMENT_FAILURE };
   }
 }
 

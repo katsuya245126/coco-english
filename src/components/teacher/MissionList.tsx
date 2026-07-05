@@ -1,17 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { deleteMissionAction } from "@/app/teacher/missions/actions";
+import { useRouter } from "next/navigation";
+import { archiveMissionAction } from "@/app/teacher/missions/actions";
 import type { AssignableClass } from "@/server/mission/assign-service";
 import type { TeacherMission } from "@/server/mission/mission-service";
 import { AssignDialog } from "@/components/teacher/AssignDialog";
+import { MissionAssignmentDialog } from "@/components/teacher/MissionAssignmentDialog";
 import { HoverButton } from "@/components/ui/HoverButton";
 import { HoverLink } from "@/components/ui/HoverLink";
-import {
-  dangerHover,
-  primaryHover,
-  secondaryHover,
-} from "@/components/ui/hover-styles";
+import { primaryHover, secondaryHover } from "@/components/ui/hover-styles";
 
 type MissionListProps = {
   missions: TeacherMission[];
@@ -19,14 +17,16 @@ type MissionListProps = {
 };
 
 export function MissionList({ missions, assignableClasses }: MissionListProps) {
+  const router = useRouter();
   const [assigningMission, setAssigningMission] = useState<TeacherMission | null>(
+    null,
+  );
+  const [managingMission, setManagingMission] = useState<TeacherMission | null>(
     null,
   );
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [deletingMissionId, setDeletingMissionId] = useState<string | null>(null);
-  const [disabledDeleteTooltipMissionId, setDisabledDeleteTooltipMissionId] =
-    useState<string | null>(null);
+  const [archivingMissionId, setArchivingMissionId] = useState<string | null>(null);
 
   // Auto-dismiss success message after 5 seconds (UI-SPEC requirement)
   useEffect(() => {
@@ -35,18 +35,18 @@ export function MissionList({ missions, assignableClasses }: MissionListProps) {
     return () => clearTimeout(timer);
   }, [success]);
 
-  async function handleDeleteMission(mission: TeacherMission) {
-    if (mission.assignmentCount > 0) return;
-    const confirmed = window.confirm(`Delete mission "${mission.title}"?`);
+  async function handleArchiveMission(mission: TeacherMission) {
+    const confirmed = window.confirm(`Archive mission "${mission.title}"?`);
     if (!confirmed) return;
 
     setError(null);
-    setDeletingMissionId(mission.id);
-    const result = await deleteMissionAction(mission.id);
-    setDeletingMissionId(null);
+    setArchivingMissionId(mission.id);
+    const result = await archiveMissionAction(mission.id);
+    setArchivingMissionId(null);
 
     if (result.ok) {
-      setSuccess("Mission deleted.");
+      setSuccess("Mission archived.");
+      router.refresh();
       return;
     }
 
@@ -57,9 +57,18 @@ export function MissionList({ missions, assignableClasses }: MissionListProps) {
     <div>
       <div style={headerStyle}>
         <h1 style={titleStyle}>Missions</h1>
-        <HoverLink href="/teacher/missions/new" style={primaryLinkStyle} hoverStyle={primaryHover}>
-          Create mission
-        </HoverLink>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <HoverLink
+            href="/teacher/missions/archived"
+            style={secondaryLinkStyle}
+            hoverStyle={secondaryHover}
+          >
+            Archived missions
+          </HoverLink>
+          <HoverLink href="/teacher/missions/new" style={primaryLinkStyle} hoverStyle={primaryHover}>
+            Create mission
+          </HoverLink>
+        </div>
       </div>
 
       {success ? (
@@ -130,61 +139,26 @@ export function MissionList({ missions, assignableClasses }: MissionListProps) {
                     You have no classes with active students. Create a class and add students first.
                   </span>
                 )}
-                <span
-                  style={deleteButtonWrapperStyle}
-                  tabIndex={mission.assignmentCount > 0 ? 0 : undefined}
-                  onMouseEnter={() => {
-                    if (mission.assignmentCount > 0) {
-                      setDisabledDeleteTooltipMissionId(mission.id);
-                    }
-                  }}
-                  onMouseLeave={() => {
-                    if (disabledDeleteTooltipMissionId === mission.id) {
-                      setDisabledDeleteTooltipMissionId(null);
-                    }
-                  }}
-                  onFocus={() => {
-                    if (mission.assignmentCount > 0) {
-                      setDisabledDeleteTooltipMissionId(mission.id);
-                    }
-                  }}
-                  onBlur={() => {
-                    if (disabledDeleteTooltipMissionId === mission.id) {
-                      setDisabledDeleteTooltipMissionId(null);
-                    }
-                  }}
-                >
+                {mission.assignmentCount > 0 ? (
                   <HoverButton
                     type="button"
-                    onClick={() => handleDeleteMission(mission)}
-                    style={
-                      mission.assignmentCount > 0
-                        ? disabledDangerButtonStyle
-                        : dangerButtonStyle
-                    }
-                    hoverStyle={dangerHover}
-                    disabled={
-                      mission.assignmentCount > 0 || deletingMissionId === mission.id
-                    }
-                    aria-label={`Delete mission ${mission.title}`}
-                    aria-describedby={
-                      mission.assignmentCount > 0
-                        ? `delete-mission-tooltip-${mission.id}`
-                        : undefined
-                    }
+                    onClick={() => setManagingMission(mission)}
+                    style={secondaryButtonStyle}
+                    hoverStyle={secondaryHover}
                   >
-                    {deletingMissionId === mission.id ? "Deleting..." : "Delete"}
+                    Manage assignments
                   </HoverButton>
-                  {disabledDeleteTooltipMissionId === mission.id ? (
-                    <span
-                      id={`delete-mission-tooltip-${mission.id}`}
-                      role="tooltip"
-                      style={disabledDeleteTooltipStyle}
-                    >
-                      Assigned missions cannot be deleted.
-                    </span>
-                  ) : null}
-                </span>
+                ) : null}
+                <HoverButton
+                  type="button"
+                  onClick={() => handleArchiveMission(mission)}
+                  style={secondaryButtonStyle}
+                  hoverStyle={secondaryHover}
+                  disabled={archivingMissionId === mission.id}
+                  aria-label={`Archive mission ${mission.title}`}
+                >
+                  {archivingMissionId === mission.id ? "Archiving..." : "Archive mission"}
+                </HoverButton>
               </div>
             </div>
           ))}
@@ -198,6 +172,18 @@ export function MissionList({ missions, assignableClasses }: MissionListProps) {
           classes={assignableClasses}
           onClose={() => setAssigningMission(null)}
           onAssigned={(message) => setSuccess(message)}
+        />
+      ) : null}
+
+      {managingMission ? (
+        <MissionAssignmentDialog
+          missionId={managingMission.id}
+          missionTitle={managingMission.title}
+          onClose={() => setManagingMission(null)}
+          onChanged={(message) => {
+            setSuccess(message);
+            router.refresh();
+          }}
         />
       ) : null}
     </div>
@@ -283,46 +269,17 @@ const primaryButtonStyle: React.CSSProperties = {
   transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
-const dangerButtonStyle: React.CSSProperties = {
+const secondaryButtonStyle: React.CSSProperties = {
   padding: "10px 16px",
-  background: "#B42318",
-  color: "#FFFFFF",
-  border: "none",
+  background: "none",
+  color: "#111827",
+  border: "1px solid #D1D5DB",
   borderRadius: 6,
   fontSize: 14,
   fontWeight: 600,
   cursor: "pointer",
   minHeight: 44,
   transition: "background 0.15s ease, border-color 0.15s ease",
-};
-
-const deleteButtonWrapperStyle: React.CSSProperties = {
-  display: "inline-flex",
-  position: "relative",
-};
-
-const disabledDangerButtonStyle: React.CSSProperties = {
-  ...dangerButtonStyle,
-  background: "#E5E7EB",
-  color: "#6B7280",
-  cursor: "default",
-  pointerEvents: "none",
-};
-
-const disabledDeleteTooltipStyle: React.CSSProperties = {
-  position: "absolute",
-  right: 0,
-  top: "calc(100% + 8px)",
-  zIndex: 20,
-  padding: "6px 8px",
-  background: "#111827",
-  color: "#FFFFFF",
-  borderRadius: 6,
-  boxShadow: "0 8px 20px rgba(17, 24, 39, 0.18)",
-  fontSize: 12,
-  fontWeight: 600,
-  lineHeight: 1.3,
-  whiteSpace: "nowrap",
 };
 
 const successStyle: React.CSSProperties = {
