@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-01)
 
 **Core value:** Students must complete useful spoken English practice outside class, and teachers must be able to verify that it happened.
-**Current focus:** Phase 10 — coco-mascot (not yet planned)
+**Current focus:** Phase 10 — mascot-vn-style (PLANNED, 4 plans / 3 waves — ready to execute)
 
 ## Current Position
 
 Phase: 09 (pronunciation-scoring) — COMPLETE
 Previous phase: 08 (coco-voice-tts) — COMPLETE with residual older-device risk accepted
-Status: Between phases — Phase 11 is planned (7 plans, UI-SPEC approved) but Phase 10 (Mascot) is unplanned. Roadmap order is 10 → 11; next action = plan Phase 10.
-Last activity: 2026-07-05 — Codex handoff merged to main + branch hygiene; STATE reconciled
+Status: Ready to execute — Phase 10 (Mascot) is now PLANNED (4 plans / 3 waves, plan-checker VERIFICATION PASSED, research + validation + patterns done). Phase 11 also planned (7 plans). Roadmap order is 10 → 11; next action = execute Phase 10.
+Last activity: 2026-07-05 — Phase 10 planned (research → static-sprite spike resolved → 4 plans verified); ready for /gsd-execute-phase 10
 
 Progress: [████████░░] 82%
 
