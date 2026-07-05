@@ -5,8 +5,8 @@ milestone_name: — Coco Comes Alive
 current_phase: 09
 current_phase_name: pronunciation-scoring
 status: between-phases
-stopped_at: Phase 10 context gathered
-last_updated: "2026-07-05T06:47:02.817Z"
+stopped_at: Phase 10 UI-SPEC approved
+last_updated: "2026-07-05T06:57:01.881Z"
 last_activity: 2026-07-05
 last_activity_desc: Codex handoff merged to main + branch hygiene; STATE reconciled
 progress:
@@ -182,9 +182,9 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 ## Session Continuity
 
-**Resume file:** .planning/phases/10-mascot-vn-style/10-CONTEXT.md
+**Resume file:** .planning/phases/10-mascot-vn-style/10-UI-SPEC.md
 
-Last session: 2026-07-05T06:47:02.808Z
-Stopped at: Phase 10 context gathered
+Last session: 2026-07-05T06:57:01.874Z
+Stopped at: Phase 10 UI-SPEC approved
 Resume action: /gsd-plan-phase 10 (Phase 11 already planned but sequenced after 10)
 Note: Phase 11 planning artifacts exist at .planning/phases/11-coco-chat-dynamic-turns-scene-framing/ but Phase 10 has no directory yet.
