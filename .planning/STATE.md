@@ -5,14 +5,14 @@ milestone_name: — Coco Comes Alive
 current_phase: 09
 current_phase_name: pronunciation-scoring
 status: between-phases
-stopped_at: Phase 09 closed; Codex sound-profile/archiving/mascot handoff merged to main
-last_updated: "2026-07-05T00:00:00.000Z"
+stopped_at: Phase 10 context gathered
+last_updated: "2026-07-05T06:47:02.817Z"
 last_activity: 2026-07-05
-last_activity_desc: Codex handoff merged to main (3 commits), branch hygiene run, suite green; STATE reconciled. Phase 11 planned but Phase 10 unplanned; next = plan Phase 10.
+last_activity_desc: Codex handoff merged to main + branch hygiene; STATE reconciled
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 11
+  total_plans: 18
   completed_plans: 11
   percent: 40
 ---
@@ -36,6 +36,7 @@ Last activity: 2026-07-05 — Codex handoff merged to main + branch hygiene; STA
 Progress: [████████░░] 82%
 
 **Codex handoff (merged to main 2026-07-05, branch feature/per-student-sound-profile deleted):**
+
 - Per-student sound-profile work (committed by Codex): phoneme-level diagnostics, aggregator, teacher detail page, roster linking, clip reprocess.
 - Sound-profile follow-on threaded through turn evaluator / audio upload / student flow (commit b67fce37).
 - Mission archiving + cancel-assignments feature: migration 202607050001 (missions.archived_at, assignments.canceled_at) already pushed live to Supabase; archived view, archive/restore actions, assignment dialog (commit 63682dca). Fixes a `missions.archived_at does not exist` runtime error on /teacher/missions.
@@ -181,7 +182,9 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 ## Session Continuity
 
-Last session: 2026-07-05
-Stopped at: Codex handoff merged to main; STATE reconciled; ready to plan Phase 10 (Mascot)
+**Resume file:** .planning/phases/10-mascot-vn-style/10-CONTEXT.md
+
+Last session: 2026-07-05T06:47:02.808Z
+Stopped at: Phase 10 context gathered
 Resume action: /gsd-plan-phase 10 (Phase 11 already planned but sequenced after 10)
 Note: Phase 11 planning artifacts exist at .planning/phases/11-coco-chat-dynamic-turns-scene-framing/ but Phase 10 has no directory yet.
