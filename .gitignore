@@ -16,6 +16,9 @@ supabase/.temp/
 # GSD/OpenAI research cache
 .planning/research/.cache/
 
+# Sprite alpha-pipeline scratch (script + intermediates)
+.planning/debug/
+
 .DS_Store
 .vercel
 .env*
