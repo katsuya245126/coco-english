@@ -309,6 +309,19 @@ function reviewReasonOrDefault(
   return LOW_CONFIDENCE_REVIEW_REASON;
 }
 
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+  return String(error);
+}
+
 export async function uploadAttemptAudioClip(
   input: UploadAttemptAudioClipInput,
   deps: UploadAttemptAudioClipDeps = {},
@@ -429,6 +442,14 @@ export async function uploadAttemptAudioClip(
           byte_size: input.byteSize,
         })
         .eq("id", audioClip.id);
+
+      log("warn", "audio.upload_failed", {
+        audioClipId: audioClip.id,
+        assignmentStudentId: input.assignmentStudentId,
+        attemptId: input.attemptId,
+        turnOrder: input.turnOrder,
+        error: errorMessage(uploadError),
+      });
 
       return {
         ok: false,
@@ -593,6 +614,15 @@ export async function uploadAttemptAudioClip(
           processing_status: "failed",
         })
         .eq("id", audioClip.id);
+
+      log("warn", "audio.processing_failed", {
+        audioClipId: audioClip.id,
+        assignmentStudentId: input.assignmentStudentId,
+        attemptId: input.attemptId,
+        turnOrder: input.turnOrder,
+        step: "turn_write",
+        error: errorMessage(turnWrite.error),
+      });
 
       return { ok: false, error: "db_error", retryable: true };
     }

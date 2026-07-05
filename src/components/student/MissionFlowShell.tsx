@@ -247,7 +247,7 @@ export function MissionFlowShell({
       if (payload?.error === "transcription_failed_retryable") {
         throw new Error("We could not hear that clearly. Record again.");
       }
-      throw new Error("audio_upload_failed");
+      throw new Error("Try again.");
     }
 
     return {

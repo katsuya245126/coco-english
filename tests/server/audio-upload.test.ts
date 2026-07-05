@@ -4,9 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/lib/db/types";
 
 let mockSupabase: ReturnType<typeof createMockSupabase>;
+const { mockLog } = vi.hoisted(() => ({ mockLog: vi.fn() }));
 
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServiceClient: () => mockSupabase,
+}));
+
+vi.mock("@/server/logging/logger", () => ({
+  log: mockLog,
 }));
 
 const migrationPath = join(
@@ -128,6 +133,7 @@ function createMockSupabase(options: {
   attemptFound?: boolean;
   attemptStatus?: Database["public"]["Enums"]["attempt_status"];
   uploadError?: Error | null;
+  turnWriteError?: Error | null;
 } = {}) {
   const operations: Operation[] = [];
   const upload = vi.fn(async () => ({
@@ -159,6 +165,15 @@ function createMockSupabase(options: {
         operation.action = "upsert";
         operation.payload = payload;
         operations.push(operation);
+        if (
+          table === "attempt_turns" &&
+          options.turnWriteError &&
+          typeof payload === "object" &&
+          payload !== null &&
+          ("original_transcript" in payload || "repeat_transcript" in payload)
+        ) {
+          return { error: options.turnWriteError };
+        }
         return query;
       }),
       eq: vi.fn((column: string, value: unknown) => {
@@ -257,6 +272,7 @@ describe("Phase 5 audio database types", () => {
 describe("uploadAttemptAudioClip", () => {
   beforeEach(() => {
     vi.resetModules();
+    mockLog.mockClear();
     mockSupabase = createMockSupabase();
     process.env.STUDENT_AUDIO_BUCKET = "student-audio";
   });
@@ -495,6 +511,41 @@ describe("uploadAttemptAudioClip", () => {
       ),
     ).toBe(true);
     expect(transcribe).not.toHaveBeenCalled();
+    expect(mockLog).toHaveBeenCalledWith("warn", "audio.upload_failed", {
+      audioClipId: "clip-1",
+      assignmentStudentId: "as-1",
+      attemptId: "attempt-1",
+      turnOrder: 1,
+      error: "storage unavailable",
+    });
+  });
+
+  it("logs downstream turn write failures after the audio object has uploaded", async () => {
+    mockSupabase = createMockSupabase({
+      turnWriteError: new Error("turn write down"),
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like apples."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "db_error",
+      retryable: true,
+    });
+    expect(mockLog).toHaveBeenCalledWith("warn", "audio.processing_failed", {
+      audioClipId: "clip-1",
+      assignmentStudentId: "as-1",
+      attemptId: "attempt-1",
+      turnOrder: 1,
+      step: "turn_write",
+      error: "turn write down",
+    });
   });
 
   it("marks the clip failed when transcription fails and does not write transcript fields", async () => {
