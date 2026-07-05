@@ -101,6 +101,8 @@ function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
       "Treat non-English transcripts as non_english and not successful practice.",
       "Mark as correct (outcome: 'correct') if the target pattern appears anywhere in the answer — extra words, greetings, or extensions are fine and should not cause needs_correction.",
       "Use needs_correction only when the target pattern is missing or the sentence is unclear, not when the student adds extra correct English.",
+      "A clear off-topic English answer, wrong answer, or answer to a different question is NOT teacher_review; use needs_correction and provide the assigned targetExample as the improvedSentence.",
+      "Short target examples such as 'Wow!' are valid complete answers; if the transcript is clear English but does not say the short target, use needs_correction with that short targetExample.",
       "Use teacher_review for ambiguity, low confidence, or unsafe uncertainty.",
       "Do not include student names, PINs, audio keys, or private class data.",
     ],

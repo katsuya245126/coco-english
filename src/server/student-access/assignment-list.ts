@@ -50,7 +50,8 @@ export async function listStudentAssignments(
         id,
         title,
         mission_snapshot,
-        due_at
+        due_at,
+        canceled_at
       )
     `,
     )
@@ -71,7 +72,12 @@ export async function listStudentAssignments(
       title: string;
       mission_snapshot: unknown;
       due_at: string | null;
+      canceled_at: string | null;
     };
+
+    if (assignment.canceled_at) {
+      continue;
+    }
 
     // Parse the snapshot to extract requiredTurns. If parsing fails, skip the
     // item rather than crashing the page — a broken snapshot should not take

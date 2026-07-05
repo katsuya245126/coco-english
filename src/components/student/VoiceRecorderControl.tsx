@@ -42,11 +42,6 @@ type VoiceRecorderControlProps = {
   ) => void | Promise<void>;
 };
 
-const readyCopy: Record<RecorderMode, string> = {
-  original: "Tap record and answer Coco.",
-  repeat: "Tap record and repeat the sentence.",
-};
-
 export function VoiceRecorderControl({
   mode,
   disabled = false,
@@ -242,7 +237,7 @@ export function VoiceRecorderControl({
     if (state === "success") {
       return "Saved";
     }
-    return readyCopy[mode];
+    return "";
   }
 
   function actionLabel() {
@@ -265,6 +260,8 @@ export function VoiceRecorderControl({
     void startRecording();
   }
 
+  const currentStatusText = statusText();
+
   return (
     <div style={panelStyleForState()}>
       <p
@@ -283,27 +280,29 @@ export function VoiceRecorderControl({
             : "Your repeat"}
       </p>
 
-      <p
-        aria-live="polite"
-        role={isError ? "alert" : undefined}
-        style={{
-          fontSize: 16,
-          lineHeight: 1.5,
-          color: isError ? "#B42318" : "#111827",
-          margin: "0 0 16px",
-        }}
-      >
-        {isProcessing ? (
-          <span
-            style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
-          >
-            <span className="spinner" aria-hidden="true" />
-            {statusText()}
-          </span>
-        ) : (
-          statusText()
-        )}
-      </p>
+      {currentStatusText && (
+        <p
+          aria-live="polite"
+          role={isError ? "alert" : undefined}
+          style={{
+            fontSize: 16,
+            lineHeight: 1.5,
+            color: isError ? "#B42318" : "#111827",
+            margin: "0 0 16px",
+          }}
+        >
+          {isProcessing ? (
+            <span
+              style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+            >
+              <span className="spinner" aria-hidden="true" />
+              {currentStatusText}
+            </span>
+          ) : (
+            currentStatusText
+          )}
+        </p>
+      )}
 
       {state === "recording" && maxSeconds && (
         <div style={{ marginBottom: 12 }}>

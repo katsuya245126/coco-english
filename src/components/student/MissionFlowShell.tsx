@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import type { MissionSnapshotTurn } from "@/domain/mission/schemas";
 import type {
   PronunciationStarBand,
@@ -23,6 +24,7 @@ import {
 } from "@/app/student/missions/[assignmentStudentId]/actions";
 import {
   displayTitleStyle,
+  primaryButtonStyle,
   resumeNoticeStyle,
   stepCardStyle,
 } from "@/components/student/styles";
@@ -143,6 +145,7 @@ export function MissionFlowShell({
   startingTurnIndex,
   isResume,
 }: MissionFlowShellProps) {
+  const router = useRouter();
   const [flow, setFlow] = useState<FlowState>({
     turnIndex: startingTurnIndex,
     step: "question",
@@ -637,7 +640,6 @@ export function MissionFlowShell({
           <StepBuddyQuestion
             assignmentStudentId={assignmentStudentId}
             turnOrder={currentTurn.turnOrder}
-            questionLabel={characterProfile.questionLabel}
             prompt={currentTurn.prompt}
             hintLadder={currentTurn.hintLadder}
             hintLevel={flow.hintLevel}
@@ -750,6 +752,13 @@ export function MissionFlowShell({
             <p style={{ fontSize: 16, color: "#4B5563", margin: 0, lineHeight: 1.5 }}>
               Your teacher will check this answer.
             </p>
+            <button
+              type="button"
+              style={{ ...primaryButtonStyle, marginTop: 24 }}
+              onClick={() => router.push("/student/home")}
+            >
+              Back to homework
+            </button>
           </div>
         )}
       </div>

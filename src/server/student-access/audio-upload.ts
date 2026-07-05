@@ -322,7 +322,7 @@ export async function uploadAttemptAudioClip(
 
     const { data: assignmentStudent, error: assignmentError } = await supabase
       .from("assignment_students")
-      .select("id, student_id, status, assignments(mission_snapshot)")
+      .select("id, student_id, status, assignments(mission_snapshot, canceled_at)")
       .eq("id", input.assignmentStudentId)
       .eq("student_id", input.studentId)
       .maybeSingle();
@@ -334,6 +334,14 @@ export async function uploadAttemptAudioClip(
       return { ok: false, error: "not_found", retryable: false };
     }
     if (assignmentStudent.status !== "started") {
+      return { ok: false, error: "not_found", retryable: false };
+    }
+    const assignment = (
+      assignmentStudent as {
+        assignments?: { canceled_at?: string | null } | null;
+      }
+    ).assignments;
+    if (assignment?.canceled_at) {
       return { ok: false, error: "not_found", retryable: false };
     }
 

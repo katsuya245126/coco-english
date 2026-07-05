@@ -69,12 +69,15 @@ async function loadOwnedAssignmentStudent(
 ) {
   const { data, error } = await supabase
     .from("assignment_students")
-    .select("id, assignment_id, student_id, status, latest_attempt_id, attempt_count, highest_hint_level")
+    .select("id, assignment_id, student_id, status, latest_attempt_id, attempt_count, highest_hint_level, assignments(canceled_at)")
     .eq("id", assignmentStudentId)
     .eq("student_id", studentId)
     .maybeSingle();
 
   if (error || !data) return null;
+  const assignment = (data as { assignments?: { canceled_at?: string | null } | null })
+    .assignments;
+  if (assignment?.canceled_at) return null;
   return data;
 }
 

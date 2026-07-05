@@ -44,9 +44,9 @@ export function HintRevealer({
   // Button text: D-07 strict order disclosure
   const buttonText =
     hintLevel === 0
-      ? "Need a hint?"
+      ? "💡 Hint"
       : hintLevel < 3
-        ? "More hints"
+        ? "More help"
         : "All hints shown";
 
   return (
@@ -58,14 +58,17 @@ export function HintRevealer({
         disabled={allRevealed}
         aria-expanded={hintLevel > 0}
         style={{
-          background: "none",
+          width: "100%",
+          background: allRevealed ? "#F9FAFB" : "#EFF6FF",
           border: "none",
-          padding: "10px 0",
-          minHeight: 44,
-          fontSize: 14,
+          borderRadius: 999,
+          padding: "8px 12px",
+          minHeight: 40,
+          fontSize: 15,
           fontWeight: 600,
-          color: allRevealed ? "#6B7280" : "#2563EB",
+          color: allRevealed ? "#6B7280" : "#1D4ED8",
           cursor: allRevealed ? "default" : "pointer",
+          textAlign: "center",
         }}
       >
         {buttonText}

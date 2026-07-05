@@ -28,7 +28,6 @@ export type RecordedVoiceClip = VoiceRecordingMetadata & {
 type StepBuddyQuestionProps = {
   assignmentStudentId: string;
   turnOrder: number;
-  questionLabel: string;
   prompt: string;
   hintLadder: HintLadder;
   hintLevel: number;
@@ -40,7 +39,6 @@ type StepBuddyQuestionProps = {
 export function StepBuddyQuestion({
   assignmentStudentId,
   turnOrder,
-  questionLabel,
   prompt,
   hintLadder,
   hintLevel,
@@ -52,10 +50,7 @@ export function StepBuddyQuestion({
     <div style={stepCardStyle} aria-live="polite">
       {/* Buddy speech area */}
       <div style={buddyCardStyle}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-          <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
-            {questionLabel}
-          </p>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
           {/* Voice the mission prompt (D-06). Text above renders regardless. */}
           <CocoSpeechAudio
             assignmentStudentId={assignmentStudentId}

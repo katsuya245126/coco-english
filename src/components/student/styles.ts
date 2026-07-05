@@ -125,8 +125,8 @@ export const improvedSentenceCardStyle: CSSProperties = {
 };
 
 export const hintCardStyle: CSSProperties = {
-  background: "#FFFFFF",
-  border: "1px solid #E5E7EB",
+  background: "#F9FAFB",
+  border: "none",
   borderRadius: 8,
   padding: 12,
   boxSizing: "border-box",
@@ -135,8 +135,8 @@ export const hintCardStyle: CSSProperties = {
 // ─── Phase 5: Voice recorder tokens ───
 
 export const recorderPanelStyle: CSSProperties = {
-  background: "#FFFFFF",
-  border: "1px solid #D1D5DB",
+  background: "#F9FAFB",
+  border: "none",
   borderRadius: 8,
   padding: 16,
   boxSizing: "border-box",

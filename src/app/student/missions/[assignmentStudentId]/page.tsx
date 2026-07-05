@@ -57,11 +57,15 @@ export default async function MissionPage({ params }: MissionPageProps) {
   // 3. Load the assignment row + mission_snapshot.
   const { data: assignment, error: assignmentError } = await supabase
     .from("assignments")
-    .select("id, mission_snapshot, due_at")
+    .select("id, mission_snapshot, due_at, canceled_at")
     .eq("id", asRow.assignment_id)
     .single();
 
   if (assignmentError || !assignment) {
+    redirect("/student/home");
+  }
+
+  if (assignment.canceled_at) {
     redirect("/student/home");
   }
 

@@ -74,6 +74,7 @@ export type Database = {
           level: string;
           required_turns: number;
           character_id: string;
+          archived_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -86,6 +87,7 @@ export type Database = {
           level: string;
           required_turns: number;
           character_id: string;
+          archived_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -128,6 +130,7 @@ export type Database = {
           data_mode: "demo" | "real";
           assigned_at: string;
           due_at: string | null;
+          canceled_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -139,6 +142,7 @@ export type Database = {
           mission_snapshot: Json;
           data_mode: "demo" | "real";
           due_at?: string | null;
+          canceled_at?: string | null;
           assigned_at?: string;
           created_at?: string;
           updated_at?: string;

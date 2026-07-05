@@ -84,6 +84,19 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(completeSource).toContain("CocoSpeechAudio");
   });
 
+  it("omits the old visible 'Coco asks:' label from the buddy question card", () => {
+    const questionSource = readSource(
+      "src/components/student/StepBuddyQuestion.tsx",
+    );
+    const shellSource = readSource(
+      "src/components/student/MissionFlowShell.tsx",
+    );
+
+    expect(questionSource).not.toContain("questionLabel");
+    expect(questionSource).not.toContain("Coco asks:");
+    expect(shellSource).not.toContain("questionLabel={characterProfile.questionLabel}");
+  });
+
   it("does not send student transcript text to CocoSpeechAudio (D-10)", () => {
     const repeatSource = readSource(
       "src/components/student/StepImprovedRepeat.tsx",

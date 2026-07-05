@@ -22,6 +22,8 @@ test("student AI evaluation UI source contract covers original-answer outcomes a
   expect(shellSource).toContain("StepAiEvaluationFeedback");
   expect(shellSource).toContain("reviewPending");
   expect(shellSource).toContain("Teacher review sent");
+  expect(shellSource).toContain("Back to homework");
+  expect(shellSource).toContain('router.push("/student/home")');
 });
 
 test("student AI evaluation source contract covers repeat accepted, retry, and review-routed outcomes", async () => {
@@ -57,4 +59,26 @@ test("student client source has no direct OpenAI import or server AI adapter imp
   const clientSource = `${shellSource}\n${feedbackSource}`;
   expect(clientSource).not.toMatch(/from ["']openai["']/);
   expect(clientSource).not.toMatch(/@\/server\/ai/);
+});
+
+test("student hint reveal button is a soft compact help control", async () => {
+  const hintSource = readFileSync(
+    "src/components/student/HintRevealer.tsx",
+    "utf8",
+  );
+
+  expect(hintSource).toContain('width: "100%"');
+  expect(hintSource).toContain('💡 Hint');
+  expect(hintSource).toContain('"#EFF6FF"');
+  expect(hintSource).toContain('border: "none"');
+  expect(hintSource).toContain('minHeight: 40');
+});
+
+test("student recorder does not show redundant ready-state instructions", async () => {
+  const recorderSource = readFileSync(
+    "src/components/student/VoiceRecorderControl.tsx",
+    "utf8",
+  );
+
+  expect(recorderSource).not.toContain("Tap record and answer Coco.");
 });

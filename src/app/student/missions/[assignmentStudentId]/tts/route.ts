@@ -95,7 +95,7 @@ export async function POST(request: Request, context: RouteContext) {
   // Load owned assignment + snapshot for line resolution and ownership.
   const { data: assignmentStudent, error: ownershipError } = await supabase
     .from("assignment_students")
-    .select("id, student_id, assignments(mission_snapshot)")
+    .select("id, student_id, assignments(mission_snapshot, canceled_at)")
     .eq("id", assignmentStudentId)
     .eq("student_id", unlock.studentId)
     .maybeSingle();
@@ -109,10 +109,19 @@ export async function POST(request: Request, context: RouteContext) {
 
   const rawSnapshot = (
     assignmentStudent as {
-      assignments?: { mission_snapshot?: unknown } | null;
+      assignments?: {
+        mission_snapshot?: unknown;
+        canceled_at?: string | null;
+      } | null;
     }
-  ).assignments?.mission_snapshot;
-  const snapshotResult = missionSnapshotSchema.safeParse(rawSnapshot);
+  ).assignments;
+  if (rawSnapshot?.canceled_at) {
+    return NextResponse.json(
+      { ok: false, error: "not_found" },
+      { status: 404 },
+    );
+  }
+  const snapshotResult = missionSnapshotSchema.safeParse(rawSnapshot?.mission_snapshot);
   const snapshot = snapshotResult.success ? snapshotResult.data : null;
 
   const characterId = parsed.data.characterId ?? snapshot?.characterId ?? "default-buddy";

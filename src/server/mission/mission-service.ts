@@ -19,11 +19,20 @@ export type TeacherMission = {
   turnCount: number;
   assignmentCount: number;
   activeAssignmentCount: number;
+  archivedAt: string | null;
 };
 
 export type MissionTurn = MissionTurnInput & {
   id: string;
   turnOrder: number;
+};
+
+export type MissionAssignmentSummary = {
+  id: string;
+  classId: string;
+  className: string;
+  assignedAt: string;
+  dueAt: string | null;
 };
 
 export type MissionWithTurns = TeacherMission & {
@@ -38,6 +47,19 @@ type MissionRow = {
   level: string;
   required_turns: number;
   character_id: string;
+  archived_at: string | null;
+};
+
+type AssignmentRow = {
+  id: string;
+  class_id: string;
+  assigned_at: string;
+  due_at: string | null;
+};
+
+type ClassRow = {
+  id: string;
+  name: string;
 };
 
 type TurnRow = {
@@ -74,6 +96,7 @@ function mapMission(row: MissionRow, counts?: {
     turnCount: counts?.turnCount ?? row.required_turns,
     assignmentCount: counts?.assignmentCount ?? 0,
     activeAssignmentCount: counts?.activeAssignmentCount ?? 0,
+    archivedAt: row.archived_at,
   };
 }
 
@@ -125,6 +148,56 @@ function toTurnRows(missionId: string, turns: MissionTurnInput[]) {
   }));
 }
 
+async function withMissionCounts(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  rows: MissionRow[],
+): Promise<TeacherMission[]> {
+  if (rows.length === 0) {
+    return [];
+  }
+
+  const missionIds = rows.map((mission) => mission.id);
+  const [turns, assignments] = await Promise.all([
+    supabase
+      .from("mission_turn_templates")
+      .select("mission_id")
+      .in("mission_id", missionIds),
+    supabase
+      .from("assignments")
+      .select("mission_id")
+      .in("mission_id", missionIds)
+      .is("canceled_at", null),
+  ]);
+
+  if (turns.error) {
+    throw new Error(`Unable to count mission turns: ${turns.error.message}`);
+  }
+  if (assignments.error) {
+    throw new Error(`Unable to count assignments: ${assignments.error.message}`);
+  }
+
+  const turnCounts = new Map<string, number>();
+  for (const turn of turns.data ?? []) {
+    turnCounts.set(turn.mission_id, (turnCounts.get(turn.mission_id) ?? 0) + 1);
+  }
+
+  const assignmentCounts = new Map<string, number>();
+  for (const assignment of assignments.data ?? []) {
+    assignmentCounts.set(
+      assignment.mission_id,
+      (assignmentCounts.get(assignment.mission_id) ?? 0) + 1,
+    );
+  }
+
+  return rows.map((row) =>
+    mapMission(row, {
+      turnCount: turnCounts.get(row.id) ?? row.required_turns,
+      assignmentCount: assignmentCounts.get(row.id) ?? 0,
+      activeAssignmentCount: assignmentCounts.get(row.id) ?? 0,
+    }),
+  );
+}
+
 export async function createMission(
   input: MissionFormInput & { teacherId: string },
 ): Promise<TeacherMission> {
@@ -135,7 +208,7 @@ export async function createMission(
     .from("missions")
     .insert(toMissionInsert(parsed, input.teacherId))
     .select(
-      "id, title, target_pattern, topic, level, required_turns, character_id",
+      "id, title, target_pattern, topic, level, required_turns, character_id, archived_at",
     )
     .single();
 
@@ -166,7 +239,7 @@ export async function updateMission(
     .eq("id", input.missionId)
     .eq("teacher_id", input.teacherId)
     .select(
-      "id, title, target_pattern, topic, level, required_turns, character_id",
+      "id, title, target_pattern, topic, level, required_turns, character_id, archived_at",
     )
     .single();
 
@@ -192,6 +265,55 @@ export async function updateMission(
   }
 
   return mapMission(updated.data, { turnCount: parsed.turns.length });
+}
+
+export async function archiveMission(input: {
+  teacherId: string;
+  missionId: string;
+}): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const archived = await supabase
+    .from("missions")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", input.missionId)
+    .eq("teacher_id", input.teacherId);
+
+  if (archived.error) {
+    throw new Error(`Unable to archive mission: ${archived.error.message}`);
+  }
+}
+
+export async function restoreMission(input: {
+  teacherId: string;
+  missionId: string;
+}): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const restored = await supabase
+    .from("missions")
+    .update({ archived_at: null })
+    .eq("id", input.missionId)
+    .eq("teacher_id", input.teacherId);
+
+  if (restored.error) {
+    throw new Error(`Unable to restore mission: ${restored.error.message}`);
+  }
+}
+
+export async function cancelMissionAssignment(input: {
+  teacherId: string;
+  missionId: string;
+  assignmentId: string;
+}): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const canceled = await supabase
+    .from("assignments")
+    .update({ canceled_at: new Date().toISOString() })
+    .eq("id", input.assignmentId)
+    .eq("mission_id", input.missionId);
+
+  if (canceled.error) {
+    throw new Error(`Unable to cancel assignment: ${canceled.error.message}`);
+  }
 }
 
 export async function deleteMission(input: {
@@ -233,7 +355,7 @@ export async function getMissionForTeacher(input: {
   const mission = await supabase
     .from("missions")
     .select(
-      "id, title, target_pattern, topic, level, required_turns, character_id",
+      "id, title, target_pattern, topic, level, required_turns, character_id, archived_at",
     )
     .eq("teacher_id", input.teacherId)
     .eq("id", input.missionId)
@@ -279,56 +401,88 @@ export async function listMissionsForTeacher(input: {
   const missions = await supabase
     .from("missions")
     .select(
-      "id, title, target_pattern, topic, level, required_turns, character_id",
+      "id, title, target_pattern, topic, level, required_turns, character_id, archived_at",
     )
     .eq("teacher_id", input.teacherId)
+    .is("archived_at", null)
     .order("created_at", { ascending: false });
 
   if (missions.error) {
     throw new Error(`Unable to list missions: ${missions.error.message}`);
   }
 
-  const rows = missions.data ?? [];
-  if (rows.length === 0) {
+  return withMissionCounts(supabase, missions.data ?? []);
+}
+
+export async function listArchivedMissionsForTeacher(input: {
+  teacherId: string;
+}): Promise<TeacherMission[]> {
+  const supabase = await createSupabaseServerClient();
+
+  const missions = await supabase
+    .from("missions")
+    .select(
+      "id, title, target_pattern, topic, level, required_turns, character_id, archived_at",
+    )
+    .eq("teacher_id", input.teacherId)
+    .not("archived_at", "is", null)
+    .order("archived_at", { ascending: false });
+
+  if (missions.error) {
+    throw new Error(`Unable to list archived missions: ${missions.error.message}`);
+  }
+
+  return withMissionCounts(supabase, missions.data ?? []);
+}
+
+export async function listMissionAssignmentsForTeacher(input: {
+  teacherId: string;
+  missionId: string;
+}): Promise<MissionAssignmentSummary[]> {
+  const supabase = await createSupabaseServerClient();
+  const assignments = await supabase
+    .from("assignments")
+    .select("id, class_id, assigned_at, due_at")
+    .eq("mission_id", input.missionId)
+    .is("canceled_at", null)
+    .order("assigned_at", { ascending: false });
+
+  if (assignments.error) {
+    throw new Error(`Unable to list mission assignments: ${assignments.error.message}`);
+  }
+
+  const assignmentRows = (assignments.data ?? []) as AssignmentRow[];
+  if (assignmentRows.length === 0) {
     return [];
   }
 
-  const missionIds = rows.map((mission) => mission.id);
-  const [turns, assignments] = await Promise.all([
-    supabase
-      .from("mission_turn_templates")
-      .select("mission_id")
-      .in("mission_id", missionIds),
-    supabase.from("assignments").select("mission_id").in("mission_id", missionIds),
-  ]);
+  const classIds = [...new Set(assignmentRows.map((assignment) => assignment.class_id))];
+  const classes = await supabase
+    .from("classes")
+    .select("id, name")
+    .eq("teacher_id", input.teacherId)
+    .in("id", classIds);
 
-  if (turns.error) {
-    throw new Error(`Unable to count mission turns: ${turns.error.message}`);
-  }
-  if (assignments.error) {
-    throw new Error(`Unable to count assignments: ${assignments.error.message}`);
+  if (classes.error) {
+    throw new Error(`Unable to list assignment classes: ${classes.error.message}`);
   }
 
-  const turnCounts = new Map<string, number>();
-  for (const turn of turns.data ?? []) {
-    turnCounts.set(turn.mission_id, (turnCounts.get(turn.mission_id) ?? 0) + 1);
-  }
-
-  const assignmentCounts = new Map<string, number>();
-  for (const assignment of assignments.data ?? []) {
-    assignmentCounts.set(
-      assignment.mission_id,
-      (assignmentCounts.get(assignment.mission_id) ?? 0) + 1,
-    );
-  }
-
-  return rows.map((row) =>
-    mapMission(row, {
-      turnCount: turnCounts.get(row.id) ?? row.required_turns,
-      assignmentCount: assignmentCounts.get(row.id) ?? 0,
-      activeAssignmentCount: assignmentCounts.get(row.id) ?? 0,
-    }),
+  const classNames = new Map(
+    ((classes.data ?? []) as ClassRow[]).map((classRow) => [
+      classRow.id,
+      classRow.name,
+    ]),
   );
+
+  return assignmentRows
+    .filter((assignment) => classNames.has(assignment.class_id))
+    .map((assignment) => ({
+      id: assignment.id,
+      classId: assignment.class_id,
+      className: classNames.get(assignment.class_id) ?? "Class",
+      assignedAt: assignment.assigned_at,
+      dueAt: assignment.due_at,
+    }));
 }
 
 export async function countAssignmentsForMission(input: {
@@ -338,7 +492,8 @@ export async function countAssignmentsForMission(input: {
   const assignments = await supabase
     .from("assignments")
     .select("id")
-    .eq("mission_id", input.missionId);
+    .eq("mission_id", input.missionId)
+    .is("canceled_at", null);
 
   if (assignments.error) {
     throw new Error(`Unable to count assignments: ${assignments.error.message}`);

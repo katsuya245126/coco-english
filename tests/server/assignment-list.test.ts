@@ -47,6 +47,7 @@ type MockRow = {
     title: string;
     mission_snapshot: unknown;
     due_at: string | null;
+    canceled_at: string | null;
   };
 };
 
@@ -75,6 +76,7 @@ function makeRow(
       title: `Assignment ${status}`,
       mission_snapshot: SNAPSHOT,
       due_at: dueAt,
+      canceled_at: null,
     },
   };
 }
@@ -147,5 +149,17 @@ describe("listStudentAssignments — needs_retry reopen (D-10)", () => {
     const items = await listStudentAssignments("student-1");
     expect(items).toHaveLength(1);
     expect(items[0].displayStatus).toBe("review");
+  });
+
+  it("hides canceled assignments from the student homework list", async () => {
+    _mockRows = [makeRow("assigned", null)];
+    _mockRows[0].assignments.canceled_at = new Date().toISOString();
+
+    const { listStudentAssignments } = await import(
+      "@/server/student-access/assignment-list"
+    );
+
+    const items = await listStudentAssignments("student-1");
+    expect(items).toHaveLength(0);
   });
 });

@@ -296,7 +296,7 @@ test("full per-turn walk: answer -> improved sentence shown -> required repeat (
     await page.getByText("Start").click();
 
     // Step 1: Buddy question card visible
-    await expect(page.getByText("Coco asks:")).toBeVisible();
+    await expect(page.getByText("Coco asks:")).toHaveCount(0);
     await expect(
       page.getByText("What fruit do you like?"),
     ).toBeVisible();

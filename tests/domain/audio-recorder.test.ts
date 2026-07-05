@@ -19,8 +19,8 @@ describe("browser audio recorder helpers", () => {
     expect(getSupportedAudioMimeType({})).toBe("");
   });
 
-  it("exposes the 20 second per-turn recording cap", () => {
-    expect(MAX_RECORDING_MS).toBe(20000);
+  it("exposes the 60 second per-turn recording cap", () => {
+    expect(MAX_RECORDING_MS).toBe(60000);
     expect(AUDIO_MIME_CANDIDATES).toEqual([
       "audio/webm;codecs=opus",
       "audio/webm",

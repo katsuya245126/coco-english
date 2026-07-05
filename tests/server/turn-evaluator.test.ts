@@ -113,6 +113,46 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
 
     expect(result).toEqual({ ok: false, error: "schema_failed" });
   });
+
+  it("instructs the model to correct clear off-topic English instead of sending it to teacher review", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: {
+        ...correctOriginalProviderResult,
+        outcome: "needs_correction",
+        meaningUnderstood: true,
+        targetPatternAttempted: false,
+        correctionNeeded: true,
+        improvedSentence: "Wow!",
+      },
+    });
+
+    const result = await evaluateOriginalTurn(
+      {
+        missionQuestion: "Say wow.",
+        transcript: "There was once a man.",
+        targetPattern: "wow",
+        targetExample: "Wow!",
+        level: "beginner",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result.ok).toBe(true);
+    const request = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const userMessage = request?.input.find((message) => message.role === "user");
+    const prompt = JSON.parse(userMessage?.content ?? "{}") as {
+      instructions?: string[];
+    };
+
+    expect(prompt.instructions).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("clear off-topic English"),
+        expect.stringContaining("NOT teacher_review"),
+        expect.stringContaining("Short target examples"),
+      ]),
+    );
+  });
 });
 
 describe("evaluateRepeatTurn server adapter (AI-04, AI-05)", () => {

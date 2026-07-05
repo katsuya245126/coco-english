@@ -6,9 +6,16 @@ vi.mock("@/lib/supabase/server-auth", () => ({
   createSupabaseServerClient: async () => mockSupabase,
 }));
 
-const { createMission, updateMission, deleteMission } = await import(
-  "@/server/mission/mission-service"
-);
+const {
+  archiveMission,
+  cancelMissionAssignment,
+  createMission,
+  deleteMission,
+  listArchivedMissionsForTeacher,
+  listMissionsForTeacher,
+  restoreMission,
+  updateMission,
+} = await import("@/server/mission/mission-service");
 
 const completeInput = {
   teacherId: "teacher-1",
@@ -166,5 +173,140 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
     await expect(
       deleteMission({ teacherId: "teacher-1", missionId: "mission-1" }),
     ).rejects.toThrow(/assigned/i);
+  });
+
+  it("archives and restores missions with soft updates scoped to the teacher", async () => {
+    const calls: Array<{ table: string; payload: unknown; filters: Array<[string, unknown]> }> = [];
+    const makeUpdateQuery = (table: string, payload: unknown) => {
+      const filters: Array<[string, unknown]> = [];
+      return {
+        eq: vi.fn((column: string, value: unknown) => {
+          filters.push([column, value]);
+          return {
+            eq: vi.fn((nextColumn: string, nextValue: unknown) => {
+              filters.push([nextColumn, nextValue]);
+              calls.push({ table, payload, filters });
+              return { error: null };
+            }),
+          };
+        }),
+      };
+    };
+    mockSupabase = {
+      from: vi.fn((table: string) => ({
+        update: vi.fn((payload: unknown) => makeUpdateQuery(table, payload)),
+      })),
+    };
+
+    await archiveMission({ teacherId: "teacher-1", missionId: "mission-1" });
+    await restoreMission({ teacherId: "teacher-1", missionId: "mission-1" });
+
+    expect(calls[0]).toMatchObject({
+      table: "missions",
+      filters: [
+        ["id", "mission-1"],
+        ["teacher_id", "teacher-1"],
+      ],
+    });
+    expect(calls[0].payload).toHaveProperty("archived_at");
+    expect(calls[1]).toEqual({
+      table: "missions",
+      payload: { archived_at: null },
+      filters: [
+        ["id", "mission-1"],
+        ["teacher_id", "teacher-1"],
+      ],
+    });
+  });
+
+  it("lists active and archived missions separately", async () => {
+    const calls: Array<{ action: string; column: string; value?: unknown; operator?: string }> = [];
+    mockSupabase = {
+      from: vi.fn((table: string) => {
+        if (table !== "missions") {
+          throw new Error(`Unexpected table ${table}`);
+        }
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn((column: string, value: unknown) => {
+              calls.push({ action: "eq", column, value });
+              return {
+                is: vi.fn((isColumn: string, isValue: unknown) => {
+                  calls.push({ action: "is", column: isColumn, value: isValue });
+                  return {
+                    order: vi.fn(async () => ({ data: [], error: null })),
+                  };
+                }),
+                not: vi.fn((notColumn: string, operator: string, notValue: unknown) => {
+                  calls.push({
+                    action: "not",
+                    column: notColumn,
+                    operator,
+                    value: notValue,
+                  });
+                  return {
+                    order: vi.fn(async () => ({ data: [], error: null })),
+                  };
+                }),
+              };
+            }),
+          })),
+        };
+      }),
+    };
+
+    await listMissionsForTeacher({ teacherId: "teacher-1" });
+    await listArchivedMissionsForTeacher({ teacherId: "teacher-1" });
+
+    expect(calls).toContainEqual({
+      action: "is",
+      column: "archived_at",
+      value: null,
+    });
+    expect(calls).toContainEqual({
+      action: "not",
+      column: "archived_at",
+      operator: "is",
+      value: null,
+    });
+  });
+
+  it("cancels a class-specific mission assignment without deleting assignment history", async () => {
+    const calls: Array<{ table: string; payload: unknown; filters: Array<[string, unknown]> }> = [];
+    const makeUpdateQuery = (table: string, payload: unknown) => {
+      const filters: Array<[string, unknown]> = [];
+      return {
+        eq: vi.fn((column: string, value: unknown) => {
+          filters.push([column, value]);
+          return {
+            eq: vi.fn((nextColumn: string, nextValue: unknown) => {
+              filters.push([nextColumn, nextValue]);
+              calls.push({ table, payload, filters });
+              return { error: null };
+            }),
+          };
+        }),
+      };
+    };
+    mockSupabase = {
+      from: vi.fn((table: string) => ({
+        update: vi.fn((payload: unknown) => makeUpdateQuery(table, payload)),
+      })),
+    };
+
+    await cancelMissionAssignment({
+      teacherId: "teacher-1",
+      missionId: "mission-1",
+      assignmentId: "assignment-1",
+    });
+
+    expect(calls[0]).toMatchObject({
+      table: "assignments",
+      filters: [
+        ["id", "assignment-1"],
+        ["mission_id", "mission-1"],
+      ],
+    });
+    expect(calls[0].payload).toHaveProperty("canceled_at");
   });
 });
