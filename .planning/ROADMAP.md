@@ -105,8 +105,22 @@ Archive:
   3. Coco shows a small fixed set of 3-5 content-tied expression states (idle, speaking, happy/celebrating, encouraging/neutral on a miss) — no more, no per-scene background variants.
   4. Mascot rendering has been tested and performs acceptably on a real low-end school device (Chromebook/older tablet).
 
-**Plans**: TBD
-**Research flag**: Needs a lightweight Rive-vs-static-sprite spike/decision at the start of phase planning before committing to an authoring pipeline; static sprites are an explicitly acceptable v0.
+**Plans**: 4 plans
+
+**Wave 1** *(parallel foundation)*
+
+- [ ] 10-01-PLAN.md — pure domain modules + Wave 0 tests: deriveExpression mapping, speaking-state hysteresis, perf-degrade (MASCOT-02, MASCOT-03, MASCOT-04)
+- [ ] 10-02-PLAN.md — additive Web Audio AnalyserNode seam on CocoSpeechAudio (onAmplitudeFrame/onPlayingChange), audio-not-silent checkpoint (MASCOT-02)
+
+**Wave 2** *(blocked on 10-01)*
+
+- [ ] 10-03-PLAN.md — MascotStage client component + styles.ts tokens: gradient backdrop, next/image sprite, dialogue box, silent degrade (MASCOT-01, MASCOT-03, MASCOT-04)
+
+**Wave 3** *(blocked on 10-02 + 10-03)*
+
+- [ ] 10-04-PLAN.md — mount MascotStage in MissionFlowShell + thread amplitude/playing through the 5 Step components; mount/no-layout-shift + real-audio + real-device checkpoints (MASCOT-01..04)
+
+**Research flag**: RESOLVED — the Rive-vs-static-sprite spike concluded in favor of static sprites (RESEARCH §1: raster art, discrete 4-state set, zero new npm deps). No Rive pipeline is built; MASCOT-F2 (advanced rig) stays deferred.
 **UI hint**: yes
 
 ### Phase 11: Coco Chat (dynamic turns + scene framing)
@@ -176,7 +190,7 @@ Phases execute in numeric order: 8 → 9 → 10 → 11 → 12
 | 7. Teacher Review and Pilot Readiness | v1.0 | 4/4 | Complete | 2026-07-01 |
 | 8. Coco Voice (TTS) | v2.0 | 5/5 | Complete (accepted with residual low-end-device risk) | 2026-07-02 |
 | 9. Pronunciation Scoring | v2.0 | 6/6 | Complete | 2026-07-03 |
-| 10. Mascot (VN-style) | v2.0 | 0/TBD | Not started | - |
+| 10. Mascot (VN-style) | v2.0 | 0/4 | Planned | - |
 | 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 0/7 | Planned | - |
 | 12. UI Overhaul | v2.0 | 0/TBD | Not started | - |
 
