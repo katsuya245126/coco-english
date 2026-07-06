@@ -18,7 +18,7 @@ const playerSourcePath = join(
 test("teacher evidence page renders transcript labels before audio controls", () => {
   const source = readFileSync(pageSourcePath, "utf8");
   const headingIndex = source.indexOf("Attempt evidence");
-  const originalIndex = source.indexOf("Original answer");
+  const originalIndex = source.indexOf("Student answer");
   const repeatIndex = source.indexOf("Repeat attempt");
   const playerIndex = source.indexOf("<AudioClipPlayer");
 
@@ -28,6 +28,19 @@ test("teacher evidence page renders transcript labels before audio controls", ()
   expect(playerIndex).toBeGreaterThan(-1);
   expect(originalIndex).toBeLessThan(playerIndex);
   expect(repeatIndex).toBeLessThan(playerIndex);
+});
+
+test("teacher evidence page groups pronunciation scoring with each recording", () => {
+  const source = readFileSync(pageSourcePath, "utf8");
+
+  expect(source).toContain('label="Student answer"');
+  expect(source).toContain('label="Student answer audio"');
+  expect(source).not.toContain('label="Original answer"');
+  expect(source).not.toContain('label="Original answer audio"');
+  expect(source).not.toContain("function PronunciationDiagnosticList");
+  expect(source).toMatch(
+    /<AudioClipPlayer[\s\S]*<PronunciationDiagnosticPanel[\s\S]*audioClipId=\{clip\.id\}/,
+  );
 });
 
 test("teacher evidence page renders AI annotations without Phase 7 dashboard controls", () => {

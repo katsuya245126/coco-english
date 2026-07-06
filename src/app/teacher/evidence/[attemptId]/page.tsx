@@ -145,11 +145,10 @@ function TurnEvidenceSection({
         <TranscriptBlock label="Question asked" transcript={turn.question} />
       )}
       <TranscriptBlock
-        label="Original answer"
+        label="Student answer"
         transcript={turn.originalTranscript}
       />
       <AnnotationGrid turn={turn} />
-      <PronunciationDiagnosticList clips={turn.audioClips} attemptId={attemptId} />
       {turn.improvedSentence && (
         <TranscriptBlock
           label="Improved sentence"
@@ -168,34 +167,17 @@ function TurnEvidenceSection({
           </p>
         </div>
       )}
-      <AudioClipList label="Original answer audio" clips={originalClips} />
-      <AudioClipList label="Repeat attempt audio" clips={repeatClips} />
+      <AudioClipList
+        label="Student answer audio"
+        clips={originalClips}
+        attemptId={attemptId}
+      />
+      <AudioClipList
+        label="Repeat attempt audio"
+        clips={repeatClips}
+        attemptId={attemptId}
+      />
     </article>
-  );
-}
-
-function PronunciationDiagnosticList({
-  clips,
-  attemptId,
-}: {
-  clips: AttemptAudioClipEvidence[];
-  attemptId: string;
-}) {
-  if (clips.length === 0) {
-    return null;
-  }
-
-  return (
-    <div style={pronunciationListStyle}>
-      {clips.map((clip) => (
-        <PronunciationDiagnosticPanel
-          key={clip.id}
-          pronunciationScore={clip.pronunciationScore}
-          audioClipId={clip.id}
-          attemptId={attemptId}
-        />
-      ))}
-    </div>
   );
 }
 
@@ -256,9 +238,11 @@ function TranscriptBlock({
 function AudioClipList({
   label,
   clips,
+  attemptId,
 }: {
   label: string;
   clips: AttemptAudioClipEvidence[];
+  attemptId: string;
 }) {
   if (clips.length === 0) {
     return null;
@@ -267,16 +251,22 @@ function AudioClipList({
   return (
     <div style={audioListStyle}>
       {clips.map((clip, index) => (
-        <AudioClipPlayer
-          key={clip.id}
-          audioClipId={clip.id}
-          label={clips.length > 1 ? `${label} ${index + 1}` : label}
-          unavailableCopy={
-            clip.processingStatus === "deleted"
-              ? "This audio is no longer available."
-              : "Audio is not available for this clip."
-          }
-        />
+        <div key={clip.id} style={audioClipGroupStyle}>
+          <AudioClipPlayer
+            audioClipId={clip.id}
+            label={clips.length > 1 ? `${label} ${index + 1}` : label}
+            unavailableCopy={
+              clip.processingStatus === "deleted"
+                ? "This audio is no longer available."
+                : "Audio is not available for this clip."
+            }
+          />
+          <PronunciationDiagnosticPanel
+            pronunciationScore={clip.pronunciationScore}
+            audioClipId={clip.id}
+            attemptId={attemptId}
+          />
+        </div>
       ))}
     </div>
   );
@@ -434,14 +424,13 @@ const transcriptStyle: React.CSSProperties = {
 
 const audioListStyle: React.CSSProperties = {
   display: "grid",
-  gap: 8,
+  gap: 14,
   marginTop: 12,
 };
 
-const pronunciationListStyle: React.CSSProperties = {
+const audioClipGroupStyle: React.CSSProperties = {
   display: "grid",
   gap: 8,
-  marginBottom: 16,
 };
 
 const annotationGridStyle: React.CSSProperties = {

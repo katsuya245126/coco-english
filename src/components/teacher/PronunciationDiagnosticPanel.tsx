@@ -11,7 +11,7 @@ type PronunciationDiagnosticPanelProps = {
 };
 
 const UNAVAILABLE_COPY =
-  "Pronunciation scoring didn't run for this recording. The audio is still available above.";
+  "Pronunciation scoring didn't run for this recording.";
 
 export function PronunciationDiagnosticPanel({
   pronunciationScore,
