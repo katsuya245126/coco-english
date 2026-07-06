@@ -325,6 +325,54 @@ describe("uploadAttemptAudioClip", () => {
     );
   });
 
+  it("logs production-safe stage timings for successful uploads", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like apples."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      scorePronunciation: vi.fn(async () => ({
+        ok: true as const,
+        score: {
+          accuracyScore: 88,
+          fluencyScore: 90,
+          completenessScore: 95,
+          pronunciationScore: 87,
+          starBand: 3 as const,
+          referenceText: "I like apples.",
+          wordScores: [],
+        },
+      })),
+    });
+
+    const timingCall = mockLog.mock.calls.find(
+      ([level, event]) => level === "info" && event === "audio.upload_timing",
+    );
+    expect(timingCall).toBeTruthy();
+    expect(timingCall?.[2]).toEqual(
+      expect.objectContaining({
+        status: "success",
+        assignmentStudentId: "as-1",
+        attemptId: "attempt-1",
+        audioClipId: "clip-1",
+        turnOrder: 1,
+        clipKind: "original_answer",
+        durationMs: 1200,
+        byteSize: 5,
+        storageUploadMs: expect.any(Number),
+        transcriptionMs: expect.any(Number),
+        evaluationMs: expect.any(Number),
+        pronunciationTotalMs: expect.any(Number),
+        pronunciationAwaitMs: expect.any(Number),
+        finalClipUpdateMs: expect.any(Number),
+        totalMs: expect.any(Number),
+      }),
+    );
+    expect(JSON.stringify(timingCall?.[2])).not.toContain("I like apples");
+  });
+
   it("writes pending and transcribed processing_status metadata", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
