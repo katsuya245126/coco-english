@@ -372,15 +372,31 @@ export async function uploadAttemptAudioClip(
   try {
     const supabase = createSupabaseServiceClient();
 
-    const { data: assignmentStudent, error: assignmentError } =
-      await timeStage("assignmentLookup", () =>
+    // assignmentLookup and attemptLookup are independent reads (each filters
+    // only on raw request input; neither consumes the other's result), so
+    // they run concurrently to avoid paying two sequential round trips.
+    // Failure precedence is preserved below: assignment-related failures are
+    // still checked and returned before attempt-related failures, exactly as
+    // when these ran serially.
+    const [
+      { data: assignmentStudent, error: assignmentError },
+      { data: attempt, error: attemptError },
+    ] = await timeStage("assignmentAndAttemptLookup", () =>
+      Promise.all([
         supabase
           .from("assignment_students")
           .select("id, student_id, status, assignments(mission_snapshot, canceled_at)")
           .eq("id", input.assignmentStudentId)
           .eq("student_id", input.studentId)
           .maybeSingle(),
-      );
+        supabase
+          .from("attempts")
+          .select("id, assignment_student_id, status")
+          .eq("id", input.attemptId)
+          .eq("assignment_student_id", input.assignmentStudentId)
+          .maybeSingle(),
+      ]),
+    );
 
     if (assignmentError) {
       logTiming("failed", { error: "db_error", step: "assignment_lookup" });
@@ -403,17 +419,6 @@ export async function uploadAttemptAudioClip(
       logTiming("failed", { error: "not_found", step: "assignment_canceled" });
       return { ok: false, error: "not_found", retryable: false };
     }
-
-    const { data: attempt, error: attemptError } = await timeStage(
-      "attemptLookup",
-      () =>
-        supabase
-          .from("attempts")
-          .select("id, assignment_student_id, status")
-          .eq("id", input.attemptId)
-          .eq("assignment_student_id", input.assignmentStudentId)
-          .maybeSingle(),
-    );
 
     if (attemptError) {
       logTiming("failed", { error: "db_error", step: "attempt_lookup" });
@@ -779,28 +784,36 @@ export async function uploadAttemptAudioClip(
       });
     }
 
+    // ttsWarmup (tts_audio_cache table + tts-audio storage) and finalClipUpdate
+    // (audio_clips row) touch disjoint resources, so they run concurrently.
+    // ttsWarmup failures must never fail the overall upload (existing
+    // contract), so its rejection is caught inside its own branch rather than
+    // via the outer Promise.all/allSettled.
     const improvedSentenceForWarmup = originalEvaluation?.improvedSentence;
-    if (input.clipKind === "original_answer" && improvedSentenceForWarmup) {
-      try {
-        const warm = deps.warmTtsAudioCache ?? warmTtsAudioCache;
-        await timeStage("ttsWarmup", () =>
-          warm({
-            characterId: snapshot.characterId,
-            voice: DEFAULT_COCO_TTS_VOICE,
-            texts: [improvedSentenceForWarmup],
-          }),
-        );
-      } catch (error) {
-        log("warn", "audio.tts_improved_sentence_warmup_failed", {
-          assignmentStudentId: input.assignmentStudentId,
-          attemptId: input.attemptId,
-          turnOrder: input.turnOrder,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
+    const shouldWarmTts =
+      input.clipKind === "original_answer" && !!improvedSentenceForWarmup;
 
-    const { error: updateError } = await timeStage("finalClipUpdate", () =>
+    const ttsWarmupPromise = shouldWarmTts
+      ? timeStage("ttsWarmup", async () => {
+          try {
+            const warm = deps.warmTtsAudioCache ?? warmTtsAudioCache;
+            await warm({
+              characterId: snapshot.characterId,
+              voice: DEFAULT_COCO_TTS_VOICE,
+              texts: [improvedSentenceForWarmup],
+            });
+          } catch (error) {
+            log("warn", "audio.tts_improved_sentence_warmup_failed", {
+              assignmentStudentId: input.assignmentStudentId,
+              attemptId: input.attemptId,
+              turnOrder: input.turnOrder,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        })
+      : Promise.resolve();
+
+    const finalClipUpdatePromise = timeStage("finalClipUpdate", () =>
       supabase
         .from("audio_clips")
         .update({
@@ -812,6 +825,11 @@ export async function uploadAttemptAudioClip(
         })
         .eq("id", audioClip.id),
     );
+
+    const [, { error: updateError }] = await Promise.all([
+      ttsWarmupPromise,
+      finalClipUpdatePromise,
+    ]);
 
     if (updateError) {
       logTiming("failed", { error: "db_error", step: "final_clip_update" });
