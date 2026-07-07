@@ -44,7 +44,11 @@ test("student audio transcription states use classroom-safe copy", async () => {
 
   expect(recorderSource).toContain("Saving…");
   expect(recorderSource.match(/Saving…/g) ?? []).toHaveLength(1);
-  expect(shellSource).toContain("We could not hear that clearly. Record again.");
+  expect(recorderSource).toContain("function MicIcon()");
+  expect(recorderSource).toContain("{isError ? <MicIcon /> : null}");
+  expect(recorderSource).toContain('state === "recording"');
+  expect(recorderSource).not.toContain('state === "recording" || isError');
+  expect(shellSource).toContain("I didn't hear you. Try again.");
   expect(shellSource).not.toContain("audio_upload_failed");
   expect(shellSource).toContain("Try again.");
   expect(repeatSource).toContain("We heard:");

@@ -130,6 +130,56 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
       /VoiceRecorderControl[\s\S]*disabled=\{.*(ttsLoading|audioLoading|cocoLoading|speechLoading)/,
     );
   });
+
+  it("renders active Coco lines from the persistent mascot dialogue instead of duplicating them in step cards", () => {
+    const shellSource = readSource(
+      "src/components/student/MissionFlowShell.tsx",
+    );
+
+    expect(shellSource).toContain("getMascotDialogue");
+    expect(shellSource).toContain("dialogueText={mascotDialogue.text}");
+    expect(shellSource).toContain("voiceControl={");
+    expect(shellSource).toContain("showCocoLine={false}");
+    expect(shellSource).toContain("`Try this: ${sentence}`");
+    expect(shellSource).toContain("`Try this: ${flow.originalFeedback.improvedSentence}`");
+    expect(shellSource).toContain("`Try again: ${sentence}`");
+    expect(shellSource).toContain('feedbackVariant: "accepted_original"');
+    expect(shellSource).toContain('feedbackVariant: "retry_original"');
+    expect(shellSource).toContain('feedbackVariant: "teacher_check"');
+    expect(shellSource).toContain('feedbackVariant: "repeat_accepted"');
+    expect(shellSource).toContain('feedbackVariant: "repeat_check"');
+    expect(shellSource).toContain("if (actionError)");
+  });
+
+  it("keeps the mascot dialogue box at a stable height", () => {
+    const stylesSource = readSource("src/components/student/styles.ts");
+
+    expect(stylesSource).toContain("height: 104");
+    expect(stylesSource).toContain('overflowY: "auto"');
+    expect(stylesSource).not.toContain("minHeight: 64");
+  });
+
+  it("uses upper-body mascot framing and state-specific thinking/sad sprites", () => {
+    const stageSource = readSource("src/components/student/MascotStage.tsx");
+    const stylesSource = readSource("src/components/student/styles.ts");
+
+    expect(stageSource).toContain('thinking: "coco-thinking-alpha.png"');
+    expect(stageSource).toContain('sad: "coco-sad-alpha.png"');
+    expect(stageSource).toContain('objectFit: "cover"');
+    expect(stageSource).toContain('objectPosition: "center 18%"');
+    expect(stylesSource).toContain("left: 72");
+    expect(stylesSource).toContain("right: 72");
+    expect(stylesSource).toContain("bottom: 72");
+    expect(stylesSource).toContain("height: 198");
+  });
+
+  it("does not pre-attach Web Audio analyser nodes before playback can run", () => {
+    const source = readSource("src/components/student/CocoSpeechAudio.tsx");
+
+    expect(source).toContain("ensureAnalyserReady");
+    expect(source).toContain('sharedAudioContext?.state === "running"');
+    expect(source).not.toMatch(/useEffect\(\(\) => \{\s*if \(!audioUrl \|\| !onAmplitudeFrame\) return;/);
+  });
 });
 
 describe("Student/server TTS boundary (T-08-01)", () => {

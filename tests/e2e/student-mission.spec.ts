@@ -309,7 +309,7 @@ test("full per-turn walk: answer -> improved sentence shown -> required repeat (
       page.getByText("I like apples very much."),
     ).toBeVisible();
 
-    await page.getByRole("button", { name: "Continue practice" }).click();
+    await page.getByRole("button", { name: "Try again" }).click();
     await submitVoiceRecording(page);
     await expect(page.getByText("Good repeat.")).toBeVisible();
     await page.getByRole("button", { name: "Continue mission" }).click();
@@ -330,7 +330,7 @@ test("full per-turn walk: answer -> improved sentence shown -> required repeat (
     await expect(
       page.getByText("Apples are red and delicious."),
     ).toBeVisible();
-    await page.getByRole("button", { name: "Continue practice" }).click();
+    await page.getByRole("button", { name: "Try again" }).click();
     await submitVoiceRecording(page);
     await expect(page.getByText("Good repeat.")).toBeVisible();
     await page.getByRole("button", { name: "Continue mission" }).click();
@@ -530,7 +530,7 @@ test("mobile viewport shows mission flow within 420px max-width (PILOT-01)", asy
     // Complete the single turn
     await submitVoiceRecording(page);
     await expect(page.getByText("I have a cat at home.")).toBeVisible();
-    await page.getByRole("button", { name: "Continue practice" }).click();
+    await page.getByRole("button", { name: "Try again" }).click();
     await submitVoiceRecording(page);
     await expect(page.getByText("Good repeat.")).toBeVisible();
     await page.getByRole("button", { name: "Continue mission" }).click();

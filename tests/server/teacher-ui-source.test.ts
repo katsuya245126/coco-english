@@ -27,4 +27,14 @@ describe("teacher UI source contracts", () => {
     expect(listSource).toContain("Restore");
     expect(listSource).toContain("restoreMissionAction");
   });
+
+  it("assignment dialog handles stale server-action bundles without a runtime crash", () => {
+    const source = readSource("src/components/teacher/AssignDialog.tsx");
+
+    expect(source).toContain("This page is out of date");
+    expect(source).toContain("try {");
+    expect(source).toContain("await assignMissionAction(formData)");
+    expect(source).toContain("catch");
+    expect(source).toContain("setError(STALE_ACTION_ERROR)");
+  });
 });

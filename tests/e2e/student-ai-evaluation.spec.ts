@@ -13,12 +13,14 @@ test("student AI evaluation UI source contract covers original-answer outcomes a
 
   expect(feedbackSource).toContain("Checking your answer...");
   expect(feedbackSource).toContain("Nice answer!");
-  expect(feedbackSource).toContain("Nice try! Here is a clearer way to say it:");
-  expect(feedbackSource).toContain("Try that in English.");
+  expect(feedbackSource).toContain("Try this:");
+  expect(feedbackSource).toContain("Try again.");
   expect(feedbackSource).toContain("Your teacher will check this answer.");
   expect(feedbackSource).toContain("Teacher review");
   expect(feedbackSource).toContain("Record again");
-  expect(feedbackSource).toMatch(/Continue (mission|practice)/);
+  expect(feedbackSource).toContain("Try again");
+  expect(feedbackSource).toMatch(/Continue mission/);
+  expect(feedbackSource).toContain("You said:");
   expect(shellSource).toContain("StepAiEvaluationFeedback");
   expect(shellSource).toContain("reviewPending");
   expect(shellSource).toContain("Teacher review sent");
@@ -38,10 +40,7 @@ test("student AI evaluation source contract covers repeat accepted, retry, and r
 
   expect(feedbackSource).toContain("Checking your repeat...");
   expect(feedbackSource).toContain("Good repeat.");
-  expect(feedbackSource).toContain("Try the repeat again.");
-  expect(feedbackSource).toContain(
-    "Listen to the sentence and record it one more time.",
-  );
+  expect(feedbackSource).toContain("Try again.");
   expect(shellSource).toContain("repeatAccepted");
   expect(shellSource).toContain("teacherReview");
 });

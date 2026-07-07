@@ -37,6 +37,10 @@ type CocoSpeechAudioProps = {
   line: CocoSpeechLine;
   /** Accessible label for the icon-only replay control. */
   label?: string;
+  /** MASCOT-02: fired on each analyser tick while playing; omit to opt out. */
+  onAmplitudeFrame?: (level: number) => void;
+  /** MASCOT-02: fired on playing-state transitions (drives idle<->speaking). */
+  onPlayingChange?: (playing: boolean) => void;
 };
 
 type PlaybackState = "loading" | "ready" | "playing" | "error";
@@ -45,15 +49,86 @@ type TtsRouteResult =
   | { ok: true; audioUrl: string; mimeType?: string }
   | { ok: false; error?: string };
 
+let sharedAudioContext: AudioContext | null = null;
+const sourceNodeCache = new WeakMap<
+  HTMLMediaElement,
+  MediaElementAudioSourceNode
+>();
+const analyserNodeCache = new WeakMap<HTMLMediaElement, AnalyserNode>();
+
+function getAudioContext(): AudioContext {
+  if (!sharedAudioContext) {
+    sharedAudioContext = new AudioContext();
+  }
+  return sharedAudioContext;
+}
+
+async function resumeAudioContext() {
+  const ctx = sharedAudioContext;
+  if (ctx?.state === "suspended") {
+    await ctx.resume().catch(() => {
+      // Speech playback remains usable even if analyser data is unavailable.
+    });
+  }
+}
+
+function attachAnalyser(el: HTMLMediaElement): AnalyserNode {
+  const cachedAnalyser = analyserNodeCache.get(el);
+  if (cachedAnalyser) return cachedAnalyser;
+
+  const ctx = getAudioContext();
+  let source = sourceNodeCache.get(el);
+  if (!source) {
+    source = ctx.createMediaElementSource(el);
+    sourceNodeCache.set(el, source);
+    source.connect(ctx.destination);
+  }
+
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 256;
+  source.connect(analyser);
+  analyserNodeCache.set(el, analyser);
+  return analyser;
+}
+
+function readAmplitude(
+  analyser: AnalyserNode,
+  data: Uint8Array<ArrayBuffer>,
+): number {
+  analyser.getByteFrequencyData(data);
+  const total = data.reduce((sum, value) => sum + value, 0);
+  return total / data.length / 255;
+}
+
 export function CocoSpeechAudio({
   assignmentStudentId,
   line,
   label = "Play Coco",
+  onAmplitudeFrame,
+  onPlayingChange,
 }: CocoSpeechAudioProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const frequencyDataRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
+  const amplitudeFrameRef = useRef<number | null>(null);
   const autoplayedUrlRef = useRef<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [state, setState] = useState<PlaybackState>("loading");
+
+  function ensureAnalyserReady() {
+    if (!onAmplitudeFrame) return;
+    const el = audioRef.current;
+    if (!el) return;
+
+    try {
+      const analyser = attachAnalyser(el);
+      analyserRef.current = analyser;
+      frequencyDataRef.current = new Uint8Array(analyser.frequencyBinCount);
+    } catch {
+      analyserRef.current = null;
+      frequencyDataRef.current = null;
+    }
+  }
 
   // Fetch the signed URL and attempt opportunistic autoplay whenever the
   // descriptor changes. A blocked autoplay leaves the control in a ready state.
@@ -121,6 +196,29 @@ export function CocoSpeechAudio({
     line.characterId,
   ]);
 
+  useEffect(() => {
+    if (state !== "playing" || !onAmplitudeFrame) return;
+    const emitAmplitudeFrame = onAmplitudeFrame;
+
+    function tick() {
+      const analyser = analyserRef.current;
+      const data = frequencyDataRef.current;
+      if (analyser && data) {
+        emitAmplitudeFrame(readAmplitude(analyser, data));
+      }
+      amplitudeFrameRef.current = requestAnimationFrame(tick);
+    }
+
+    amplitudeFrameRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (amplitudeFrameRef.current !== null) {
+        cancelAnimationFrame(amplitudeFrameRef.current);
+        amplitudeFrameRef.current = null;
+      }
+    };
+  }, [state, onAmplitudeFrame]);
+
   // Opportunistic autoplay (D-01) is attempted from the <audio> element's
   // onCanPlay handler (see below) rather than a ref-timing-dependent effect:
   // the element renders conditionally on audioUrl, so audioRef.current can still
@@ -137,15 +235,20 @@ export function CocoSpeechAudio({
     if (!el) return;
 
     autoplayedUrlRef.current = audioUrl;
+    if (sharedAudioContext?.state === "running") {
+      ensureAnalyserReady();
+    }
     el.play().catch(() => {
       // Autoplay blocked — remain ready so the student can tap replay (D-02).
       setState((prev) => (prev === "playing" ? prev : "ready"));
     });
   }
 
-  function handleReplay() {
+  async function handleReplay() {
     const el = audioRef.current;
     if (!el) return;
+    await resumeAudioContext();
+    ensureAnalyserReady();
     el.currentTime = 0;
     el.play().catch(() => {
       setState("error");
@@ -194,10 +297,28 @@ export function CocoSpeechAudio({
           // Mid-stream buffer starvation (common on low-end devices / slow
           // networks): drop back to a loading affordance until playback resumes.
           onWaiting={() => setState((prev) => (prev === "error" ? prev : "loading"))}
-          onPlaying={() => setState("playing")}
-          onPlay={() => setState("playing")}
-          onEnded={() => setState("ready")}
-          onError={() => setState("error")}
+          onPlaying={() => {
+            if (sharedAudioContext?.state === "running") {
+              ensureAnalyserReady();
+            }
+            setState("playing");
+            onPlayingChange?.(true);
+          }}
+          onPlay={() => {
+            if (sharedAudioContext?.state === "running") {
+              ensureAnalyserReady();
+            }
+            setState("playing");
+            onPlayingChange?.(true);
+          }}
+          onEnded={() => {
+            setState("ready");
+            onPlayingChange?.(false);
+          }}
+          onError={() => {
+            setState("error");
+            onPlayingChange?.(false);
+          }}
           style={hiddenAudioStyle}
         >
           Your browser does not support audio playback.

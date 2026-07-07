@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Coco Comes Alive
-current_phase: 09
-current_phase_name: pronunciation-scoring
-status: between-phases
-stopped_at: Phase 10 UI-SPEC approved
-last_updated: "2026-07-05T06:57:01.881Z"
+current_phase: 10
+current_phase_name: mascot-vn-style
+status: executing
+stopped_at: Phase 10 Wave 1 complete; ready for Plan 10-03
+last_updated: "2026-07-05T12:00:26Z"
 last_activity: 2026-07-05
-last_activity_desc: Codex handoff merged to main + branch hygiene; STATE reconciled
+last_activity_desc: Phase 10 Wave 1 complete; student feedback state screenshots saved as reusable checker and copy polished
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 18
-  completed_plans: 11
-  percent: 40
+  total_plans: 22
+  completed_plans: 13
+  percent: 59
 ---
 
 # Project State
@@ -24,16 +24,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-01)
 
 **Core value:** Students must complete useful spoken English practice outside class, and teachers must be able to verify that it happened.
-**Current focus:** Phase 10 — mascot-vn-style (PLANNED, 4 plans / 3 waves — ready to execute)
+**Current focus:** Phase 10 — mascot-vn-style (Wave 1 complete; ready for Plan 10-03)
 
 ## Current Position
 
-Phase: 09 (pronunciation-scoring) — COMPLETE
-Previous phase: 08 (coco-voice-tts) — COMPLETE with residual older-device risk accepted
-Status: Ready to execute — Phase 10 (Mascot) is now PLANNED (4 plans / 3 waves, plan-checker VERIFICATION PASSED, research + validation + patterns done). Phase 11 also planned (7 plans). Roadmap order is 10 → 11; next action = execute Phase 10.
-Last activity: 2026-07-05 — Phase 10 planned (research → static-sprite spike resolved → 4 plans verified); ready for /gsd-execute-phase 10
+Phase: 10 (mascot-vn-style) — EXECUTING
+Previous phase: 09 (pronunciation-scoring) — COMPLETE (6/6 plans)
+Status: Wave 1 complete (Plans 10-01 and 10-02). Audio-not-silent checkpoint approved; Plan 10-02 also fixed the duplicate needs-correction actions found during manual review. Next action is Plan 10-03.
+Last activity: 2026-07-05 — Wave 1 domain mascot helpers and CocoSpeechAudio analyser callback seam implemented; assignment dialog stale server-action guard added; student feedback colors/copy simplified and polished: green accepted, light blue improved sentence, amber retry/hear/review; reusable student feedback screenshot checker added.
 
-Progress: [████████░░] 82%
+Progress: [██████░░░░] 59%
 
 **Codex handoff (merged to main 2026-07-05, branch feature/per-student-sound-profile deleted):**
 
@@ -182,9 +182,9 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 ## Session Continuity
 
-**Resume file:** .planning/phases/10-mascot-vn-style/10-UI-SPEC.md
+**Resume file:** .planning/phases/10-mascot-vn-style/10-03-PLAN.md
 
-Last session: 2026-07-05T06:57:01.874Z
-Stopped at: Phase 10 UI-SPEC approved
-Resume action: /gsd-plan-phase 10 (Phase 11 already planned but sequenced after 10)
-Note: Phase 11 planning artifacts exist at .planning/phases/11-coco-chat-dynamic-turns-scene-framing/ but Phase 10 has no directory yet.
+Last session: 2026-07-05T12:00:26Z
+Stopped at: Phase 10 Wave 1 complete
+Resume action: Continue /gsd-execute-phase 10 from Plan 10-03 (Wave 2).
+Note: Plans 10-01 and 10-02 have SUMMARY files. Plan 10-02 includes the approved manual audio checkpoint and the checkpoint-driven needs-correction duplicate-action UX fix.

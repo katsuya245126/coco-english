@@ -117,8 +117,8 @@ export const buddyCardStyle: CSSProperties = {
 };
 
 export const improvedSentenceCardStyle: CSSProperties = {
-  background: "#F0FDF4",
-  border: "1px solid #BBF7D0",
+  background: "#EFF6FF",
+  border: "1px solid #BFDBFE",
   borderRadius: 8,
   padding: 16,
   boxSizing: "border-box",
@@ -162,8 +162,8 @@ export const recorderSuccessStyle: CSSProperties = {
 
 export const recorderErrorStyle: CSSProperties = {
   ...recorderPanelStyle,
-  background: "#FEF2F2",
-  border: "1px solid #FCA5A5",
+  background: "#FFFBEB",
+  border: "1px solid #FDE68A",
 };
 
 // ─── Phase 6: AI evaluation feedback tokens ───
@@ -185,8 +185,8 @@ export const evaluationReviewStyle: CSSProperties = {
 };
 
 export const evaluationErrorStyle: CSSProperties = {
-  background: "#FEF2F2",
-  border: "1px solid #FCA5A5",
+  background: "#FFFBEB",
+  border: "1px solid #FDE68A",
   borderRadius: 8,
   padding: 16,
   boxSizing: "border-box",
@@ -275,4 +275,54 @@ export const badgeRetryStyle: CSSProperties = {
   background: "#FEF3C7",
   color: "#92400E",
   border: "1px solid #FCD34D",
+};
+
+// ─── Phase 10: Mascot stage tokens ───
+
+export const mascotStageStyle: CSSProperties = {
+  width: "100%",
+  maxWidth: panelStyle.maxWidth,
+  height: 300,
+  position: "relative",
+  marginTop: 16,
+  marginLeft: "auto",
+  marginRight: "auto",
+  overflow: "hidden",
+  borderRadius: 8,
+  boxSizing: "border-box",
+};
+
+export const mascotBackdropStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  background: "linear-gradient(180deg, #EFF6FF 0%, #F7F8FA 100%)",
+};
+
+export const mascotSpriteWrapStyle: CSSProperties = {
+  position: "absolute",
+  left: 72,
+  right: 72,
+  bottom: 72,
+  height: 198,
+  transformOrigin: "bottom center",
+};
+
+export const mascotDialogueBoxStyle: CSSProperties = {
+  position: "absolute",
+  left: 16,
+  right: 16,
+  bottom: 24,
+  height: 104,
+  background: "#FFFFFF",
+  borderTop: "3px solid #2563EB",
+  borderRadius: 8,
+  padding: 16,
+  boxSizing: "border-box",
+  overflowY: "auto",
+};
+
+export const mascotSpeakerLabelStyle: CSSProperties = {
+  ...labelStyle,
+  color: "#2563EB",
+  marginBottom: 4,
 };

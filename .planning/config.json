@@ -10,7 +10,8 @@
     "verifier": true,
     "nyquist_validation": true,
     "_auto_chain_active": false,
-    "test_command": "npx vitest run"
+    "test_command": "npx vitest run",
+    "ai_integration_phase": true
   },
   "plan_review": {
     "source_grounding": true

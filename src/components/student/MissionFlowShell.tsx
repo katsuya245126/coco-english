@@ -10,7 +10,7 @@
  * All buddy/sentence text comes from snapshot + static profile — no AI client.
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { MissionSnapshotTurn } from "@/domain/mission/schemas";
 import type {
@@ -33,9 +33,15 @@ import { StepImprovedRepeat } from "@/components/student/StepImprovedRepeat";
 import { StepAiEvaluationFeedback } from "@/components/student/StepAiEvaluationFeedback";
 import { StepTurnTransition } from "@/components/student/StepTurnTransition";
 import { StepMissionComplete } from "@/components/student/StepMissionComplete";
+import { MascotStage } from "@/components/student/MascotStage";
+import {
+  CocoSpeechAudio,
+  type CocoSpeechLine,
+} from "@/components/student/CocoSpeechAudio";
 import { TurnProgressBar } from "@/components/student/TurnProgressBar";
 import type { RecordedVoiceClip } from "@/components/student/StepBuddyQuestion";
 import type { RepeatVoiceClip } from "@/components/student/StepImprovedRepeat";
+import type { RecorderState } from "@/components/student/VoiceRecorderControl";
 
 // ─── Types ───
 
@@ -162,6 +168,21 @@ export function MissionFlowShell({
   const [actionError, setActionError] = useState<string | null>(null);
   const originalAudioUrlRef = useRef<string | null>(null);
   const repeatAudioUrlRef = useRef<string | null>(null);
+  const mascotAmplitudeRef = useRef(0);
+  const [mascotPlaying, setMascotPlaying] = useState(false);
+  const [originalRecorderState, setOriginalRecorderState] =
+    useState<RecorderState>("ready");
+
+  const handleMascotAmplitudeFrame = useCallback((level: number) => {
+    mascotAmplitudeRef.current = level;
+  }, []);
+
+  const handleMascotPlayingChange = useCallback((playing: boolean) => {
+    setMascotPlaying(playing);
+    if (!playing) {
+      mascotAmplitudeRef.current = 0;
+    }
+  }, []);
 
   // Guards against an in-flight upload/score request resolving after a
   // newer one (e.g. a slow first attempt's response landing after a
@@ -181,6 +202,14 @@ export function MissionFlowShell({
   const currentTurn = turns[flow.turnIndex];
   // 1-based turn number for display
   const currentTurnNumber = flow.turnIndex + 1;
+
+  const mascotDialogue = getMascotDialogue({
+    flow,
+    currentTurn,
+    actionError,
+    turnTransition: characterProfile.turnTransition,
+    completionHeading: characterProfile.completionHeading,
+  });
 
   // ─── Handlers ───
 
@@ -245,7 +274,7 @@ export function MissionFlowShell({
       payload.transcript.trim().length === 0
     ) {
       if (payload?.error === "transcription_failed_retryable") {
-        throw new Error("We could not hear that clearly. Record again.");
+        throw new Error("I didn't hear you. Try again.");
       }
       throw new Error("Try again.");
     }
@@ -616,6 +645,35 @@ export function MissionFlowShell({
         </div>
       )}
 
+      <MascotStage
+        displayName={characterProfile.displayName}
+        dialogueText={mascotDialogue.text}
+        voiceControl={
+          mascotDialogue.line ? (
+            <CocoSpeechAudio
+              assignmentStudentId={assignmentStudentId}
+              line={mascotDialogue.line}
+              onAmplitudeFrame={handleMascotAmplitudeFrame}
+              onPlayingChange={handleMascotPlayingChange}
+            />
+          ) : null
+        }
+        step={flow.step}
+        originalFeedbackKind={flow.originalFeedback?.kind}
+        repeatFeedbackKind={flow.repeatFeedback?.kind}
+        playing={mascotPlaying}
+        amplitudeRef={mascotAmplitudeRef}
+        expression={
+          actionError ||
+          (flow.step === "question" && originalRecorderState === "failure")
+            ? "thinking"
+            : flow.originalFeedback?.kind === "acceptedOriginal" ||
+                flow.repeatFeedback?.kind === "repeatAccepted"
+              ? "celebrate"
+            : undefined
+        }
+      />
+
       {/* Step card area */}
       <div style={{ marginTop: 24 }} aria-live="polite">
         {actionError && (
@@ -643,6 +701,10 @@ export function MissionFlowShell({
             prompt={currentTurn.prompt}
             hintLadder={currentTurn.hintLadder}
             hintLevel={flow.hintLevel}
+            onAmplitudeFrame={handleMascotAmplitudeFrame}
+            onPlayingChange={handleMascotPlayingChange}
+            showCocoLine={false}
+            onRecorderStateChange={setOriginalRecorderState}
             onRevealHint={handleRevealHint}
             onVoiceRecorded={handleSubmitOriginalVoice}
             isSubmitting={isSubmittingVoice}
@@ -664,6 +726,9 @@ export function MissionFlowShell({
             }
             starBand={flow.originalFeedback.starBand}
             wordsToPractice={flow.originalFeedback.wordsToPractice}
+            onAmplitudeFrame={handleMascotAmplitudeFrame}
+            onPlayingChange={handleMascotPlayingChange}
+            showCocoLine={false}
             forceRetryBeforeContinue={
               flow.originalFeedback.starBand === 1 && !flow.hasRetriedThisTurn
             }
@@ -693,6 +758,9 @@ export function MissionFlowShell({
             improvedSentenceIntro={characterProfile.improvedSentenceIntro}
             targetExample={flow.improvedSentence ?? currentTurn.targetExample}
             repeatInstruction={characterProfile.repeatInstruction}
+            onAmplitudeFrame={handleMascotAmplitudeFrame}
+            onPlayingChange={handleMascotPlayingChange}
+            showCocoLine={false}
             onVoiceRecorded={handleSubmitRepeatVoice}
             isSubmitting={isSubmittingVoice}
           />
@@ -709,6 +777,9 @@ export function MissionFlowShell({
             improvedSentence={flow.improvedSentence}
             starBand={flow.repeatFeedback.starBand}
             wordsToPractice={flow.repeatFeedback.wordsToPractice}
+            onAmplitudeFrame={handleMascotAmplitudeFrame}
+            onPlayingChange={handleMascotPlayingChange}
+            showCocoLine={false}
             forceRetryBeforeContinue={
               flow.repeatFeedback.starBand === 1 && !flow.hasRetriedThisTurn
             }
@@ -732,6 +803,9 @@ export function MissionFlowShell({
           <StepTurnTransition
             assignmentStudentId={assignmentStudentId}
             transitionMessage={characterProfile.turnTransition}
+            onAmplitudeFrame={handleMascotAmplitudeFrame}
+            onPlayingChange={handleMascotPlayingChange}
+            showCocoLine={false}
             onNextTurn={handleNextTurn}
           />
         )}
@@ -741,6 +815,9 @@ export function MissionFlowShell({
             assignmentStudentId={assignmentStudentId}
             completionHeading={characterProfile.completionHeading}
             completionBody={characterProfile.completionBody}
+            onAmplitudeFrame={handleMascotAmplitudeFrame}
+            onPlayingChange={handleMascotPlayingChange}
+            showCocoLine={false}
           />
         )}
 
@@ -764,4 +841,107 @@ export function MissionFlowShell({
       </div>
     </div>
   );
+}
+
+function getMascotDialogue({
+  flow,
+  currentTurn,
+  actionError,
+  turnTransition,
+  completionHeading,
+}: {
+  flow: FlowState;
+  currentTurn?: MissionSnapshotTurn;
+  actionError?: string | null;
+  turnTransition: string;
+  completionHeading: string;
+}): { text: string | null; line: CocoSpeechLine | null } {
+  if (actionError) {
+    return { text: actionError, line: null };
+  }
+
+  if (flow.step === "question" && currentTurn) {
+    return {
+      text: currentTurn.prompt,
+      line: { lineKind: "mission_prompt", turnOrder: currentTurn.turnOrder },
+    };
+  }
+
+  if (flow.step === "repeat" && currentTurn) {
+    const sentence = flow.improvedSentence ?? currentTurn.targetExample;
+    return {
+      text: `Try this: ${sentence}`,
+      line: { lineKind: "improved_sentence", turnOrder: currentTurn.turnOrder },
+    };
+  }
+
+  if (flow.step === "aiFeedback" && flow.originalFeedback?.kind === "needsCorrection") {
+    return {
+      text: `Try this: ${flow.originalFeedback.improvedSentence}`,
+      line: currentTurn
+        ? { lineKind: "improved_sentence", turnOrder: currentTurn.turnOrder }
+        : null,
+    };
+  }
+
+  if (flow.step === "aiFeedback" && flow.originalFeedback?.kind === "acceptedOriginal") {
+    return {
+      text: "Nice answer!",
+      line: { lineKind: "coco_feedback", feedbackVariant: "accepted_original" },
+    };
+  }
+
+  if (flow.step === "aiFeedback" && flow.originalFeedback?.kind === "retryOriginal") {
+    return {
+      text: "Try again.",
+      line: { lineKind: "coco_feedback", feedbackVariant: "retry_original" },
+    };
+  }
+
+  if (flow.step === "aiFeedback" && flow.originalFeedback?.kind === "teacherReview") {
+    return {
+      text: "Your teacher will check this answer.",
+      line: { lineKind: "coco_feedback", feedbackVariant: "teacher_check" },
+    };
+  }
+
+  if (flow.step === "repeatFeedback" && flow.repeatFeedback?.kind === "repeatRetry") {
+    const sentence = flow.improvedSentence ?? "Try the sentence again.";
+    return {
+      text: `Try again: ${sentence}`,
+      line: currentTurn
+        ? { lineKind: "improved_sentence", turnOrder: currentTurn.turnOrder }
+        : null,
+    };
+  }
+
+  if (flow.step === "repeatFeedback" && flow.repeatFeedback?.kind === "repeatAccepted") {
+    return {
+      text: "Good repeat.",
+      line: { lineKind: "coco_feedback", feedbackVariant: "repeat_accepted" },
+    };
+  }
+
+  if (flow.step === "repeatFeedback" && flow.repeatFeedback?.kind === "repeatReview") {
+    return {
+      text: "Your teacher will check this answer.",
+      line: { lineKind: "coco_feedback", feedbackVariant: "repeat_check" },
+    };
+  }
+
+  if (flow.step === "transition") {
+    return {
+      text: turnTransition,
+      line: { lineKind: "coco_transition" },
+    };
+  }
+
+  if (flow.step === "complete") {
+    return {
+      text: completionHeading,
+      line: { lineKind: "completion_celebration" },
+    };
+  }
+
+  return { text: null, line: null };
 }

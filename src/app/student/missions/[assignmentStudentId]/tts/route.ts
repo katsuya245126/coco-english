@@ -41,6 +41,7 @@ function resolveLineText(
   characterId: string,
   turn: ResolvedSnapshotTurn | null,
   turnCount: number,
+  feedbackVariant?: string,
 ): string | null {
   const profile = getCharacterProfile(characterId);
 
@@ -53,9 +54,25 @@ function resolveLineText(
     case "coco_transition":
       return profile.turnTransition;
     case "coco_feedback":
-      return profile.improvedSentenceIntro;
+      return resolveFeedbackLineText(feedbackVariant) ?? profile.improvedSentenceIntro;
     case "completion_celebration":
       return `${profile.completionHeading} ${profile.completionBody(turnCount)}`;
+    default:
+      return null;
+  }
+}
+
+function resolveFeedbackLineText(feedbackVariant?: string): string | null {
+  switch (feedbackVariant) {
+    case "accepted_original":
+      return "Nice answer!";
+    case "retry_original":
+      return "Try again.";
+    case "teacher_check":
+    case "repeat_check":
+      return "Your teacher will check this answer.";
+    case "repeat_accepted":
+      return "Good repeat.";
     default:
       return null;
   }
@@ -154,6 +171,7 @@ export async function POST(request: Request, context: RouteContext) {
     characterId,
     resolvedTurn,
     turnCount,
+    parsed.data.feedbackVariant,
   );
 
   if (!text || text.trim().length === 0) {

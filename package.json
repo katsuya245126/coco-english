@@ -16,6 +16,7 @@
     "test:rls": "vitest run tests/schema/classroom-access-schema.test.ts",
     "test:db:smoke": "vitest run tests/server/foundation-smoke.test.ts",
     "test:e2e": "playwright test",
+    "test:student-feedback-states": "node scripts/check-student-feedback-states.mjs",
     "test:auth:e2e": "playwright test tests/e2e/teacher-auth.spec.ts",
     "test:classes:e2e": "playwright test tests/e2e/teacher-classes.spec.ts"
   },

@@ -31,6 +31,9 @@ type StepImprovedRepeatProps = {
   improvedSentenceIntro: string;
   targetExample: string;
   repeatInstruction: string;
+  onAmplitudeFrame?: (level: number) => void;
+  onPlayingChange?: (playing: boolean) => void;
+  showCocoLine?: boolean;
   onVoiceRecorded: (recording: RepeatVoiceClip) => void | Promise<void>;
   isSubmitting: boolean;
 };
@@ -42,6 +45,9 @@ export function StepImprovedRepeat({
   improvedSentenceIntro,
   targetExample,
   repeatInstruction,
+  onAmplitudeFrame,
+  onPlayingChange,
+  showCocoLine = true,
   onVoiceRecorded,
   isSubmitting,
 }: StepImprovedRepeatProps) {
@@ -60,6 +66,7 @@ export function StepImprovedRepeat({
 
       {/* Improved / model sentence area — voiced (D-07). The transcript block
           above is deliberately NOT voiced (D-10). */}
+      {showCocoLine ? (
       <div style={{ ...improvedSentenceCardStyle, marginTop: originalTranscript ? 16 : 0 }}>
         <div
           style={{
@@ -76,15 +83,18 @@ export function StepImprovedRepeat({
           <CocoSpeechAudio
             assignmentStudentId={assignmentStudentId}
             line={{ lineKind: "improved_sentence", turnOrder }}
+            onAmplitudeFrame={onAmplitudeFrame}
+            onPlayingChange={onPlayingChange}
           />
         </div>
         <p style={{ fontSize: 20, fontWeight: 600, color: "#111827", margin: 0, lineHeight: 1.25 }}>
           {targetExample}
         </p>
       </div>
+      ) : null}
 
       {/* Repeat instruction */}
-      <p style={{ fontSize: 16, color: "#4B5563", margin: "16px 0 8px", lineHeight: 1.5 }}>
+      <p style={{ fontSize: 16, color: "#4B5563", margin: showCocoLine || originalTranscript ? "16px 0 8px" : "0 0 8px", lineHeight: 1.5 }}>
         {repeatInstruction}
       </p>
 
