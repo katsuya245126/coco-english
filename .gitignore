@@ -22,3 +22,4 @@ supabase/.temp/
 .DS_Store
 .vercel
 .env*
+.scratch

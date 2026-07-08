@@ -325,6 +325,59 @@ describe("uploadAttemptAudioClip", () => {
     );
   });
 
+  it("skips OpenAI evaluation and accepts directly when the transcript exactly matches targetExample", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    // Deliberately differs from the target example in case and trailing
+    // punctuation to prove the fast-path normalizes before comparing.
+    const transcribe = successfulTranscriber(
+      "I LIKE PLAYING SOCCER AFTER SCHOOL!",
+    );
+    const evaluateOriginal = successfulOriginalEvaluator();
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: transcribe,
+      evaluateOriginalTurn: evaluateOriginal,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        version: "ai-eval-v1",
+        outcome: "accepted_original",
+      },
+    });
+    expect(evaluateOriginal).not.toHaveBeenCalled();
+
+    const timingCall = mockLog.mock.calls.find(
+      ([level, event]) => level === "info" && event === "audio.upload_timing",
+    );
+    expect(timingCall?.[2]).toMatchObject({ evaluationFastPath: 1 });
+  });
+
+  it("falls through to OpenAI evaluation when the transcript is not an exact target match", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const transcribe = successfulTranscriber(
+      "I like playing soccer with my friends after school.",
+    );
+    const evaluateOriginal = successfulOriginalEvaluator();
+    await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: transcribe,
+      evaluateOriginalTurn: evaluateOriginal,
+    });
+
+    expect(evaluateOriginal).toHaveBeenCalledTimes(1);
+
+    const timingCall = mockLog.mock.calls.find(
+      ([level, event]) => level === "info" && event === "audio.upload_timing",
+    );
+    expect(timingCall?.[2]).toMatchObject({ evaluationFastPath: 0 });
+  });
+
   it("logs production-safe stage timings for successful uploads", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
@@ -539,7 +592,11 @@ describe("uploadAttemptAudioClip", () => {
       "@/server/student-access/audio-upload"
     );
 
-    const transcribe = successfulTranscriber("should not run");
+    // storageUpload and transcription now run concurrently (transcription
+    // reads in-memory audio bytes, not the uploaded object), so transcription
+    // still completes even though its result is discarded once the upload
+    // failure is detected.
+    const transcribe = successfulTranscriber("runs concurrently with upload");
     const result = await uploadAttemptAudioClip(audioInput(), {
       transcribeAudioFile: transcribe,
     });
@@ -558,7 +615,6 @@ describe("uploadAttemptAudioClip", () => {
             "failed",
       ),
     ).toBe(true);
-    expect(transcribe).not.toHaveBeenCalled();
     expect(mockLog).toHaveBeenCalledWith("warn", "audio.upload_failed", {
       audioClipId: "clip-1",
       assignmentStudentId: "as-1",

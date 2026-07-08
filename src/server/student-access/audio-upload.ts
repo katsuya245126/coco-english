@@ -10,6 +10,7 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/lib/db/types";
 import { missionSnapshotSchema } from "@/domain/mission/schemas";
+import { isExactTargetMatch } from "@/domain/ai/fast-path";
 import {
   AI_EVALUATION_VERSION,
   decideOriginalTurnOutcome,
@@ -493,7 +494,11 @@ export async function uploadAttemptAudioClip(
       mimeType: input.mimeType,
     });
 
-    const { error: uploadError } = await timeStage("storageUpload", () =>
+    // storageUpload and transcription both only depend on the in-memory audio
+    // bytes (transcription never reads the uploaded object back), so they run
+    // concurrently instead of paying for the upload before transcription can
+    // start. The upload result is still checked before returning success.
+    const storageUploadPromise = timeStage("storageUpload", () =>
       supabase.storage
         .from(getStudentAudioBucketId())
         .upload(objectKey, createAudioBlob(), {
@@ -501,6 +506,19 @@ export async function uploadAttemptAudioClip(
           upsert: false,
         }),
     );
+
+    const transcribe = deps.transcribeAudioFile ?? transcribeAudioFile;
+    const transcriptionPromise = timeStage("transcription", () =>
+      transcribe({
+        file: createAudioBlob(),
+        mimeType: input.mimeType,
+      }),
+    );
+
+    const [{ error: uploadError }, transcription] = await Promise.all([
+      storageUploadPromise,
+      transcriptionPromise,
+    ]);
 
     if (uploadError) {
       await timeStage("failedClipUpdate", () =>
@@ -533,14 +551,6 @@ export async function uploadAttemptAudioClip(
         retryable: true,
       };
     }
-
-    const transcribe = deps.transcribeAudioFile ?? transcribeAudioFile;
-    const transcription = await timeStage("transcription", () =>
-      transcribe({
-        file: createAudioBlob(),
-        mimeType: input.mimeType,
-      }),
-    );
 
     if (!transcription.ok) {
       await timeStage("failedClipUpdate", () =>
@@ -614,17 +624,44 @@ export async function uploadAttemptAudioClip(
     const turnWrite =
       input.clipKind === "original_answer"
         ? await (async () => {
-            const evaluate = deps.evaluateOriginalTurn ?? evaluateOriginalTurn;
-            const evaluationResult = await timeStage("evaluation", () =>
-              evaluate({
-                missionQuestion: snapshotTurn.prompt,
-                targetPattern: snapshot.targetPattern,
-                targetExample: snapshotTurn.targetExample,
-                level: snapshot.level,
-                turnOrder: input.turnOrder,
-                transcript,
-              }),
+            // Skip the OpenAI evaluation call entirely when the transcript is
+            // an exact normalized match for the turn's targetExample — this
+            // is the common case for short/rote answers (e.g. "Hello", "I'm
+            // fine") and removes ~1.3-3.3s of evaluation latency for them.
+            // Anything short of an exact match still goes through the model,
+            // since targetPattern strings (e.g. "How often do you ____?")
+            // are question templates, not safe to substring-match.
+            const fastPathMatched = isExactTargetMatch(
+              transcript,
+              snapshotTurn.targetExample,
             );
+            timings.evaluationFastPath = fastPathMatched ? 1 : 0;
+            const evaluationResult: OriginalTurnEvaluationResult = fastPathMatched
+              ? {
+                  ok: true,
+                  evaluation: {
+                    version: AI_EVALUATION_VERSION,
+                    outcome: "correct",
+                    meaningUnderstood: true,
+                    targetPatternAttempted: true,
+                    correctionNeeded: false,
+                    improvedSentence: null,
+                    englishLanguage: "english",
+                    confidence: "high",
+                    reviewReason: null,
+                  },
+                }
+              : await timeStage("evaluation", () => {
+                  const evaluate = deps.evaluateOriginalTurn ?? evaluateOriginalTurn;
+                  return evaluate({
+                    missionQuestion: snapshotTurn.prompt,
+                    targetPattern: snapshot.targetPattern,
+                    targetExample: snapshotTurn.targetExample,
+                    level: snapshot.level,
+                    turnOrder: input.turnOrder,
+                    transcript,
+                  });
+                });
             const decision = applyOriginalTurnEvaluation(evaluationResult);
             originalEvaluation = decision.evaluation;
 
