@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 09
 current_phase_name: pronunciation-scoring
 status: between-phases
-stopped_at: Phase 10 UI-SPEC approved
-last_updated: "2026-07-05T06:57:01.881Z"
-last_activity: 2026-07-05
-last_activity_desc: Codex handoff merged to main + branch hygiene; STATE reconciled
+stopped_at: Phase 10 re-scoped (mascot → POV story-slides)
+last_updated: "2026-07-09T00:00:00.000Z"
+last_activity: 2026-07-09
+last_activity_desc: Phase 10 pivoted from illustrated mascot to teacher-POV generated-media story-slides; REQUIREMENTS/ROADMAP reconciled in place
 progress:
   total_phases: 5
   completed_phases: 2
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-01)
 
 **Core value:** Students must complete useful spoken English practice outside class, and teachers must be able to verify that it happened.
-**Current focus:** Phase 10 — mascot-vn-style (PLANNED, 4 plans / 3 waves — ready to execute)
+**Current focus:** Phase 10 — POV Story-Slide Missions (RE-SCOPED 2026-07-09 from the retired mascot direction; needs re-planning via /gsd-plan-phase 10 against new MEDIA-*/VOICE-05 requirements)
 
 ## Current Position
 
 Phase: 09 (pronunciation-scoring) — COMPLETE
 Previous phase: 08 (coco-voice-tts) — COMPLETE with residual older-device risk accepted
-Status: Ready to execute — Phase 10 (Mascot) is now PLANNED (4 plans / 3 waves, plan-checker VERIFICATION PASSED, research + validation + patterns done). Phase 11 also planned (7 plans). Roadmap order is 10 → 11; next action = execute Phase 10.
-Last activity: 2026-07-05 — Phase 10 planned (research → static-sprite spike resolved → 4 plans verified); ready for /gsd-execute-phase 10
+Status: Phase 10 RE-SCOPED 2026-07-09. The mascot direction (MASCOT-*, illustrated 2D Coco cat) was reconsidered in brainstorming and replaced by teacher-POV generated-media story-slides (MEDIA-01..05 + VOICE-05 cloned voice). REQUIREMENTS.md and ROADMAP.md reconciled in place; the old Phase 10 mascot plans are retired. Phase 11 (Coco Chat) is ON HOLD — the dynamic-AI-chat concept and text-based SCENE-01 need re-evaluation now that the POV storyboard IS the visual scene-framing. Next action = /gsd-plan-phase 10 (note: Success Criterion 1 is a production-volume validation gate — generate 5-6 real storyboards by hand first). See mascot-vs-media-handoff.md.
+Last activity: 2026-07-09 — mascot→POV-media pivot reconciled into REQUIREMENTS/ROADMAP
 
 Progress: [████████░░] 82%
 
@@ -182,9 +182,9 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 ## Session Continuity
 
-**Resume file:** .planning/phases/10-mascot-vn-style/10-UI-SPEC.md
+**Resume file:** mascot-vs-media-handoff.md (pivot rationale + new design)
 
-Last session: 2026-07-05T06:57:01.874Z
-Stopped at: Phase 10 UI-SPEC approved
-Resume action: /gsd-plan-phase 10 (Phase 11 already planned but sequenced after 10)
-Note: Phase 11 planning artifacts exist at .planning/phases/11-coco-chat-dynamic-turns-scene-framing/ but Phase 10 has no directory yet.
+Last session: 2026-07-09
+Stopped at: Phase 10 re-scoped from mascot to POV story-slides; REQUIREMENTS/ROADMAP reconciled
+Resume action: /gsd-plan-phase 10 (POV Story-Slide Missions, MEDIA-*/VOICE-05). Do the production-volume validation (5-6 real storyboards by hand) as an early gate.
+Note: The old .planning/phases/10-mascot-vn-style/ directory has been removed (stale mascot plans, preserved in git history). Phase 11 artifacts at .planning/phases/11-coco-chat-dynamic-turns-scene-framing/ are retained but ON HOLD pending a decision on Chat's fate after the POV pivot — do not plan Phase 11 yet.

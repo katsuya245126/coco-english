@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 — Teacher-Linked Speaking Homework MVP** — Phases 1-7, 26/26 plans, shipped 2026-07-01. Full loop delivered: teacher class setup, mission authoring and AI draft generation, guided voice practice with Coco, transcript-first review, audio evidence, and pilot operations. Audit `passed` with 60/60 requirements verified.
-- 🚧 **v2.0 — Coco Comes Alive** — Phases 8-12, planned. Five independently-shippable point releases (voice, pronunciation scoring, mascot, dynamic chat, UI overhaul) layered onto the validated v1 homework loop.
+- 🚧 **v2.0 — Coco Comes Alive** — Phases 8-12, in progress. Independently-shippable point releases (voice, pronunciation scoring, POV story-slide missions, dynamic chat [under review], UI overhaul) layered onto the validated v1 homework loop. Phase 10 pivoted from an illustrated mascot to teacher-POV generated media on 2026-07-08.
 
 ## Phases
 
@@ -32,9 +32,11 @@ Archive:
 
 - [x] **Phase 8: Coco Voice (TTS)** - Coco's mission/prompt lines are spoken aloud with caching and standard `<audio>` playback. All 5 plans executed; automated verification passed; Samsung S23 + Mac preview smoke tests passed; Chromebook/older-tablet coverage unavailable and accepted as residual risk at closeout (2026-07-02).
 - [x] **Phase 9: Pronunciation Scoring** - Students get encouraging, banded pronunciation feedback; teachers see word-level diagnostic detail.
-- [ ] **Phase 10: Mascot (VN-style)** - Coco appears on screen as a 2D character with an audio-driven speaking state.
-- [ ] **Phase 11: Coco Chat (dynamic turns + scene framing)** - Missions get a scene premise and an optional bounded, moderated dynamic conversation mode.
-- [ ] **Phase 12: UI Overhaul** - One cohesive visual pass unifying voice, mascot, and chat, gated on a full prior-phase UAT re-run.
+- [ ] **Phase 10: POV Story-Slide Missions** - The student practices inside a teacher-authored storyboard of first-person-POV scene images (the teacher addressing the student), spoken in the teacher's cloned voice. *(Replaces the retired mascot direction — see pivot note below.)*
+- [ ] **Phase 11: Coco Chat (dynamic turns + scene framing)** - Missions get a scene premise and an optional bounded, moderated dynamic conversation mode. *(Needs revisiting post-pivot — see note.)*
+- [ ] **Phase 12: UI Overhaul** - One cohesive visual pass unifying voice, scene media, and chat, gated on a full prior-phase UAT re-run.
+
+> **Pivot (2026-07-08):** Phase 10 was fully planned as an illustrated 2D Coco mascot (MASCOT-*), then reconsidered in brainstorming and replaced by the teacher-POV generated-media approach (MEDIA-*). Rationale in `mascot-vs-media-handoff.md`. The old mascot planning artifacts and sprite assets are retired (dead history, not executed). **Phases 11 and 12 are intentionally left as-was pending a separate decision on Chat's fate after this pivot** — in particular, Phase 11's SCENE-01 framed the scene premise as *text*, but the Phase 10 storyboard now IS the visual scene-framing, so SCENE-01 and the dynamic-chat concept must be re-evaluated (does a teacher-POV product still want an AI chatbot layer?) before Phase 11 is planned. Do not plan Phase 11 until that is resolved.
 
 ## Phase Details
 
@@ -93,37 +95,32 @@ Archive:
 
 **Research flag**: Needs an explicit accuracy-validation pass (Azure vs. real stored student audio for this app's 6 students) as a phase task before score-band thresholds are finalized — not literature research, empirical validation. (Handled by the D-04 calibration checkpoint in 09-05, which gates the 09-06 student-facing stars.)
 
-### Phase 10: Mascot (VN-style)
+### Phase 10: POV Story-Slide Missions
 
-**Goal**: Coco is visually present during the mission flow as a 2D on-screen character whose speaking/idle/reaction state is driven by real audio, not a timer, without letting art scope grow beyond a small fixed set.
-**Depends on**: Phase 8 (needs the real audio-playback signal/clock to drive the speaking state)
-**Requirements**: MASCOT-01, MASCOT-02, MASCOT-03, MASCOT-04
+**Goal**: A mission can present the student with a short, teacher-authored storyboard of first-person-POV scene images (the teacher, in-frame, addressing the student), where some slides set the scene and some are spoken question-turns, all voiced in the teacher's cloned voice — without regressing the v1 attempt/turn/evaluation loop and without a content-production workflow so heavy the teacher can't sustain it.
+**Depends on**: Phase 8 (v2.1 TTS pipeline — cache + `<audio>` playback, reused with a cloned-voice model); Phase 4/6 (v1 mission flow shell, attempt/turn/evaluation machinery reused unchanged for question slides).
+**Requirements**: MEDIA-01, MEDIA-02, MEDIA-03, MEDIA-04, MEDIA-05, VOICE-05
 **Success Criteria** (what must be TRUE):
 
-  1. Coco appears on screen as a 2D character (waist-up, over a background scene) with a dialogue box during the mission flow.
-  2. Coco's "speaking" state is visibly distinct from idle/listening and is driven by the actual audio playback clock (Web Audio amplitude off the `<audio>` element) rather than a fixed timer.
-  3. Coco shows a small fixed set of 3-5 content-tied expression states (idle, speaking, happy/celebrating, encouraging/neutral on a miss) — no more, no per-scene background variants.
-  4. Mascot rendering has been tested and performs acceptably on a real low-end school device (Chromebook/older tablet).
+  1. **[Production-volume validation gate — early, before app UI is built]** The teacher generates 5–6 real storyboards (POV teacher scene images + text) for actual upcoming grammar patterns using the chosen generation tool, and confirms the workflow holds up at per-mission volume with acceptable character/likeness consistency. This de-risks the load-bearing unknown (occasional PowerPoint habit → systematic per-mission pipeline) before engineering investment. If it does not hold up, the phase re-scopes before building.
+  2. During a mission, the student is shown an ordered storyboard of slides; **story slides** advance on view (no spoken answer), and **question slides** require the student to speak a response that is transcribed, evaluated, and gated by the existing v1 mission-turn mechanic — with no regression to that loop.
+  3. The teacher authors the storyboard when creating/editing a mission: variable slide count, per-slide type (story vs. question), and per-slide image + text, persisted with the mission.
+  4. Each slide's text is spoken aloud in the teacher's cloned voice, with tap-to-replay and content-hash caching, reusing the v2.1 TTS pipeline (voice model swapped).
+  5. Slide images are appropriately sized/compressed and render with no layout shift on a real low-end school device (Chromebook/older tablet); the existing mission flow is not regressed.
 
-**Plans**: 4 plans
+**Plans**: TBD (to be created by `/gsd-plan-phase 10` against the new MEDIA requirements — the old 4 mascot plans are retired)
 
-**Wave 1** *(parallel foundation)*
+**Research flags**:
+- **Generation tooling + character consistency (open):** which image-generation tool/workflow (e.g. Gemini / "Nano Banana"–style) best holds the teacher's likeness consistent across many POV scenes from a small base set of reference expression photos; expected regeneration/curation overhead per mission. This is the subject of the Success Criterion 1 validation gate.
+- **Voice-clone vendor + ToS (open):** which TTS provider supports voice cloning within budget, and whether uploaded voice samples are reused for model training (VOICE-05 blocker before any samples are uploaded).
+- **Storyboard data model (open):** additive schema for an ordered per-mission slide list (type, image ref, text) — must stay additive to the v1 mission/attempt/turn core, mirroring the discipline of prior v2 phases.
 
-- [ ] 10-01-PLAN.md — pure domain modules + Wave 0 tests: deriveExpression mapping, speaking-state hysteresis, perf-degrade (MASCOT-02, MASCOT-03, MASCOT-04)
-- [ ] 10-02-PLAN.md — additive Web Audio AnalyserNode seam on CocoSpeechAudio (onAmplitudeFrame/onPlayingChange), audio-not-silent checkpoint (MASCOT-02)
-
-**Wave 2** *(blocked on 10-01)*
-
-- [ ] 10-03-PLAN.md — MascotStage client component + styles.ts tokens: gradient backdrop, next/image sprite, dialogue box, silent degrade (MASCOT-01, MASCOT-03, MASCOT-04)
-
-**Wave 3** *(blocked on 10-02 + 10-03)*
-
-- [ ] 10-04-PLAN.md — mount MascotStage in MissionFlowShell + thread amplitude/playing through the 5 Step components; mount/no-layout-shift + real-audio + real-device checkpoints (MASCOT-01..04)
-
-**Research flag**: RESOLVED — the Rive-vs-static-sprite spike concluded in favor of static sprites (RESEARCH §1: raster art, discrete 4-state set, zero new npm deps). No Rive pipeline is built; MASCOT-F2 (advanced rig) stays deferred.
+**Copyright note**: any supporting characters (deferred, MEDIA-F2) must use original designs — no franchise or meme/"brainrot" characters.
 **UI hint**: yes
 
 ### Phase 11: Coco Chat (dynamic turns + scene framing)
+
+> ⚠️ **Needs post-pivot re-evaluation before planning (2026-07-08).** This phase and its plans were written for the mascot-era product. Two things changed: (a) SCENE-01 framed the scene premise as *text*, but the Phase 10 POV storyboard is now the visual scene-framing — SCENE-01 likely folds into MEDIA or is redefined; (b) the whole "Coco Chat" dynamic-AI-conversation concept assumed a chatbot persona (the cat) — with a teacher-POV product, whether an AI chatbot layer still fits is an open product question. **Do not run `/gsd-plan-phase 11` until Chat's fate is decided.** The plan artifacts below are retained for reference but may be substantially rewritten or dropped.
 
 **Goal**: Each mission is framed by a lightweight scene premise tied to its target pattern, and missions can optionally run in a dynamic, bounded, moderated conversation mode where Coco responds naturally while staying on-pattern and fully teacher-reviewable — without drifting off-topic, exceeding a hard turn cap, or reaching a student with unmoderated content.
 **Depends on**: Phase 8 (voice) and Phase 10 (mascot presence), for the full "scene" experience described in PROJECT.md.
@@ -190,10 +187,12 @@ Phases execute in numeric order: 8 → 9 → 10 → 11 → 12
 | 7. Teacher Review and Pilot Readiness | v1.0 | 4/4 | Complete | 2026-07-01 |
 | 8. Coco Voice (TTS) | v2.0 | 5/5 | Complete (accepted with residual low-end-device risk) | 2026-07-02 |
 | 9. Pronunciation Scoring | v2.0 | 6/6 | Complete | 2026-07-03 |
-| 10. Mascot (VN-style) | v2.0 | 0/4 | Planned | - |
-| 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 0/7 | Planned | - |
+| 10. POV Story-Slide Missions | v2.0 | 0/TBD | Re-planning (pivoted from mascot) | - |
+| 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 0/7 | Planned — needs post-pivot re-evaluation | - |
 | 12. UI Overhaul | v2.0 | 0/TBD | Not started | - |
 
 ## Next Up
 
-Run `/gsd-discuss-phase 10` (or `/gsd-plan-phase 10`) to plan Mascot (VN-style), the next v2.0 point release.
+Phase 10 was re-scoped from the mascot direction to **POV Story-Slide Missions** (2026-07-08). Before planning, note that Success Criterion 1 is a production-volume validation gate — the teacher should generate 5–6 real storyboards by hand to prove the workflow is sustainable, either as a pre-step or as the first task in the plan.
+
+Run `/gsd-discuss-phase 10` (or `/gsd-plan-phase 10`) to plan POV Story-Slide Missions against the new MEDIA-* / VOICE-05 requirements. Phase 11 (Coco Chat) is on hold pending a decision about whether a dynamic AI-chat layer still fits the teacher-POV product.
