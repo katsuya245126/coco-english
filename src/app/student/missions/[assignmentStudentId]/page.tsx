@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { readStudentUnlock } from "@/app/join/actions";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { missionSnapshotSchema } from "@/domain/mission/schemas";
@@ -6,6 +7,7 @@ import { getCharacterProfile } from "@/domain/character/profile";
 import { nextUnfinishedTurnOrder } from "@/domain/flow/completion";
 import { pageStyle, panelStyle } from "@/components/student/styles";
 import { MissionFlowShell } from "@/components/student/MissionFlowShell";
+import { warmEvaluators } from "@/server/ai/evaluator-warmup";
 
 // Student mission-flow route (FLOW-01, D-12, PILOT-01).
 //
@@ -125,6 +127,14 @@ export default async function MissionPage({ params }: MissionPageProps) {
   const sortedTurns = [...snapshot.turns].sort(
     (a, b) => a.turnOrder - b.turnOrder,
   );
+
+  // Warms the OpenAI structured-output schema cache in the background so the
+  // student's first recording doesn't pay the compile cost. Runs via
+  // after() so the platform keeps the function alive to finish the request
+  // even though the page response returns immediately (see
+  // evaluator-warmup.ts for why this can't just be a bare fire-and-forget
+  // promise on serverless).
+  after(() => warmEvaluators(snapshot.level));
 
   return (
     <main style={pageStyle}>
