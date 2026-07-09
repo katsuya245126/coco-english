@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 09
 current_phase_name: pronunciation-scoring
 status: between-phases
-stopped_at: Phase 10 pivot reverted (POV story-slides → back to mascot); phase-10-mascot-wip branch not yet merged
-last_updated: "2026-07-09T00:00:00.000Z"
+stopped_at: Phase 10 pivot reverted (POV story-slides → back to mascot); phase-10-mascot-wip merged to main (50efbfc0), Plan 10-04 remains
+last_updated: "2026-07-09T00:10:00.000Z"
 last_activity: 2026-07-09
-last_activity_desc: Reverted the mascot→POV-media pivot back to the illustrated mascot after hands-on likeness testing failed; restored Phase 10 mascot planning docs from git history; promoted MEDIA-F1 (pronunciation remediation video) into a new Phase 13
+last_activity_desc: Reverted the mascot→POV-media pivot back to the illustrated mascot after hands-on likeness testing failed; restored Phase 10 mascot planning docs from git history; promoted MEDIA-F1 (pronunciation remediation video) into a new Phase 13; merged phase-10-mascot-wip into main locally (not pushed) and verified tsc + full test suite clean
 progress:
   total_phases: 6
   completed_phases: 2
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-01)
 
 **Core value:** Students must complete useful spoken English practice outside class, and teachers must be able to verify that it happened.
-**Current focus:** Phase 10 — VN-Style Mascot (REVERTED to mascot direction 2026-07-09; 3/4 plans already executed on unmerged branch `phase-10-mascot-wip` — merge it, then run Plan 10-04)
+**Current focus:** Phase 10 — VN-Style Mascot (REVERTED to mascot direction 2026-07-09; 3/4 plans merged to main via `phase-10-mascot-wip` merge commit 50efbfc0 — only Plan 10-04 remains)
 
 ## Current Position
 
 Phase: 09 (pronunciation-scoring) — COMPLETE
 Previous phase: 08 (coco-voice-tts) — COMPLETE with residual older-device risk accepted
-Status: Phase 10 PIVOT REVERTED 2026-07-09. The teacher-POV generated-media direction (MEDIA-01..05 + VOICE-05, scoped 2026-07-08) was hands-on tested this session using the media-gen skill across three Fal.ai models (nano-banana-pro-edit, gpt-image-2, FLUX Kontext) and failed to reliably preserve the teacher's likeness across a storyboard; the close-POV framing also read as uncomfortable. Reverted back to the original illustrated VN-style mascot (MASCOT-01..04). REQUIREMENTS.md and ROADMAP.md restored; the 10 original Phase 10 mascot planning docs (10-CONTEXT, 10-DISCUSSION-LOG, 10-PATTERNS, 10-RESEARCH, 10-UI-SPEC, 10-VALIDATION, 10-01..04-PLAN) recovered from git history at commit 410291ba into .planning/phases/10-mascot-vn-style/. Discovered that 3 of the 4 mascot plans (10-01 domain helpers, 10-02 CocoSpeechAudio wiring, 10-03 MascotStage component) were already executed on a branch, `phase-10-mascot-wip` (commit f52a9bd0), with SUMMARY.md files restored alongside the plans — that branch is NOT yet merged to main (user explicitly does not want it in production yet). Only Plan 10-04 (MissionFlowShell integration + device checkpoints) remains. The pronunciation-remediation video idea (previously parked as MEDIA-F1) was promoted out of the Future backlog into a new Phase 13 (v2.6) per user request, independent of the Phase 10-12 sequence. Next action = merge phase-10-mascot-wip into main when ready to resume Phase 10, then execute Plan 10-04.
-Last activity: 2026-07-09 — Phase 10 pivot reverted to mascot; MEDIA-F1 promoted to Phase 13
+Status: Phase 10 PIVOT REVERTED 2026-07-09. The teacher-POV generated-media direction (MEDIA-01..05 + VOICE-05, scoped 2026-07-08) was hands-on tested this session using the media-gen skill across three Fal.ai models (nano-banana-pro-edit, gpt-image-2, FLUX Kontext) and failed to reliably preserve the teacher's likeness across a storyboard; the close-POV framing also read as uncomfortable. Reverted back to the original illustrated VN-style mascot (MASCOT-01..04). REQUIREMENTS.md and ROADMAP.md restored; the 10 original Phase 10 mascot planning docs (10-CONTEXT, 10-DISCUSSION-LOG, 10-PATTERNS, 10-RESEARCH, 10-UI-SPEC, 10-VALIDATION, 10-01..04-PLAN) recovered from git history at commit 410291ba into .planning/phases/10-mascot-vn-style/. Discovered that 3 of the 4 mascot plans (10-01 domain helpers, 10-02 CocoSpeechAudio wiring, 10-03 MascotStage component) were already executed on a branch, `phase-10-mascot-wip` (commit f52a9bd0), with SUMMARY.md files restored alongside the plans. That branch has now been merged into `main` locally (merge commit 50efbfc0; only `.planning/STATE.md` conflicted, resolved in favor of the revert content) — local only, not pushed, no remote configured. Post-merge `tsc --noEmit` and `npx vitest run` both clean (444 passed, 4 skipped, 48 files). Only Plan 10-04 (MissionFlowShell integration + device checkpoints) remains. The pronunciation-remediation video idea (previously parked as MEDIA-F1) was promoted out of the Future backlog into a new Phase 13 (v2.6) per user request, independent of the Phase 10-12 sequence. Next action = execute Plan 10-04 via `/gsd-execute-phase 10` when ready.
+Last activity: 2026-07-09 — Phase 10 pivot reverted to mascot; phase-10-mascot-wip merged to main; MEDIA-F1 promoted to Phase 13
 
 Progress: [███████░░░] 71%
 
@@ -185,6 +185,6 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 **Resume file:** mascot-vs-media-handoff.md (original pivot dilemma — now resolved back to mascot; kept as historical record)
 
 Last session: 2026-07-09
-Stopped at: Phase 10 pivot reverted (POV story-slides → mascot); phase-10-mascot-wip branch (3/4 plans done) not yet merged to main
-Resume action: When ready to resume Phase 10, merge `phase-10-mascot-wip` into `main` (only `.planning/STATE.md` conflicts), then execute Plan 10-04 (MissionFlowShell integration + device checkpoints) via `/gsd-execute-phase 10`.
+Stopped at: Phase 10 pivot reverted (POV story-slides → mascot); phase-10-mascot-wip merged to main (50efbfc0, local only); Plan 10-04 remains
+Resume action: Execute Plan 10-04 (MissionFlowShell integration + device checkpoints) via `/gsd-execute-phase 10`. Branch `phase-10-mascot-wip` is fully merged and can be deleted (not yet done — ask before deleting).
 Note: `.planning/phases/10-mascot-vn-style/` has been restored from git history (commit 410291ba) with all 10 original docs plus 3 SUMMARY.md files recovered from the `phase-10-mascot-wip` branch. Phase 11 artifacts at `.planning/phases/11-coco-chat-dynamic-turns-scene-framing/` are active again (no longer on hold) now that Phase 10 is back to the mascot, which Phase 11 originally depended on. Phase 13 (Pronunciation Remediation Videos, MEDIA-F1) is new — not yet planned, no phase directory exists yet.
