@@ -23,3 +23,7 @@ supabase/.temp/
 .vercel
 .env*
 .scratch
+
+# Personal notes, not for the repo (interview prep etc.)
+docs/DESIGN-DECISIONS.md
+docs/PROBLEMS-SOLVED.md
