@@ -699,16 +699,38 @@ export async function uploadAttemptAudioClip(
             return write;
           })()
         : await (async () => {
-            const evaluate = deps.evaluateRepeatTurn ?? evaluateRepeatTurn;
-            const evaluationResult = await timeStage("evaluation", () =>
-              evaluate({
-                originalTranscript: turn.original_transcript ?? "",
-                improvedSentence: turn.improved_sentence ?? snapshotTurn.targetExample,
-                targetPattern: snapshot.targetPattern,
-                level: snapshot.level,
-                repeatTranscript: transcript,
-              }),
-            );
+            // Skip the OpenAI evaluation call entirely when the repeat
+            // transcript is an exact normalized match for the sentence the
+            // student was asked to repeat — mirrors the original-answer fast
+            // path above. Without this, a verbatim repeat still depends on a
+            // non-deterministic LLM judgment call, which can (and did) reject
+            // an exact match.
+            const repeatTarget =
+              turn.improved_sentence ?? snapshotTurn.targetExample;
+            const fastPathMatched = isExactTargetMatch(transcript, repeatTarget);
+            timings.evaluationFastPath = fastPathMatched ? 1 : 0;
+            const evaluationResult: RepeatTurnEvaluationResult = fastPathMatched
+              ? {
+                  ok: true,
+                  evaluation: {
+                    version: AI_EVALUATION_VERSION,
+                    outcome: "repeat_accepted",
+                    repeatCloseEnough: true,
+                    englishLanguage: "english",
+                    confidence: "high",
+                    reviewReason: null,
+                  },
+                }
+              : await timeStage("evaluation", () => {
+                  const evaluate = deps.evaluateRepeatTurn ?? evaluateRepeatTurn;
+                  return evaluate({
+                    originalTranscript: turn.original_transcript ?? "",
+                    improvedSentence: repeatTarget,
+                    targetPattern: snapshot.targetPattern,
+                    level: snapshot.level,
+                    repeatTranscript: transcript,
+                  });
+                });
             const decision = applyRepeatTurnEvaluation(evaluationResult);
             repeatEvaluation = decision;
 
