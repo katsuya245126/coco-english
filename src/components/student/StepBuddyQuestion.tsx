@@ -18,6 +18,7 @@ import { HintRevealer } from "@/components/student/HintRevealer";
 import { CocoSpeechAudio } from "@/components/student/CocoSpeechAudio";
 import {
   VoiceRecorderControl,
+  type RecorderState,
   type VoiceRecordingMetadata,
 } from "@/components/student/VoiceRecorderControl";
 
@@ -31,6 +32,10 @@ type StepBuddyQuestionProps = {
   prompt: string;
   hintLadder: HintLadder;
   hintLevel: number;
+  onAmplitudeFrame?: (level: number) => void;
+  onPlayingChange?: (playing: boolean) => void;
+  showCocoLine?: boolean;
+  onRecorderStateChange?: (state: RecorderState) => void;
   onRevealHint: (nextLevel: number) => void;
   onVoiceRecorded: (recording: RecordedVoiceClip) => void | Promise<void>;
   isSubmitting: boolean;
@@ -42,28 +47,35 @@ export function StepBuddyQuestion({
   prompt,
   hintLadder,
   hintLevel,
+  onAmplitudeFrame,
+  onPlayingChange,
+  showCocoLine = true,
+  onRecorderStateChange,
   onRevealHint,
   onVoiceRecorded,
   isSubmitting,
 }: StepBuddyQuestionProps) {
   return (
     <div style={stepCardStyle} aria-live="polite">
-      {/* Buddy speech area */}
-      <div style={buddyCardStyle}>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
-          {/* Voice the mission prompt (D-06). Text above renders regardless. */}
-          <CocoSpeechAudio
-            assignmentStudentId={assignmentStudentId}
-            line={{ lineKind: "mission_prompt", turnOrder }}
-          />
+      {showCocoLine ? (
+        <div style={buddyCardStyle}>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
+            {/* Voice the mission prompt (D-06). Text above renders regardless. */}
+            <CocoSpeechAudio
+              assignmentStudentId={assignmentStudentId}
+              line={{ lineKind: "mission_prompt", turnOrder }}
+              onAmplitudeFrame={onAmplitudeFrame}
+              onPlayingChange={onPlayingChange}
+            />
+          </div>
+          <p style={{ fontSize: 20, fontWeight: 600, color: "#111827", margin: 0, lineHeight: 1.25 }}>
+            {prompt}
+          </p>
         </div>
-        <p style={{ fontSize: 20, fontWeight: 600, color: "#111827", margin: 0, lineHeight: 1.25 }}>
-          {prompt}
-        </p>
-      </div>
+      ) : null}
 
       {/* Hint area */}
-      <div style={{ marginTop: 16 }}>
+      <div style={{ marginTop: showCocoLine ? 16 : 0 }}>
         <HintRevealer
           hintLadder={hintLadder}
           hintLevel={hintLevel}
@@ -77,6 +89,7 @@ export function StepBuddyQuestion({
           mode="original"
           maxSeconds={60}
           disabled={isSubmitting}
+          onStateChange={onRecorderStateChange}
           onRecorded={(blob, metadata) =>
             onVoiceRecorded({
               blob,

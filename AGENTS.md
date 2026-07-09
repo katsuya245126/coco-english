@@ -67,6 +67,15 @@ Current roadmap has 7 phases, starting with data/privacy foundation and ending w
 No project-local skills are defined yet.
 <!-- GSD:skills-end -->
 
+## Testing
+
+For deterministic screenshots of all student feedback states, use
+`npm run test:student-feedback-states` after the user starts the app on
+`http://localhost:3000`. Provide the test class access through
+`FEEDBACK_STATE_CLASS_CODE`, `FEEDBACK_STATE_STUDENT_NAME`, and
+`FEEDBACK_STATE_PIN`; do not commit reusable class access values. See
+`docs/testing/student-feedback-states.md`.
+
 <!-- GSD:workflow-start source:GSD defaults -->
 ## GSD Workflow Enforcement
 
@@ -81,6 +90,14 @@ Use these entry points:
 - `$gsd-debug` for investigation and bug fixing.
 
 Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
+
+**If you are Codex (or any agent without access to the `$gsd-*` Claude Code skills):** you cannot invoke slash-commands like `$gsd-execute-phase`, but you must still keep the GSD state files truthful, by hand, in the same commit as your work:
+
+- `.planning/STATE.md` — update the YAML header (`current_phase`, `current_phase_name`, `status`, `stopped_at`, `last_updated`, `last_activity`, `last_activity_desc`) AND the prose "Current Position" section to match. These two must never disagree — if you only edit one, you've created the exact drift this note exists to prevent.
+- `.planning/ROADMAP.md` — flip `[ ]` to `[x]` for any phase you completed.
+- Do this in the same commit as the feature work, not a followup — a change without a STATE.md update looks, to the next agent, like it never happened.
+
+Before starting work, run `git status` / `git branch -v` and confirm you're on the branch with the latest merged state — GSD state files are normal tracked files, so if the prior tool worked on an unmerged branch, checking out a different branch will show you stale STATE.md/ROADMAP.md even though newer work exists elsewhere. Ask the user which branch to use if unsure, and merge finished work to `main` before ending your session rather than leaving it on a feature branch.
 <!-- GSD:workflow-end -->
 
 <!-- GSD:profile-start -->

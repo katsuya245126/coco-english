@@ -13,6 +13,9 @@ import {
   subtleHover,
 } from "@/components/ui/hover-styles";
 
+const STALE_ACTION_ERROR =
+  "This page is out of date. Refresh the missions page, then assign the mission again.";
+
 type AssignDialogProps = {
   missionId: string;
   missionTitle: string;
@@ -52,7 +55,15 @@ export function AssignDialog({
     formData.set("classId", classId);
     formData.set("dueAt", dueAt);
 
-    const result: AssignMissionActionResult = await assignMissionAction(formData);
+    let result: AssignMissionActionResult;
+    try {
+      result = await assignMissionAction(formData);
+    } catch {
+      setSubmitting(false);
+      setError(STALE_ACTION_ERROR);
+      return;
+    }
+
     setSubmitting(false);
 
     if (result.ok) {

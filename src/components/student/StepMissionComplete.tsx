@@ -18,17 +18,24 @@ export type StepMissionCompleteProps = {
   assignmentStudentId: string;
   completionHeading: string;
   completionBody: string;
+  onAmplitudeFrame?: (level: number) => void;
+  onPlayingChange?: (playing: boolean) => void;
+  showCocoLine?: boolean;
 };
 
 export function StepMissionComplete({
   assignmentStudentId,
   completionHeading,
   completionBody,
+  onAmplitudeFrame,
+  onPlayingChange,
+  showCocoLine = true,
 }: StepMissionCompleteProps) {
   const router = useRouter();
 
   return (
     <div style={{ textAlign: "center", padding: 24 }} aria-live="polite">
+      {showCocoLine ? (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
         <h2
           style={{
@@ -45,8 +52,11 @@ export function StepMissionComplete({
         <CocoSpeechAudio
           assignmentStudentId={assignmentStudentId}
           line={{ lineKind: "completion_celebration" }}
+          onAmplitudeFrame={onAmplitudeFrame}
+          onPlayingChange={onPlayingChange}
         />
       </div>
+      ) : null}
       <p
         style={{
           fontSize: 16,

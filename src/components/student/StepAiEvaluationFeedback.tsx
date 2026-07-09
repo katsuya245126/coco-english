@@ -35,6 +35,9 @@ type StepAiEvaluationFeedbackProps = {
   improvedSentence?: string | null;
   starBand?: PronunciationStarBand | null;
   wordsToPractice?: WordHighlight[];
+  onAmplitudeFrame?: (level: number) => void;
+  onPlayingChange?: (playing: boolean) => void;
+  showCocoLine?: boolean;
   /**
    * True on a 1-star result the student hasn't yet retried this turn — hides
    * Continue so a retry is the only way forward. Never true after a retry
@@ -57,6 +60,9 @@ export function StepAiEvaluationFeedback({
   improvedSentence,
   starBand,
   wordsToPractice,
+  onAmplitudeFrame,
+  onPlayingChange,
+  showCocoLine = true,
   forceRetryBeforeContinue = false,
   onContinue,
   onRetry,
@@ -76,9 +82,11 @@ export function StepAiEvaluationFeedback({
     return (
       <div style={stepCardStyle} aria-live="polite">
         <Transcript transcript={transcript} audioUrl={audioUrl} />
-        <div style={evaluationSuccessStyle}>
-          <h2 style={headingInlineStyle}>Nice answer!</h2>
-        </div>
+        {showCocoLine ? (
+          <div style={evaluationSuccessStyle}>
+            <h2 style={headingInlineStyle}>Nice answer!</h2>
+          </div>
+        ) : null}
         <PronunciationStars starBand={starBand} />
         <WordsToPractice words={wordsToPractice} />
         {forceRetryBeforeContinue ? (
@@ -102,36 +110,38 @@ export function StepAiEvaluationFeedback({
     return (
       <div style={stepCardStyle} aria-live="polite">
         <Transcript transcript={transcript} audioUrl={audioUrl} />
+        {showCocoLine ? (
         <div style={{ ...improvedSentenceCardStyle, marginTop: transcript ? 16 : 0 }}>
           <div style={improvedSentenceHeaderStyle}>
             <p style={improvedSentenceLabelStyle}>
-              Nice try! Here is a clearer way to say it:
+              Try this:
             </p>
             {/* Voice reads the actual improved sentence (D-07). The
                 transcript above is never voiced (D-10). */}
             <CocoSpeechAudio
               assignmentStudentId={assignmentStudentId}
               line={{ lineKind: "improved_sentence", turnOrder }}
+              onAmplitudeFrame={onAmplitudeFrame}
+              onPlayingChange={onPlayingChange}
             />
           </div>
           <p style={sentenceStyle}>{improvedSentence}</p>
         </div>
-        <PronunciationStars starBand={starBand} />
-        <WordsToPractice words={wordsToPractice} />
-        <p style={{ ...bodyInlineStyle, marginTop: 16 }}>
-          Now say it out loud.
-        </p>
-        <RecordingReview onRetry={onRetry} />
+        ) : null}
         {forceRetryBeforeContinue ? (
-          <RecordAgainRequiredNotice />
+          <>
+            <RecordAgainRequiredNotice />
+            <RecordingReview onRetry={onRetry} />
+          </>
         ) : (
           <button
             type="button"
-            style={{ ...secondaryButtonStyle, marginTop: 12 }}
+            style={{ ...recordAgainButtonStyle, marginTop: 12 }}
             onClick={onContinue}
             disabled={isSubmitting}
           >
-            Continue practice
+            <MicIcon />
+            Try again
           </button>
         )}
       </div>
@@ -142,9 +152,11 @@ export function StepAiEvaluationFeedback({
     return (
       <div style={stepCardStyle} aria-live="polite" role="alert">
         <Transcript transcript={transcript} audioUrl={audioUrl} />
-        <div style={{ ...evaluationErrorStyle, marginTop: transcript ? 16 : 0 }}>
-          <h2 style={headingInlineStyle}>Try that in English.</h2>
-        </div>
+        {showCocoLine ? (
+          <div style={{ ...evaluationErrorStyle, marginTop: transcript ? 16 : 0 }}>
+            <h2 style={headingInlineStyle}>Try again.</h2>
+          </div>
+        ) : null}
         <RecordingReview onRetry={onRetry} />
       </div>
     );
@@ -154,10 +166,12 @@ export function StepAiEvaluationFeedback({
     return (
       <div style={stepCardStyle} aria-live="polite">
         <Transcript transcript={transcript} audioUrl={audioUrl} />
-        <div style={{ ...evaluationReviewStyle, marginTop: transcript ? 16 : 0 }}>
-          <p style={badgeStyle}>Teacher review</p>
-          <h2 style={headingInlineStyle}>Your teacher will check this answer.</h2>
-        </div>
+        {showCocoLine ? (
+          <div style={{ ...evaluationReviewStyle, marginTop: transcript ? 16 : 0 }}>
+            <p style={badgeStyle}>Teacher review</p>
+            <h2 style={headingInlineStyle}>Your teacher will check this answer.</h2>
+          </div>
+        ) : null}
         <button
           type="button"
           style={{ ...primaryButtonStyle, marginTop: 16 }}
@@ -175,9 +189,11 @@ export function StepAiEvaluationFeedback({
     return (
       <div style={stepCardStyle} aria-live="polite">
         <Transcript transcript={transcript} audioUrl={audioUrl} />
-        <div style={evaluationSuccessStyle}>
-          <h2 style={headingInlineStyle}>Good repeat.</h2>
-        </div>
+        {showCocoLine ? (
+          <div style={evaluationSuccessStyle}>
+            <h2 style={headingInlineStyle}>Good repeat.</h2>
+          </div>
+        ) : null}
         <PronunciationStars starBand={starBand} />
         <WordsToPractice words={wordsToPractice} />
         {forceRetryBeforeContinue ? (
@@ -192,7 +208,6 @@ export function StepAiEvaluationFeedback({
             Continue mission
           </button>
         )}
-        <RecordingReview onRetry={onRetry} />
       </div>
     );
   }
@@ -200,7 +215,7 @@ export function StepAiEvaluationFeedback({
   return (
     <div style={stepCardStyle} aria-live="polite" role="alert">
       <Transcript transcript={transcript} audioUrl={audioUrl} />
-      {improvedSentence && (
+      {improvedSentence && showCocoLine && (
         <div style={{ ...improvedSentenceCardStyle, marginTop: transcript ? 16 : 0 }}>
           <p style={{ ...improvedSentenceLabelStyle, marginBottom: 8 }}>
             Say this sentence:
@@ -208,10 +223,11 @@ export function StepAiEvaluationFeedback({
           <p style={sentenceStyle}>{improvedSentence}</p>
         </div>
       )}
-      <div style={{ ...evaluationErrorStyle, marginTop: 16 }}>
-        <h2 style={headingInlineStyle}>Try the repeat again.</h2>
-        <p style={bodyInlineStyle}>Listen to the sentence and record it one more time.</p>
-      </div>
+      {showCocoLine ? (
+        <div style={{ ...evaluationErrorStyle, marginTop: 16 }}>
+          <h2 style={headingInlineStyle}>Try again.</h2>
+        </div>
+      ) : null}
       <button
         type="button"
         style={{ ...recordAgainButtonStyle, marginTop: 16 }}
@@ -235,7 +251,7 @@ function Transcript({
   return (
     <div>
       <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
-        We heard:
+        You said:
       </p>
       <p style={{ fontSize: 16, color: "#111827", margin: 0, lineHeight: 1.5 }}>
         {transcript}
@@ -354,7 +370,7 @@ function RecordAgainRequiredNotice() {
       role="status"
       style={{ fontSize: 14, color: "#4B5563", margin: "16px 0 0", lineHeight: 1.5 }}
     >
-      Give it one more try before you continue!
+      Right sentence. Say it one more time clearly before you continue.
     </p>
   );
 }
@@ -398,13 +414,6 @@ const headingInlineStyle: CSSProperties = {
   color: "#111827",
   margin: "0 0 8px",
   lineHeight: 1.25,
-};
-
-const bodyInlineStyle: CSSProperties = {
-  fontSize: 16,
-  color: "#4B5563",
-  margin: 0,
-  lineHeight: 1.5,
 };
 
 const sentenceStyle: CSSProperties = {
@@ -456,19 +465,6 @@ const recordAgainButtonStyle: CSSProperties = {
   border: "none",
   borderRadius: 6,
   fontSize: 16,
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-const secondaryButtonStyle: CSSProperties = {
-  width: "100%",
-  minHeight: 44,
-  padding: "12px 16px",
-  background: "#FFFFFF",
-  color: "#374151",
-  border: "1px solid #D1D5DB",
-  borderRadius: 6,
-  fontSize: 15,
   fontWeight: 600,
   cursor: "pointer",
 };

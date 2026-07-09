@@ -22,7 +22,7 @@ export type VoiceRecordingMetadata = {
 };
 
 type RecorderMode = "original" | "repeat";
-type RecorderState =
+export type RecorderState =
   | "ready"
   | "waiting-permission"
   | "recording"
@@ -36,6 +36,7 @@ type VoiceRecorderControlProps = {
   mode: RecorderMode;
   disabled?: boolean;
   maxSeconds?: number;
+  onStateChange?: (state: RecorderState) => void;
   onRecorded: (
     blob: Blob,
     metadata: VoiceRecordingMetadata,
@@ -46,6 +47,7 @@ export function VoiceRecorderControl({
   mode,
   disabled = false,
   maxSeconds,
+  onStateChange,
   onRecorded,
 }: VoiceRecorderControlProps) {
   const [state, setState] = useState<RecorderState>("ready");
@@ -74,6 +76,10 @@ export function VoiceRecorderControl({
       stopStream();
     };
   }, []);
+
+  useEffect(() => {
+    onStateChange?.(state);
+  }, [onStateChange, state]);
 
   const isProcessing = disabled || state === "processing";
   const isError =
@@ -323,9 +329,13 @@ export function VoiceRecorderControl({
       <button
         type="button"
         style={{
-          ...(state === "recording" || isError
+          ...(state === "recording"
             ? secondaryButtonStyle
             : primaryButtonStyle),
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
           opacity: disabled || state === "waiting-permission" ? 0.7 : 1,
           cursor:
             disabled || state === "waiting-permission" || state === "success"
@@ -335,8 +345,36 @@ export function VoiceRecorderControl({
         onClick={handleAction}
         disabled={disabled || state === "waiting-permission" || state === "success"}
       >
-        {isProcessing ? "Please wait" : actionLabel()}
+        {isProcessing ? (
+          "Please wait"
+        ) : (
+          <>
+            {isError ? <MicIcon /> : null}
+            {actionLabel()}
+          </>
+        )}
       </button>
     </div>
+  );
+}
+
+function MicIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" />
+      <path d="M19 11a7 7 0 0 1-14 0" />
+      <path d="M12 18v3" />
+    </svg>
   );
 }

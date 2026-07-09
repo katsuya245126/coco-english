@@ -93,6 +93,50 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     );
   });
 
+  it("needs-correction feedback exposes only one forward action unless retry is required", () => {
+    const feedbackSource = readFileSync(
+      "src/components/student/StepAiEvaluationFeedback.tsx",
+      "utf8",
+    );
+    const needsCorrectionBranch = feedbackSource.slice(
+      feedbackSource.indexOf('if (outcome === "needsCorrection")'),
+      feedbackSource.indexOf('if (outcome === "retryOriginal")'),
+    );
+
+    expect(needsCorrectionBranch).toContain("forceRetryBeforeContinue ? (");
+    expect(needsCorrectionBranch).toContain("<RecordAgainRequiredNotice />");
+    expect(needsCorrectionBranch).toContain("<RecordingReview onRetry={onRetry} />");
+    expect(needsCorrectionBranch).toContain("Try again");
+    expect(needsCorrectionBranch).toContain("recordAgainButtonStyle");
+    expect(needsCorrectionBranch).toContain("<MicIcon />");
+    expect(feedbackSource).toContain(
+      "Right sentence. Say it one more time clearly before you continue.",
+    );
+    expect(needsCorrectionBranch).not.toContain("PronunciationStars");
+    expect(needsCorrectionBranch).not.toContain("WordsToPractice");
+    expect(needsCorrectionBranch).not.toContain("Now say it out loud.");
+    expect(needsCorrectionBranch.indexOf("<RecordingReview onRetry={onRetry} />")).toBeGreaterThan(
+      needsCorrectionBranch.indexOf("<RecordAgainRequiredNotice />"),
+    );
+  });
+
+  it("repeat-accepted feedback does not offer record again after success", () => {
+    const feedbackSource = readFileSync(
+      "src/components/student/StepAiEvaluationFeedback.tsx",
+      "utf8",
+    );
+    const repeatAcceptedBranch = feedbackSource.slice(
+      feedbackSource.indexOf('if (outcome === "repeatAccepted")'),
+      feedbackSource.indexOf(
+        'return (\n    <div style={stepCardStyle} aria-live="polite" role="alert">',
+      ),
+    );
+
+    expect(repeatAcceptedBranch).toContain("Good repeat.");
+    expect(repeatAcceptedBranch).toContain("Continue mission");
+    expect(repeatAcceptedBranch).not.toContain("RecordingReview");
+  });
+
   it("review routing is service-owned, audited, and AI-attributed", () => {
     const missionFlowSource = readFileSync(
       "src/server/student-access/mission-flow.ts",
