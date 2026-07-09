@@ -26,7 +26,7 @@ describe("generateTtsAudio (VOICE-01)", () => {
 
     const result = await generateTtsAudio(
       {
-        text: "Good job! Ready for the next one.",
+        text: "Good job! Ready for the next one?",
         voice: "marin",
       },
       { apiKey: "test-key", client },
@@ -37,7 +37,7 @@ describe("generateTtsAudio (VOICE-01)", () => {
       expect.objectContaining({
         model: "gpt-4o-mini-tts",
         voice: "marin",
-        input: "Good job! Ready for the next one.",
+        input: "Good job! Ready for the next one?",
         response_format: "mp3",
         instructions: expect.any(String),
       }),

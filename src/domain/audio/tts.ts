@@ -56,7 +56,7 @@ export const ttsVoiceSchema = z.enum(TTS_VOICES);
  *
  * - `mission_prompt`         D-06 — Coco asks the mission question.
  * - `improved_sentence`      D-07 — Coco reads the better target-form sentence.
- * - `coco_transition`        D-08 — "Good job! Ready for the next one."
+ * - `coco_transition`        D-08 — "Good job! Ready for the next one?"
  * - `coco_feedback`          D-09 — bounded supportive feedback line.
  * - `completion_celebration` D-11 — mission-complete celebration line.
  *

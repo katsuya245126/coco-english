@@ -316,7 +316,7 @@ test("full per-turn walk: answer -> improved sentence shown -> required repeat (
 
     // Transition screen
     await expect(
-      page.getByText("Good job! Ready for the next one."),
+      page.getByText("Good job! Ready for the next one?"),
     ).toBeVisible();
     await page.getByRole("button", { name: "Next turn" }).click();
 

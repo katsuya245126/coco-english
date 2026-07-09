@@ -46,7 +46,7 @@ describe("TTS domain constants (VOICE-01, D-05..D-11)", () => {
 describe("canonical TTS cache hash input (VOICE-03)", () => {
   function baseInput() {
     return {
-      text: "Good job! Ready for the next one.",
+      text: "Good job! Ready for the next one?",
       characterId: "default-buddy",
       voice: DEFAULT_COCO_TTS_VOICE,
       provider: TTS_PROVIDER,
@@ -65,14 +65,14 @@ describe("canonical TTS cache hash input (VOICE-03)", () => {
       voice: DEFAULT_COCO_TTS_VOICE,
       responseFormat: TTS_RESPONSE_FORMAT,
       characterId: "default-buddy",
-      text: "Good job! Ready for the next one.",
+      text: "Good job! Ready for the next one?",
     });
   });
 
   it("normalizes equivalent whitespace to the same cache input", () => {
     const spaced = buildTtsCacheHashInput({
       ...baseInput(),
-      text: "  Good   job!\nReady for   the next one.  ",
+      text: "  Good   job!\nReady for   the next one?  ",
     });
     const normalized = buildTtsCacheHashInput(baseInput());
 

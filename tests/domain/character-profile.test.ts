@@ -45,7 +45,7 @@ describe("character profile module (CHAR-01/02/03/04, FLOW-02)", () => {
 
   it("has a turnTransition field", () => {
     expect(DEFAULT_BUDDY.turnTransition).toBe(
-      "Good job! Ready for the next one.",
+      "Good job! Ready for the next one?",
     );
   });
 

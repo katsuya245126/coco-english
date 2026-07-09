@@ -164,7 +164,7 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
         voice: "marin",
         texts: expect.arrayContaining([
           "What food do you like?",
-          "Good job! Ready for the next one.",
+          "Good job! Ready for the next one?",
           "Nice! Here is a better way to say it:",
           "Mission complete! Great work! You finished all 1 turns. Your teacher will see your answers.",
         ]),

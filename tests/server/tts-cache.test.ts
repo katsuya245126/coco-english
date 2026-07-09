@@ -112,7 +112,7 @@ function baseInput() {
     assignmentStudentId: "as-1",
     characterId: "default-buddy",
     voice: "marin",
-    text: "Good job! Ready for the next one.",
+    text: "Good job! Ready for the next one?",
   };
 }
 

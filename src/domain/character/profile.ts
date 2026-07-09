@@ -31,7 +31,7 @@ export const DEFAULT_BUDDY: CharacterProfile = {
   questionLabel: "Coco asks:",
   improvedSentenceIntro: "Nice! Here is a better way to say it:",
   repeatInstruction: "Now try saying it this way:",
-  turnTransition: "Good job! Ready for the next one.",
+  turnTransition: "Good job! Ready for the next one?",
   completionHeading: "Mission complete!",
   completionBody: (turnCount: number) =>
     `Great work! You finished all ${turnCount} turns. Your teacher will see your answers.`,
