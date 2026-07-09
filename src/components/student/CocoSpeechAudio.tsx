@@ -235,8 +235,14 @@ export function CocoSpeechAudio({
     if (!el) return;
 
     autoplayedUrlRef.current = audioUrl;
-    ensureAnalyserReady();
-    resumeAudioContext();
+    // Do NOT attach the analyser or touch the AudioContext here. Autoplay is
+    // not a user gesture, so AudioContext.resume() cannot reliably unlock —
+    // creating/routing the context at this point leaves it permanently
+    // suspended and silently mutes the <audio> element for its whole
+    // lifetime once createMediaElementSource has captured it (that routing
+    // can't be undone). Only attach once a real gesture (handleReplay) has
+    // already unlocked the shared context — see the "running" guard on
+    // onPlay/onPlaying below.
     el.play().catch(() => {
       // Autoplay blocked — remain ready so the student can tap replay (D-02).
       setState((prev) => (prev === "playing" ? prev : "ready"));
@@ -246,12 +252,6 @@ export function CocoSpeechAudio({
   async function handleReplay() {
     const el = audioRef.current;
     if (!el) return;
-    // Attach the analyser (creates sharedAudioContext on first call) BEFORE
-    // resuming — resuming first is a no-op when the context doesn't exist
-    // yet, which left a freshly-created, still-suspended AudioContext routed
-    // through createMediaElementSource(el) with nothing to un-suspend it,
-    // silently muting playback (D-02 regression from the MASCOT-02 analyser
-    // wiring).
     ensureAnalyserReady();
     await resumeAudioContext();
     el.currentTime = 0;
