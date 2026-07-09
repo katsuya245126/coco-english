@@ -235,9 +235,8 @@ export function CocoSpeechAudio({
     if (!el) return;
 
     autoplayedUrlRef.current = audioUrl;
-    if (sharedAudioContext?.state === "running") {
-      ensureAnalyserReady();
-    }
+    ensureAnalyserReady();
+    resumeAudioContext();
     el.play().catch(() => {
       // Autoplay blocked — remain ready so the student can tap replay (D-02).
       setState((prev) => (prev === "playing" ? prev : "ready"));
@@ -247,8 +246,14 @@ export function CocoSpeechAudio({
   async function handleReplay() {
     const el = audioRef.current;
     if (!el) return;
-    await resumeAudioContext();
+    // Attach the analyser (creates sharedAudioContext on first call) BEFORE
+    // resuming — resuming first is a no-op when the context doesn't exist
+    // yet, which left a freshly-created, still-suspended AudioContext routed
+    // through createMediaElementSource(el) with nothing to un-suspend it,
+    // silently muting playback (D-02 regression from the MASCOT-02 analyser
+    // wiring).
     ensureAnalyserReady();
+    await resumeAudioContext();
     el.currentTime = 0;
     el.play().catch(() => {
       setState("error");
