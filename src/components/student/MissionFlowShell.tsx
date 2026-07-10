@@ -42,6 +42,7 @@ import { TurnProgressBar } from "@/components/student/TurnProgressBar";
 import type { RecordedVoiceClip } from "@/components/student/StepBuddyQuestion";
 import type { RepeatVoiceClip } from "@/components/student/StepImprovedRepeat";
 import type { RecorderState } from "@/components/student/VoiceRecorderControl";
+import type { PendingTurnReview } from "@/domain/flow/completion";
 
 // ─── Types ───
 
@@ -137,7 +138,75 @@ export type MissionFlowShellProps = {
   characterProfile: CharacterProfileLines;
   startingTurnIndex: number;
   isResume: boolean;
+  initialReview: (PendingTurnReview & { audioUrl?: string }) | null;
 };
+
+function clearAudioUrl(ref: { current: string | null }) {
+  if (ref.current?.startsWith("blob:")) {
+    URL.revokeObjectURL(ref.current);
+  }
+  ref.current = null;
+}
+
+function initialFlowState(
+  startingTurnIndex: number,
+  initialReview: MissionFlowShellProps["initialReview"],
+): FlowState {
+  const emptyState: FlowState = {
+    turnIndex: startingTurnIndex,
+    step: "question",
+    hintLevel: 0,
+    originalTranscript: null,
+    repeatTranscript: null,
+    improvedSentence: null,
+    originalFeedback: null,
+    repeatFeedback: null,
+    hasRetriedThisTurn: false,
+  };
+
+  if (!initialReview) return emptyState;
+
+  if (initialReview.step === "aiFeedback") {
+    if (
+      initialReview.outcome === "needsCorrection" &&
+      !initialReview.improvedSentence
+    ) {
+      return emptyState;
+    }
+
+    const originalFeedback: OriginalFeedback =
+      initialReview.outcome === "needsCorrection"
+        ? {
+            kind: "needsCorrection",
+            transcript: initialReview.transcript,
+            improvedSentence: initialReview.improvedSentence!,
+          }
+        : {
+            kind: initialReview.outcome,
+            transcript: initialReview.transcript,
+          };
+
+    return {
+      ...emptyState,
+      step: "aiFeedback",
+      originalTranscript: initialReview.transcript,
+      improvedSentence: initialReview.improvedSentence,
+      originalFeedback,
+    };
+  }
+
+  return {
+    ...emptyState,
+    step: "repeatFeedback",
+    originalTranscript: initialReview.originalTranscript,
+    repeatTranscript: initialReview.transcript,
+    improvedSentence: initialReview.improvedSentence,
+    repeatFeedback: {
+      kind: initialReview.outcome,
+      transcript: initialReview.transcript,
+    },
+  };
+}
 
 export function MissionFlowShell({
   assignmentStudentId,
@@ -148,24 +217,25 @@ export function MissionFlowShell({
   characterProfile,
   startingTurnIndex,
   isResume,
+  initialReview,
 }: MissionFlowShellProps) {
   const router = useRouter();
-  const [flow, setFlow] = useState<FlowState>({
-    turnIndex: startingTurnIndex,
-    step: "question",
-    hintLevel: 0,
-    originalTranscript: null,
-    repeatTranscript: null,
-    improvedSentence: null,
-    originalFeedback: null,
-    repeatFeedback: null,
-    hasRetriedThisTurn: false,
-  });
+  const [flow, setFlow] = useState<FlowState>(() =>
+    initialFlowState(startingTurnIndex, initialReview),
+  );
 
   const [attemptId, setAttemptId] = useState<string | null>(initialAttemptId);
   const [actionError, setActionError] = useState<string | null>(null);
-  const originalAudioUrlRef = useRef<string | null>(null);
-  const repeatAudioUrlRef = useRef<string | null>(null);
+  const originalAudioUrlRef = useRef<string | null>(
+    initialReview?.clipKind === "original_answer"
+      ? (initialReview.audioUrl ?? null)
+      : null,
+  );
+  const repeatAudioUrlRef = useRef<string | null>(
+    initialReview?.clipKind === "repeat_attempt"
+      ? (initialReview.audioUrl ?? null)
+      : null,
+  );
   const mascotAmplitudeRef = useRef(0);
   const [mascotPlaying, setMascotPlaying] = useState(false);
   const [originalRecorderState, setOriginalRecorderState] =
@@ -326,14 +396,8 @@ export function MissionFlowShell({
   }
 
   function revokeAudioUrls() {
-    if (originalAudioUrlRef.current) {
-      URL.revokeObjectURL(originalAudioUrlRef.current);
-      originalAudioUrlRef.current = null;
-    }
-    if (repeatAudioUrlRef.current) {
-      URL.revokeObjectURL(repeatAudioUrlRef.current);
-      repeatAudioUrlRef.current = null;
-    }
+    clearAudioUrl(originalAudioUrlRef);
+    clearAudioUrl(repeatAudioUrlRef);
   }
 
   async function handleSubmitOriginalVoice(recording: RecordedVoiceClip) {
@@ -345,7 +409,7 @@ export function MissionFlowShell({
     setIsSubmittingVoice(true);
 
     try {
-      if (originalAudioUrlRef.current) URL.revokeObjectURL(originalAudioUrlRef.current);
+      clearAudioUrl(originalAudioUrlRef);
       originalAudioUrlRef.current = URL.createObjectURL(recording.blob);
 
       const aid = await ensureAttempt();
@@ -395,7 +459,7 @@ export function MissionFlowShell({
     setIsSubmittingVoice(true);
 
     try {
-      if (repeatAudioUrlRef.current) URL.revokeObjectURL(repeatAudioUrlRef.current);
+      clearAudioUrl(repeatAudioUrlRef);
       repeatAudioUrlRef.current = URL.createObjectURL(recording.blob);
 
       const aid = await ensureAttempt();
@@ -443,7 +507,6 @@ export function MissionFlowShell({
       const result = await completeMissionAction({
         assignmentStudentId,
         attemptId: aid,
-        requiredTurns,
       });
       if (!result.ok) {
         setActionError("Something went wrong. Try again, or ask your teacher for help.");
@@ -476,7 +539,6 @@ export function MissionFlowShell({
       const result = await completeMissionAction({
         assignmentStudentId,
         attemptId: aid,
-        requiredTurns,
       });
       if (!result.ok) {
         setActionError("Something went wrong. Try again, or ask your teacher for help.");
@@ -533,10 +595,7 @@ export function MissionFlowShell({
   function retryRepeat() {
     submissionTokenRef.current += 1;
     setIsSubmittingVoice(false);
-    if (repeatAudioUrlRef.current) {
-      URL.revokeObjectURL(repeatAudioUrlRef.current);
-      repeatAudioUrlRef.current = null;
-    }
+    clearAudioUrl(repeatAudioUrlRef);
     setFlow((prev) => ({
       ...prev,
       step: "repeat",

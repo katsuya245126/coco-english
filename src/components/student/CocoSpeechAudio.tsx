@@ -94,6 +94,8 @@ export function CocoSpeechAudio({
     let cancelled = false;
     const controller = new AbortController();
 
+    autoplayedUrlRef.current = null;
+    onPlayingChange?.(false);
     setState("loading");
     setAudioUrl(null);
 
@@ -145,6 +147,7 @@ export function CocoSpeechAudio({
     return () => {
       cancelled = true;
       controller.abort();
+      onPlayingChange?.(false);
     };
   }, [
     assignmentStudentId,
@@ -152,6 +155,7 @@ export function CocoSpeechAudio({
     line.turnOrder,
     line.feedbackVariant,
     line.characterId,
+    onPlayingChange,
   ]);
 
   useEffect(() => {
@@ -248,7 +252,10 @@ export function CocoSpeechAudio({
           onCanPlay={handleCanPlay}
           // Mid-stream buffer starvation (common on low-end devices / slow
           // networks): drop back to a loading affordance until playback resumes.
-          onWaiting={() => setState((prev) => (prev === "error" ? prev : "loading"))}
+          onWaiting={() => {
+            setState((prev) => (prev === "error" ? prev : "loading"));
+            onPlayingChange?.(false);
+          }}
           onPlaying={() => {
             setState("playing");
             onPlayingChange?.(true);
@@ -256,6 +263,10 @@ export function CocoSpeechAudio({
           onPlay={() => {
             setState("playing");
             onPlayingChange?.(true);
+          }}
+          onPause={() => {
+            setState((prev) => (prev === "error" ? prev : "ready"));
+            onPlayingChange?.(false);
           }}
           onEnded={() => {
             setState("ready");

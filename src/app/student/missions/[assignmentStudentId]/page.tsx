@@ -4,7 +4,11 @@ import { readStudentUnlock } from "@/app/join/actions";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { missionSnapshotSchema } from "@/domain/mission/schemas";
 import { getCharacterProfile } from "@/domain/character/profile";
-import { nextUnfinishedTurnOrder } from "@/domain/flow/completion";
+import {
+  getPendingTurnReview,
+  nextUnfinishedTurnOrder,
+  type PendingTurnReview,
+} from "@/domain/flow/completion";
 import { pageStyle, panelStyle } from "@/components/student/styles";
 import { MissionFlowShell } from "@/components/student/MissionFlowShell";
 import { warmEvaluators } from "@/server/ai/evaluator-warmup";
@@ -22,6 +26,10 @@ import { warmEvaluators } from "@/server/ai/evaluator-warmup";
 type MissionPageProps = {
   params: Promise<{ assignmentStudentId: string }>;
 };
+
+type InitialReview = PendingTurnReview & { audioUrl?: string };
+
+const RESUMED_AUDIO_URL_TTL_SECONDS = 60 * 10;
 
 export default async function MissionPage({ params }: MissionPageProps) {
   const unlock = await readStudentUnlock();
@@ -90,6 +98,7 @@ export default async function MissionPage({ params }: MissionPageProps) {
   // 6. Determine resume position from existing in_progress attempt turns.
   let startingTurnIndex = 0; // 0-based index for the shell
   let attemptId: string | null = null;
+  let initialReview: InitialReview | null = null;
 
   if (asRow.latest_attempt_id) {
     const { data: attempt } = await supabase
@@ -104,7 +113,7 @@ export default async function MissionPage({ params }: MissionPageProps) {
 
       const { data: turns } = await supabase
         .from("attempt_turns")
-        .select("turn_order, original_transcript, repeat_transcript, repeat_accepted")
+        .select("id, turn_order, original_transcript, improved_sentence, repeat_transcript, repeat_accepted, evaluation")
         .eq("attempt_id", attempt.id);
 
       const resumeOrder = nextUnfinishedTurnOrder(
@@ -112,14 +121,54 @@ export default async function MissionPage({ params }: MissionPageProps) {
         (turns ?? []).map((t) => ({
           turn_order: t.turn_order,
           original_transcript: t.original_transcript,
+          improved_sentence: t.improved_sentence,
           repeat_transcript: t.repeat_transcript,
           repeat_accepted: t.repeat_accepted,
+          evaluation: t.evaluation,
         })),
       );
 
       // Convert 1-based turn_order to 0-based index for the shell.
       // If resumeOrder > requiredTurns (all done sentinel), stay at last turn.
       startingTurnIndex = Math.min(resumeOrder - 1, snapshot.requiredTurns - 1);
+
+      const reviewTurnOrder = Math.min(resumeOrder, snapshot.requiredTurns);
+      const reviewTurn = (turns ?? []).find(
+        (turn) => turn.turn_order === reviewTurnOrder,
+      );
+      const persistedReview = reviewTurn
+        ? getPendingTurnReview(reviewTurn)
+        : null;
+
+      if (persistedReview && reviewTurn) {
+        initialReview = persistedReview;
+
+        const { data: audioClip } = await supabase
+          .from("audio_clips")
+          .select("object_key")
+          .eq("attempt_turn_id", reviewTurn.id)
+          .eq("clip_kind", persistedReview.clipKind)
+          .eq("processing_status", "transcribed")
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (audioClip?.object_key) {
+          const { data: signedAudio } = await supabase.storage
+            .from("student-audio")
+            .createSignedUrl(
+              audioClip.object_key,
+              RESUMED_AUDIO_URL_TTL_SECONDS,
+            );
+          if (signedAudio?.signedUrl) {
+            initialReview = {
+              ...persistedReview,
+              audioUrl: signedAudio.signedUrl,
+            };
+          }
+        }
+      }
     }
   }
 
@@ -155,7 +204,8 @@ export default async function MissionPage({ params }: MissionPageProps) {
             resumeNotice: characterProfile.resumeNotice,
           }}
           startingTurnIndex={startingTurnIndex}
-          isResume={startingTurnIndex > 0}
+          isResume={attemptId !== null}
+          initialReview={initialReview}
         />
       </div>
     </main>

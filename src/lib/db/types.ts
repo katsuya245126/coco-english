@@ -331,6 +331,14 @@ export type Database = {
           out_class_name: string;
         }[];
       };
+      complete_student_attempt: {
+        Args: {
+          p_student_id: string;
+          p_assignment_student_id: string;
+          p_attempt_id: string;
+        };
+        Returns: "ok" | "not_found" | "not_complete";
+      };
     };
     Enums: {
       data_mode: "demo" | "real";

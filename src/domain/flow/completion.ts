@@ -5,13 +5,47 @@
  * on transcript presence plus app-owned acceptance fields.
  */
 
-type CompletionTurn = {
+export type CompletionTurn = {
   turn_order: number;
   original_transcript: string | null;
+  improved_sentence?: string | null;
   repeat_transcript: string | null;
   repeat_accepted: boolean | null;
   evaluation?: unknown;
 };
+
+export type PendingTurnReview =
+  | {
+      step: "aiFeedback";
+      outcome: "acceptedOriginal" | "needsCorrection" | "retryOriginal";
+      transcript: string;
+      improvedSentence: string | null;
+      clipKind: "original_answer";
+    }
+  | {
+      step: "repeatFeedback";
+      outcome: "repeatAccepted" | "repeatRetry" | "repeatReview";
+      transcript: string;
+      originalTranscript: string;
+      improvedSentence: string | null;
+      clipKind: "repeat_attempt";
+    };
+
+function evaluationOutcome(turn: CompletionTurn): string | null {
+  if (
+    typeof turn.evaluation !== "object" ||
+    turn.evaluation === null ||
+    Array.isArray(turn.evaluation)
+  ) {
+    return null;
+  }
+
+  const evaluation = turn.evaluation as { version?: unknown; outcome?: unknown };
+  return evaluation.version === "ai-eval-v1" &&
+    typeof evaluation.outcome === "string"
+    ? evaluation.outcome
+    : null;
+}
 
 function originalAnswerAccepted(turn: CompletionTurn): boolean {
   if (
@@ -40,6 +74,56 @@ function originalAnswerAccepted(turn: CompletionTurn): boolean {
     evaluation.requireRepeat === false &&
     evaluation.outcome === "accepted_original"
   );
+}
+
+/** Rebuild the feedback card that immediately followed the latest recording. */
+export function getPendingTurnReview(
+  turn: CompletionTurn,
+): PendingTurnReview | null {
+  const originalTranscript = turn.original_transcript?.trim();
+  if (!originalTranscript) return null;
+
+  const outcome = evaluationOutcome(turn);
+  const repeatTranscript = turn.repeat_transcript?.trim();
+
+  if (repeatTranscript) {
+    const repeatOutcome =
+      outcome === "accepted_repeat"
+        ? "repeatAccepted"
+        : outcome === "retry_repeat"
+          ? "repeatRetry"
+          : outcome === "teacher_review"
+            ? "repeatReview"
+            : null;
+    if (!repeatOutcome) return null;
+
+    return {
+      step: "repeatFeedback",
+      outcome: repeatOutcome,
+      transcript: repeatTranscript,
+      originalTranscript,
+      improvedSentence: turn.improved_sentence ?? null,
+      clipKind: "repeat_attempt",
+    };
+  }
+
+  const originalOutcome =
+    outcome === "accepted_original"
+      ? "acceptedOriginal"
+      : outcome === "needs_correction"
+        ? "needsCorrection"
+        : outcome === "retry_original"
+          ? "retryOriginal"
+          : null;
+  if (!originalOutcome) return null;
+
+  return {
+    step: "aiFeedback",
+    outcome: originalOutcome,
+    transcript: originalTranscript,
+    improvedSentence: turn.improved_sentence ?? null,
+    clipKind: "original_answer",
+  };
 }
 
 function isTurnFinished(turn: CompletionTurn): boolean {

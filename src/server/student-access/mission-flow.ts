@@ -14,10 +14,7 @@ import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { assertTransitionRequest } from "@/domain/foundation/status";
 import { buildPlaceholderEvaluation } from "@/domain/flow/evaluation";
 import { log } from "@/server/logging/logger";
-import {
-  isAttemptComplete,
-  nextUnfinishedTurnOrder,
-} from "@/domain/flow/completion";
+import { nextUnfinishedTurnOrder } from "@/domain/flow/completion";
 
 // ─── Result types ───
 
@@ -556,127 +553,34 @@ export async function recordHintReveal(input: {
 /**
  * Complete a mission attempt (FLOW-06, D-06).
  *
- * Server-owned audited completion: re-derives completeness from the DB
- * turns via isAttemptComplete. If not complete, writes nothing and returns
- * not_complete. If complete, performs the audited started->completed
- * transition with an assignment_status_events row, stamps
- * attempts.status='completed'+completed_at and
- * assignment_students.submitted_at+latest_attempt_id.
- *
- * Idempotent: a second call on an already-completed assignment returns
- * ok:true without creating a duplicate audit event (Pitfall 3 —
- * conditional UPDATE WHERE status='started' returns 0 rows).
+ * The database RPC owns validation, row locks, status changes, and the audit
+ * insert so completion is atomic and idempotent.
  */
 export async function completeAttempt(input: {
   studentId: string;
   assignmentStudentId: string;
   attemptId: string;
-  requiredTurns: number;
 }): Promise<CompleteAttemptResult> {
   try {
     const supabase = createSupabaseServiceClient();
 
-    // 1. Verify ownership
-    const asRow = await loadOwnedAssignmentStudent(
-      supabase,
-      input.assignmentStudentId,
-      input.studentId,
-    );
-    if (!asRow) return { ok: false, error: "not_found" };
-
-    const attempt = await loadOwnedAttempt(
-      supabase,
-      input.assignmentStudentId,
-      input.attemptId,
-    );
-    if (!attempt.ok) return attempt;
-    if (attempt.attempt.status === "completed" && asRow.status === "completed") {
-      return { ok: true };
-    }
-    if (attempt.attempt.status !== "in_progress") {
-      return { ok: false, error: "not_found" };
-    }
-
-    // 2. Load attempt turns from DB
-    const { data: turns, error: turnsErr } = await supabase
-      .from("attempt_turns")
-      .select("turn_order, original_transcript, repeat_transcript, repeat_accepted, evaluation")
-      .eq("attempt_id", input.attemptId);
-
-    if (turnsErr) return { ok: false, error: "db_error" };
-
-    // 3. Gate on isAttemptComplete — app-owned completion accepts verified
-    // originals or accepted repeats, and rejects malformed evaluation JSON.
-    if (!isAttemptComplete(input.requiredTurns, turns ?? [])) {
-      return { ok: false, error: "not_complete" };
-    }
-
-    // 4. Audited started->completed transition
-    const nowIso = new Date().toISOString();
-    assertTransitionRequest({
-      previousStatus: "started",
-      nextStatus: "completed",
-      actorType: "student_session",
-      reasonCode: "mission_completed",
-      occurredAt: nowIso,
+    const { data, error } = await supabase.rpc("complete_student_attempt", {
+      p_student_id: input.studentId,
+      p_assignment_student_id: input.assignmentStudentId,
+      p_attempt_id: input.attemptId,
     });
 
-    // 5. Conditional UPDATE — 0 rows means already completed (idempotent, Pitfall 3)
-    const { data: updated, error: updateError } = await supabase
-      .from("assignment_students")
-      .update({
-        status: "completed" as const,
-        submitted_at: nowIso,
-        latest_attempt_id: input.attemptId,
-      })
-      .eq("id", input.assignmentStudentId)
-      .eq("status", "started")
-      .select("id")
-      .maybeSingle();
-
-    if (updateError) {
+    if (error) {
       log("error", "assignment.completion_failed", {
         assignmentStudentId: input.assignmentStudentId,
-        error: updateError.message,
+        error: error.message,
       });
       return { ok: false, error: "db_error" };
     }
 
-    // Only write audit event if the transition actually happened (not duplicate)
-    if (updated) {
-      const { error: eventError } = await supabase.from("assignment_status_events").insert({
-        assignment_student_id: input.assignmentStudentId,
-        previous_status: "started",
-        next_status: "completed",
-        actor_type: "student_session",
-        reason_code: "mission_completed",
-      });
-
-      if (eventError) {
-        log("error", "assignment.completion_failed", {
-          assignmentStudentId: input.assignmentStudentId,
-          error: eventError.message,
-        });
-        return { ok: false, error: "db_error" };
-      }
-    }
-
-    // 6. Stamp attempt as completed
-    const { error: attemptUpdateError } = await supabase
-      .from("attempts")
-      .update({
-        status: "completed" as const,
-        completed_at: nowIso,
-      })
-      .eq("id", input.attemptId);
-
-    if (attemptUpdateError) {
-      log("error", "assignment.completion_failed", {
-        assignmentStudentId: input.assignmentStudentId,
-        error: attemptUpdateError.message,
-      });
-      return { ok: false, error: "db_error" };
-    }
+    if (data === "not_found") return { ok: false, error: "not_found" };
+    if (data === "not_complete") return { ok: false, error: "not_complete" };
+    if (data !== "ok") return { ok: false, error: "db_error" };
 
     log("info", "assignment.completed", {
       assignmentStudentId: input.assignmentStudentId,

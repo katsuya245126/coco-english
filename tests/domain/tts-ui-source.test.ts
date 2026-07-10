@@ -61,6 +61,15 @@ describe("CocoSpeechAudio replay UI source contract (VOICE-02, D-12, D-13)", () 
     expect(source).toMatch(/\.play\(\)/);
     expect(source).toMatch(/catch/);
   });
+
+  it("reports playback stopped on pause, buffering, descriptor changes, and unmount", () => {
+    const source = readSource("src/components/student/CocoSpeechAudio.tsx");
+
+    expect(source).toContain("autoplayedUrlRef.current = null");
+    expect(source).toContain("onPause={() =>");
+    expect(source).toMatch(/onWaiting=\{\(\) => \{[\s\S]*onPlayingChange\?\.\(false\)/);
+    expect(source).toMatch(/return \(\) => \{[\s\S]*controller\.abort\(\);[\s\S]*onPlayingChange\?\.\(false\)/);
+  });
 });
 
 describe("Coco voice line integration in mission step cards (D-06..D-11)", () => {

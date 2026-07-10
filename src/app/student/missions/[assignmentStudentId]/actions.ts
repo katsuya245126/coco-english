@@ -55,7 +55,6 @@ const revealHintSchema = z.object({
 const completeMissionSchema = z.object({
   assignmentStudentId: z.string().uuid(),
   attemptId: z.string().uuid(),
-  requiredTurns: z.number().int().positive(),
 });
 
 // ─── Shared error types ───
@@ -147,6 +146,5 @@ export async function completeMissionAction(
     studentId: unlock.studentId,
     assignmentStudentId: parsed.data.assignmentStudentId,
     attemptId: parsed.data.attemptId,
-    requiredTurns: parsed.data.requiredTurns,
   });
 }

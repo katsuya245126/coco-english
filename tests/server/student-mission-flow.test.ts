@@ -194,15 +194,13 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(missionFlowSource).toContain("reason_code: reasonCode");
   });
 
-  it("completion checks assignment, audit, and attempt write errors", () => {
+  it("completion is delegated to the atomic database RPC", () => {
     const missionFlowSource = readFileSync(
       "src/server/student-access/mission-flow.ts",
       "utf8",
     );
 
-    expect(missionFlowSource).toContain("if (updateError)");
-    expect(missionFlowSource).toContain("if (eventError)");
-    expect(missionFlowSource).toContain("if (attemptUpdateError)");
+    expect(missionFlowSource).toContain('.rpc("complete_student_attempt"');
   });
 
   it("student client modules do not import OpenAI or server AI adapters (T-06-01)", () => {

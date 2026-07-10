@@ -9,6 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  getPendingTurnReview,
   isAttemptComplete,
   nextUnfinishedTurnOrder,
 } from "@/domain/flow/completion";
@@ -19,6 +20,8 @@ type TestTurn = {
   original_transcript: string | null;
   repeat_transcript: string | null;
   repeat_accepted: boolean | null;
+  improved_sentence?: string | null;
+  evaluation?: unknown;
 };
 
 function makeTurn(
@@ -142,6 +145,70 @@ describe("completion helpers: nextUnfinishedTurnOrder (D-06)", () => {
   });
 });
 
+describe("completion helpers: persisted feedback resume", () => {
+  it("restores an accepted-original review from persisted evaluation", () => {
+    expect(
+      getPendingTurnReview({
+        ...makeTurn(3, { original_transcript: "I am going to play games." }),
+        evaluation: {
+          version: "ai-eval-v1",
+          outcome: "accepted_original",
+          requireRepeat: false,
+        },
+      }),
+    ).toEqual({
+      step: "aiFeedback",
+      outcome: "acceptedOriginal",
+      transcript: "I am going to play games.",
+      improvedSentence: null,
+      clipKind: "original_answer",
+    });
+  });
+
+  it("restores an accepted-repeat review and its correction sentence", () => {
+    expect(
+      getPendingTurnReview({
+        ...makeCompleteTurn(3),
+        improved_sentence: "I like apples very much.",
+        evaluation: {
+          version: "ai-eval-v1",
+          outcome: "accepted_repeat",
+          repeatAccepted: true,
+        },
+      }),
+    ).toEqual({
+      step: "repeatFeedback",
+      outcome: "repeatAccepted",
+      transcript: "I like apples very much",
+      originalTranscript: "I like apples",
+      improvedSentence: "I like apples very much.",
+      clipKind: "repeat_attempt",
+    });
+  });
+
+  it("restores a failed-repeat review instead of restarting the question", () => {
+    expect(
+      getPendingTurnReview({
+        ...makeTurn(3, {
+          original_transcript: "I like apples",
+          repeat_transcript: "I like",
+          repeat_accepted: false,
+        }),
+        improved_sentence: "I like apples very much.",
+        evaluation: {
+          version: "ai-eval-v1",
+          outcome: "retry_repeat",
+          repeatAccepted: false,
+        },
+      }),
+    ).toMatchObject({
+      step: "repeatFeedback",
+      outcome: "repeatRetry",
+      transcript: "I like",
+    });
+  });
+});
+
 describe("mission flow: start attempt (FLOW-01)", () => {
   it("startOrResumeAttempt is exported from the service", async () => {
     const mod = await import("@/server/student-access/mission-flow");
@@ -181,41 +248,13 @@ describe("mission flow: completeAttempt (FLOW-06, D-06)", () => {
     expect(mod.completeAttempt).toBeDefined();
   });
 
-  it("completeAttempt uses isAttemptComplete to gate completion", async () => {
-    // Structural: completeAttempt must reference isAttemptComplete
+  it("completeAttempt delegates validation and all completion writes to one RPC", async () => {
     const fs = await import("node:fs");
     const source = fs.readFileSync(
       "src/server/student-access/mission-flow.ts",
       "utf-8",
     );
-    expect(source).toContain("isAttemptComplete");
-  });
-
-  it("completeAttempt writes mission_completed reason code", async () => {
-    const fs = await import("node:fs");
-    const source = fs.readFileSync(
-      "src/server/student-access/mission-flow.ts",
-      "utf-8",
-    );
-    expect(source).toContain("mission_completed");
-  });
-
-  it("completeAttempt stamps submitted_at on the assignment_students row", async () => {
-    const fs = await import("node:fs");
-    const source = fs.readFileSync(
-      "src/server/student-access/mission-flow.ts",
-      "utf-8",
-    );
-    expect(source).toContain("submitted_at");
-  });
-
-  it("completeAttempt stamps completed_at on the attempts row", async () => {
-    const fs = await import("node:fs");
-    const source = fs.readFileSync(
-      "src/server/student-access/mission-flow.ts",
-      "utf-8",
-    );
-    expect(source).toContain("completed_at");
+    expect(source).toContain('.rpc("complete_student_attempt"');
   });
 });
 

@@ -358,7 +358,49 @@ describe("uploadAttemptAudioClip", () => {
     expect(timingCall?.[2]).toMatchObject({ evaluationFastPath: 1 });
   });
 
-  it("skips OpenAI evaluation when an open-ended answer fills the assigned target pattern", async () => {
+  it("uses semantic evaluation for a relevant open-ended answer that differs from the example", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...missionSnapshotFixture,
+        targetPattern: "I'm going to _____.",
+        turns: [
+          {
+            ...missionSnapshotFixture.turns[0],
+            prompt: "What are you going to do after school?",
+            targetExample: "I'm going to do my homework.",
+          },
+          missionSnapshotFixture.turns[1],
+        ],
+      },
+    });
+
+    const evaluateOriginal = successfulOriginalEvaluator();
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I am going to play games."),
+      evaluateOriginalTurn: evaluateOriginal,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "accepted_original",
+        targetPatternAttempted: true,
+        correctionNeeded: false,
+      },
+    });
+    expect(evaluateOriginal).toHaveBeenCalledTimes(1);
+    expect(evaluateOriginal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        missionQuestion: "What are you going to do after school?",
+        transcript: "I am going to play games.",
+      }),
+    );
+  });
+
+  it("does not auto-accept an off-topic answer merely because it fills the grammar frame", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
     );
@@ -379,25 +421,21 @@ describe("uploadAttemptAudioClip", () => {
 
     const evaluateOriginal = successfulOriginalEvaluator({
       outcome: "needs_correction" as const,
-      meaningUnderstood: true,
-      targetPatternAttempted: false,
+      meaningUnderstood: false,
+      targetPatternAttempted: true,
       correctionNeeded: true,
       improvedSentence: "I'm going to do my homework.",
     });
     const result = await uploadAttemptAudioClip(audioInput(), {
-      transcribeAudioFile: successfulTranscriber("I am going to play games."),
+      transcribeAudioFile: successfulTranscriber("I am going to eat the moon."),
       evaluateOriginalTurn: evaluateOriginal,
     });
 
     expect(result).toMatchObject({
       ok: true,
-      evaluation: {
-        outcome: "accepted_original",
-        targetPatternAttempted: true,
-        correctionNeeded: false,
-      },
+      evaluation: { outcome: "needs_correction" },
     });
-    expect(evaluateOriginal).not.toHaveBeenCalled();
+    expect(evaluateOriginal).toHaveBeenCalledTimes(1);
   });
 
   it("falls through to OpenAI evaluation when the transcript matches neither the example nor target pattern", async () => {
