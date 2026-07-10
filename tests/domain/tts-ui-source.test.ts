@@ -216,8 +216,12 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(stageSource).toContain('sad: "coco-sad-alpha.png"');
     expect(stageSource).toContain('objectFit: "cover"');
     expect(stageSource).toContain('objectPosition: "center 12%"');
-    expect(stylesSource).toContain("left: 72");
-    expect(stylesSource).toContain("right: 72");
+    expect(stylesSource).toContain(
+      'left: "clamp(24px, calc((100% - 226px) / 2), 72px)"',
+    );
+    expect(stylesSource).toContain(
+      'right: "clamp(24px, calc((100% - 226px) / 2), 72px)"',
+    );
     // Sprite box must clear the dialogue box (top at y=172 of the 300-tall
     // stage) so close-up sprites' faces aren't hidden behind it.
     expect(stylesSource).toContain("bottom: 120");

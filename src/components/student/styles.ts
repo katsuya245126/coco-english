@@ -300,8 +300,12 @@ export const mascotBackdropStyle: CSSProperties = {
 
 export const mascotSpriteWrapStyle: CSSProperties = {
   position: "absolute",
-  left: 72,
-  right: 72,
+  // Preserve the desktop 226px character frame on standard phone widths.
+  // Fixed 72px insets squeezed the frame to 133px on a 375px viewport and
+  // changed the object-fit crop; the clamp keeps it centered and only shrinks
+  // on screens too narrow to retain a 24px safety inset.
+  left: "clamp(24px, calc((100% - 226px) / 2), 72px)",
+  right: "clamp(24px, calc((100% - 226px) / 2), 72px)",
   // Sits just above the dialogue box (stage 300 tall, box top at y=172): only
   // the bottom 8px of the sprite tuck behind it, so close-up sprites like
   // "encouraging" keep their mouth/chin visible instead of hiding behind the
