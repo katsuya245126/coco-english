@@ -143,7 +143,7 @@ Archive:
 
 **Wave 2** *(server orchestration, blocked on Wave 1)*
 
-- [ ] 11-03-PLAN.md — hard-turn-cap gate + coco_line persistence (mission-flow), conversation orchestration with dual-direction moderation + retry-once + shared fallback (audio-upload), scene-premise generation in mission draft (CHAT-01, CHAT-03, CHAT-05, CHAT-06, SCENE-01)
+- [ ] 11-03-PLAN.md — hard-turn-cap gate + coco_line persistence (mission-flow), conversation orchestration with dual-direction moderation + retry-once + shared fallback (audio-upload), standalone scene-premise generation without restoring full AI mission drafting (CHAT-01, CHAT-03, CHAT-05, CHAT-06, SCENE-01)
 
 **Wave 3** *(parallel UI, blocked on Wave 2)*
 

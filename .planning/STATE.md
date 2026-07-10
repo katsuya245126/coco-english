@@ -6,9 +6,9 @@ current_phase: 10
 current_phase_name: mascot-vn-style
 status: blocked-on-checkpoint
 stopped_at: Plan 10-04 Tasks 1-2 verified complete (no new code needed — already shipped via phase-10-mascot-wip merge); blocked on Task 3 human-verify checkpoint (real-browser mount/audio/expression check)
-last_updated: "2026-07-10T16:38:58.000Z"
+last_updated: "2026-07-10T17:13:26.000Z"
 last_activity: 2026-07-11
-last_activity_desc: Closed the remaining visible gap between Coco and the dialogue box — raised the box 8px so portrait sprites have about 9px of visible overlap instead of roughly 1px, without moving Coco. Alpha bounds, 455 Vitest tests, TypeScript, and the production build passed. Phase 10 remains blocked at the existing Task 3 human browser/audio checkpoint.
+last_activity_desc: Restored dev mission creation by restarting the stale unhydrated dev server, verified two real authenticated mission saves, allowed past-due teacher-reopened retry missions to launch, and removed the complete teacher AI mission-draft UI/action/adapter/schema slice. Dev is running cleanly on port 3000; 451 Vitest tests, TypeScript, and the production build passed. Phase 10 remains blocked at the existing Task 3 human browser/audio checkpoint.
 progress:
   total_phases: 6
   completed_phases: 2
@@ -34,8 +34,9 @@ Status: `/gsd-execute-phase 10` was run to close out Plan 10-04, the last plan i
 Quick task 260710-hbn completed the interrupted student retry/audio feedback work in commit `33779fa1`. The follow-up `retry-feedback-flow` debug session fixed final-turn review gating, repeat retry audio/actions, and transcript carryover. The subsequent code-review follow-up removed the unsafe grammar-only fill-in bypass, moved mission completion into a deployed atomic RPC, restored persisted feedback/audio on refresh, included evaluation in resume decisions, and fixed Coco playback teardown. Phase 10's position is otherwise unchanged and remains blocked on its existing Task 3 human browser/audio checkpoint.
 The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on desktop but only 133px on a 375px phone. Responsive clamped insets now preserve the desktop framing at 226px on both standard phone and desktop widths without changing stage, dialogue, or recorder geometry.
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
+The `mission-create-retry-cleanup` follow-up found mission creation itself was healthy: an active dev server had been corrupted when production builds rewrote its `.next` chunks, leaving the form unhydrated and causing native GET submission. A clean restart restored two verified real saves. The retry route now honors `needs_retry` past the original deadline, and the teacher AI mission-draft feature was removed end-to-end. Phase 11's roadmap now requires standalone scene-premise generation rather than restoring full mission drafting.
 
-Last activity: 2026-07-11 — Closed the Coco/dialogue gap and verified the geometry; automated verification passed, with live microphone/audio confirmation remaining part of the existing browser checkpoint
+Last activity: 2026-07-11 — Restored dev authoring, fixed reopened retry launch, and removed AI mission drafting; automated verification passed, with live microphone/audio confirmation remaining part of the existing browser checkpoint
 
 Progress: [███████░░░] 71%
 

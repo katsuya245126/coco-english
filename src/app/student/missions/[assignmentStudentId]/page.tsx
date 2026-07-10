@@ -79,8 +79,13 @@ export default async function MissionPage({ params }: MissionPageProps) {
     redirect("/student/home");
   }
 
-  // Guard: expired (due_at in the past).
-  if (assignment.due_at && new Date(assignment.due_at) < new Date()) {
+  // Guard: expired (due_at in the past). A teacher-reopened retry explicitly
+  // overrides the original deadline, matching the launchable Retry card.
+  if (
+    asRow.status !== "needs_retry" &&
+    assignment.due_at &&
+    new Date(assignment.due_at) < new Date()
+  ) {
     redirect("/student/home");
   }
 

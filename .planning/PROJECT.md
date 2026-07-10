@@ -14,7 +14,7 @@ Students must complete useful spoken English practice outside class, and teacher
 
 ## Current State
 
-Milestone v1.0 shipped on 2026-07-01. The teacher-linked speaking homework MVP is complete across seven phases: teachers can set up classes, assign manual or AI-assisted missions, students can complete guided voice practice with Coco, and teachers can review transcript-first evidence with optional audio playback and operational status buckets.
+Milestone v1.0 shipped on 2026-07-01. The teacher-linked speaking homework MVP is complete across seven phases: teachers can set up classes, author and assign missions manually, students can complete guided voice practice with Coco, and teachers can review transcript-first evidence with optional audio playback and operational status buckets. The teacher-facing AI mission-draft feature was removed after pilot use; AI remains in the student turn-evaluation path.
 
 The project is between milestones. Start the next requirements and roadmap cycle with `/gsd-new-milestone`.
 
@@ -34,8 +34,8 @@ The project is between milestones. Start the next requirements and roadmap cycle
 - [x] Teacher can log in with email and password. — Validated in Phase 2 (AUTH-01..04)
 - [x] Teacher can create a class and manage a student roster. — Validated in Phase 2 (CLASS-01..04)
 - [x] Student can access homework without an email/password account using a class code or QR link, remembered class, name selection, and 4-digit PIN. — Validated in Phase 2 (STUD-01..05)
-- [x] Teacher can generate a speaking mission from today's target English, topic, level, required turns, and due date. — Validated in Phase 3 (MISS-01/04) manually, Phase 6 (MISS-02/03/05) via AI draft generation
-- [x] Teacher can edit the generated mission before assigning it. — Validated in Phase 6 (MISS-03)
+- [x] Teacher can manually author a speaking mission from today's target English, topic, level, and required turns. — Validated in Phase 3 (MISS-01/04)
+- [x] Teacher can edit a mission before assigning it. — Validated in Phase 3
 - [x] Student can complete a 2-3 minute speaking mission by voice. — Validated in Phase 4/5 (FLOW-01..07, AUDIO-01..05)
 - [x] Mission flow accepts understandable meaning first, then shows a better target-form sentence and requires repetition. — Validated in Phase 4 (FLOW-04/05) and Phase 6 (AI-01..05, meaning/target-pattern evaluation)
 - [x] The app captures transcripts and short audio clips per speaking turn. — Validated in Phase 5 (AUDIO-01..05)

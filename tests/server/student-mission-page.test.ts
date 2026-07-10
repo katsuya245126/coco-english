@@ -24,4 +24,9 @@ describe("student mission resume state", () => {
     expect(shellSource).toContain("initialReview");
     expect(shellSource).toContain("initialReview.step");
   });
+
+  it("allows teacher-reopened retry missions after the original due date", () => {
+    expect(pageSource).toContain('asRow.status !== "needs_retry"');
+    expect(pageSource).toContain("assignment.due_at");
+  });
 });

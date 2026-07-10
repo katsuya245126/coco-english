@@ -12,10 +12,8 @@ import type {
   MissionLevel,
   MissionTurnInput,
 } from "@/domain/mission/schemas";
-import type { GeneratedMissionDraft } from "@/domain/ai/mission-generation";
 import type { MissionWithTurns } from "@/server/mission/mission-service";
 import { createEmptyTurn, TurnEditor } from "@/components/teacher/TurnEditor";
-import { MissionDraftPanel } from "@/components/teacher/MissionDraftPanel";
 import { HoverButton } from "@/components/ui/HoverButton";
 import { primaryHover, secondaryHover } from "@/components/ui/hover-styles";
 
@@ -55,14 +53,6 @@ export function MissionForm({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);
-
-  function applyMissionDraft(draft: GeneratedMissionDraft) {
-    setTitle(draft.title);
-    setTargetPattern(draft.targetPattern);
-    setTopic(draft.topic);
-    setLevel(draft.level);
-    setTurns(draft.turns);
-  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -118,16 +108,6 @@ export function MissionForm({
         <p role="status" style={successStyle}>
           Saved ✓
         </p>
-      ) : null}
-
-      {mode === "create" ? (
-        <MissionDraftPanel
-          targetPattern={targetPattern}
-          topic={topic}
-          level={level}
-          requiredTurns={turns.length}
-          onUseDraft={applyMissionDraft}
-        />
       ) : null}
 
       <section style={panelStyle}>
