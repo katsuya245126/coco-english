@@ -49,6 +49,39 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
     );
   });
 
+  it("treats an open-ended target example as one valid slot answer, not the required content", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    const result = await evaluateOriginalTurn(
+      {
+        missionQuestion: "What are you going to do after school?",
+        transcript: "I am going to play games.",
+        targetPattern: "I'm going to _____.",
+        targetExample: "I'm going to do my homework.",
+        level: "elementary",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result.ok).toBe(true);
+    const request = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const userMessage = request?.input.find((message) => message.role === "user");
+    const prompt = JSON.parse(userMessage?.content ?? "{}") as {
+      instructions?: string[];
+    };
+
+    expect(prompt.instructions).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("targetExample is only one possible answer"),
+        expect.stringContaining("open-ended question"),
+        expect.stringContaining("I am going to play games"),
+      ]),
+    );
+  });
+
   it("maps missing API key before creating a provider request", async () => {
     const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
     const client = createFakeClient({

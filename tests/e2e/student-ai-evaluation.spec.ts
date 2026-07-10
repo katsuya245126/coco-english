@@ -45,6 +45,48 @@ test("student AI evaluation source contract covers repeat accepted, retry, and r
   expect(shellSource).toContain("teacherReview");
 });
 
+test("feedback review is shown before transition or final completion", async () => {
+  const feedbackSource = readFileSync(
+    "src/components/student/StepAiEvaluationFeedback.tsx",
+    "utf8",
+  );
+  const shellSource = readFileSync(
+    "src/components/student/MissionFlowShell.tsx",
+    "utf8",
+  );
+
+  const repeatAcceptedStart = feedbackSource.indexOf(
+    'if (outcome === "repeatAccepted")',
+  );
+  const repeatAcceptedEnd = feedbackSource.indexOf(
+    "\n  return (",
+    repeatAcceptedStart,
+  );
+  const repeatAcceptedBranch = feedbackSource.slice(
+    repeatAcceptedStart,
+    repeatAcceptedEnd,
+  );
+
+  const originalSubmitStart = shellSource.indexOf(
+    "async function handleSubmitOriginalVoice",
+  );
+  const repeatSubmitStart = shellSource.indexOf(
+    "async function handleSubmitRepeatVoice",
+  );
+  const finishRepeatStart = shellSource.indexOf(
+    "async function finishRepeatFeedback",
+  );
+  const originalSubmit = shellSource.slice(originalSubmitStart, repeatSubmitStart);
+  const repeatSubmit = shellSource.slice(repeatSubmitStart, finishRepeatStart);
+
+  expect(repeatAcceptedBranch).toContain("<RecordingReview");
+  expect(originalSubmit).not.toContain("completeMissionAction");
+  expect(originalSubmit).toContain('step: "aiFeedback"');
+  expect(repeatSubmit).not.toContain("completeMissionAction");
+  expect(repeatSubmit).toContain('step: "repeatFeedback"');
+  expect(shellSource).not.toContain("Your repeat:");
+});
+
 test("student client source has no direct OpenAI import or server AI adapter import", async () => {
   const shellSource = readFileSync(
     "src/components/student/MissionFlowShell.tsx",

@@ -10,7 +10,10 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/lib/db/types";
 import { missionSnapshotSchema } from "@/domain/mission/schemas";
-import { isExactTargetMatch } from "@/domain/ai/fast-path";
+import {
+  isExactTargetMatch,
+  isFillInTargetPatternMatch,
+} from "@/domain/ai/fast-path";
 import {
   AI_EVALUATION_VERSION,
   decideOriginalTurnOutcome,
@@ -628,13 +631,13 @@ export async function uploadAttemptAudioClip(
             // an exact normalized match for the turn's targetExample — this
             // is the common case for short/rote answers (e.g. "Hello", "I'm
             // fine") and removes ~1.3-3.3s of evaluation latency for them.
-            // Anything short of an exact match still goes through the model,
-            // since targetPattern strings (e.g. "How often do you ____?")
-            // are question templates, not safe to substring-match.
-            const fastPathMatched = isExactTargetMatch(
-              transcript,
-              snapshotTurn.targetExample,
-            );
+            // Safe answer-shaped fill-in patterns also bypass the model so an
+            // open slot answer ("play games") is not rejected merely because
+            // it differs from the example slot content ("do my homework").
+            // Question-shaped patterns remain excluded by the domain helper.
+            const fastPathMatched =
+              isExactTargetMatch(transcript, snapshotTurn.targetExample) ||
+              isFillInTargetPatternMatch(transcript, snapshot.targetPattern);
             timings.evaluationFastPath = fastPathMatched ? 1 : 0;
             const evaluationResult: OriginalTurnEvaluationResult = fastPathMatched
               ? {

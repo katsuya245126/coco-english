@@ -70,6 +70,8 @@ function resolveFeedbackLineText(feedbackVariant?: string): string | null {
       return "Hmm... let's try again";
     case "retry_original":
       return "Try again.";
+    case "retry_repeat":
+      return "Try again!";
     case "teacher_check":
     case "repeat_check":
       return "Your teacher will check this answer.";

@@ -134,6 +134,7 @@ function createMockSupabase(options: {
   attemptStatus?: Database["public"]["Enums"]["attempt_status"];
   uploadError?: Error | null;
   turnWriteError?: Error | null;
+  missionSnapshot?: typeof missionSnapshotFixture;
 } = {}) {
   const operations: Operation[] = [];
   const upload = vi.fn(async () => ({
@@ -191,7 +192,8 @@ function createMockSupabase(options: {
                     id: "as-1",
                     status: options.assignmentStatus ?? "started",
                     assignments: {
-                      mission_snapshot: missionSnapshotFixture,
+                      mission_snapshot:
+                        options.missionSnapshot ?? missionSnapshotFixture,
                     },
                   },
             error: null,
@@ -356,13 +358,55 @@ describe("uploadAttemptAudioClip", () => {
     expect(timingCall?.[2]).toMatchObject({ evaluationFastPath: 1 });
   });
 
-  it("falls through to OpenAI evaluation when the transcript is not an exact target match", async () => {
+  it("skips OpenAI evaluation when an open-ended answer fills the assigned target pattern", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...missionSnapshotFixture,
+        targetPattern: "I'm going to _____.",
+        turns: [
+          {
+            ...missionSnapshotFixture.turns[0],
+            prompt: "What are you going to do after school?",
+            targetExample: "I'm going to do my homework.",
+          },
+          missionSnapshotFixture.turns[1],
+        ],
+      },
+    });
+
+    const evaluateOriginal = successfulOriginalEvaluator({
+      outcome: "needs_correction" as const,
+      meaningUnderstood: true,
+      targetPatternAttempted: false,
+      correctionNeeded: true,
+      improvedSentence: "I'm going to do my homework.",
+    });
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I am going to play games."),
+      evaluateOriginalTurn: evaluateOriginal,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "accepted_original",
+        targetPatternAttempted: true,
+        correctionNeeded: false,
+      },
+    });
+    expect(evaluateOriginal).not.toHaveBeenCalled();
+  });
+
+  it("falls through to OpenAI evaluation when the transcript matches neither the example nor target pattern", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
     );
 
     const transcribe = successfulTranscriber(
-      "I like playing soccer with my friends after school.",
+      "I enjoy playing soccer with my friends after school.",
     );
     const evaluateOriginal = successfulOriginalEvaluator();
     await uploadAttemptAudioClip(audioInput(), {

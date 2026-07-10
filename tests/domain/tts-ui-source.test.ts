@@ -149,10 +149,13 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(shellSource).toContain('feedbackVariant: "retry_original"');
     expect(shellSource).toContain('feedbackVariant: "teacher_check"');
     expect(shellSource).toContain('feedbackVariant: "repeat_accepted"');
+    expect(shellSource).toContain('feedbackVariant: "retry_repeat"');
     expect(shellSource).toContain('feedbackVariant: "repeat_check"');
     expect(shellSource).toContain("if (actionError)");
     expect(routeSource).toContain('case "needs_correction"');
     expect(routeSource).toContain('return "Hmm... let\'s try again"');
+    expect(routeSource).toContain('case "retry_repeat"');
+    expect(routeSource).toContain('return "Try again!"');
   });
 
   it("keeps the target sentence in the step card, not embedded in Coco's dialogue text", () => {

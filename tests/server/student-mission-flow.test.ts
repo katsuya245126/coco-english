@@ -120,7 +120,7 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     );
   });
 
-  it("repeat-accepted feedback does not offer record again after success", () => {
+  it("repeat-accepted feedback lets the student review or record again before continuing", () => {
     const feedbackSource = readFileSync(
       "src/components/student/StepAiEvaluationFeedback.tsx",
       "utf8",
@@ -134,7 +134,7 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
 
     expect(repeatAcceptedBranch).toContain("Good repeat.");
     expect(repeatAcceptedBranch).toContain("Continue mission");
-    expect(repeatAcceptedBranch).not.toContain("RecordingReview");
+    expect(repeatAcceptedBranch).toContain("RecordingReview");
   });
 
   it("review routing is service-owned, audited, and AI-attributed", () => {

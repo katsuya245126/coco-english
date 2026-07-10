@@ -371,22 +371,6 @@ export function MissionFlowShell({
         upload.wordsToPractice,
       );
 
-      const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
-      if (isFinalTurn && originalFeedback.kind === "acceptedOriginal") {
-        const result = await completeMissionAction({
-          assignmentStudentId,
-          attemptId: aid,
-          requiredTurns,
-        });
-        if (token !== submissionTokenRef.current) return;
-        if (!result.ok) {
-          setActionError("Something went wrong. Try again, or ask your teacher for help.");
-          throw new Error("mission_complete_failed");
-        }
-        setFlow((prev) => ({ ...prev, step: "complete", originalTranscript: transcript, originalFeedback, repeatFeedback: null }));
-        return;
-      }
-
       setFlow((prev) => ({
         ...prev,
         step: "aiFeedback",
@@ -436,22 +420,6 @@ export function MissionFlowShell({
         upload.starBand,
         upload.wordsToPractice,
       );
-
-      const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
-      if (isFinalTurn && repeatFeedback.kind === "repeatAccepted") {
-        const result = await completeMissionAction({
-          assignmentStudentId,
-          attemptId: aid,
-          requiredTurns,
-        });
-        if (token !== submissionTokenRef.current) return;
-        if (!result.ok) {
-          setActionError("Something went wrong. Try again, or ask your teacher for help.");
-          throw new Error("mission_complete_failed");
-        }
-        setFlow((prev) => ({ ...prev, repeatTranscript: transcript, repeatFeedback, step: "complete" }));
-        return;
-      }
 
       setFlow((prev) => ({
         ...prev,
@@ -680,18 +648,6 @@ export function MissionFlowShell({
           </p>
         )}
 
-        {(flow.step === "transition" || flow.step === "complete") &&
-          flow.repeatTranscript && (
-            <div style={{ margin: "0 0 16px" }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
-                Your repeat:
-              </p>
-              <p style={{ fontSize: 16, color: "#111827", margin: 0, lineHeight: 1.5 }}>
-                {flow.repeatTranscript}
-              </p>
-            </div>
-          )}
-
         {flow.step === "question" && currentTurn && (
           <StepBuddyQuestion
             assignmentStudentId={assignmentStudentId}
@@ -905,7 +861,7 @@ function getMascotDialogue({
     // keep Coco's bubble generic so it isn't duplicated in the dialogue text.
     return {
       text: "Try again!",
-      line: null,
+      line: { lineKind: "coco_feedback", feedbackVariant: "retry_repeat" },
     };
   }
 

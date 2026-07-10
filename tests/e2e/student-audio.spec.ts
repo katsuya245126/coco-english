@@ -25,7 +25,7 @@ test("student audio upload posts FormData before original answer progression", a
   expect(source).toContain("await uploadVoiceClip");
   expect(source).toContain("typeof payload.transcript");
   expect(source).toContain("originalTranscript: transcript");
-  expect(source).toContain("Your repeat:");
+  expect(source).not.toContain("Your repeat:");
 });
 
 test("student audio transcription states use classroom-safe copy", async () => {
@@ -53,7 +53,7 @@ test("student audio transcription states use classroom-safe copy", async () => {
   expect(shellSource).toContain("Try again.");
   expect(repeatSource).not.toContain("We heard:");
   expect(repeatSource).not.toContain("originalTranscript");
-  expect(shellSource).toContain("Your repeat:");
+  expect(shellSource).not.toContain("Your repeat:");
 });
 
 test("student mission completion is gated after repeat transcript success", async () => {
@@ -63,15 +63,23 @@ test("student mission completion is gated after repeat transcript success", asyn
   );
 
   const repeatUploadIndex = source.indexOf('clipKind: "repeat_attempt"');
-  const completeIndex = source.indexOf(
-    "const result = await completeMissionAction",
+  const repeatFeedbackIndex = source.indexOf(
+    'step: "repeatFeedback"',
     repeatUploadIndex,
   );
-  const repeatTranscriptIndex = source.indexOf("repeatTranscript: transcript");
+  const finishFeedbackIndex = source.indexOf(
+    "async function finishRepeatFeedback",
+    repeatFeedbackIndex,
+  );
+  const completeIndex = source.indexOf(
+    "const result = await completeMissionAction",
+    finishFeedbackIndex,
+  );
 
   expect(repeatUploadIndex).toBeGreaterThan(-1);
-  expect(completeIndex).toBeGreaterThan(repeatUploadIndex);
-  expect(repeatTranscriptIndex).toBeGreaterThan(completeIndex);
+  expect(repeatFeedbackIndex).toBeGreaterThan(repeatUploadIndex);
+  expect(finishFeedbackIndex).toBeGreaterThan(repeatFeedbackIndex);
+  expect(completeIndex).toBeGreaterThan(finishFeedbackIndex);
 });
 
 test("audio route returns transcripts and retryable transcription failures", async () => {

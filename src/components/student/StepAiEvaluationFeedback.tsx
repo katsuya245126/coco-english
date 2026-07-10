@@ -202,6 +202,7 @@ export function StepAiEvaluationFeedback({
             Continue mission
           </button>
         )}
+        <RecordingReview onRetry={onRetry} />
       </div>
     );
   }
