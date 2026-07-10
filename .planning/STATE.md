@@ -6,7 +6,7 @@ current_phase: 10
 current_phase_name: mascot-vn-style
 status: blocked-on-checkpoint
 stopped_at: Plan 10-04 Tasks 1-2 verified complete (no new code needed — already shipped via phase-10-mascot-wip merge); blocked on Task 3 human-verify checkpoint (real-browser mount/audio/expression check)
-last_updated: "2026-07-10T17:13:26.000Z"
+last_updated: "2026-07-10T18:42:01.000Z"
 last_activity: 2026-07-11
 last_activity_desc: Restored dev mission creation by restarting the stale unhydrated dev server, verified two real authenticated mission saves, allowed past-due teacher-reopened retry missions to launch, and removed the complete teacher AI mission-draft UI/action/adapter/schema slice. Dev is running cleanly on port 3000; 451 Vitest tests, TypeScript, and the production build passed. Phase 10 remains blocked at the existing Task 3 human browser/audio checkpoint.
 progress:
@@ -194,6 +194,8 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 ## Session Continuity
 
 **Resume file:** mascot-vs-media-handoff.md (original pivot dilemma — now resolved back to mascot; kept as historical record)
+
+**Handoff docs:** `.planning/handoff/` holds two 2026-07-10 session handoffs (mascot-audio-copy, audio-reclick-still-broken), committed 2026-07-11 as historical records — every open item in them has since landed: the replay re-click silence was resolved in `33779fa1` by removing Web Audio entirely from `CocoSpeechAudio.tsx` (native `<audio>` playback + synthetic mouth pulse; never reintroduce `createMediaElementSource` — a source test bans it), the terse "Say this sentence:" repeat-card label and the sprite-framing/dialogue-box overlap fixes landed in the same commit and the mobile follow-ups `f87766f5`/`7a599097`. Audible replay confirmation remains user-ear-only (agent preview and driven-Chrome tabs can't produce sound) and is folded into the existing Task 3 checkpoint.
 
 Last session: 2026-07-09
 Stopped at: Plan 10-04 Tasks 1-2 verified complete (code already shipped via phase-10-mascot-wip merge, no new changes needed); blocked on Task 3 human-verify checkpoint
