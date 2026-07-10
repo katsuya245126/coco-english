@@ -302,8 +302,13 @@ export const mascotSpriteWrapStyle: CSSProperties = {
   position: "absolute",
   left: 72,
   right: 72,
-  bottom: 72,
-  height: 198,
+  // Sits just above the dialogue box (stage 300 tall, box top at y=172): only
+  // the bottom 8px of the sprite tuck behind it, so close-up sprites like
+  // "encouraging" keep their mouth/chin visible instead of hiding behind the
+  // box. The box top stays inside the stage so the speaking scale pulse
+  // (transform-origin bottom) can't clip the ears.
+  bottom: 120,
+  height: 180,
   transformOrigin: "bottom center",
 };
 

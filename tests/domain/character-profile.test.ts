@@ -37,12 +37,6 @@ describe("character profile module (CHAR-01/02/03/04, FLOW-02)", () => {
     );
   });
 
-  it("has a repeatInstruction field", () => {
-    expect(DEFAULT_BUDDY.repeatInstruction).toBe(
-      "Now try saying it this way:",
-    );
-  });
-
   it("has a turnTransition field", () => {
     expect(DEFAULT_BUDDY.turnTransition).toBe(
       "Good job! Ready for the next one?",
@@ -94,7 +88,6 @@ describe("character profile module (CHAR-01/02/03/04, FLOW-02)", () => {
       DEFAULT_BUDDY.questionIntro,
       DEFAULT_BUDDY.questionLabel,
       DEFAULT_BUDDY.improvedSentenceIntro,
-      DEFAULT_BUDDY.repeatInstruction,
       DEFAULT_BUDDY.turnTransition,
       DEFAULT_BUDDY.completionHeading,
       DEFAULT_BUDDY.completionBody(3),

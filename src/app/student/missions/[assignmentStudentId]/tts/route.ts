@@ -66,6 +66,8 @@ function resolveFeedbackLineText(feedbackVariant?: string): string | null {
   switch (feedbackVariant) {
     case "accepted_original":
       return "Nice answer!";
+    case "needs_correction":
+      return "Hmm... let's try again";
     case "retry_original":
       return "Try again.";
     case "teacher_check":

@@ -9,7 +9,6 @@ import {
   primaryButtonStyle,
   stepCardStyle,
 } from "@/components/student/styles";
-import { CocoSpeechAudio } from "@/components/student/CocoSpeechAudio";
 import {
   STAR_BAND_COPY,
   type PronunciationStarBand,
@@ -26,8 +25,6 @@ type OriginalOutcome =
 type RepeatOutcome = "repeatAccepted" | "repeatRetry" | "repeatReview";
 
 type StepAiEvaluationFeedbackProps = {
-  assignmentStudentId: string;
-  turnOrder: number;
   mode: "original" | "repeat";
   outcome: OriginalOutcome | RepeatOutcome;
   transcript?: string | null;
@@ -35,9 +32,15 @@ type StepAiEvaluationFeedbackProps = {
   improvedSentence?: string | null;
   starBand?: PronunciationStarBand | null;
   wordsToPractice?: WordHighlight[];
-  onAmplitudeFrame?: (level: number) => void;
-  onPlayingChange?: (playing: boolean) => void;
   showCocoLine?: boolean;
+  /**
+   * Gates only the improved-sentence "Try this:" card, independent of
+   * showCocoLine. The mascot dialogue bubble owns Coco's short spoken lines
+   * ("Nice answer!", "Try again."), so showCocoLine stays false to avoid
+   * duplicating those. But the target sentence must render somewhere visible,
+   * so this card is turned on for the correction/retry outcomes.
+   */
+  showSentenceCard?: boolean;
   /**
    * True on a 1-star result the student hasn't yet retried this turn — hides
    * Continue so a retry is the only way forward. Never true after a retry
@@ -51,8 +54,6 @@ type StepAiEvaluationFeedbackProps = {
 };
 
 export function StepAiEvaluationFeedback({
-  assignmentStudentId,
-  turnOrder,
   mode,
   outcome,
   transcript,
@@ -60,9 +61,8 @@ export function StepAiEvaluationFeedback({
   improvedSentence,
   starBand,
   wordsToPractice,
-  onAmplitudeFrame,
-  onPlayingChange,
   showCocoLine = true,
+  showSentenceCard = showCocoLine,
   forceRetryBeforeContinue = false,
   onContinue,
   onRetry,
@@ -110,21 +110,15 @@ export function StepAiEvaluationFeedback({
     return (
       <div style={stepCardStyle} aria-live="polite">
         <Transcript transcript={transcript} audioUrl={audioUrl} />
-        {showCocoLine ? (
+        {showSentenceCard ? (
         <div style={{ ...improvedSentenceCardStyle, marginTop: transcript ? 16 : 0 }}>
-          <div style={improvedSentenceHeaderStyle}>
-            <p style={improvedSentenceLabelStyle}>
-              Try this:
-            </p>
-            {/* Voice reads the actual improved sentence (D-07). The
-                transcript above is never voiced (D-10). */}
-            <CocoSpeechAudio
-              assignmentStudentId={assignmentStudentId}
-              line={{ lineKind: "improved_sentence", turnOrder }}
-              onAmplitudeFrame={onAmplitudeFrame}
-              onPlayingChange={onPlayingChange}
-            />
-          </div>
+          {/* Deliberately unvoiced here — Coco's bubble speaks the short
+              "Hmm... let's try again" line on this page, and the improved
+              sentence is first read aloud on the NEXT page (the repeat step's
+              card). Voicing it here too would talk over the bubble. */}
+          <p style={{ ...improvedSentenceLabelStyle, marginBottom: 12 }}>
+            Try this:
+          </p>
           <p style={sentenceStyle}>{improvedSentence}</p>
         </div>
         ) : null}
@@ -215,10 +209,17 @@ export function StepAiEvaluationFeedback({
   return (
     <div style={stepCardStyle} aria-live="polite" role="alert">
       <Transcript transcript={transcript} audioUrl={audioUrl} />
-      {improvedSentence && showCocoLine && (
+      {improvedSentence && showSentenceCard && (
         <div style={{ ...improvedSentenceCardStyle, marginTop: transcript ? 16 : 0 }}>
-          <p style={{ ...improvedSentenceLabelStyle, marginBottom: 8 }}>
-            Say this sentence:
+          <p
+            style={{
+              ...improvedSentenceLabelStyle,
+              marginBottom: 8,
+              fontSize: 16,
+              color: "#2563EB",
+            }}
+          >
+            Say
           </p>
           <p style={sentenceStyle}>{improvedSentence}</p>
         </div>
@@ -422,18 +423,6 @@ const sentenceStyle: CSSProperties = {
   color: "#111827",
   margin: 0,
   lineHeight: 1.25,
-};
-
-// Header row: the "clearer way to say it" label and the Coco speaker button
-// share a vertically-centered baseline so the 44px button never floats above
-// the text. The label carries no bottom margin — the card's own padding and the
-// row's spacing give the sentence beneath consistent breathing room.
-const improvedSentenceHeaderStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 12,
-  marginBottom: 12,
 };
 
 const improvedSentenceLabelStyle: CSSProperties = {

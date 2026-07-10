@@ -17,7 +17,6 @@ export type CharacterProfile = {
   questionIntro: string;
   questionLabel: string;
   improvedSentenceIntro: string;
-  repeatInstruction: string;
   turnTransition: string;
   completionHeading: string;
   completionBody: (turnCount: number) => string;
@@ -30,7 +29,6 @@ export const DEFAULT_BUDDY: CharacterProfile = {
   questionIntro: "Hi! Let's practice together.",
   questionLabel: "Coco asks:",
   improvedSentenceIntro: "Nice! Here is a better way to say it:",
-  repeatInstruction: "Now try saying it this way:",
   turnTransition: "Good job! Ready for the next one?",
   completionHeading: "Mission complete!",
   completionBody: (turnCount: number) =>

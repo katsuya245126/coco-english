@@ -91,7 +91,6 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     const shellSource = readSource(
       "src/components/student/MissionFlowShell.tsx",
     );
-
     expect(questionSource).not.toContain("questionLabel");
     expect(questionSource).not.toContain("Coco asks:");
     expect(shellSource).not.toContain("questionLabel={characterProfile.questionLabel}");
@@ -131,24 +130,62 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     );
   });
 
-  it("renders active Coco lines from the persistent mascot dialogue instead of duplicating them in step cards", () => {
+  it("renders Coco's short spoken lines from the persistent mascot dialogue instead of duplicating them in step cards", () => {
     const shellSource = readSource(
       "src/components/student/MissionFlowShell.tsx",
+    );
+    const routeSource = readSource(
+      "src/app/student/missions/[assignmentStudentId]/tts/route.ts",
     );
 
     expect(shellSource).toContain("getMascotDialogue");
     expect(shellSource).toContain("dialogueText={mascotDialogue.text}");
     expect(shellSource).toContain("voiceControl={");
+    // Feedback step cards keep their redundant short-message headings
+    // suppressed; those lines are spoken only by the mascot bubble.
     expect(shellSource).toContain("showCocoLine={false}");
-    expect(shellSource).toContain("`Try this: ${sentence}`");
-    expect(shellSource).toContain("`Try this: ${flow.originalFeedback.improvedSentence}`");
-    expect(shellSource).toContain("`Try again: ${sentence}`");
     expect(shellSource).toContain('feedbackVariant: "accepted_original"');
+    expect(shellSource).toContain('feedbackVariant: "needs_correction"');
     expect(shellSource).toContain('feedbackVariant: "retry_original"');
     expect(shellSource).toContain('feedbackVariant: "teacher_check"');
     expect(shellSource).toContain('feedbackVariant: "repeat_accepted"');
     expect(shellSource).toContain('feedbackVariant: "repeat_check"');
     expect(shellSource).toContain("if (actionError)");
+    expect(routeSource).toContain('case "needs_correction"');
+    expect(routeSource).toContain('return "Hmm... let\'s try again"');
+  });
+
+  it("keeps the target sentence in the step card, not embedded in Coco's dialogue text", () => {
+    const shellSource = readSource(
+      "src/components/student/MissionFlowShell.tsx",
+    );
+
+    // The improved/target sentence must render in the "Try this:" step card
+    // (showSentenceCard), never inlined into the mascot bubble text — otherwise
+    // Coco "says the answer in the chatbox" and it appears twice.
+    expect(shellSource).toContain("showSentenceCard={true}");
+    // The retry-recorder card uses a terse student-facing label; the fuller
+    // characterProfile.improvedSentenceIntro phrasing is spoken-only (TTS).
+    expect(shellSource).toContain('improvedSentenceLabel="Say"');
+    expect(shellSource).not.toContain(
+      "improvedSentenceIntro={characterProfile.improvedSentenceIntro}",
+    );
+    expect(shellSource).not.toContain("`Try this: ${sentence}`");
+    expect(shellSource).not.toContain(
+      "`Try this: ${flow.originalFeedback.improvedSentence}`",
+    );
+    expect(shellSource).not.toContain("`Try again: ${sentence}`");
+  });
+
+  it("uses the terse blue Say label and hides the first transcript while recording again", () => {
+    const repeatSource = readSource(
+      "src/components/student/StepImprovedRepeat.tsx",
+    );
+
+    expect(repeatSource).toContain("fontSize: 16");
+    expect(repeatSource).toContain('color: "#2563EB"');
+    expect(repeatSource).not.toContain("originalTranscript");
+    expect(repeatSource).not.toContain("We heard:");
   });
 
   it("keeps the mascot dialogue box at a stable height", () => {
@@ -166,19 +203,32 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(stageSource).toContain('thinking: "coco-thinking-alpha.png"');
     expect(stageSource).toContain('sad: "coco-sad-alpha.png"');
     expect(stageSource).toContain('objectFit: "cover"');
-    expect(stageSource).toContain('objectPosition: "center 18%"');
+    expect(stageSource).toContain('objectPosition: "center 12%"');
     expect(stylesSource).toContain("left: 72");
     expect(stylesSource).toContain("right: 72");
-    expect(stylesSource).toContain("bottom: 72");
-    expect(stylesSource).toContain("height: 198");
+    // Sprite box must clear the dialogue box (top at y=172 of the 300-tall
+    // stage) so close-up sprites' faces aren't hidden behind it.
+    expect(stylesSource).toContain("bottom: 120");
+    expect(stylesSource).toContain("height: 180");
   });
 
-  it("does not pre-attach Web Audio analyser nodes before playback can run", () => {
+  it("never routes the <audio> element into a Web Audio graph (replay must stay audible)", () => {
     const source = readSource("src/components/student/CocoSpeechAudio.tsx");
 
-    expect(source).toContain("ensureAnalyserReady");
-    expect(source).toContain('sharedAudioContext?.state === "running"');
-    expect(source).not.toMatch(/useEffect\(\(\) => \{\s*if \(!audioUrl \|\| !onAmplitudeFrame\) return;/);
+    // createMediaElementSource is a one-way capture: it permanently reroutes
+    // the element's output into whichever AudioContext grabbed it first, and
+    // any later graph/context loss (HMR re-eval, remount) leaves the element
+    // advancing currentTime while emitting silence — the replay-silent-on-
+    // reclick bug. Playback must stay native; the mascot mouth pulse comes
+    // from a synthetic level instead of an analyser tap. Comments are allowed
+    // to explain the ban, so only scan comment-stripped code.
+    const code = source
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+    expect(code).not.toContain("createMediaElementSource");
+    expect(code).not.toContain("new AudioContext");
+    expect(code).not.toContain("createAnalyser");
+    expect(code).toContain("syntheticSpeechLevel");
   });
 });
 

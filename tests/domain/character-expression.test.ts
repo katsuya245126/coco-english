@@ -115,8 +115,24 @@ describe("deriveExpression (MASCOT-03)", () => {
     ).toBe("thinking");
   });
 
+  it("cheers on the retry recorder screen with encouraging", () => {
+    // The repeat step is only reached when the student is re-recording the
+    // corrected sentence, so Coco is encouraging there regardless of prior
+    // feedback kind (which no longer applies once the flow advances).
+    expect(deriveExpression({ step: "repeat" })).toBe("encouraging");
+    expect(
+      deriveExpression({
+        step: "repeat",
+        originalFeedbackKind: "needsCorrection",
+      }),
+    ).toBe("encouraging");
+  });
+
   it("maps neutral flow steps with no feedback to idle", () => {
-    for (const step of allSteps.filter((candidate) => candidate !== "complete")) {
+    const neutralSteps = allSteps.filter(
+      (candidate) => candidate !== "complete" && candidate !== "repeat",
+    );
+    for (const step of neutralSteps) {
       expect(deriveExpression({ step })).toBe("idle");
     }
   });

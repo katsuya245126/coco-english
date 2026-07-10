@@ -160,7 +160,7 @@ export function MascotStage({
           fill
           priority
           sizes="(max-width: 420px) 100vw, 420px"
-          style={{ objectFit: "cover", objectPosition: "center 18%" }}
+          style={{ objectFit: "cover", objectPosition: "center 12%" }}
         />
       </div>
       <div style={mascotDialogueBoxStyle}>

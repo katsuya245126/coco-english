@@ -122,8 +122,6 @@ export type CharacterProfileLines = {
   displayName: string;
   questionIntro: string;
   questionLabel: string;
-  improvedSentenceIntro: string;
-  repeatInstruction: string;
   turnTransition: string;
   completionHeading: string;
   completionBody: string;
@@ -713,8 +711,6 @@ export function MissionFlowShell({
 
         {flow.step === "aiFeedback" && flow.originalFeedback && (
           <StepAiEvaluationFeedback
-            assignmentStudentId={assignmentStudentId}
-            turnOrder={currentTurn.turnOrder}
             mode="original"
             outcome={flow.originalFeedback.kind}
             transcript={flow.originalFeedback.transcript}
@@ -726,9 +722,8 @@ export function MissionFlowShell({
             }
             starBand={flow.originalFeedback.starBand}
             wordsToPractice={flow.originalFeedback.wordsToPractice}
-            onAmplitudeFrame={handleMascotAmplitudeFrame}
-            onPlayingChange={handleMascotPlayingChange}
             showCocoLine={false}
+            showSentenceCard={true}
             forceRetryBeforeContinue={
               flow.originalFeedback.starBand === 1 && !flow.hasRetriedThisTurn
             }
@@ -754,13 +749,13 @@ export function MissionFlowShell({
           <StepImprovedRepeat
             assignmentStudentId={assignmentStudentId}
             turnOrder={currentTurn.turnOrder}
-            originalTranscript={flow.originalTranscript}
-            improvedSentenceIntro={characterProfile.improvedSentenceIntro}
+            // Terse card label on purpose — the fuller spoken phrasing
+            // (characterProfile.improvedSentenceIntro) stays TTS-only.
+            improvedSentenceLabel="Say"
             targetExample={flow.improvedSentence ?? currentTurn.targetExample}
-            repeatInstruction={characterProfile.repeatInstruction}
             onAmplitudeFrame={handleMascotAmplitudeFrame}
             onPlayingChange={handleMascotPlayingChange}
-            showCocoLine={false}
+            showCocoLine={true}
             onVoiceRecorded={handleSubmitRepeatVoice}
             isSubmitting={isSubmittingVoice}
           />
@@ -768,8 +763,6 @@ export function MissionFlowShell({
 
         {flow.step === "repeatFeedback" && flow.repeatFeedback && (
           <StepAiEvaluationFeedback
-            assignmentStudentId={assignmentStudentId}
-            turnOrder={currentTurn.turnOrder}
             mode="repeat"
             outcome={flow.repeatFeedback.kind}
             transcript={flow.repeatFeedback.transcript}
@@ -777,9 +770,8 @@ export function MissionFlowShell({
             improvedSentence={flow.improvedSentence}
             starBand={flow.repeatFeedback.starBand}
             wordsToPractice={flow.repeatFeedback.wordsToPractice}
-            onAmplitudeFrame={handleMascotAmplitudeFrame}
-            onPlayingChange={handleMascotPlayingChange}
             showCocoLine={false}
+            showSentenceCard={true}
             forceRetryBeforeContinue={
               flow.repeatFeedback.starBand === 1 && !flow.hasRetriedThisTurn
             }
@@ -868,19 +860,22 @@ function getMascotDialogue({
   }
 
   if (flow.step === "repeat" && currentTurn) {
-    const sentence = flow.improvedSentence ?? currentTurn.targetExample;
+    // The target sentence + its own replay button now live in the
+    // StepImprovedRepeat "Say" card (showCocoLine={true}). Keep Coco's
+    // bubble to a generic prompt so the sentence isn't spoken/shown twice.
     return {
-      text: `Try this: ${sentence}`,
-      line: { lineKind: "improved_sentence", turnOrder: currentTurn.turnOrder },
+      text: "Try this!",
+      line: null,
     };
   }
 
   if (flow.step === "aiFeedback" && flow.originalFeedback?.kind === "needsCorrection") {
+    // Coco speaks only this short encouragement here. The improved sentence
+    // renders (unvoiced) in the feedback card's "Try this:" block — it is
+    // first READ on the next page (the repeat step's card), not on this one.
     return {
-      text: `Try this: ${flow.originalFeedback.improvedSentence}`,
-      line: currentTurn
-        ? { lineKind: "improved_sentence", turnOrder: currentTurn.turnOrder }
-        : null,
+      text: "Hmm... let's try again",
+      line: { lineKind: "coco_feedback", feedbackVariant: "needs_correction" },
     };
   }
 
@@ -906,12 +901,11 @@ function getMascotDialogue({
   }
 
   if (flow.step === "repeatFeedback" && flow.repeatFeedback?.kind === "repeatRetry") {
-    const sentence = flow.improvedSentence ?? "Try the sentence again.";
+    // The sentence to repeat renders in the feedback card (showCocoLine={true});
+    // keep Coco's bubble generic so it isn't duplicated in the dialogue text.
     return {
-      text: `Try again: ${sentence}`,
-      line: currentTurn
-        ? { lineKind: "improved_sentence", turnOrder: currentTurn.turnOrder }
-        : null,
+      text: "Try again!",
+      line: null,
     };
   }
 

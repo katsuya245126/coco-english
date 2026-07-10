@@ -51,7 +51,8 @@ test("student audio transcription states use classroom-safe copy", async () => {
   expect(shellSource).toContain("I didn't hear you. Try again.");
   expect(shellSource).not.toContain("audio_upload_failed");
   expect(shellSource).toContain("Try again.");
-  expect(repeatSource).toContain("We heard:");
+  expect(repeatSource).not.toContain("We heard:");
+  expect(repeatSource).not.toContain("originalTranscript");
   expect(shellSource).toContain("Your repeat:");
 });
 

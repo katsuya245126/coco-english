@@ -3,9 +3,8 @@
 /**
  * Step 2: Improved sentence + required voice repeat (FLOW-04, FLOW-05, D-03).
  *
- * Shows the student's original transcript when available, the improved target-form
- * sentence from the snapshot (never generated — FLOW-04), the repeat
- * instruction, and a reusable voice recorder control for the required repeat.
+ * Shows the improved target-form sentence from the snapshot (never generated —
+ * FLOW-04) and a reusable voice recorder control for the required repeat.
  * All text is rendered as React text nodes (no raw innerHTML — V5, T-04-13).
  * No AI client import (AI-06).
  */
@@ -27,10 +26,13 @@ export type RepeatVoiceClip = VoiceRecordingMetadata & {
 type StepImprovedRepeatProps = {
   assignmentStudentId: string;
   turnOrder: number;
-  originalTranscript: string | null;
-  improvedSentenceIntro: string;
+  /**
+   * Short label above the target sentence (e.g. "Say") —
+   * intentionally distinct from the character profile's fuller
+   * `improvedSentenceIntro`, which Coco speaks via TTS.
+   */
+  improvedSentenceLabel: string;
   targetExample: string;
-  repeatInstruction: string;
   onAmplitudeFrame?: (level: number) => void;
   onPlayingChange?: (playing: boolean) => void;
   showCocoLine?: boolean;
@@ -41,10 +43,8 @@ type StepImprovedRepeatProps = {
 export function StepImprovedRepeat({
   assignmentStudentId,
   turnOrder,
-  originalTranscript,
-  improvedSentenceIntro,
+  improvedSentenceLabel,
   targetExample,
-  repeatInstruction,
   onAmplitudeFrame,
   onPlayingChange,
   showCocoLine = true,
@@ -53,21 +53,9 @@ export function StepImprovedRepeat({
 }: StepImprovedRepeatProps) {
   return (
     <div style={stepCardStyle} aria-live="polite">
-      {originalTranscript && (
-        <div>
-          <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: "0 0 4px" }}>
-            We heard:
-          </p>
-          <p style={{ fontSize: 16, color: "#111827", margin: 0, lineHeight: 1.5 }}>
-            {originalTranscript}
-          </p>
-        </div>
-      )}
-
-      {/* Improved / model sentence area — voiced (D-07). The transcript block
-          above is deliberately NOT voiced (D-10). */}
+      {/* Improved / model sentence area — voiced (D-07). */}
       {showCocoLine ? (
-      <div style={{ ...improvedSentenceCardStyle, marginTop: originalTranscript ? 16 : 0 }}>
+      <div style={improvedSentenceCardStyle}>
         <div
           style={{
             display: "flex",
@@ -77,8 +65,8 @@ export function StepImprovedRepeat({
             marginBottom: 12,
           }}
         >
-          <p style={{ fontSize: 14, fontWeight: 600, color: "#4B5563", margin: 0, lineHeight: 1.4 }}>
-            {improvedSentenceIntro}
+          <p style={{ fontSize: 16, fontWeight: 600, color: "#2563EB", margin: 0, lineHeight: 1.4 }}>
+            {improvedSentenceLabel}
           </p>
           <CocoSpeechAudio
             assignmentStudentId={assignmentStudentId}
@@ -93,13 +81,8 @@ export function StepImprovedRepeat({
       </div>
       ) : null}
 
-      {/* Repeat instruction */}
-      <p style={{ fontSize: 16, color: "#4B5563", margin: showCocoLine || originalTranscript ? "16px 0 8px" : "0 0 8px", lineHeight: 1.5 }}>
-        {repeatInstruction}
-      </p>
-
       {/* Repeat recorder area */}
-      <div>
+      <div style={{ marginTop: showCocoLine ? 16 : 0 }}>
         <VoiceRecorderControl
           mode="repeat"
           maxSeconds={60}

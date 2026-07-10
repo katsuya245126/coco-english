@@ -16,6 +16,15 @@
  * the line or blocks the homework loop (D-03, D-06, D-15, T-08-06). It imports
  * ONLY domain types and calls the app route; no OpenAI / Supabase service /
  * server-audio import ever crosses this boundary (T-08-01, T-08-07).
+ *
+ * Playback is ALWAYS native <audio> — this component must never route the
+ * element through Web Audio (`createMediaElementSource`). That call is a
+ * one-way capture: it permanently reroutes the element's output into whichever
+ * AudioContext grabbed it first, and if that context/graph ever dies (HMR
+ * module re-eval, remount, a stale cache) the element keeps "playing"
+ * (currentTime advances) while emitting silence — the replay-silent-on-reclick
+ * bug. The mascot mouth pulse (MASCOT-02) is therefore driven by a synthetic
+ * speech-like level while playing, not by an analyser tap of the real signal.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -37,7 +46,10 @@ type CocoSpeechAudioProps = {
   line: CocoSpeechLine;
   /** Accessible label for the icon-only replay control. */
   label?: string;
-  /** MASCOT-02: fired on each analyser tick while playing; omit to opt out. */
+  /**
+   * MASCOT-02: fired each animation frame while playing with a synthetic
+   * speech-like level (0..1); omit to opt out.
+   */
   onAmplitudeFrame?: (level: number) => void;
   /** MASCOT-02: fired on playing-state transitions (drives idle<->speaking). */
   onPlayingChange?: (playing: boolean) => void;
@@ -49,55 +61,18 @@ type TtsRouteResult =
   | { ok: true; audioUrl: string; mimeType?: string }
   | { ok: false; error?: string };
 
-let sharedAudioContext: AudioContext | null = null;
-const sourceNodeCache = new WeakMap<
-  HTMLMediaElement,
-  MediaElementAudioSourceNode
->();
-const analyserNodeCache = new WeakMap<HTMLMediaElement, AnalyserNode>();
-
-function getAudioContext(): AudioContext {
-  if (!sharedAudioContext) {
-    sharedAudioContext = new AudioContext();
-  }
-  return sharedAudioContext;
-}
-
-async function resumeAudioContext() {
-  const ctx = sharedAudioContext;
-  if (ctx?.state === "suspended") {
-    await ctx.resume().catch(() => {
-      // Speech playback remains usable even if analyser data is unavailable.
-    });
-  }
-}
-
-function attachAnalyser(el: HTMLMediaElement): AnalyserNode {
-  const cachedAnalyser = analyserNodeCache.get(el);
-  if (cachedAnalyser) return cachedAnalyser;
-
-  const ctx = getAudioContext();
-  let source = sourceNodeCache.get(el);
-  if (!source) {
-    source = ctx.createMediaElementSource(el);
-    sourceNodeCache.set(el, source);
-    source.connect(ctx.destination);
-  }
-
-  const analyser = ctx.createAnalyser();
-  analyser.fftSize = 256;
-  source.connect(analyser);
-  analyserNodeCache.set(el, analyser);
-  return analyser;
-}
-
-function readAmplitude(
-  analyser: AnalyserNode,
-  data: Uint8Array<ArrayBuffer>,
-): number {
-  analyser.getByteFrequencyData(data);
-  const total = data.reduce((sum, value) => sum + value, 0);
-  return total / data.length / 255;
+// Synthetic mouth level while Coco's audio is playing (MASCOT-02). Two
+// incommensurate sines approximate syllable cadence (~3.4 Hz) inside a slower
+// phrase envelope, keeping the level in ~0.12..0.57 — always above the
+// speaking-state silence threshold, with enough variation to read as talking.
+// A synthetic signal (instead of an AnalyserNode tap) is deliberate: tapping
+// the real signal requires createMediaElementSource, the one-way element
+// capture that caused the replay-silence bug this replaces.
+function syntheticSpeechLevel(elapsedMs: number): number {
+  const t = elapsedMs / 1000;
+  const syllable = 0.5 + 0.5 * Math.sin(2 * Math.PI * 3.4 * t);
+  const phrase = 0.6 + 0.4 * Math.sin(2 * Math.PI * 0.7 * t + 1);
+  return 0.12 + 0.45 * syllable * phrase;
 }
 
 export function CocoSpeechAudio({
@@ -108,27 +83,10 @@ export function CocoSpeechAudio({
   onPlayingChange,
 }: CocoSpeechAudioProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const frequencyDataRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const amplitudeFrameRef = useRef<number | null>(null);
   const autoplayedUrlRef = useRef<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [state, setState] = useState<PlaybackState>("loading");
-
-  function ensureAnalyserReady() {
-    if (!onAmplitudeFrame) return;
-    const el = audioRef.current;
-    if (!el) return;
-
-    try {
-      const analyser = attachAnalyser(el);
-      analyserRef.current = analyser;
-      frequencyDataRef.current = new Uint8Array(analyser.frequencyBinCount);
-    } catch {
-      analyserRef.current = null;
-      frequencyDataRef.current = null;
-    }
-  }
 
   // Fetch the signed URL and attempt opportunistic autoplay whenever the
   // descriptor changes. A blocked autoplay leaves the control in a ready state.
@@ -199,13 +157,10 @@ export function CocoSpeechAudio({
   useEffect(() => {
     if (state !== "playing" || !onAmplitudeFrame) return;
     const emitAmplitudeFrame = onAmplitudeFrame;
+    const startedAt = performance.now();
 
-    function tick() {
-      const analyser = analyserRef.current;
-      const data = frequencyDataRef.current;
-      if (analyser && data) {
-        emitAmplitudeFrame(readAmplitude(analyser, data));
-      }
+    function tick(now: number) {
+      emitAmplitudeFrame(syntheticSpeechLevel(now - startedAt));
       amplitudeFrameRef.current = requestAnimationFrame(tick);
     }
 
@@ -216,6 +171,8 @@ export function CocoSpeechAudio({
         cancelAnimationFrame(amplitudeFrameRef.current);
         amplitudeFrameRef.current = null;
       }
+      // Close the mouth when playback stops/pauses/rebuffers.
+      emitAmplitudeFrame(0);
     };
   }, [state, onAmplitudeFrame]);
 
@@ -235,25 +192,15 @@ export function CocoSpeechAudio({
     if (!el) return;
 
     autoplayedUrlRef.current = audioUrl;
-    // Do NOT attach the analyser or touch the AudioContext here. Autoplay is
-    // not a user gesture, so AudioContext.resume() cannot reliably unlock —
-    // creating/routing the context at this point leaves it permanently
-    // suspended and silently mutes the <audio> element for its whole
-    // lifetime once createMediaElementSource has captured it (that routing
-    // can't be undone). Only attach once a real gesture (handleReplay) has
-    // already unlocked the shared context — see the "running" guard on
-    // onPlay/onPlaying below.
     el.play().catch(() => {
       // Autoplay blocked — remain ready so the student can tap replay (D-02).
       setState((prev) => (prev === "playing" ? prev : "ready"));
     });
   }
 
-  async function handleReplay() {
+  function handleReplay() {
     const el = audioRef.current;
     if (!el) return;
-    ensureAnalyserReady();
-    await resumeAudioContext();
     el.currentTime = 0;
     el.play().catch(() => {
       setState("error");
@@ -303,16 +250,10 @@ export function CocoSpeechAudio({
           // networks): drop back to a loading affordance until playback resumes.
           onWaiting={() => setState((prev) => (prev === "error" ? prev : "loading"))}
           onPlaying={() => {
-            if (sharedAudioContext?.state === "running") {
-              ensureAnalyserReady();
-            }
             setState("playing");
             onPlayingChange?.(true);
           }}
           onPlay={() => {
-            if (sharedAudioContext?.state === "running") {
-              ensureAnalyserReady();
-            }
             setState("playing");
             onPlayingChange?.(true);
           }}
