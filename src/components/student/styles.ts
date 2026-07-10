@@ -306,11 +306,9 @@ export const mascotSpriteWrapStyle: CSSProperties = {
   // on screens too narrow to retain a 24px safety inset.
   left: "clamp(24px, calc((100% - 226px) / 2), 72px)",
   right: "clamp(24px, calc((100% - 226px) / 2), 72px)",
-  // Sits just above the dialogue box (stage 300 tall, box top at y=172): only
-  // the bottom 8px of the sprite tuck behind it, so close-up sprites like
-  // "encouraging" keep their mouth/chin visible instead of hiding behind the
-  // box. The box top stays inside the stage so the speaking scale pulse
-  // (transform-origin bottom) can't clip the ears.
+  // Sits behind the dialogue box (stage 300 tall, box top at y=164). The 16px
+  // box overlap closes the transparent edge gap on portrait sprites without
+  // moving Coco or clipping the ears during the speaking scale pulse.
   bottom: 120,
   height: 180,
   transformOrigin: "bottom center",
@@ -320,7 +318,7 @@ export const mascotDialogueBoxStyle: CSSProperties = {
   position: "absolute",
   left: 16,
   right: 16,
-  bottom: 24,
+  bottom: 32,
   height: 104,
   background: "#FFFFFF",
   borderTop: "3px solid #2563EB",

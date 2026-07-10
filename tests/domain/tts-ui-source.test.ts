@@ -204,6 +204,7 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     const stylesSource = readSource("src/components/student/styles.ts");
 
     expect(stylesSource).toContain("height: 104");
+    expect(stylesSource).toContain("bottom: 32");
     expect(stylesSource).toContain('overflowY: "auto"');
     expect(stylesSource).not.toContain("minHeight: 64");
   });
