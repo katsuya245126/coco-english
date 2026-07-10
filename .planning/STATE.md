@@ -6,9 +6,9 @@ current_phase: 10
 current_phase_name: mascot-vn-style
 status: blocked-on-checkpoint
 stopped_at: Plan 10-04 Tasks 1-2 verified complete (no new code needed — already shipped via phase-10-mascot-wip merge); blocked on Task 3 human-verify checkpoint (real-browser mount/audio/expression check)
-last_updated: "2026-07-09T06:40:00.000Z"
-last_activity: 2026-07-09
-last_activity_desc: Ran /gsd-execute-phase 10 to close out the last remaining plan. Executor verified Tasks 1-2 (Step-component callback threading + MascotStage mount in MissionFlowShell) were already code-complete from the earlier phase-10-mascot-wip merge (50efbfc0) — re-checked every acceptance criterion fresh, tsc clean, 444/4/48 suite green. Along the way, committed a pre-existing uncommitted fix (d104f16d, CocoSpeechAudio analyser-order bug) found sitting in the working tree. Plan 10-04 now stops at Task 3, a blocking human-verify checkpoint requiring a real browser session.
+last_updated: "2026-07-10T03:32:26.000Z"
+last_activity: 2026-07-10
+last_activity_desc: Completed quick task 260710-hbn for the interrupted retry feedback flow (33779fa1) — Coco now voices only the short first-retry encouragement, the corrected sentence is voiced on the next page, the repeat card uses a larger blue Say label without the first transcript, and native audio replay remains protected from stale Web Audio graphs. TypeScript, 446 Vitest tests, and 9 focused Playwright tests passed. Phase 10 remains blocked at the existing Task 3 human browser/audio checkpoint.
 progress:
   total_phases: 6
   completed_phases: 2
@@ -31,7 +31,9 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 Phase: 10 (mascot-vn-style) — IN PROGRESS, blocked on checkpoint
 Previous phase: 09 (pronunciation-scoring) — COMPLETE
 Status: `/gsd-execute-phase 10` was run to close out Plan 10-04, the last plan in Phase 10. Before dispatching, found two uncommitted working-tree changes: (1) a `CocoSpeechAudio.tsx` fix (analyser-attach-before-resume ordering, a real D-02 regression from the MASCOT-02 analyser wiring) — committed as `d104f16d`; (2) an unrelated repeat-turn exact-match fast-path touching `audio-upload.ts`, stashed before dispatch, later found to be independently committed by the user as `58bcc921` during the same session — stash dropped as redundant once confirmed identical. The gsd-executor then verified Plan 10-04 Tasks 1-2 (thread onAmplitudeFrame/onPlayingChange through all five Step* components; mount MascotStage unconditionally in MissionFlowShell with shell-owned ref-backed callback bridging) against every acceptance criterion fresh — all already satisfied by the earlier `phase-10-mascot-wip` merge (50efbfc0), so no new code was needed. `npx tsc --noEmit` clean, `npx vitest run` 444 passed/4 skipped/48 files — matches the pre-execution baseline exactly, zero regression. 10-04-SUMMARY.md committed as `8abc410f`, documenting partial completion. Plan 10-04 now stops at Task 3, a blocking human-verify checkpoint: run a full mission end-to-end in a real browser to confirm MascotStage mount persistence (no layout shift), the speaking animation tracks the real audio clock (not a timer, with 200ms hysteresis), and expressions are content-tied (happy/celebrate/encouraging, never sad). Task 4 (real low-end device testing) follows once Task 3 is approved. `requirements-completed` for MASCOT-01..04 stays empty in the SUMMARY until both checkpoints pass.
-Last activity: 2026-07-09 — Plan 10-04 Tasks 1-2 verified (no code changes needed); stopped at Task 3 human-verify checkpoint
+Quick task 260710-hbn completed the interrupted student retry/audio feedback work in commit `33779fa1`. Phase 10's position is otherwise unchanged and remains blocked on its existing Task 3 human browser/audio checkpoint.
+
+Last activity: 2026-07-10 — Completed quick task 260710-hbn; automated verification passed, with manual audible replay still part of the existing browser checkpoint
 
 Progress: [███████░░░] 71%
 
@@ -169,6 +171,12 @@ None currently pending.
 - [Phase 6]: OpenAI model defaults, quality, and pricing should be rechecked before paid classroom pilots.
 - [Milestone close]: Phase 02, Phase 04, and Phase 06 retain human_needed pilot-readiness checks; these were acknowledged and deferred at v1.0 closeout.
 - Phase 8 VOICE-04 residual risk: Samsung S23 + Mac smoke tests passed, but Chromebook/older-tablet coverage was unavailable and accepted at closeout. Re-test on older school hardware when available, especially before broad classroom rollout.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260710-hbn | Finish interrupted retry feedback UI and verification | 2026-07-10 | 33779fa1 | [260710-hbn-finish-the-interrupted-retry-feedback-ui](./quick/260710-hbn-finish-the-interrupted-retry-feedback-ui/) |
 
 ## Deferred Items
 
