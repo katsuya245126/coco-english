@@ -122,14 +122,38 @@ Archive:
 
 ### Phase 10.1: Assignment Operations & Student History (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Goal:** Teachers can process cross-class submissions and incomplete work from one fresh, auditable in-app workspace, while students can navigate bounded Current/Past missions and safely revisit the final completed conversation.
+**Requirements**: Phase decisions D-01 through D-28 in `10.1-CONTEXT.md` (inserted operational scope; no new v2 REQ IDs)
 **Depends on:** Phase 10
-**Plans:** 0 plans
+**Success Criteria** (what must be TRUE):
 
-Plans:
+  1. `/teacher` is a combined newest-first Needs review inbox with per-class policy, unread/viewed/reviewed receipts, explicit Mark reviewed/Request retry, Undo, and permanent reopen without conflating teacher workflow with student completion.
+  2. The shared teacher shell keeps Needs review counts/notices fresh within about 30 seconds on every teacher route, while the visible inbox applies new rows only after a teacher clicks the new-submissions banner.
+  3. Incomplete work stays separate and is grouped by assignment under Missed, Due soon (24 hours), and collapsed Later with accurate Not started/Started labels and item counts.
+  4. Class and assignment drill-downs reuse the same queue model, preserve ownership, and highlight the selected incomplete student without hiding nearby classmates.
+  5. Student home has bounded Current/Past pages: Retry → due soon → later/no-date ordering, late/missed open work remains launchable, and Past contains five completed missions per page newest-first.
+  6. A Past mission opens only the unlocked student's final completed attempt as a read-only Coco/You said recap with transcripts, retained audio, qualitative pronunciation feedback, and Recording expired fallback.
 
-- [ ] TBD (run /gsd-plan-phase 10.1 to break down)
+**Plans:** 7 plans
+
+**Wave 1** *(independent foundations)*
+
+- [ ] 10.1-01-PLAN.md — additive review-policy/receipt schema, atomic review/retry RPCs, live schema push, and pure teacher queue/incomplete rules
+- [ ] 10.1-05-PLAN.md — audited `missed → started` late-submission path
+
+**Wave 2** *(server operations and student lists)*
+
+- [ ] 10.1-02-PLAN.md — tenant-safe teacher queue/activity/incomplete services plus view/review/reopen/retry/policy actions
+- [ ] 10.1-06-PLAN.md — student-scoped Current/Past ordering, five-item pagination, tabs, cards, and page links
+
+**Wave 3** *(primary user surfaces)*
+
+- [ ] 10.1-03-PLAN.md — shared teacher workspace, 30-second non-disruptive freshness, Needs review, Incomplete, and All activity
+- [ ] 10.1-07-PLAN.md — student-scoped final-attempt recap, on-demand audio, expiry fallback, and isolation tests
+
+**Wave 4** *(teacher drill-down integration)*
+
+- [ ] 10.1-04-PLAN.md — class/assignment queue integration, review policy, selected-student drill-down, and exact evidence review/recovery loop
 
 ### Phase 11: Coco Chat (dynamic turns + scene framing)
 
@@ -214,14 +238,14 @@ Phases execute in numeric order: 8 → 9 → 10 → 10.1 → 11 → 12 → 13 (P
 | 8. Coco Voice (TTS) | v2.0 | 5/5 | Complete (accepted with residual low-end-device risk) | 2026-07-02 |
 | 9. Pronunciation Scoring | v2.0 | 6/6 | Complete | 2026-07-03 |
 | 10. VN-Style Mascot | v2.0 | 4/4 | Complete (accepted with residual low-end-device risk) | 2026-07-11 |
-| 10.1 Assignment Operations & Student History | v2.0 | 0/TBD | Inserted; not discussed or planned | - |
+| 10.1 Assignment Operations & Student History | v2.0 | 0/7 | Planned | - |
 | 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 0/7 | Planned | - |
 | 12. UI Overhaul | v2.0 | 0/TBD | Not started | - |
 | 13. Pronunciation Remediation Videos | v2.0 | 0/TBD | Not planned | - |
 
 ## Next Up
 
-Phase 10 (VN-Style Mascot) is complete as of 2026-07-11. Phase 10.1 (Assignment Operations & Student History) has been inserted before Phase 11 and is not yet discussed or planned — run `/gsd-discuss-phase 10.1` next.
+Phase 10.1 (Assignment Operations & Student History) is planned in 7 plans across 4 waves and is ready to execute — run `/gsd-execute-phase 10.1` next.
 
 Phase 11 (Coco Chat) remains fully planned (7 plans, 4 waves) and follows Phase 10.1; its existing plans are unchanged.
 

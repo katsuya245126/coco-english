@@ -4,11 +4,11 @@ milestone: v2.0
 milestone_name: — Coco Comes Alive
 current_phase: 10.1
 current_phase_name: assignment-operations-student-history
-status: planning
-stopped_at: Phase 10.1 context gathered
-last_updated: "2026-07-11T16:11:05.813Z"
+status: ready_to_execute
+stopped_at: Phase 10.1 planning complete — 7 plans ready
+last_updated: "2026-07-11T16:35:58Z"
 last_activity: 2026-07-12
-last_activity_desc: Inserted Phase 10.1 for the approved teacher assignment-operations and student-history direction; no implementation or phase planning started.
+last_activity_desc: Planned Phase 10.1 in 7 verified plans across 4 waves; all 28 context decisions covered and ready to execute.
 progress:
   total_phases: 7
   completed_phases: 3
@@ -24,19 +24,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-01)
 
 **Core value:** Students must complete useful spoken English practice outside class, and teachers must be able to verify that it happened.
-**Current focus:** Phase 10.1 — Assignment Operations & Student History has been inserted before Phase 11; discussion and planning have not started.
+**Current focus:** Phase 10.1 — Assignment Operations & Student History is planned in 7 verified plans across 4 waves and is ready to execute.
 
 ## Current Position
 
-Phase: 10.1 (assignment-operations-student-history) — NOT PLANNED
+Phase: 10.1 (assignment-operations-student-history) — PLANNED
 Previous phase: 10 (mascot-vn-style) — COMPLETE
-Status: Ready to discuss — run /gsd-discuss-phase 10.1; no implementation or phase planning has started.
+Plan: 0 of 7 in current phase
+Status: Ready to execute — run /gsd-execute-phase 10.1.
 Quick task 260710-hbn completed the interrupted student retry/audio feedback work in commit `33779fa1`. The follow-up `retry-feedback-flow` debug session fixed final-turn review gating, repeat retry audio/actions, and transcript carryover. The subsequent code-review follow-up removed the unsafe grammar-only fill-in bypass, moved mission completion into a deployed atomic RPC, restored persisted feedback/audio on refresh, included evaluation in resume decisions, and fixed Coco playback teardown. Those follow-ups are complete and Phase 10 remains closed.
 The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on desktop but only 133px on a 375px phone. Responsive clamped insets now preserve the desktop framing at 226px on both standard phone and desktop widths without changing stage, dialogue, or recorder geometry.
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
 The `mission-create-retry-cleanup` follow-up found mission creation itself was healthy: an active dev server had been corrupted when production builds rewrote its `.next` chunks, leaving the form unhydrated and causing native GET submission. A clean restart restored two verified real saves. The retry route now honors `needs_retry` past the original deadline, and the teacher AI mission-draft feature was removed end-to-end. Phase 11's roadmap now requires standalone scene-premise generation rather than restoring full mission drafting.
 
-Last activity: 2026-07-12 — Inserted Phase 10.1 for the approved teacher assignment-operations and student-history direction; no implementation or phase planning started.
+Last activity: 2026-07-12 — Phase 10.1 planning completed: 7 plans, 4 waves, 28/28 decisions covered, validation strategy approved.
 
 Progress: [████░░░░░░] 43%
 
@@ -183,7 +184,7 @@ None currently pending.
 
 ### Roadmap Evolution
 
-- Phase 10.1 inserted after Phase 10: Assignment Operations & Student History (URGENT)
+- Phase 10.1 inserted after Phase 10 and planned in 7 plans across 4 waves: Assignment Operations & Student History (URGENT)
 
 ## Deferred Items
 
@@ -197,11 +198,11 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 ## Session Continuity
 
-**Resume file:** .planning/phases/10.1-assignment-operations-student-history/10.1-CONTEXT.md
+**Resume file:** .planning/phases/10.1-assignment-operations-student-history/10.1-01-PLAN.md
 
 **Handoff docs:** `.planning/handoff/` holds two 2026-07-10 session handoffs (mascot-audio-copy, audio-reclick-still-broken), committed 2026-07-11 as historical records — every open item in them has since landed: the replay re-click silence was resolved in `33779fa1` by removing Web Audio entirely from `CocoSpeechAudio.tsx` (native `<audio>` playback + synthetic mouth pulse; never reintroduce `createMediaElementSource` — a source test bans it), the terse "Say this sentence:" repeat-card label and the sprite-framing/dialogue-box overlap fixes landed in the same commit and the mobile follow-ups `f87766f5`/`7a599097`. Audible replay confirmation remains user-ear-only (agent preview and driven-Chrome tabs can't produce sound) and is folded into the existing Task 3 checkpoint.
 
-Last session: 2026-07-11T16:11:05.802Z
-Stopped at: Phase 10.1 context gathered
-Resume action: Run /gsd-discuss-phase 10.1 to capture the approved inbox, incomplete-work, per-class review policy, student Current/Past pagination, and read-only recap decisions before planning.
+Last session: 2026-07-11T16:35:58Z
+Stopped at: Phase 10.1 planning complete — 7 plans ready
+Resume action: Run /gsd-execute-phase 10.1 to execute the 4-wave plan set, beginning with 10.1-01 and 10.1-05 in Wave 1.
 Note: Branch `phase-10-mascot-wip` is fully merged and can still be deleted (not yet done — ask before deleting). `.planning/phases/11-coco-chat-dynamic-turns-scene-framing/` is active again now that Phase 10 is back to the mascot. Phase 13 (Pronunciation Remediation Videos, MEDIA-F1) is new — not yet planned, no phase directory exists yet. Two incidental fixes landed this session outside Plan 10-04's own scope: `d104f16d` (CocoSpeechAudio analyser-ordering bug, found uncommitted, directly tied to the MASCOT-02 wiring) and `58bcc921` (repeat-turn exact-match fast-path, committed independently by the user during the same session — unrelated to Phase 10, not reviewed here).
