@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Coco Comes Alive
-current_phase: 10
-current_phase_name: mascot-vn-style
-status: ready-to-plan
-stopped_at: Phase 10 (VN-Style Mascot) CLOSED 2026-07-11 — Plan 10-04 complete (Task 3 approved, Task 4 real-low-end-device residual risk explicitly accepted per Phase 8 precedent). MASCOT-01..04 all satisfied. Phase 11 (Coco Chat) is fully planned and ready to execute next.
-last_updated: "2026-07-11T00:00:00.000Z"
-last_activity: 2026-07-11
-last_activity_desc: Task 3 checkpoint for Plan 10-04 approved by human (mount persistence, real-audio speaking, content-tied expressions, no error copy all confirmed). Task 4 (real low-end device) closed via accepted residual risk — no device available. Phase 10 is now fully complete; next up is /gsd-execute-phase 11.
+current_phase: 10.1
+current_phase_name: assignment-operations-student-history
+status: planning
+stopped_at: Phase 10.1 context gathered
+last_updated: "2026-07-11T16:11:05.813Z"
+last_activity: 2026-07-12
+last_activity_desc: Inserted Phase 10.1 for the approved teacher assignment-operations and student-history direction; no implementation or phase planning started.
 progress:
-  total_phases: 6
+  total_phases: 7
   completed_phases: 3
-  total_plans: 19
+  total_plans: 22
   completed_plans: 15
-  percent: 53
+  percent: 43
 ---
 
 # Project State
@@ -24,21 +24,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-01)
 
 **Core value:** Students must complete useful spoken English practice outside class, and teachers must be able to verify that it happened.
-**Current focus:** Phase 10 CLOSED. Next: Phase 11 — Coco Chat (dynamic turns + scene framing), fully planned and ready to execute.
+**Current focus:** Phase 10.1 — Assignment Operations & Student History has been inserted before Phase 11; discussion and planning have not started.
 
 ## Current Position
 
-Phase: 10 (mascot-vn-style) — COMPLETE
-Previous phase: 09 (pronunciation-scoring) — COMPLETE
-Status: Plan 10-04's Task 3 human-verify checkpoint (mount persistence, real-audio-driven speaking, content-tied expressions) was approved 2026-07-11 after the user ran a full mission end-to-end in a real browser. Task 4 (real low-end device testing) had no device available; the user explicitly accepted this as residual risk, mirroring the Phase 8 VOICE-04 closeout precedent. MASCOT-01..04 are now all marked complete in 10-04-SUMMARY.md. Phase 10 (VN-Style Mascot) is fully complete. Next up: Phase 11 (Coco Chat) is already planned (7 plans, 4 waves) — run `/gsd-execute-phase 11` to begin.
-Quick task 260710-hbn completed the interrupted student retry/audio feedback work in commit `33779fa1`. The follow-up `retry-feedback-flow` debug session fixed final-turn review gating, repeat retry audio/actions, and transcript carryover. The subsequent code-review follow-up removed the unsafe grammar-only fill-in bypass, moved mission completion into a deployed atomic RPC, restored persisted feedback/audio on refresh, included evaluation in resume decisions, and fixed Coco playback teardown. Phase 10's position is otherwise unchanged and remains blocked on its existing Task 3 human browser/audio checkpoint.
+Phase: 10.1 (assignment-operations-student-history) — NOT PLANNED
+Previous phase: 10 (mascot-vn-style) — COMPLETE
+Status: Ready to discuss — run /gsd-discuss-phase 10.1; no implementation or phase planning has started.
+Quick task 260710-hbn completed the interrupted student retry/audio feedback work in commit `33779fa1`. The follow-up `retry-feedback-flow` debug session fixed final-turn review gating, repeat retry audio/actions, and transcript carryover. The subsequent code-review follow-up removed the unsafe grammar-only fill-in bypass, moved mission completion into a deployed atomic RPC, restored persisted feedback/audio on refresh, included evaluation in resume decisions, and fixed Coco playback teardown. Those follow-ups are complete and Phase 10 remains closed.
 The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on desktop but only 133px on a 375px phone. Responsive clamped insets now preserve the desktop framing at 226px on both standard phone and desktop widths without changing stage, dialogue, or recorder geometry.
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
 The `mission-create-retry-cleanup` follow-up found mission creation itself was healthy: an active dev server had been corrupted when production builds rewrote its `.next` chunks, leaving the form unhydrated and causing native GET submission. A clean restart restored two verified real saves. The retry route now honors `needs_retry` past the original deadline, and the teacher AI mission-draft feature was removed end-to-end. Phase 11's roadmap now requires standalone scene-premise generation rather than restoring full mission drafting.
 
-Last activity: 2026-07-11 — Restored dev authoring, fixed reopened retry launch, and removed AI mission drafting; automated verification passed, with live microphone/audio confirmation remaining part of the existing browser checkpoint
+Last activity: 2026-07-12 — Inserted Phase 10.1 for the approved teacher assignment-operations and student-history direction; no implementation or phase planning started.
 
-Progress: [███████░░░] 71%
+Progress: [████░░░░░░] 43%
 
 **Codex handoff (merged to main 2026-07-05, branch feature/per-student-sound-profile deleted):**
 
@@ -181,6 +181,10 @@ None currently pending.
 |---|-------------|------|--------|-----------|
 | 260710-hbn | Finish interrupted retry feedback UI and verification | 2026-07-10 | 33779fa1 | [260710-hbn-finish-the-interrupted-retry-feedback-ui](./quick/260710-hbn-finish-the-interrupted-retry-feedback-ui/) |
 
+### Roadmap Evolution
+
+- Phase 10.1 inserted after Phase 10: Assignment Operations & Student History (URGENT)
+
 ## Deferred Items
 
 Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
@@ -193,11 +197,11 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 ## Session Continuity
 
-**Resume file:** mascot-vs-media-handoff.md (original pivot dilemma — now resolved back to mascot; kept as historical record)
+**Resume file:** .planning/phases/10.1-assignment-operations-student-history/10.1-CONTEXT.md
 
 **Handoff docs:** `.planning/handoff/` holds two 2026-07-10 session handoffs (mascot-audio-copy, audio-reclick-still-broken), committed 2026-07-11 as historical records — every open item in them has since landed: the replay re-click silence was resolved in `33779fa1` by removing Web Audio entirely from `CocoSpeechAudio.tsx` (native `<audio>` playback + synthetic mouth pulse; never reintroduce `createMediaElementSource` — a source test bans it), the terse "Say this sentence:" repeat-card label and the sprite-framing/dialogue-box overlap fixes landed in the same commit and the mobile follow-ups `f87766f5`/`7a599097`. Audible replay confirmation remains user-ear-only (agent preview and driven-Chrome tabs can't produce sound) and is folded into the existing Task 3 checkpoint.
 
-Last session: 2026-07-09
-Stopped at: Plan 10-04 Tasks 1-2 verified complete (code already shipped via phase-10-mascot-wip merge, no new changes needed); blocked on Task 3 human-verify checkpoint
-Resume action: Run the Task 3 checkpoint steps yourself — `npm run dev`, open a mission as a student, and confirm (a) MascotStage/backdrop/dialogue box stay mounted with no layout shift across all flow steps, (b) the speaking animation starts/stops with the real audio clock (not a fixed timer, no mid-sentence flicker), (c) expressions are happy/celebrate/encouraging by outcome and NEVER sad on a miss. Full verbatim steps are in `.planning/phases/10-mascot-vn-style/10-04-SUMMARY.md` under "CHECKPOINT REACHED" or in `10-04-PLAN.md` Task 3. Reply "approved" (or describe the issue) to continue toward Task 4 (real low-end device check) and phase completion.
+Last session: 2026-07-11T16:11:05.802Z
+Stopped at: Phase 10.1 context gathered
+Resume action: Run /gsd-discuss-phase 10.1 to capture the approved inbox, incomplete-work, per-class review policy, student Current/Past pagination, and read-only recap decisions before planning.
 Note: Branch `phase-10-mascot-wip` is fully merged and can still be deleted (not yet done — ask before deleting). `.planning/phases/11-coco-chat-dynamic-turns-scene-framing/` is active again now that Phase 10 is back to the mascot. Phase 13 (Pronunciation Remediation Videos, MEDIA-F1) is new — not yet planned, no phase directory exists yet. Two incidental fixes landed this session outside Plan 10-04's own scope: `d104f16d` (CocoSpeechAudio analyser-ordering bug, found uncommitted, directly tied to the MASCOT-02 wiring) and `58bcc921` (repeat-turn exact-match fast-path, committed independently by the user during the same session — unrelated to Phase 10, not reviewed here).

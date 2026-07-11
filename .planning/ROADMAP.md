@@ -33,6 +33,7 @@ Archive:
 - [x] **Phase 8: Coco Voice (TTS)** - Coco's mission/prompt lines are spoken aloud with caching and standard `<audio>` playback. All 5 plans executed; automated verification passed; Samsung S23 + Mac preview smoke tests passed; Chromebook/older-tablet coverage unavailable and accepted as residual risk at closeout (2026-07-02).
 - [x] **Phase 9: Pronunciation Scoring** - Students get encouraging, banded pronunciation feedback; teachers see word-level diagnostic detail.
 - [x] **Phase 10: VN-Style Mascot** - Coco appears as a persistent 2D character with content-tied expressions and audio-driven speaking state. All 4 plans complete 2026-07-11; MASCOT-01..04 verified (real-low-end-device check closed via accepted residual risk — no device available, per Phase 8 precedent).
+- [ ] **Phase 10.1: Assignment Operations & Student History (INSERTED)** - Add a Gmail-like teacher review inbox, a separate incomplete-work queue, and bounded student Current/Past mission history before Coco Chat.
 - [ ] **Phase 11: Coco Chat (dynamic turns + scene framing)** - Missions get a scene premise and an optional bounded, moderated dynamic conversation mode.
 - [ ] **Phase 12: UI Overhaul** - One cohesive visual pass unifying voice, mascot, and chat, gated on a full prior-phase UAT re-run.
 - [ ] **Phase 13: Pronunciation Remediation Videos** - Data-triggered video homework targeting a student's own weak sound, using stored Azure pronunciation scores from Phase 9. Promoted out of the deferred backlog (2026-07-09).
@@ -119,6 +120,17 @@ Archive:
 
 **Copyright/asset note**: 7 mascot expression sprites (idle/happy/celebrate/encouraging + alpha variants) already committed to `public/images/` on `main` (commit `8661cb65`).
 
+### Phase 10.1: Assignment Operations & Student History (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 10
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 10.1 to break down)
+
 ### Phase 11: Coco Chat (dynamic turns + scene framing)
 
 **Goal**: Each mission is framed by a lightweight scene premise tied to its target pattern, and missions can optionally run in a dynamic, bounded, moderated conversation mode where Coco responds naturally while staying on-pattern and fully teacher-reviewable — without drifting off-topic, exceeding a hard turn cap, or reaching a student with unmoderated content.
@@ -188,7 +200,7 @@ Archive:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 8 → 9 → 10 → 11 → 12 → 13 (Phase 13 has no hard dependency on 10-12 and could be reordered earlier if desired)
+Phases execute in numeric order: 8 → 9 → 10 → 10.1 → 11 → 12 → 13 (Phase 13 has no hard dependency on 10-12 and could be reordered earlier if desired)
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|-----------------|--------|-----------|
@@ -202,12 +214,15 @@ Phases execute in numeric order: 8 → 9 → 10 → 11 → 12 → 13 (Phase 13 h
 | 8. Coco Voice (TTS) | v2.0 | 5/5 | Complete (accepted with residual low-end-device risk) | 2026-07-02 |
 | 9. Pronunciation Scoring | v2.0 | 6/6 | Complete | 2026-07-03 |
 | 10. VN-Style Mascot | v2.0 | 4/4 | Complete (accepted with residual low-end-device risk) | 2026-07-11 |
+| 10.1 Assignment Operations & Student History | v2.0 | 0/TBD | Inserted; not discussed or planned | - |
 | 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 0/7 | Planned | - |
 | 12. UI Overhaul | v2.0 | 0/TBD | Not started | - |
 | 13. Pronunciation Remediation Videos | v2.0 | 0/TBD | Not planned | - |
 
 ## Next Up
 
-Phase 10 (VN-Style Mascot) is complete as of 2026-07-11. Phase 11 (Coco Chat) is fully planned (7 plans, 4 waves) — run `/gsd-execute-phase 11` to begin.
+Phase 10 (VN-Style Mascot) is complete as of 2026-07-11. Phase 10.1 (Assignment Operations & Student History) has been inserted before Phase 11 and is not yet discussed or planned — run `/gsd-discuss-phase 10.1` next.
+
+Phase 11 (Coco Chat) remains fully planned (7 plans, 4 waves) and follows Phase 10.1; its existing plans are unchanged.
 
 Phase 13 (Pronunciation Remediation Videos) is newly promoted from the deferred backlog and not yet planned — run `/gsd-discuss-phase 13` or `/gsd-plan-phase 13` when ready, independently of Phase 11-12 sequencing.
