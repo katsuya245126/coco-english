@@ -32,7 +32,7 @@ Archive:
 
 - [x] **Phase 8: Coco Voice (TTS)** - Coco's mission/prompt lines are spoken aloud with caching and standard `<audio>` playback. All 5 plans executed; automated verification passed; Samsung S23 + Mac preview smoke tests passed; Chromebook/older-tablet coverage unavailable and accepted as residual risk at closeout (2026-07-02).
 - [x] **Phase 9: Pronunciation Scoring** - Students get encouraging, banded pronunciation feedback; teachers see word-level diagnostic detail.
-- [ ] **Phase 10: VN-Style Mascot** - Coco appears as a persistent 2D character with content-tied expressions and audio-driven speaking state. 3 of 4 plans already executed on a parked branch (`phase-10-mascot-wip`); not yet merged to main.
+- [x] **Phase 10: VN-Style Mascot** - Coco appears as a persistent 2D character with content-tied expressions and audio-driven speaking state. All 4 plans complete 2026-07-11; MASCOT-01..04 verified (real-low-end-device check closed via accepted residual risk — no device available, per Phase 8 precedent).
 - [ ] **Phase 11: Coco Chat (dynamic turns + scene framing)** - Missions get a scene premise and an optional bounded, moderated dynamic conversation mode.
 - [ ] **Phase 12: UI Overhaul** - One cohesive visual pass unifying voice, mascot, and chat, gated on a full prior-phase UAT re-run.
 - [ ] **Phase 13: Pronunciation Remediation Videos** - Data-triggered video homework targeting a student's own weak sound, using stored Azure pronunciation scores from Phase 9. Promoted out of the deferred backlog (2026-07-09).
@@ -108,14 +108,14 @@ Archive:
   3. Coco shows a small, fixed set of content-tied expressions (idle, speaking, happy/celebrating, encouraging/neutral) — never a punishing expression on a miss (MASCOT-03).
   4. Mascot rendering performs acceptably on low-end school devices with a fixed, small asset scope, verified on a real low-end device, with no regression to the mission loop (MASCOT-04).
 
-**Plans**: 4 plans, 3 waves — 3/4 executed (on a parked, unmerged branch)
+**Plans**: 4/4 plans complete (2026-07-11)
 
-**Status note (2026-07-09):** Plans 10-01 (pure expression/speaking-state/degrade domain helpers), 10-02 (`CocoSpeechAudio` amplitude/playing wiring), and 10-03 (`MascotStage` component: 4-sprite rendering, amplitude motion, silent reduced-motion/frame-budget degrade) are complete — 430 tests passing, `tsc` clean — but live on the unmerged `phase-10-mascot-wip` branch, not on `main`. Only Plan 10-04 (mount `MascotStage` in `MissionFlowShell`, thread the amplitude/playing callbacks through the five `Step*` components, and the two human-verify device checkpoints) remains. Resuming this phase means merging `phase-10-mascot-wip` into `main` (only `.planning/STATE.md` conflicts; all code merges cleanly) before executing 10-04.
+**Status note (2026-07-11):** Plan 10-04 closed out the phase. Task 3 (mount persistence, real-audio-driven speaking, content-tied expressions) was human-verified and approved in a real browser. Task 4 (real low-end device performance) had no device available, so the user explicitly accepted this as residual risk, mirroring the Phase 8 VOICE-04 closeout precedent. MASCOT-01..04 are all marked complete.
 
-- [x] 10-01-PLAN.md — pure mascot expression, speaking-state, and degrade helpers *(done on parked branch)*
-- [x] 10-02-PLAN.md — `CocoSpeechAudio` amplitude/playing callback wiring *(done on parked branch)*
-- [x] 10-03-PLAN.md — `MascotStage` component (4-sprite rendering, amplitude motion, silent degrade) *(done on parked branch)*
-- [ ] 10-04-PLAN.md — mount `MascotStage` in `MissionFlowShell`, thread callbacks through `Step*` components, device checkpoints
+- [x] 10-01-PLAN.md — pure mascot expression, speaking-state, and degrade helpers
+- [x] 10-02-PLAN.md — `CocoSpeechAudio` amplitude/playing callback wiring
+- [x] 10-03-PLAN.md — `MascotStage` component (4-sprite rendering, amplitude motion, silent degrade)
+- [x] 10-04-PLAN.md — mount `MascotStage` in `MissionFlowShell`, thread callbacks through `Step*` components, device checkpoints (Task 4 closed via accepted residual risk)
 
 **Copyright/asset note**: 7 mascot expression sprites (idle/happy/celebrate/encouraging + alpha variants) already committed to `public/images/` on `main` (commit `8661cb65`).
 
@@ -201,16 +201,13 @@ Phases execute in numeric order: 8 → 9 → 10 → 11 → 12 → 13 (Phase 13 h
 | 7. Teacher Review and Pilot Readiness | v1.0 | 4/4 | Complete | 2026-07-01 |
 | 8. Coco Voice (TTS) | v2.0 | 5/5 | Complete (accepted with residual low-end-device risk) | 2026-07-02 |
 | 9. Pronunciation Scoring | v2.0 | 6/6 | Complete | 2026-07-03 |
-| 10. VN-Style Mascot | v2.0 | 3/4 (unmerged branch) | In progress — needs branch merge + Plan 10-04 | - |
+| 10. VN-Style Mascot | v2.0 | 4/4 | Complete (accepted with residual low-end-device risk) | 2026-07-11 |
 | 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 0/7 | Planned | - |
 | 12. UI Overhaul | v2.0 | 0/TBD | Not started | - |
 | 13. Pronunciation Remediation Videos | v2.0 | 0/TBD | Not planned | - |
 
 ## Next Up
 
-Phase 10 reverted from the teacher-POV media pivot back to the original VN-style mascot on 2026-07-09. Three of its four plans are already done on the unmerged `phase-10-mascot-wip` branch. To resume:
+Phase 10 (VN-Style Mascot) is complete as of 2026-07-11. Phase 11 (Coco Chat) is fully planned (7 plans, 4 waves) — run `/gsd-execute-phase 11` to begin.
 
-1. Merge `phase-10-mascot-wip` into `main` (only `.planning/STATE.md` conflicts; resolve in favor of the current STATE.md).
-2. Run `/gsd-execute-phase 10` (or execute Plan 10-04 directly) to finish the `MissionFlowShell` integration and the two human-verify device checkpoints.
-
-Phase 13 (Pronunciation Remediation Videos) is newly promoted from the deferred backlog and not yet planned — run `/gsd-discuss-phase 13` or `/gsd-plan-phase 13` when ready, independently of Phase 10-12 sequencing.
+Phase 13 (Pronunciation Remediation Videos) is newly promoted from the deferred backlog and not yet planned — run `/gsd-discuss-phase 13` or `/gsd-plan-phase 13` when ready, independently of Phase 11-12 sequencing.

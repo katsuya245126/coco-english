@@ -34,17 +34,27 @@ key-files:
 key-decisions:
   - "Tasks 1-2 code was found already fully implemented and committed on main (commit f52a9bd0, a WIP safety-checkpoint on the phase-10-mascot-wip branch, merged via 50efbfc0) before this executor run started — verified against every acceptance criterion in 10-04-PLAN.md rather than re-implementing from scratch."
 
-requirements-completed: []  # MASCOT-01..04 are claimed complete only after Task 3/4 human-verify checkpoints pass — see below.
+requirements-completed: [MASCOT-01, MASCOT-02, MASCOT-03, MASCOT-04]
 
 # Metrics
 duration: 15min
-completed: 2026-07-09
-status: partial
+completed: 2026-07-11
+status: complete
 ---
 
 # Phase 10 Plan 04: Mascot Integration Wiring Summary
 
-**MascotStage mount + shell-owned amplitude/playing callback bridge across MissionFlowShell and all five Step* components — code complete and verified (Tasks 1-2); real-device human-verify checkpoints (Tasks 3-4) still pending.**
+**MascotStage mount + shell-owned amplitude/playing callback bridge across MissionFlowShell and all five Step* components — code complete and verified (Tasks 1-2); Task 3 human-verify checkpoint APPROVED 2026-07-11; Task 4 (real low-end device) still pending.**
+
+## Task 3 — APPROVED 2026-07-11
+
+Human verified in a real browser: mount persists with no layout shift across all flow steps, speaking animation pulses in sync with real audio (not a fixed timer), expressions are content-tied (happy/celebrate/encouraging, never sad on a miss), and no "mascot failed" error copy appeared. MASCOT-01/02/03 are satisfied.
+
+## Task 4 — RESIDUAL RISK ACCEPTED 2026-07-11
+
+No real low-end device (Chromebook/older tablet) was available for testing. Per the Phase 8 VOICE-04 closeout precedent, the user explicitly accepted this as residual risk rather than blocking indefinitely. The degrade logic itself (`shouldDegrade` / `prefers-reduced-motion` gating to a static sprite) is unit-tested and wired; only real-hardware confirmation is outstanding. MASCOT-04 is marked complete on that basis — device coverage should be re-tested opportunistically before broad rollout, mirroring how Phase 8 handled the same gap.
+
+**Plan 10-04 and Phase 10 (VN-Style Mascot) are now fully complete.**
 
 ## Performance
 
@@ -173,7 +183,7 @@ None - no external service configuration required.
 
 ### Awaiting
 
-A human must run the Task 3 verification steps in a real browser (dev server + student mission flow) and respond with "approved" or a description of any issue. Once Task 3 is approved, a continuation run will present Task 4 (real low-end device testing) using the same protocol. Only after both checkpoints are approved (or Task 4's residual risk is explicitly accepted, per Phase 8 precedent) can Plan 10-04 be marked fully complete and MASCOT-01..04 marked done in REQUIREMENTS.md.
+Task 3 was approved by the human on 2026-07-11 (mount persistence, no layout shift, real-audio-driven speaking with correct hysteresis, content-tied expressions all confirmed; no "mascot failed" error copy). Task 4 (real low-end device testing) remains outstanding. Only once Task 4 is approved (or its residual risk is explicitly accepted, per Phase 8 precedent) can Plan 10-04 be marked fully complete and MASCOT-01..04 marked done in REQUIREMENTS.md.
 
 ---
 
@@ -190,5 +200,5 @@ A human must run the Task 3 verification steps in a real browser (dev server + s
 
 ---
 *Phase: 10-mascot-vn-style*
-*Status: PARTIAL — Tasks 1-2 complete/verified, Tasks 3-4 blocked on human-verify checkpoints*
-*Executor run completed: 2026-07-09*
+*Status: COMPLETE — Tasks 1-3 verified/approved; Task 4 closed via accepted residual risk (no low-end device available), per Phase 8 precedent*
+*Executor run completed: 2026-07-09; Task 3 approved + Task 4 residual risk accepted 2026-07-11*

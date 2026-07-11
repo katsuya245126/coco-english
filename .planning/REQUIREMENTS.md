@@ -32,10 +32,10 @@ REQ-ID categories continue from v1 with new codes: VOICE, PRON, MASCOT, CHAT, SC
 
 ### MASCOT — VN-Style Mascot (point release v2.3)
 
-- [ ] **MASCOT-01**: Coco appears on screen as a 2D character (waist-up over a background scene) with a dialogue box, during the mission flow. *(Implemented on parked branch `phase-10-mascot-wip`, not yet merged — see Phase 10.)*
-- [ ] **MASCOT-02**: Coco has a visible "speaking" state distinct from idle/listening, driven by the actual audio playback clock (Web Audio amplitude off the `<audio>` element), not a timer or full viseme lip-sync. *(Implemented on parked branch, not yet merged.)*
-- [ ] **MASCOT-03**: Coco shows content-tied expression states (idle, speaking, happy/celebrating on a good attempt, encouraging/neutral on a miss) — a small fixed set of 3–5 states, reinforcing the no-harsh-failure principle. (P2, in scope.) *(Implemented on parked branch, not yet merged.)*
-- [ ] **MASCOT-04**: Mascot rendering performs acceptably on low-end school devices, with a fixed, small asset scope (guard against asset scope creep). *(Integration + device checkpoints remain — Plan 10-04, not yet executed.)*
+- [x] **MASCOT-01**: Coco appears on screen as a 2D character (waist-up over a background scene) with a dialogue box, during the mission flow. *(Complete — human-verified 2026-07-11: mount persists, no layout shift.)*
+- [x] **MASCOT-02**: Coco has a visible "speaking" state distinct from idle/listening, driven by the actual audio playback clock (Web Audio amplitude off the `<audio>` element), not a timer or full viseme lip-sync. *(Complete — human-verified 2026-07-11: animation tracks real audio, correct hysteresis.)*
+- [x] **MASCOT-03**: Coco shows content-tied expression states (idle, speaking, happy/celebrating on a good attempt, encouraging/neutral on a miss) — a small fixed set of 3–5 states, reinforcing the no-harsh-failure principle. (P2, in scope.) *(Complete — human-verified 2026-07-11: expressions content-tied, never sad on a miss.)*
+- [x] **MASCOT-04**: Mascot rendering performs acceptably on low-end school devices, with a fixed, small asset scope (guard against asset scope creep). *(Complete — degrade logic unit-tested and wired; real low-end device test accepted as residual risk 2026-07-11, no device available, per Phase 8 precedent.)*
 
 ### SCENE + CHAT — Dynamic Turns & Scene Framing / "Coco Chat" (point release v2.4)
 
@@ -95,10 +95,10 @@ Each active v2.0 requirement is mapped to exactly one phase. 25/25 mapped, no or
 | PRON-04 | Phase 9 (v2.2 Pronunciation Scoring) | Pending |
 | PRON-05 | Phase 9 (v2.2 Pronunciation Scoring) | Pending |
 | PRON-06 | Phase 9 (v2.2 Pronunciation Scoring) | Complete |
-| MASCOT-01 | Phase 10 (v2.3 Mascot) | In progress — done on unmerged branch |
-| MASCOT-02 | Phase 10 (v2.3 Mascot) | In progress — done on unmerged branch |
-| MASCOT-03 | Phase 10 (v2.3 Mascot) | In progress — done on unmerged branch |
-| MASCOT-04 | Phase 10 (v2.3 Mascot) | Pending — integration (Plan 10-04) not yet executed |
+| MASCOT-01 | Phase 10 (v2.3 Mascot) | Complete 2026-07-11 |
+| MASCOT-02 | Phase 10 (v2.3 Mascot) | Complete 2026-07-11 |
+| MASCOT-03 | Phase 10 (v2.3 Mascot) | Complete 2026-07-11 |
+| MASCOT-04 | Phase 10 (v2.3 Mascot) | Complete 2026-07-11 (accepted residual risk — no low-end device available) |
 | SCENE-01 | Phase 11 (v2.4 Coco Chat) | Pending |
 | CHAT-01 | Phase 11 (v2.4 Coco Chat) | Pending |
 | CHAT-02 | Phase 11 (v2.4 Coco Chat) | Pending |

@@ -4,17 +4,17 @@ milestone: v2.0
 milestone_name: — Coco Comes Alive
 current_phase: 10
 current_phase_name: mascot-vn-style
-status: blocked-on-checkpoint
-stopped_at: Plan 10-04 Tasks 1-2 verified complete (no new code needed — already shipped via phase-10-mascot-wip merge); blocked on Task 3 human-verify checkpoint (real-browser mount/audio/expression check)
-last_updated: "2026-07-10T18:42:01.000Z"
+status: ready-to-plan
+stopped_at: Phase 10 (VN-Style Mascot) CLOSED 2026-07-11 — Plan 10-04 complete (Task 3 approved, Task 4 real-low-end-device residual risk explicitly accepted per Phase 8 precedent). MASCOT-01..04 all satisfied. Phase 11 (Coco Chat) is fully planned and ready to execute next.
+last_updated: "2026-07-11T00:00:00.000Z"
 last_activity: 2026-07-11
-last_activity_desc: Restored dev mission creation by restarting the stale unhydrated dev server, verified two real authenticated mission saves, allowed past-due teacher-reopened retry missions to launch, and removed the complete teacher AI mission-draft UI/action/adapter/schema slice. Dev is running cleanly on port 3000; 451 Vitest tests, TypeScript, and the production build passed. Phase 10 remains blocked at the existing Task 3 human browser/audio checkpoint.
+last_activity_desc: Task 3 checkpoint for Plan 10-04 approved by human (mount persistence, real-audio speaking, content-tied expressions, no error copy all confirmed). Task 4 (real low-end device) closed via accepted residual risk — no device available. Phase 10 is now fully complete; next up is /gsd-execute-phase 11.
 progress:
   total_phases: 6
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 19
-  completed_plans: 11
-  percent: 37
+  completed_plans: 15
+  percent: 53
 ---
 
 # Project State
@@ -24,13 +24,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-01)
 
 **Core value:** Students must complete useful spoken English practice outside class, and teachers must be able to verify that it happened.
-**Current focus:** Phase 10 — VN-Style Mascot (Plan 10-04 Tasks 1-2 code-verified complete; blocked on Task 3/4 human-verify checkpoints — real browser + real low-end device)
+**Current focus:** Phase 10 CLOSED. Next: Phase 11 — Coco Chat (dynamic turns + scene framing), fully planned and ready to execute.
 
 ## Current Position
 
-Phase: 10 (mascot-vn-style) — IN PROGRESS, blocked on checkpoint
+Phase: 10 (mascot-vn-style) — COMPLETE
 Previous phase: 09 (pronunciation-scoring) — COMPLETE
-Status: `/gsd-execute-phase 10` was run to close out Plan 10-04, the last plan in Phase 10. Before dispatching, found two uncommitted working-tree changes: (1) a `CocoSpeechAudio.tsx` fix (analyser-attach-before-resume ordering, a real D-02 regression from the MASCOT-02 analyser wiring) — committed as `d104f16d`; (2) an unrelated repeat-turn exact-match fast-path touching `audio-upload.ts`, stashed before dispatch, later found to be independently committed by the user as `58bcc921` during the same session — stash dropped as redundant once confirmed identical. The gsd-executor then verified Plan 10-04 Tasks 1-2 (thread onAmplitudeFrame/onPlayingChange through all five Step* components; mount MascotStage unconditionally in MissionFlowShell with shell-owned ref-backed callback bridging) against every acceptance criterion fresh — all already satisfied by the earlier `phase-10-mascot-wip` merge (50efbfc0), so no new code was needed. `npx tsc --noEmit` clean, `npx vitest run` 444 passed/4 skipped/48 files — matches the pre-execution baseline exactly, zero regression. 10-04-SUMMARY.md committed as `8abc410f`, documenting partial completion. Plan 10-04 now stops at Task 3, a blocking human-verify checkpoint: run a full mission end-to-end in a real browser to confirm MascotStage mount persistence (no layout shift), the speaking animation tracks the real audio clock (not a timer, with 200ms hysteresis), and expressions are content-tied (happy/celebrate/encouraging, never sad). Task 4 (real low-end device testing) follows once Task 3 is approved. `requirements-completed` for MASCOT-01..04 stays empty in the SUMMARY until both checkpoints pass.
+Status: Plan 10-04's Task 3 human-verify checkpoint (mount persistence, real-audio-driven speaking, content-tied expressions) was approved 2026-07-11 after the user ran a full mission end-to-end in a real browser. Task 4 (real low-end device testing) had no device available; the user explicitly accepted this as residual risk, mirroring the Phase 8 VOICE-04 closeout precedent. MASCOT-01..04 are now all marked complete in 10-04-SUMMARY.md. Phase 10 (VN-Style Mascot) is fully complete. Next up: Phase 11 (Coco Chat) is already planned (7 plans, 4 waves) — run `/gsd-execute-phase 11` to begin.
 Quick task 260710-hbn completed the interrupted student retry/audio feedback work in commit `33779fa1`. The follow-up `retry-feedback-flow` debug session fixed final-turn review gating, repeat retry audio/actions, and transcript carryover. The subsequent code-review follow-up removed the unsafe grammar-only fill-in bypass, moved mission completion into a deployed atomic RPC, restored persisted feedback/audio on refresh, included evaluation in resume decisions, and fixed Coco playback teardown. Phase 10's position is otherwise unchanged and remains blocked on its existing Task 3 human browser/audio checkpoint.
 The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on desktop but only 133px on a 375px phone. Responsive clamped insets now preserve the desktop framing at 226px on both standard phone and desktop widths without changing stage, dialogue, or recorder geometry.
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
