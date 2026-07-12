@@ -3,8 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireTeacherProfile } from "@/server/teacher/auth";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
-import { assertTransitionRequest } from "@/domain/foundation/status";
-import type { AssignmentStudentStatus } from "@/domain/foundation/status";
+import { markSubmissionReviewed, requestSubmissionRetry } from "@/server/teacher/assignment-operations";
 import {
   createSignedAudioUrlForTeacher,
   teacherOwnsAudioClip,
@@ -123,79 +122,22 @@ export async function overrideAssignmentStatusAction(
   input: OverrideAssignmentStatusInput,
 ): Promise<OverrideAssignmentStatusResult> {
   const profile = await requireTeacherProfile();
-
   const supabase = createSupabaseServiceClient();
-
-  // 1. Load the assignment_students row
-  const { data: asRow } = await supabase
+  const { data: asRow, error: loadError } = await supabase
     .from("assignment_students")
-    .select("id, status")
+    .select("id, status, latest_attempt_id, assignments!inner(classes!inner(teacher_id))")
     .eq("id", input.assignmentStudentId)
+    .eq("assignments.classes.teacher_id", profile.id)
     .single();
 
-  if (!asRow) {
+  if (loadError || !asRow || !asRow.latest_attempt_id) {
     return { ok: false, error: "not_found" };
   }
-
-  const previousStatus = asRow.status as AssignmentStudentStatus;
-  const nowIso = new Date().toISOString();
-
-  // 2. Validate the transition before any write (T-07-07)
-  try {
-    assertTransitionRequest({
-      previousStatus,
-      nextStatus: input.nextStatus,
-      actorType: "teacher",
-      actorId: profile.id,
-      reasonCode: "teacher_override",
-      occurredAt: nowIso,
-    });
-  } catch (e) {
-    console.error("[override] assertTransitionRequest failed:", e);
-    return { ok: false, error: "invalid_transition" };
-  }
-
-  // 3. UPDATE assignment_students.status
-  //    When transitioning to needs_retry, also clear latest_attempt_id (D-10)
-  const updatePayload: Record<string, unknown> = {
-    status: input.nextStatus,
-  };
   if (input.nextStatus === "needs_retry") {
-    updatePayload.latest_attempt_id = null;
+    return requestSubmissionRetry({ teacherId: profile.id, attemptId: asRow.latest_attempt_id, reasonNote: input.reasonNote });
   }
-
-  const { error: updateError } = await supabase
-    .from("assignment_students")
-    .update(updatePayload)
-    .eq("id", input.assignmentStudentId);
-
-  if (updateError) {
-    console.error("[override] assignment_students update failed:", updateError);
-    return { ok: false, error: "db_error" };
+  if (input.nextStatus === "completed") {
+    return markSubmissionReviewed({ teacherId: profile.id, attemptId: asRow.latest_attempt_id });
   }
-
-  // 4. INSERT audit event
-  const metadata: Record<string, unknown> = {};
-  if (input.reasonNote) {
-    metadata.note = input.reasonNote;
-  }
-
-  const { error: eventError } = await supabase
-    .from("assignment_status_events")
-    .insert({
-      assignment_student_id: input.assignmentStudentId,
-      previous_status: previousStatus,
-      next_status: input.nextStatus,
-      actor_type: "teacher",
-      actor_id: profile.id,
-      reason_code: "teacher_override",
-      metadata: Object.keys(metadata).length > 0 ? metadata : {},
-    });
-
-  if (eventError) {
-    console.error("[override] assignment_status_events insert failed:", eventError);
-    return { ok: false, error: "db_error" };
-  }
-
-  return { ok: true };
+  return { ok: false, error: "invalid_transition" };
 }
