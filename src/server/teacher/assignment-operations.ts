@@ -20,7 +20,11 @@ export type TeacherActivityRow = TeacherReviewRow & {
   status: AssignmentStudentStatus; reviewedAt: string | null;
 };
 
-export type IncompleteAssignmentGroup = ReturnType<typeof groupIncompleteAssignments>[number];
+type TeacherIncompleteRow = {
+  id: string; assignmentId: string; assignmentTitle: string; status: "assigned" | "started" | "missed";
+  dueAt: string | null; studentName: string; classId: string; className: string;
+};
+export type IncompleteAssignmentGroup = ReturnType<typeof groupIncompleteAssignments<TeacherIncompleteRow>>[number];
 export type TeacherQueueSnapshot = {
   version: 1; needsReviewCount: number; unreadCount: number;
   newest: { attemptId: string; studentName: string; assignmentTitle: string; className: string; href: string } | null;
@@ -75,9 +79,9 @@ export async function listActivityForTeacher(input: { teacherId: string; offset?
 }
 
 export async function listIncompleteForTeacher(input: { teacherId: string; now?: Date }, client: Client = createSupabaseServiceClient()) {
-  const result = await client.from("assignment_students").select(`id, status, assignments!inner(id, title, due_at, classes!inner(teacher_id))`).eq("assignments.classes.teacher_id", input.teacherId).in("status", ["assigned", "started", "missed"]);
+  const result = await client.from("assignment_students").select(`id, status, students!inner(display_name), assignments!inner(id, title, due_at, classes!inner(id, name, teacher_id))`).eq("assignments.classes.teacher_id", input.teacherId).in("status", ["assigned", "started", "missed"]);
   if (result.error) throw new Error(`Unable to load incomplete assignments: ${result.error.message}`);
-  const groups = groupIncompleteAssignments(((result.data ?? []) as RawRow[]).map((row) => { const assignment = one(row.assignments); return { id: row.id, assignmentId: assignment.id, assignmentTitle: assignment.title, status: row.status, dueAt: assignment.due_at }; }), input.now ?? new Date());
+  const groups = groupIncompleteAssignments(((result.data ?? []) as RawRow[]).map((row) => { const assignment = one(row.assignments); const klass = one(assignment.classes); return { id: row.id, assignmentId: assignment.id, assignmentTitle: assignment.title, status: row.status, dueAt: assignment.due_at, studentName: one(row.students).display_name, classId: klass.id, className: klass.name }; }) as TeacherIncompleteRow[], input.now ?? new Date());
   return { groups, itemCount: countIncompleteItems(groups) };
 }
 
