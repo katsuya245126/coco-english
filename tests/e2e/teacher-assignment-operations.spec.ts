@@ -4,13 +4,12 @@ import { expect, test } from "@playwright/test";
 
 const source = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
 
-test("class workspace exposes the focused queue without a review-policy control", () => {
-  const page = source("src/app/teacher/classes/[id]/page.tsx");
-  const workspace = source("src/components/teacher/ClassReviewWorkspace.tsx");
-  expect(page).toContain("ClassReviewWorkspace");
-  expect(workspace).toContain("TeacherReviewTable");
-  for (const label of ["Needs review", "Assignments", "Students", "Class settings"]) expect(workspace).toContain(label);
-  expect(workspace).not.toContain("ClassReviewPolicyControl");
+test("class workspace splits queue, assignments, and students into pages", () => {
+  const review = source("src/app/teacher/classes/[id]/(workspace)/page.tsx");
+  const tabs = source("src/components/teacher/ClassWorkspaceTabs.tsx");
+  expect(review).toContain("TeacherReviewTable");
+  for (const label of ["Needs review", "Assignments", "Students", "Class settings"]) expect(tabs).toContain(label);
+  expect(tabs).not.toContain("ClassReviewPolicyControl");
 });
 
 test("assignment drill-down validates and highlights only an in-scope student", () => {

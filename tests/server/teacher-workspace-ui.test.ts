@@ -115,19 +115,21 @@ describe("teacher workspace source contract", () => {
     expect(views).toContain('return "Recently"');
   });
 
-  it("renders the approved class review workspace without a nested legacy shell", () => {
-    const page = source("src/app/teacher/classes/[id]/page.tsx");
-    const workspace = source("src/components/teacher/ClassReviewWorkspace.tsx");
-    expect(page).toContain("<ClassReviewWorkspace");
-    expect(page).not.toContain('minHeight: "100dvh"');
-    expect(page).not.toContain("<header");
-    for (const label of ["Assignment Review", "Needs review", "Assignments", "Students", "Class settings"]) expect(workspace).toContain(label);
-    expect(workspace).not.toContain("All activity");
-    expect(workspace).not.toContain("ClassReviewPolicyControl");
-    expect(workspace).toContain("class-review-header");
-    expect(workspace).toContain("class-workspace-tabs");
-    expect(workspace).toContain("class-assignment-card");
-    expect(workspace).toContain("class-student-card");
+  it("renders the class workspace as separate pages under a shared tabbed layout", () => {
+    const layout = source("src/app/teacher/classes/[id]/(workspace)/layout.tsx");
+    const tabs = source("src/components/teacher/ClassWorkspaceTabs.tsx");
+    const review = source("src/app/teacher/classes/[id]/(workspace)/page.tsx");
+    const assignments = source("src/app/teacher/classes/[id]/(workspace)/assignments/page.tsx");
+    const students = source("src/app/teacher/classes/[id]/(workspace)/students/page.tsx");
+    expect(layout).toContain("class-review-header");
+    expect(layout).toContain("<ClassWorkspaceTabs");
+    expect(layout).not.toContain("review_policy");
+    for (const label of ["Needs review", "Assignments", "Students", "Class settings"]) expect(tabs).toContain(label);
+    expect(tabs).toContain("usePathname");
+    expect(review).toContain("TeacherReviewTable");
+    expect(review).toContain("row.classId === classId");
+    expect(assignments).toContain("class-assignment-card");
+    expect(students).toContain("class-student-card");
   });
 });
 
