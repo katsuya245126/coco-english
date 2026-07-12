@@ -134,12 +134,12 @@ Archive:
   5. Student home has bounded Current/Past pages: Retry → due soon → later/no-date ordering, late/missed open work remains launchable, and Past contains five completed missions per page newest-first.
   6. A Past mission opens only the unlocked student's final completed attempt as a read-only Coco/You said recap with transcripts, retained audio, qualitative pronunciation feedback, and Recording expired fallback.
 
-**Plans:** 1/7 plans executed
+**Plans:** 2/7 plans executed
 
 **Wave 1** *(independent foundations)*
 
 - [x] 10.1-01-PLAN.md — additive review-policy/receipt schema, atomic review/retry RPCs, live schema push, and pure teacher queue/incomplete rules
-- [ ] 10.1-05-PLAN.md — audited `missed → started` late-submission path
+- [x] 10.1-05-PLAN.md — audited `missed → started` late-submission path
 
 **Wave 2** *(server operations and student lists)*
 
@@ -238,7 +238,7 @@ Phases execute in numeric order: 8 → 9 → 10 → 10.1 → 11 → 12 → 13 (P
 | 8. Coco Voice (TTS) | v2.0 | 5/5 | Complete (accepted with residual low-end-device risk) | 2026-07-02 |
 | 9. Pronunciation Scoring | v2.0 | 6/6 | Complete | 2026-07-03 |
 | 10. VN-Style Mascot | v2.0 | 4/4 | Complete (accepted with residual low-end-device risk) | 2026-07-11 |
-| 10.1 Assignment Operations & Student History | v2.0 | 1/7 | In Progress|  |
+| 10.1 Assignment Operations & Student History | v2.0 | 2/7 | In Progress|  |
 | 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 0/7 | Planned | - |
 | 12. UI Overhaul | v2.0 | 0/TBD | Not started | - |
 | 13. Pronunciation Remediation Videos | v2.0 | 0/TBD | Not planned | - |
