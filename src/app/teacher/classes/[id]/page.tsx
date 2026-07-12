@@ -3,6 +3,9 @@ import { notFound } from "next/navigation";
 import { requireTeacherProfile } from "@/server/auth/teacher-profile";
 import { createSupabaseServerClient } from "@/lib/supabase/server-auth";
 import { listRoster } from "@/server/classroom/roster-service";
+import { listNeedsReviewForTeacher } from "@/server/teacher/assignment-operations";
+import { TeacherReviewTable } from "@/components/teacher/TeacherQueueViews";
+import { ClassReviewPolicyControl } from "@/components/teacher/ClassReviewPolicyControl";
 
 // Per-teacher authenticated page: never statically cache (Supabase SSR caching
 // warning). requireTeacherProfile gates access; the class load runs under RLS
@@ -28,7 +31,7 @@ export default async function ClassReviewDashboard({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireTeacherProfile();
+  const profile = await requireTeacherProfile();
   const { id: classId } = await params;
 
   const supabase = await createSupabaseServerClient();
@@ -36,7 +39,7 @@ export default async function ClassReviewDashboard({
   // Load class under RLS — a class owned by another teacher resolves to null
   const classResult = await supabase
     .from("classes")
-    .select("id, name")
+    .select("id, name, review_policy")
     .eq("id", classId)
     .maybeSingle();
 
@@ -46,6 +49,7 @@ export default async function ClassReviewDashboard({
   if (!classResult.data) {
     notFound();
   }
+  const ownedClass = classResult.data;
 
   // Load active student count for meta line
   const roster = await listRoster(classId);
@@ -66,6 +70,7 @@ export default async function ClassReviewDashboard({
   }
 
   const assignments: AssignmentRow[] = assignmentsResult.data ?? [];
+  const reviewRows = (await listNeedsReviewForTeacher({ teacherId: profile.id })).filter((row) => row.className === ownedClass.name);
 
   return (
     <div
@@ -105,14 +110,18 @@ export default async function ClassReviewDashboard({
       <main style={{ maxWidth: 1120, margin: "0 auto", padding: 32 }}>
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ fontSize: 28, fontWeight: 600, lineHeight: 1.2, margin: 0 }}>
-            {classResult.data.name} — Assignment Review
+            {ownedClass.name} — Assignment Review
           </h1>
           <p style={{ fontSize: 14, color: "#4B5563", margin: "4px 0 0" }}>
             {roster.length} active student{roster.length === 1 ? "" : "s"}
           </p>
         </div>
 
-        <section style={{ marginBottom: 32 }}>
+        <nav aria-label="Class workspace" style={{ display: "flex", gap: 16, marginBottom: 20 }}><a href="#needs-review">Needs review</a><Link href="/teacher/activity">All activity</Link><a href="#assignments">Assignments</a><a href="#students">Students</a><Link href={`/teacher/classes/${classId}/manage`}>Class settings</Link></nav>
+        <ClassReviewPolicyControl classId={classId} value={ownedClass.review_policy} />
+        <div id="needs-review" style={{ marginTop: 24 }}><TeacherReviewTable rows={reviewRows} classes={[ownedClass.name]} /></div>
+
+        <section id="students" style={{ marginBottom: 32 }}>
           <h2
             style={{
               fontSize: 20,
@@ -175,7 +184,7 @@ export default async function ClassReviewDashboard({
           )}
         </section>
 
-        <section>
+        <section id="assignments">
           <h2
             style={{
               fontSize: 20,

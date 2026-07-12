@@ -64,11 +64,14 @@ type BucketKey = (typeof BUCKET_ORDER)[number]["key"];
 
 export default async function AssignmentReviewPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string; assignmentId: string }>;
+  searchParams: Promise<{ student?: string }>;
 }) {
   await requireTeacherProfile();
   const { id: classId, assignmentId } = await params;
+  const { student: requestedStudentId } = await searchParams;
 
   const supabase = await createSupabaseServerClient();
 
@@ -137,6 +140,9 @@ export default async function AssignmentReviewPage({
     latestAttemptId: row.latest_attempt_id,
     studentName: one(row.students)?.display_name ?? "Unknown student",
   }));
+  const selectedStudentId = entries.some((entry) => entry.id === requestedStudentId)
+    ? requestedStudentId
+    : undefined;
 
   // Bucket all rows into the five D-05 groups
   const buckets = bucketAssignmentStudents(entries);
@@ -232,6 +238,7 @@ export default async function AssignmentReviewPage({
                   {rows.map((entry) => (
                     <article
                       key={entry.id}
+                      aria-current={entry.id === selectedStudentId ? "true" : undefined}
                       aria-label={`${entry.studentName} — ${entry.status}`}
                       style={{
                         display: "flex",
@@ -240,9 +247,9 @@ export default async function AssignmentReviewPage({
                         gap: 16,
                         padding: 16,
                         minHeight: 56,
-                        border: "1px solid #D1D5DB",
+                        border: entry.id === selectedStudentId ? "2px solid #2563EB" : "1px solid #D1D5DB",
                         borderRadius: 8,
-                        background: "#FFFFFF",
+                        background: entry.id === selectedStudentId ? "#EFF6FF" : "#FFFFFF",
                         flexWrap: "wrap",
                       }}
                     >
