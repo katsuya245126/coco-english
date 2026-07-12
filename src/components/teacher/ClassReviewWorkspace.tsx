@@ -12,22 +12,21 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(value));
 }
 
-export function ClassReviewWorkspace({ classId, className, reviewPolicy, assignments, students, reviewRows }: { classId: string; className: string; reviewPolicy: ClassReviewPolicy; assignments: ClassAssignment[]; students: ClassStudent[]; reviewRows: TeacherReviewRow[] }) {
+export function ClassReviewWorkspace({ classId, className, joinCode, reviewPolicy, assignments, students, reviewRows }: { classId: string; className: string; joinCode: string | null; reviewPolicy: ClassReviewPolicy; assignments: ClassAssignment[]; students: ClassStudent[]; reviewRows: TeacherReviewRow[] }) {
   return <section className="class-review-workspace">
     <div className="class-review-header">
-      <div><p className="class-review-eyebrow">Assignment Review</p><h1>{className}</h1><p>{students.length} active student{students.length === 1 ? "" : "s"} · {reviewPolicy === "every_submission" ? "Review every submission" : "Review flagged submissions only"}</p></div>
+      <div><p className="class-review-eyebrow">Assignment Review</p><h1>{className}</h1><p>{students.length} active student{students.length === 1 ? "" : "s"} · {reviewPolicy === "every_submission" ? "Review every submission" : "Review flagged submissions only"}</p>{joinCode && <p className="class-review-joincode">Class code <code>{joinCode}</code></p>}</div>
       <ClassReviewPolicyControl classId={classId} value={reviewPolicy}/>
     </div>
 
     <nav aria-label="Class workspace" className="class-workspace-tabs">
       <a className="active" href="#needs-review">Needs review <span>{reviewRows.length}</span></a>
-      <Link href="/teacher/activity">All activity</Link>
       <a href="#assignments">Assignments</a>
       <a href="#students">Students</a>
       <Link href={`/teacher/classes/${classId}/manage`}>Class settings</Link>
     </nav>
 
-    <div className="class-review-queue" id="needs-review"><TeacherReviewTable rows={reviewRows} classes={[className]}/></div>
+    <div className="class-review-queue" id="needs-review"><TeacherReviewTable rows={reviewRows} classes={[className]} scoped/></div>
 
     <section className="class-review-section" id="assignments">
       <div className="class-section-heading"><div><h2>Assignments</h2><p>Newest homework and due dates for this class.</p></div><span>{assignments.length}</span></div>

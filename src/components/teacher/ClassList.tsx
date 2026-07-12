@@ -129,14 +129,6 @@ export function ClassList({ classes }: ClassListProps) {
                   </Link>
                 </p>
                 <p style={{ fontSize: 14, color: "#4B5563", margin: "4px 0 0" }}>
-                  <Link
-                    href={`/teacher/classes/${classItem.id}`}
-                    style={{ color: "#2563EB", textDecoration: "none" }}
-                  >
-                    {classItem.rosterCount}{" "}
-                    {classItem.rosterCount === 1 ? "student" : "students"}
-                  </Link>
-                  {" · "}
                   <span
                     style={{
                       fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",

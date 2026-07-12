@@ -19,7 +19,7 @@ describe("student history UI source contracts", () => {
   it("renders accessible Current/Past missions and page links", () => {
     expect(shell).toContain("Current"); expect(shell).toContain("Past missions");
     expect(shell).toContain('aria-label="Mission pages"'); expect(shell).toContain("Previous"); expect(shell).toContain("Next");
-    expect(shell).toContain("Hi, {displayName}!"); expect(shell).toContain("student-home-avatar");
+    expect(shell).toContain("Hi, {displayName}!"); expect(shell).not.toContain("student-home-avatar");
     expect(shell).toContain("student-home-tabs"); expect(shell).toContain("student-home-pager");
     expect(styles).toContain("max-width: 430px"); expect(styles).toContain("border-radius: 24px");
     expect(styles).toContain("@media (max-width: 430px)");
@@ -29,7 +29,7 @@ describe("student history UI source contracts", () => {
     expect(item).toContain("View what I said"); expect(item).toContain("/student/history/");
     expect(item.indexOf('item.displayStatus === "done"')).toBeLessThan(item.indexOf("const isLaunchable"));
     expect(item).toContain("student-mission-card"); expect(item).toContain("student-mission-progress");
-    expect(item).toContain("item.targetPattern"); expect(item).toContain("item.completedTurnCount");
+    expect(item).not.toContain("item.targetPattern"); expect(item).toContain("item.completedTurnCount");
   });
   it("renders a conversation-shaped, read-only final recap", () => {
     expect(recapPage).toContain("Read-only recap"); expect(recapPage).toContain("← Past missions");

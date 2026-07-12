@@ -61,8 +61,13 @@ export function groupIncompleteAssignments<T extends IncompleteAssignmentRow>(ro
   return [...groups.values()].sort((a, b) => urgencyOrder[a.urgency] - urgencyOrder[b.urgency] || a.assignmentId.localeCompare(b.assignmentId));
 }
 
+// The Incomplete sidebar badge signals work that needs a teacher's attention
+// now: only Missed (past due) and Due soon (within 24h). "Later" work is not yet
+// due, so it is excluded from the count even though it still renders in the list.
 export function countIncompleteItems(groups: IncompleteAssignmentGroup[]): number {
-  return groups.reduce((total, group) => total + group.items.length, 0);
+  return groups
+    .filter((group) => group.urgency !== "later")
+    .reduce((total, group) => total + group.items.length, 0);
 }
 
 export type SubmissionRecency = { receivedAt: string; assignmentStudentId: string };

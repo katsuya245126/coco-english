@@ -40,6 +40,23 @@ describe("teacher review mutations", () => {
     expect(retry.client.rpc).toHaveBeenCalledWith("request_submission_retry", expect.objectContaining({ p_reason_note: "try again" }));
   });
 
+  it("marks an in-progress (started) attempt reviewed via the RPC", async () => {
+    // A started, not-completed attempt opened from the Incomplete queue must no
+    // longer be rejected client-side; the RPC decides and records the receipt.
+    const rpc = vi.fn().mockResolvedValue({ data: "ok", error: null });
+    const from = () => {
+      const chain: Record<string, unknown> = {
+        select: () => chain, eq: () => chain,
+        maybeSingle: () => Promise.resolve({ data: { id: "attempt-1", status: "started", assignment_students: { id: "as-1", status: "started" } }, error: null }),
+        then: (resolve: (v: { error: null }) => unknown) => Promise.resolve({ error: null }).then(resolve),
+      };
+      return chain;
+    };
+    const client = { from, rpc } as unknown as Parameters<typeof markSubmissionReviewed>[1];
+    expect(await markSubmissionReviewed({ teacherId: "teacher-1", attemptId: "attempt-1" }, client)).toEqual({ ok: true });
+    expect(rpc).toHaveBeenCalledWith("mark_submission_reviewed", expect.anything());
+  });
+
   it("reports RPC failure without a partial direct write", async () => {
     const { client, operations } = mutationClient(true, { data: null, error: { message: "boom" } });
     expect(await markSubmissionReviewed({ teacherId: "teacher-1", attemptId: "attempt-1" }, client)).toEqual({ ok: false, error: "db_error" });

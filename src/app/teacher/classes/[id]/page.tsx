@@ -14,7 +14,7 @@ export default async function ClassReviewDashboard({ params }: { params: Promise
   const { id: classId } = await params;
   const supabase = await createSupabaseServerClient();
 
-  const classResult = await supabase.from("classes").select("id, name, review_policy").eq("id", classId).maybeSingle();
+  const classResult = await supabase.from("classes").select("id, name, review_policy, join_code").eq("id", classId).maybeSingle();
   if (classResult.error) throw new Error(`Unable to load class: ${classResult.error.message}`);
   if (!classResult.data) notFound();
   const ownedClass = classResult.data;
@@ -31,6 +31,7 @@ export default async function ClassReviewDashboard({ params }: { params: Promise
     assignments={assignments.map((assignment) => ({ id: assignment.id, title: assignment.title, dueAt: assignment.due_at }))}
     classId={classId}
     className={ownedClass.name}
+    joinCode={ownedClass.join_code ?? null}
     reviewPolicy={ownedClass.review_policy}
     reviewRows={teacherReviewRows.filter((row) => row.className === ownedClass.name)}
     students={roster.map((student) => ({ id: student.id, displayName: student.displayName }))}

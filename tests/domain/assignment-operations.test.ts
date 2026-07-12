@@ -43,7 +43,9 @@ describe("groupIncompleteAssignments", () => {
     expect(result.map((group) => group.urgency)).toEqual(["missed", "due_soon", "later"]);
     expect(result[1].items[0].progress).toBe("started");
     expect(result[2].items.map((item) => item.progress)).toEqual(["not_started", "started"]);
-    expect(countIncompleteItems(result)).toBe(4);
+    // Count is attention-scoped: only missed (1) + due_soon (1); the two "later"
+    // items are still grouped/rendered but excluded from the badge count.
+    expect(countIncompleteItems(result)).toBe(2);
   });
 
   it("excludes retry and review workflow rows", () => {

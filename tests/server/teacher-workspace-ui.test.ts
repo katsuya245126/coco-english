@@ -61,7 +61,7 @@ describe("teacher workspace source contract", () => {
 
     expect(shell).toContain("<TeacherClassNavLink");
     expect(classLink).toContain("title={name}");
-    expect(classLink).toContain('className="count"');
+    expect(classLink).not.toContain('className="count"');
     expect(classLink).toContain("ResizeObserver");
     expect(classLink).toContain("scrollWidth");
     expect(classLink).toContain("windowRef");
@@ -121,7 +121,8 @@ describe("teacher workspace source contract", () => {
     expect(page).toContain("<ClassReviewWorkspace");
     expect(page).not.toContain('minHeight: "100dvh"');
     expect(page).not.toContain("<header");
-    for (const label of ["Assignment Review", "Needs review", "All activity", "Assignments", "Students", "Class settings"]) expect(workspace).toContain(label);
+    for (const label of ["Assignment Review", "Needs review", "Assignments", "Students", "Class settings"]) expect(workspace).toContain(label);
+    expect(workspace).not.toContain("All activity");
     expect(workspace).toContain("class-review-header");
     expect(workspace).toContain("class-workspace-tabs");
     expect(workspace).toContain("class-assignment-card");

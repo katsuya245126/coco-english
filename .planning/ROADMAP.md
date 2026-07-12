@@ -134,7 +134,7 @@ Archive:
   5. Student home has bounded Current/Past pages: Retry → due soon → later/no-date ordering, late/missed open work remains launchable, and Past contains five completed missions per page newest-first.
   6. A Past mission opens only the unlocked student's final completed attempt as a read-only Coco/You said recap with transcripts, retained audio, qualitative pronunciation feedback, and Recording expired fallback.
 
-**Plans:** 2/7 plans executed
+**Plans:** 7/7 plans executed (automated verification passed; two live/responsive human checks remain before phase close)
 
 **Wave 1** *(independent foundations)*
 
@@ -153,7 +153,7 @@ Archive:
 
 **Wave 4** *(teacher drill-down integration)*
 
-- [ ] 10.1-04-PLAN.md — class/assignment queue integration, review policy, selected-student drill-down, and exact evidence review/recovery loop
+- [x] 10.1-04-PLAN.md — class/assignment queue integration, review policy, selected-student drill-down, and exact evidence review/recovery loop
 
 ### Phase 11: Coco Chat (dynamic turns + scene framing)
 
@@ -238,15 +238,15 @@ Phases execute in numeric order: 8 → 9 → 10 → 10.1 → 11 → 12 → 13 (P
 | 8. Coco Voice (TTS) | v2.0 | 5/5 | Complete (accepted with residual low-end-device risk) | 2026-07-02 |
 | 9. Pronunciation Scoring | v2.0 | 6/6 | Complete | 2026-07-03 |
 | 10. VN-Style Mascot | v2.0 | 4/4 | Complete (accepted with residual low-end-device risk) | 2026-07-11 |
-| 10.1 Assignment Operations & Student History | v2.0 | 6/7 | In Progress|  |
+| 10.1 Assignment Operations & Student History | v2.0 | 7/7 | Verifying (2 human checks) |  |
 | 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 0/7 | Planned | - |
 | 12. UI Overhaul | v2.0 | 0/TBD | Not started | - |
 | 13. Pronunciation Remediation Videos | v2.0 | 0/TBD | Not planned | - |
 
 ## Next Up
 
-Phase 10.1 (Assignment Operations & Student History) is planned in 7 plans across 4 waves and is ready to execute — run `/gsd-execute-phase 10.1` next.
+Phase 10.1 (Assignment Operations & Student History) has all 7 plans executed and merged to `main`; automated verification passed (487 tests, typecheck/lint/build clean). Two live/responsive human checks remain before phase close — see `10.1-VERIFICATION.md` "Human Verification Required". Run `/gsd-verify-work` to close it once those pass.
 
-Phase 11 (Coco Chat) remains fully planned (7 plans, 4 waves) and follows Phase 10.1; its existing plans are unchanged.
+Phase 11 (Coco Chat) remains fully planned (7 plans, 4 waves) and follows Phase 10.1 once it closes; its existing plans are unchanged.
 
 Phase 13 (Pronunciation Remediation Videos) is newly promoted from the deferred backlog and not yet planned — run `/gsd-discuss-phase 13` or `/gsd-plan-phase 13` when ready, independently of Phase 11-12 sequencing.

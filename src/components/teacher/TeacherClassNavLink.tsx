@@ -5,7 +5,7 @@ import { type CSSProperties, useEffect, useRef, useState } from "react";
 
 type ClassNameStyle = CSSProperties & { "--class-name-travel"?: string };
 
-export function TeacherClassNavLink({ id, name, rosterCount }: { id: string; name: string; rosterCount: number }) {
+export function TeacherClassNavLink({ id, name }: { id: string; name: string }) {
   const nameRef = useRef<HTMLSpanElement>(null);
   const windowRef = useRef<HTMLSpanElement>(null);
   const [travel, setTravel] = useState(0);
@@ -27,6 +27,5 @@ export function TeacherClassNavLink({ id, name, rosterCount }: { id: string; nam
 
   return <Link className="nav class-nav-link" data-overflow={overflowing ? "true" : "false"} href={`/teacher/classes/${id}`} style={style} title={name}>
     <span className="class-name-window" ref={windowRef}><span className="class-name-track" ref={nameRef}>{name}</span></span>
-    <span className="count">{rosterCount}</span>
   </Link>;
 }

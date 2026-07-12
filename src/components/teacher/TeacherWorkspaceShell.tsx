@@ -19,6 +19,24 @@ export function TeacherWorkspaceShell({ profileName, classes, initialSnapshot, i
   const [menuOpen, setMenuOpen] = useState(false);
   const lastSeen = useRef(fingerprint(initialSnapshot));
 
+  // A teacher action (mark reviewed / request retry) calls revalidatePath("/teacher")
+  // then navigates, so the server layout re-renders this component with a fresh
+  // initialSnapshot. React reuses the mounted instance across that client
+  // navigation, so without this sync the count would stay stale until the next
+  // 30s poll. Adopt the new server snapshot immediately and advance lastSeen so
+  // this authoritative, teacher-initiated change does NOT trip the "new
+  // submissions" banner/notice. Keyed on the fingerprint (a stable string) so it
+  // only runs when the server-provided snapshot actually differs, never on every
+  // object-identity re-render.
+  const initialFingerprint = fingerprint(initialSnapshot);
+  useEffect(() => {
+    setSnapshot(initialSnapshot);
+    lastSeen.current = initialFingerprint;
+    setPendingInboxSnapshot(null);
+    setNotice(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFingerprint]);
+
   const fetchSnapshot = useCallback(async () => {
     if (document.visibilityState !== "visible") return;
     try {
@@ -57,7 +75,7 @@ export function TeacherWorkspaceShell({ profileName, classes, initialSnapshot, i
       <nav aria-label="Teacher workspace">
         {nav.map(([label, href, count]) => <Link key={href} href={href} className={pathname === href ? "nav active" : "nav"}>{label}{count !== null && <span className="count">{count}</span>}</Link>)}
         <p className="section">Classes</p>
-        {classes.map((klass) => <TeacherClassNavLink id={klass.id} key={klass.id} name={klass.name} rosterCount={klass.rosterCount}/>)}
+        {classes.map((klass) => <TeacherClassNavLink id={klass.id} key={klass.id} name={klass.name}/>)}
         <Link className="nav create" href="/teacher/classes">＋ Create class</Link>
         <p className="section">Content</p><Link className="nav" href="/teacher/missions">Missions</Link>
       </nav>

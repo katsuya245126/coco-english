@@ -36,6 +36,8 @@ export function TeacherWorkspaceStyles() {
     .teacher-shell .class-review-eyebrow { margin: 0 0 5px; color: #2563eb; font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
     .teacher-shell .class-review-header h1 { margin: 0; color: #172554; font-size: 27px; line-height: 1.2; }
     .teacher-shell .class-review-header p:last-child { margin: 6px 0 0; color: #64748b; font-size: 13px; }
+    .teacher-shell .class-review-joincode { display: inline-flex; align-items: center; gap: 8px; }
+    .teacher-shell .class-review-joincode code { padding: 3px 8px; border-radius: 6px; background: #eff6ff; color: #1d4ed8; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; font-weight: 700; letter-spacing: .08em; }
     .teacher-shell .review-policy-control { display: grid; gap: 5px; min-width: 210px; color: #64748b; font-size: 10px; font-weight: 700; text-transform: uppercase; }
     .teacher-shell .review-policy-control select { min-height: 38px; padding: 8px 30px 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; color: #334155; font-size: 12px; text-transform: none; }
     .teacher-shell .class-workspace-tabs { display: flex; gap: 22px; overflow-x: auto; border-bottom: 1px solid #e2e8f0; margin-bottom: 22px; }

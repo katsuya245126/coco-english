@@ -111,9 +111,11 @@ export async function markSubmissionViewed(input: { teacherId: string; attemptId
 }
 
 export async function markSubmissionReviewed(input: { teacherId: string; attemptId: string }, client: Client = createSupabaseServiceClient()) {
-  const row = await loadOwnedAttempt(input, client); if (!row) return { ok: false as const, error: "not_found" as const };
-  const ast = one(row.assignment_students);
-  if (!(["completed", "teacher_review"].includes(String(ast.status)) && ["completed", "teacher_review"].includes(String(row.status)))) return { ok: false as const, error: "invalid_transition" as const };
+  // A teacher may mark any owned latest attempt reviewed, including in-progress
+  // (started / not-started / missed) work opened from the Incomplete queue. The
+  // RPC still promotes teacher_review -> completed; every other status just gets
+  // a reviewed receipt (202607120002). Ownership is enforced in the RPC.
+  if (!await loadOwnedAttempt(input, client)) return { ok: false as const, error: "not_found" as const };
   const result = await client.rpc("mark_submission_reviewed", { p_teacher_id: input.teacherId, p_attempt_id: input.attemptId });
   return result.error || result.data !== "ok" ? { ok: false as const, error: result.data === "invalid_status" ? "invalid_transition" as const : "db_error" as const } : { ok: true as const };
 }

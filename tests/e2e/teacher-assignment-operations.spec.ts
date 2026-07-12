@@ -10,7 +10,7 @@ test("class workspace exposes the focused queue and exact review policy", () => 
   const policy = source("src/components/teacher/ClassReviewPolicyControl.tsx");
   expect(page).toContain("ClassReviewWorkspace");
   expect(workspace).toContain("TeacherReviewTable");
-  for (const label of ["Needs review", "All activity", "Assignments", "Students", "Class settings"]) expect(workspace).toContain(label);
+  for (const label of ["Needs review", "Assignments", "Students", "Class settings"]) expect(workspace).toContain(label);
   expect(policy).toContain("Review every submission");
   expect(policy).toContain("Review flagged submissions only");
 });
