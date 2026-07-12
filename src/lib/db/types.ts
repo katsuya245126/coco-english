@@ -33,6 +33,7 @@ export type Database = {
           name: string;
           join_code: string | null;
           data_mode: "demo" | "real";
+          review_policy: "every_submission" | "flagged_only";
           archived_at: string | null;
         };
         Insert: {
@@ -41,6 +42,7 @@ export type Database = {
           name: string;
           join_code?: string | null;
           data_mode: "demo" | "real";
+          review_policy?: "every_submission" | "flagged_only";
           archived_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["classes"]["Insert"]>;
@@ -281,6 +283,12 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      submission_review_receipts: {
+        Row: { id: string; teacher_id: string; attempt_id: string; first_viewed_at: string | null; reviewed_at: string | null; created_at: string; updated_at: string };
+        Insert: { id?: string; teacher_id: string; attempt_id: string; first_viewed_at?: string | null; reviewed_at?: string | null; created_at?: string; updated_at?: string };
+        Update: Partial<Database["public"]["Tables"]["submission_review_receipts"]["Insert"]>;
+        Relationships: [];
+      };
       tts_audio_cache: {
         Row: {
           id: string;
@@ -339,9 +347,18 @@ export type Database = {
         };
         Returns: "ok" | "not_found" | "not_complete";
       };
+      mark_submission_reviewed: {
+        Args: { p_teacher_id: string; p_attempt_id: string };
+        Returns: "ok" | "not_found" | "invalid_status";
+      };
+      request_submission_retry: {
+        Args: { p_teacher_id: string; p_attempt_id: string; p_reason_note: string };
+        Returns: "ok" | "not_found" | "invalid_status";
+      };
     };
     Enums: {
       data_mode: "demo" | "real";
+      class_review_policy: "every_submission" | "flagged_only";
       assignment_student_status:
         | "assigned"
         | "started"
