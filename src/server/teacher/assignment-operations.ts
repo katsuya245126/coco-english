@@ -33,7 +33,7 @@ export type TeacherQueueSnapshot = {
 type RawRow = Record<string, any>;
 const one = (value: any) => Array.isArray(value) ? value[0] : value;
 
-function mapRow(row: RawRow): TeacherReviewRow & { status: AssignmentStudentStatus; reviewedAt: string | null; reviewPolicy: ClassReviewPolicy; isLatestAttempt: boolean } {
+function mapRow(row: RawRow): TeacherReviewRow & { status: AssignmentStudentStatus; attemptStatus: string; reviewedAt: string | null; reviewPolicy: ClassReviewPolicy; isLatestAttempt: boolean } {
   const assignmentStudent = one(row.assignment_students);
   const assignment = one(assignmentStudent.assignments);
   const klass = one(assignment.classes);
@@ -51,6 +51,7 @@ function mapRow(row: RawRow): TeacherReviewRow & { status: AssignmentStudentStat
     reviewPolicy: klass.review_policy,
     isLatestAttempt: assignmentStudent.latest_attempt_id === row.id,
     status: assignmentStudent.status,
+    attemptStatus: row.status,
   };
 }
 
@@ -70,12 +71,12 @@ async function loadOwnedAttempts(teacherId: string, client: Client = createSupab
 
 export async function listNeedsReviewForTeacher(input: { teacherId: string }, client?: Client): Promise<TeacherReviewRow[]> {
   const rows = await loadOwnedAttempts(input.teacherId, client);
-  return rows.filter((row) => isSubmissionPendingReview(row)).sort(compareSubmissionRecency).map(({ status: _s, reviewedAt: _r, reviewPolicy: _p, isLatestAttempt: _l, ...row }) => row);
+  return rows.filter((row) => isSubmissionPendingReview(row)).sort(compareSubmissionRecency).map(({ status: _s, attemptStatus: _a, reviewedAt: _r, reviewPolicy: _p, isLatestAttempt: _l, ...row }) => row);
 }
 
 export async function listActivityForTeacher(input: { teacherId: string; offset?: number; limit?: number }, client?: Client): Promise<TeacherActivityRow[]> {
   const rows = (await loadOwnedAttempts(input.teacherId, client)).filter((row) => row.isLatestAttempt).sort(compareSubmissionRecency);
-  return rows.slice(input.offset ?? 0, (input.offset ?? 0) + (input.limit ?? 50)).map(({ reviewPolicy: _p, isLatestAttempt: _l, ...row }) => row);
+  return rows.slice(input.offset ?? 0, (input.offset ?? 0) + (input.limit ?? 50)).map(({ reviewPolicy: _p, isLatestAttempt: _l, attemptStatus: _a, ...row }) => row);
 }
 
 export async function listIncompleteForTeacher(input: { teacherId: string; now?: Date }, client: Client = createSupabaseServiceClient()) {

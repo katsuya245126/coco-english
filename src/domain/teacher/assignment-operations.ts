@@ -5,10 +5,13 @@ export type ReviewEligibilityInput = {
   reviewedAt: string | null;
   needsReviewReason: string | null;
   reviewPolicy: ClassReviewPolicy;
+  status: "completed" | "teacher_review" | "started" | "assigned" | "missed" | "needs_retry";
+  attemptStatus: string;
 };
 
 export function isSubmissionPendingReview(input: ReviewEligibilityInput): boolean {
   if (!input.isLatestAttempt || input.reviewedAt !== null) return false;
+  if (!["completed", "teacher_review"].includes(input.status) || !["completed", "teacher_review"].includes(input.attemptStatus)) return false;
   return input.needsReviewReason !== null || input.reviewPolicy === "every_submission";
 }
 
