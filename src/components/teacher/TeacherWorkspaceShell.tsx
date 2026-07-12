@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { TeacherClass } from "@/server/classroom/class-service";
 import type { TeacherQueueSnapshot } from "@/server/teacher/assignment-operations";
+import { TeacherClassNavLink } from "@/components/teacher/TeacherClassNavLink";
 
 const POLL_INTERVAL_MS = 30000;
 const fingerprint = (snapshot: TeacherQueueSnapshot) => `${snapshot.needsReviewCount}:${snapshot.unreadCount}:${snapshot.newest?.attemptId ?? ""}`;
@@ -56,7 +57,7 @@ export function TeacherWorkspaceShell({ profileName, classes, initialSnapshot, i
       <nav aria-label="Teacher workspace">
         {nav.map(([label, href, count]) => <Link key={href} href={href} className={pathname === href ? "nav active" : "nav"}>{label}{count !== null && <span className="count">{count}</span>}</Link>)}
         <p className="section">Classes</p>
-        {classes.map((klass) => <Link className="nav" key={klass.id} href={`/teacher/classes/${klass.id}`}>{klass.name}<span className="muted-count">{klass.rosterCount}</span></Link>)}
+        {classes.map((klass) => <TeacherClassNavLink id={klass.id} key={klass.id} name={klass.name} rosterCount={klass.rosterCount}/>)}
         <Link className="nav create" href="/teacher/classes">＋ Create class</Link>
         <p className="section">Content</p><Link className="nav" href="/teacher/missions">Missions</Link>
       </nav>

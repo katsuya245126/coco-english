@@ -54,6 +54,26 @@ describe("teacher workspace source contract", () => {
     expect(styles).toContain("@media (max-width: 800px)");
   });
 
+  it("reveals overflowing class names and uses notification badges", () => {
+    const shell = source("src/components/teacher/TeacherWorkspaceShell.tsx");
+    const classLink = source("src/components/teacher/TeacherClassNavLink.tsx");
+    const styles = source("src/components/teacher/TeacherWorkspaceStyles.tsx");
+
+    expect(shell).toContain("<TeacherClassNavLink");
+    expect(classLink).toContain("title={name}");
+    expect(classLink).toContain('className="count"');
+    expect(classLink).toContain("ResizeObserver");
+    expect(classLink).toContain("scrollWidth");
+    expect(classLink).toContain('data-overflow={overflowing ? "true" : "false"}');
+    expect(classLink).toContain("--class-name-travel");
+    expect(styles).toContain(".class-name-window");
+    expect(styles).toContain("text-overflow: ellipsis");
+    expect(styles).toContain("teacher-class-name-reveal");
+    expect(styles).toContain('[data-overflow="true"]');
+    expect(styles).toContain(":focus-visible");
+    expect(styles).toContain("prefers-reduced-motion: reduce");
+  });
+
   it("renders the three approved operational queues and action boundaries", () => {
     const views = source("src/components/teacher/TeacherQueueViews.tsx");
     const evidence = source("src/app/teacher/evidence/[attemptId]/page.tsx");
