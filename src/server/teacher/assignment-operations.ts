@@ -89,6 +89,28 @@ export async function listIncompleteForTeacher(input: { teacherId: string; now?:
   return { groups, itemCount: countIncompleteItems(groups) };
 }
 
+export type AssignmentProgress = { completed: number; teacherReview: number; started: number; needsRetry: number; assigned: number; missed: number; total: number };
+
+export async function listAssignmentProgressForClass(input: { teacherId: string; classId: string }, client: Client = createSupabaseServiceClient()): Promise<Map<string, AssignmentProgress>> {
+  const result = await client.from("assignment_students").select(`assignment_id, status, assignments!inner(class_id, canceled_at, classes!inner(teacher_id))`).eq("assignments.class_id", input.classId).eq("assignments.classes.teacher_id", input.teacherId).is("assignments.canceled_at", null);
+  if (result.error) throw new Error(`Unable to load assignment progress: ${result.error.message}`);
+  const progress = new Map<string, AssignmentProgress>();
+  for (const raw of (result.data ?? []) as RawRow[]) {
+    const assignmentId = String(raw.assignment_id);
+    const entry = progress.get(assignmentId) ?? { completed: 0, teacherReview: 0, started: 0, needsRetry: 0, assigned: 0, missed: 0, total: 0 };
+    entry.total += 1;
+    const status = String(raw.status);
+    if (status === "completed") entry.completed += 1;
+    else if (status === "teacher_review") entry.teacherReview += 1;
+    else if (status === "started") entry.started += 1;
+    else if (status === "needs_retry") entry.needsRetry += 1;
+    else if (status === "assigned") entry.assigned += 1;
+    else if (status === "missed") entry.missed += 1;
+    progress.set(assignmentId, entry);
+  }
+  return progress;
+}
+
 export async function getTeacherQueueSnapshot(input: { teacherId: string }, client?: Client): Promise<TeacherQueueSnapshot> {
   const rows = await listNeedsReviewForTeacher(input, client);
   const newest = rows[0];

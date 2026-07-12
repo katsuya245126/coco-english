@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getTeacherQueueSnapshot, listNeedsReviewForTeacher } from "@/server/teacher/assignment-operations";
+import { getTeacherQueueSnapshot, listNeedsReviewForTeacher, listAssignmentProgressForClass } from "@/server/teacher/assignment-operations";
 
 function client(rows: unknown[]) {
   const chain: Record<string, unknown> = {};
@@ -38,5 +38,33 @@ describe("teacher assignment reads", () => {
 
   it("returns empty owned results without leaking another tenant", async () => {
     expect(await listNeedsReviewForTeacher({ teacherId: "teacher-2" }, client([]))).toEqual([]);
+  });
+});
+
+function progressClient(rows: unknown[]) {
+  const chain: Record<string, unknown> = {};
+  chain.select = () => chain;
+  chain.eq = () => chain;
+  chain.is = () => Promise.resolve({ data: rows, error: null });
+  return { from: () => chain } as unknown as NonNullable<Parameters<typeof listAssignmentProgressForClass>[1]>;
+}
+
+describe("listAssignmentProgressForClass", () => {
+  it("aggregates per-assignment status buckets including dismissed rows at their truthful status", async () => {
+    const progress = await listAssignmentProgressForClass({ teacherId: "teacher-1", classId: "c-1" }, progressClient([
+      { assignment_id: "a-1", status: "completed" },
+      { assignment_id: "a-1", status: "teacher_review" },
+      { assignment_id: "a-1", status: "started" },
+      { assignment_id: "a-1", status: "needs_retry" },
+      { assignment_id: "a-1", status: "assigned" },
+      { assignment_id: "a-1", status: "missed", dismissed_at: "2026-07-12T00:00:00Z" },
+      { assignment_id: "a-2", status: "completed" },
+    ]));
+    expect(progress.get("a-1")).toEqual({ completed: 1, teacherReview: 1, started: 1, needsRetry: 1, assigned: 1, missed: 1, total: 6 });
+    expect(progress.get("a-2")).toEqual({ completed: 1, teacherReview: 0, started: 0, needsRetry: 0, assigned: 0, missed: 0, total: 1 });
+  });
+
+  it("returns an empty map for a class with no assignment students", async () => {
+    expect((await listAssignmentProgressForClass({ teacherId: "teacher-1", classId: "c-1" }, progressClient([]))).size).toBe(0);
   });
 });
