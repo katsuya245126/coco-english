@@ -76,7 +76,6 @@ const BADGE_STYLES: Record<
   retry: badgeRetryStyle,
   done: badgeDoneStyle,
   late: badgeLateStyle,
-  missed: badgeLateStyle,
   review: badgeRetryStyle,
 };
 
@@ -89,7 +88,6 @@ const BADGE_LABELS: Record<
   retry: "Retry",
   done: "Done",
   late: "Late",
-  missed: "Missed",
   review: "Teacher review",
 };
 
@@ -98,6 +96,11 @@ function formatDueDate(dueAt: string | null): string {
   const d = new Date(dueAt);
   if (Number.isNaN(d.getTime())) return "No deadline";
   return `Due ${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+}
+
+function formatCompletedDate(completedAt: string | null): string {
+  if (!completedAt || Number.isNaN(new Date(completedAt).getTime())) return "Completed";
+  return `Completed ${new Date(completedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
 }
 
 export function AssignmentListItem({
@@ -118,10 +121,15 @@ export function AssignmentListItem({
     </div>
   );
 
+  if (item.displayStatus === "done") {
+    return <div style={doneCardStyle}><div style={row1Style}><p style={titleStyle}>{item.title}</p><span style={badgeDoneStyle}>Completed</span></div><div style={row2Style}><span style={metaStyle}>{formatCompletedDate(item.completedAt)}</span><a href={`/student/history/${item.assignmentStudentId}`}>View what I said</a></div></div>;
+  }
+
   const isLaunchable =
     item.displayStatus === "start" ||
     item.displayStatus === "continue" ||
-    item.displayStatus === "retry";
+    item.displayStatus === "retry" ||
+    item.displayStatus === "late";
 
   if (isLaunchable) {
     return (
