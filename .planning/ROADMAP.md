@@ -143,7 +143,7 @@ Archive:
 
 **Wave 2** *(server operations and student lists)*
 
-- [ ] 10.1-02-PLAN.md — tenant-safe teacher queue/activity/incomplete services plus view/review/reopen/retry/policy actions
+- [x] 10.1-02-PLAN.md — tenant-safe teacher queue/activity/incomplete services plus view/review/reopen/retry/policy actions
 - [ ] 10.1-06-PLAN.md — student-scoped Current/Past ordering, five-item pagination, tabs, cards, and page links
 
 **Wave 3** *(primary user surfaces)*
@@ -238,7 +238,7 @@ Phases execute in numeric order: 8 → 9 → 10 → 10.1 → 11 → 12 → 13 (P
 | 8. Coco Voice (TTS) | v2.0 | 5/5 | Complete (accepted with residual low-end-device risk) | 2026-07-02 |
 | 9. Pronunciation Scoring | v2.0 | 6/6 | Complete | 2026-07-03 |
 | 10. VN-Style Mascot | v2.0 | 4/4 | Complete (accepted with residual low-end-device risk) | 2026-07-11 |
-| 10.1 Assignment Operations & Student History | v2.0 | 2/7 | In Progress|  |
+| 10.1 Assignment Operations & Student History | v2.0 | 3/7 | In Progress|  |
 | 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 0/7 | Planned | - |
 | 12. UI Overhaul | v2.0 | 0/TBD | Not started | - |
 | 13. Pronunciation Remediation Videos | v2.0 | 0/TBD | Not planned | - |
