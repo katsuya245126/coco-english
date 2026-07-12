@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireTeacherProfile } from "@/server/teacher/auth";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
-import { markSubmissionReviewed, requestSubmissionRetry } from "@/server/teacher/assignment-operations";
+import { dismissAssignmentStudent, markSubmissionReviewed, requestSubmissionRetry, undoDismiss } from "@/server/teacher/assignment-operations";
 import {
   createSignedAudioUrlForTeacher,
   teacherOwnsAudioClip,
@@ -153,4 +153,14 @@ export async function requestSubmissionRetryAction(input: {
 }) {
   const profile = await requireTeacherProfile();
   return requestSubmissionRetry({ teacherId: profile.id, ...input });
+}
+
+export async function dismissAssignmentStudentAction(input: { attemptId: string; reason?: string }) {
+  const profile = await requireTeacherProfile();
+  return dismissAssignmentStudent({ teacherId: profile.id, attemptId: input.attemptId, reason: input.reason });
+}
+
+export async function undoDismissAction(attemptId: string) {
+  const profile = await requireTeacherProfile();
+  return undoDismiss({ teacherId: profile.id, attemptId });
 }
