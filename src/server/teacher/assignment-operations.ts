@@ -84,7 +84,7 @@ export async function listActivityForTeacher(input: { teacherId: string; offset?
 }
 
 export async function listIncompleteForTeacher(input: { teacherId: string; now?: Date }, client: Client = createSupabaseServiceClient()) {
-  const result = await client.from("assignment_students").select(`id, status, students!inner(display_name), assignments!inner(id, title, due_at, classes!inner(id, name, teacher_id))`).eq("assignments.classes.teacher_id", input.teacherId).in("status", ["assigned", "started", "missed"]);
+  const result = await client.from("assignment_students").select(`id, status, students!inner(display_name), assignments!inner(id, title, due_at, classes!inner(id, name, teacher_id))`).eq("assignments.classes.teacher_id", input.teacherId).in("status", ["assigned", "started", "missed"]).is("dismissed_at", null);
   if (result.error) throw new Error(`Unable to load incomplete assignments: ${result.error.message}`);
   const groups = groupIncompleteAssignments(((result.data ?? []) as RawRow[]).map((row) => { const assignment = one(row.assignments); const klass = one(assignment.classes); return { id: String(row.id), assignmentId: String(assignment.id), assignmentTitle: String(assignment.title), status: row.status as TeacherIncompleteRow["status"], dueAt: assignment.due_at ? String(assignment.due_at) : null, studentName: String(one(row.students).display_name), classId: String(klass.id), className: String(klass.name) }; }) as TeacherIncompleteRow[], input.now ?? new Date());
   return { groups, itemCount: countIncompleteItems(groups) };
@@ -118,6 +118,18 @@ export async function markSubmissionReviewed(input: { teacherId: string; attempt
   if (!await loadOwnedAttempt(input, client)) return { ok: false as const, error: "not_found" as const };
   const result = await client.rpc("mark_submission_reviewed", { p_teacher_id: input.teacherId, p_attempt_id: input.attemptId });
   return result.error || result.data !== "ok" ? { ok: false as const, error: result.data === "invalid_status" ? "invalid_transition" as const : "db_error" as const } : { ok: true as const };
+}
+
+export async function dismissAssignmentStudent(input: { teacherId: string; attemptId: string; reason?: string }, client: Client = createSupabaseServiceClient()) {
+  if (!await loadOwnedAttempt(input, client)) return { ok: false as const, error: "not_found" as const };
+  const result = await client.rpc("dismiss_assignment_student", { p_teacher_id: input.teacherId, p_attempt_id: input.attemptId, p_reason: input.reason ?? "" });
+  return result.error || result.data !== "ok" ? { ok: false as const, error: result.data === "not_found" ? "not_found" as const : "db_error" as const } : { ok: true as const };
+}
+
+export async function undoDismiss(input: { teacherId: string; attemptId: string }, client: Client = createSupabaseServiceClient()) {
+  if (!await loadOwnedAttempt(input, client)) return { ok: false as const, error: "not_found" as const };
+  const result = await client.rpc("undo_dismiss_assignment_student", { p_teacher_id: input.teacherId, p_attempt_id: input.attemptId });
+  return result.error || result.data !== "ok" ? { ok: false as const, error: result.data === "not_found" ? "not_found" as const : "db_error" as const } : { ok: true as const };
 }
 
 export async function reopenSubmissionReview(input: { teacherId: string; attemptId: string }, client: Client = createSupabaseServiceClient()) {

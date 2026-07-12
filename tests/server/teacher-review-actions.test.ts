@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { markSubmissionReviewed, markSubmissionViewed, reopenSubmissionReview, requestSubmissionRetry } from "@/server/teacher/assignment-operations";
+import { dismissAssignmentStudent, markSubmissionReviewed, markSubmissionViewed, reopenSubmissionReview, requestSubmissionRetry, undoDismiss } from "@/server/teacher/assignment-operations";
 
 function mutationClient(owned = true, rpcResult: { data: string | null; error: { message: string } | null } = { data: "ok", error: null }) {
   const operations: Array<[string, ...unknown[]]> = [];
@@ -16,6 +16,25 @@ function mutationClient(owned = true, rpcResult: { data: string | null; error: {
 }
 
 describe("teacher review mutations", () => {
+  it("dismiss performs zero writes and returns not_found for a cross-teacher attempt", async () => {
+    const { client, operations } = mutationClient(false);
+    expect(await dismissAssignmentStudent({ teacherId: "teacher-2", attemptId: "attempt-1", reason: "test" }, client)).toEqual({ ok: false, error: "not_found" });
+    expect(client.rpc).not.toHaveBeenCalled();
+    expect(operations.some((op) => ["upsert", "update"].includes(op[0]))).toBe(false);
+  });
+
+  it("dismiss calls the dismiss RPC with the reason for an owned attempt", async () => {
+    const { client } = mutationClient();
+    expect(await dismissAssignmentStudent({ teacherId: "teacher-1", attemptId: "attempt-1", reason: "absent" }, client)).toEqual({ ok: true });
+    expect(client.rpc).toHaveBeenCalledWith("dismiss_assignment_student", expect.objectContaining({ p_teacher_id: "teacher-1", p_attempt_id: "attempt-1", p_reason: "absent" }));
+  });
+
+  it("undo dismiss calls the undo RPC for an owned attempt", async () => {
+    const { client } = mutationClient();
+    expect(await undoDismiss({ teacherId: "teacher-1", attemptId: "attempt-1" }, client)).toEqual({ ok: true });
+    expect(client.rpc).toHaveBeenCalledWith("undo_dismiss_assignment_student", expect.objectContaining({ p_teacher_id: "teacher-1", p_attempt_id: "attempt-1" }));
+  });
+
   it("performs zero writes for a cross-teacher attempt", async () => {
     const { client, operations } = mutationClient(false);
     expect(await markSubmissionViewed({ teacherId: "teacher-2", attemptId: "attempt-1" }, client)).toEqual({ ok: false, error: "not_found" });
