@@ -97,7 +97,7 @@ export async function getTeacherQueueSnapshot(input: { teacherId: string }, clie
 }
 
 async function loadOwnedAttempt(input: { teacherId: string; attemptId: string }, client: Client) {
-  const result = await client.from("attempts").select(`id, status, assignment_students!attempts_assignment_student_id_fkey!inner(id, status, latest_attempt_id, assignments!inner(classes!inner(teacher_id)))`).eq("id", input.attemptId).eq("assignment_students.assignments.classes.teacher_id", input.teacherId).maybeSingle();
+  const result = await client.from("attempts").select(`id, status, assignment_students!attempts_assignment_student_id_fkey!inner(id, status, latest_attempt_id, dismissed_at, assignments!inner(classes!inner(teacher_id)))`).eq("id", input.attemptId).eq("assignment_students.assignments.classes.teacher_id", input.teacherId).maybeSingle();
   if (result.error) throw new Error(`Unable to authorize teacher submission: ${result.error.message}`);
   return result.data as RawRow | null;
 }
@@ -127,13 +127,17 @@ export async function markSubmissionReviewed(input: { teacherId: string; attempt
 }
 
 export async function dismissAssignmentStudent(input: { teacherId: string; attemptId: string; reason?: string }, client: Client = createSupabaseServiceClient()) {
-  if (!await loadOwnedAttempt(input, client)) return { ok: false as const, error: "not_found" as const };
+  const row = await loadOwnedAttempt(input, client);
+  const assignmentStudent = row ? one(row.assignment_students) : null;
+  if (!row || !assignmentStudent || assignmentStudent.latest_attempt_id !== row.id || !["assigned", "started", "missed"].includes(String(assignmentStudent.status)) || assignmentStudent.dismissed_at !== null) return { ok: false as const, error: "not_found" as const };
   const result = await client.rpc("dismiss_assignment_student", { p_teacher_id: input.teacherId, p_attempt_id: input.attemptId, p_reason: input.reason ?? "" });
   return result.error || result.data !== "ok" ? { ok: false as const, error: result.data === "not_found" ? "not_found" as const : "db_error" as const } : { ok: true as const };
 }
 
 export async function undoDismiss(input: { teacherId: string; attemptId: string }, client: Client = createSupabaseServiceClient()) {
-  if (!await loadOwnedAttempt(input, client)) return { ok: false as const, error: "not_found" as const };
+  const row = await loadOwnedAttempt(input, client);
+  const assignmentStudent = row ? one(row.assignment_students) : null;
+  if (!row || !assignmentStudent || assignmentStudent.latest_attempt_id !== row.id || !["assigned", "started", "missed"].includes(String(assignmentStudent.status)) || assignmentStudent.dismissed_at === null) return { ok: false as const, error: "not_found" as const };
   const result = await client.rpc("undo_dismiss_assignment_student", { p_teacher_id: input.teacherId, p_attempt_id: input.attemptId });
   return result.error || result.data !== "ok" ? { ok: false as const, error: result.data === "not_found" ? "not_found" as const : "db_error" as const } : { ok: true as const };
 }

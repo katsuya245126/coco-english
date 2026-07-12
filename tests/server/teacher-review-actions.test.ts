@@ -74,15 +74,39 @@ describe("teacher review mutations", () => {
   });
 
   it("dismiss calls the dismiss RPC with the reason for an owned attempt", async () => {
-    const { client } = mutationClient();
+    const { client } = mutationClient({ id: "attempt-1", status: "started", assignment_students: { id: "as-1", status: "started", latest_attempt_id: "attempt-1", dismissed_at: null } });
     expect(await dismissAssignmentStudent({ teacherId: "teacher-1", attemptId: "attempt-1", reason: "absent" }, client)).toEqual({ ok: true });
     expect(client.rpc).toHaveBeenCalledWith("dismiss_assignment_student", expect.objectContaining({ p_teacher_id: "teacher-1", p_attempt_id: "attempt-1", p_reason: "absent" }));
   });
 
+  it("dismiss performs no RPC when an owned attempt is already dismissed", async () => {
+    const { client } = mutationClient({ id: "attempt-1", status: "started", assignment_students: { id: "as-1", status: "started", latest_attempt_id: "attempt-1", dismissed_at: "2026-07-12T00:00:00.000Z" } });
+    expect(await dismissAssignmentStudent({ teacherId: "teacher-1", attemptId: "attempt-1" }, client)).toEqual({ ok: false, error: "not_found" });
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it("dismiss performs no RPC when the owned attempt is not latest", async () => {
+    const { client } = mutationClient({ id: "attempt-1", status: "started", assignment_students: { id: "as-1", status: "started", latest_attempt_id: "attempt-2", dismissed_at: null } });
+    expect(await dismissAssignmentStudent({ teacherId: "teacher-1", attemptId: "attempt-1" }, client)).toEqual({ ok: false, error: "not_found" });
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
   it("undo dismiss calls the undo RPC for an owned attempt", async () => {
-    const { client } = mutationClient();
+    const { client } = mutationClient({ id: "attempt-1", status: "started", assignment_students: { id: "as-1", status: "missed", latest_attempt_id: "attempt-1", dismissed_at: "2026-07-12T00:00:00.000Z" } });
     expect(await undoDismiss({ teacherId: "teacher-1", attemptId: "attempt-1" }, client)).toEqual({ ok: true });
     expect(client.rpc).toHaveBeenCalledWith("undo_dismiss_assignment_student", expect.objectContaining({ p_teacher_id: "teacher-1", p_attempt_id: "attempt-1" }));
+  });
+
+  it("undo dismiss performs no RPC when an owned attempt is not dismissed", async () => {
+    const { client } = mutationClient({ id: "attempt-1", status: "started", assignment_students: { id: "as-1", status: "started", latest_attempt_id: "attempt-1", dismissed_at: null } });
+    expect(await undoDismiss({ teacherId: "teacher-1", attemptId: "attempt-1" }, client)).toEqual({ ok: false, error: "not_found" });
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it("undo dismiss performs no RPC for a completed assignment student", async () => {
+    const { client } = mutationClient({ id: "attempt-1", status: "completed", assignment_students: { id: "as-1", status: "completed", latest_attempt_id: "attempt-1", dismissed_at: "2026-07-12T00:00:00.000Z" } });
+    expect(await undoDismiss({ teacherId: "teacher-1", attemptId: "attempt-1" }, client)).toEqual({ ok: false, error: "not_found" });
+    expect(client.rpc).not.toHaveBeenCalled();
   });
 
   it("performs zero writes for a cross-teacher attempt", async () => {

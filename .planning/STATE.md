@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 10.1
 current_phase_name: assignment-operations-student-history
 status: verifying
-stopped_at: Final-review fixes verified; migration 202607120005 awaits controller review and push
-last_updated: "2026-07-12T14:32:00Z"
+stopped_at: State-sensitive dismiss fixes verified; migration 202607120005 awaits controller review and push
+last_updated: "2026-07-12T14:36:00Z"
 last_activity: 2026-07-12
-last_activity_desc: Hardened no-attempt dismiss eligibility, evidence labels, and rejected-action handling
+last_activity_desc: Made by-ID and attempt-keyed dismiss operations state-sensitive and idempotent
 progress:
   total_phases: 7
   completed_phases: 3
@@ -32,13 +32,13 @@ Phase: 10.1 (assignment-operations-student-history) — VERIFYING
 Previous phase: 10 (mascot-vn-style) — COMPLETE
 Plan: 7 of 7 completed
 Status: Automated verification passed; remaining live freshness and recap-quality checks are human verification items.
-Active feature work: dismiss-incomplete and clickable no-attempt assignment evidence are implemented on `feature/dismiss-incomplete-assignment`; migrations `202607120003` and `202607120004` are live, while hardening migration `202607120005` is committed but intentionally not pushed. Final-review fixes are verified at 519 passed / 4 skipped with typecheck clean and lint at zero errors / one pre-existing warning; human browser acceptance remains.
+Active feature work: dismiss-incomplete and clickable no-attempt assignment evidence are implemented on `feature/dismiss-incomplete-assignment`; migrations `202607120003` and `202607120004` are live, while hardening migration `202607120005` is committed but intentionally not pushed. Both by-ID and attempt-keyed dismiss/undo paths are state-sensitive. Final-review fixes are verified at 526 passed / 4 skipped with typecheck clean and lint at zero errors / one pre-existing warning; human browser acceptance remains.
 Quick task 260710-hbn completed the interrupted student retry/audio feedback work in commit `33779fa1`. The follow-up `retry-feedback-flow` debug session fixed final-turn review gating, repeat retry audio/actions, and transcript carryover. The subsequent code-review follow-up removed the unsafe grammar-only fill-in bypass, moved mission completion into a deployed atomic RPC, restored persisted feedback/audio on refresh, included evaluation in resume decisions, and fixed Coco playback teardown. Those follow-ups are complete and Phase 10 remains closed.
 The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on desktop but only 133px on a 375px phone. Responsive clamped insets now preserve the desktop framing at 226px on both standard phone and desktop widths without changing stage, dialogue, or recorder geometry.
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
 The `mission-create-retry-cleanup` follow-up found mission creation itself was healthy: an active dev server had been corrupted when production builds rewrote its `.next` chunks, leaving the form unhydrated and causing native GET submission. A clean restart restored two verified real saves. The retry route now honors `needs_retry` past the original deadline, and the teacher AI mission-draft feature was removed end-to-end. Phase 11's roadmap now requires standalone scene-premise generation rather than restoring full mission drafting.
 
-Last activity: 2026-07-12 — Hardened assignment-student-keyed dismiss/undo to eligible no-attempt incomplete rows, normalized null-attempt labels, and handled rejected attempt actions; migration `202607120005` awaits controller push.
+Last activity: 2026-07-12 — Hardened both assignment-student-keyed and attempt-keyed dismiss/undo operations against repeated or ineligible calls; migration `202607120005` awaits controller push.
 
 Progress: [███████░░░] 72%
 
@@ -205,6 +205,6 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 **Handoff docs:** `.planning/handoff/` holds two 2026-07-10 session handoffs (mascot-audio-copy, audio-reclick-still-broken), committed 2026-07-11 as historical records — every open item in them has since landed: the replay re-click silence was resolved in `33779fa1` by removing Web Audio entirely from `CocoSpeechAudio.tsx` (native `<audio>` playback + synthetic mouth pulse; never reintroduce `createMediaElementSource` — a source test bans it), the terse "Say this sentence:" repeat-card label and the sprite-framing/dialogue-box overlap fixes landed in the same commit and the mobile follow-ups `f87766f5`/`7a599097`. Audible replay confirmation remains user-ear-only (agent preview and driven-Chrome tabs can't produce sound) and is folded into the existing Task 3 checkpoint.
 
-Last session: 2026-07-12T14:32Z
-Stopped at: Final-review fixes complete on `feature/dismiss-incomplete-assignment` (519 pass / 4 skipped; typecheck clean; lint zero errors / one pre-existing warning). Migration `202607120005` is not pushed and awaits controller verification. Cleanup remains preview-only and uncommitted. Human browser acceptance and branch integration remain.
+Last session: 2026-07-12T14:36Z
+Stopped at: State-sensitive dismiss fixes complete on `feature/dismiss-incomplete-assignment` (526 pass / 4 skipped; typecheck clean; lint zero errors / one pre-existing warning). Migration `202607120005` is not pushed and awaits controller verification. Cleanup remains preview-only and uncommitted. Human browser acceptance and branch integration remain.
 Note: Branch `phase-10-mascot-wip` is fully merged and can still be deleted (not yet done — ask before deleting). `.planning/phases/11-coco-chat-dynamic-turns-scene-framing/` is active again now that Phase 10 is back to the mascot. Phase 13 (Pronunciation Remediation Videos, MEDIA-F1) is new — not yet planned, no phase directory exists yet. Two incidental fixes landed this session outside Plan 10-04's own scope: `d104f16d` (CocoSpeechAudio analyser-ordering bug, found uncommitted, directly tied to the MASCOT-02 wiring) and `58bcc921` (repeat-turn exact-match fast-path, committed independently by the user during the same session — unrelated to Phase 10, not reviewed here).
