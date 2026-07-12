@@ -1,12 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 import { dismissAssignmentStudent, dismissAssignmentStudentById, markSubmissionReviewed, markSubmissionViewed, reopenSubmissionReview, requestSubmissionRetry, undoDismiss, undoDismissByAssignmentStudentId } from "@/server/teacher/assignment-operations";
 
-function mutationClient(owned = true, rpcResult: { data: string | null; error: { message: string } | null } = { data: "ok", error: null }) {
+function mutationClient(
+  owned: boolean | Record<string, unknown> = true,
+  rpcResult: { data: string | null; error: { message: string } | null } = { data: "ok", error: null },
+) {
   const operations: Array<[string, ...unknown[]]> = [];
   const from = (table: string) => {
     const chain: Record<string, unknown> = {
       select: () => chain, eq: (key: string, value: unknown) => { operations.push(["eq", table, key, value]); return chain; },
-      maybeSingle: () => Promise.resolve({ data: owned ? { id: "attempt-1", status: "completed", assignment_students: { id: "as-1", status: "completed" } } : null, error: null }),
+      maybeSingle: () => Promise.resolve({
+        data: owned === false
+          ? null
+          : typeof owned === "object"
+            ? owned
+            : { id: "attempt-1", status: "completed", assignment_students: { id: "as-1", status: "completed" } },
+        error: null,
+      }),
       upsert: (payload: unknown, options: unknown) => { operations.push(["upsert", table, payload, options]); return Promise.resolve({ error: null }); },
       update: (payload: unknown) => { operations.push(["update", table, payload]); return chain; },
       then: (resolve: (value: { error: null }) => unknown) => Promise.resolve({ error: null }).then(resolve),
@@ -23,11 +33,17 @@ describe("teacher review mutations", () => {
   });
 
   it("by-id dismiss calls the exact RPC for an owned assignment student", async () => {
-    const { client } = mutationClient();
+    const { client } = mutationClient({ id: "as-1", status: "assigned", latest_attempt_id: null, dismissed_at: null });
     expect(await dismissAssignmentStudentById({ teacherId: "teacher-1", assignmentStudentId: "as-1" }, client)).toEqual({ ok: true });
     expect(client.rpc).toHaveBeenCalledWith("dismiss_assignment_student_by_id", {
       p_teacher_id: "teacher-1", p_assignment_student_id: "as-1", p_reason: "",
     });
+  });
+
+  it("by-id dismiss performs no RPC for an owned but ineligible assignment student", async () => {
+    const { client } = mutationClient({ id: "as-1", status: "assigned", latest_attempt_id: "attempt-1", dismissed_at: null });
+    expect(await dismissAssignmentStudentById({ teacherId: "teacher-1", assignmentStudentId: "as-1" }, client)).toEqual({ ok: false, error: "not_found" });
+    expect(client.rpc).not.toHaveBeenCalled();
   });
 
   it("by-id undo performs no RPC for a cross-teacher assignment student", async () => {
@@ -37,11 +53,17 @@ describe("teacher review mutations", () => {
   });
 
   it("by-id undo calls the exact RPC for an owned assignment student", async () => {
-    const { client } = mutationClient();
+    const { client } = mutationClient({ id: "as-1", status: "missed", latest_attempt_id: null, dismissed_at: "2026-07-12T00:00:00.000Z" });
     expect(await undoDismissByAssignmentStudentId({ teacherId: "teacher-1", assignmentStudentId: "as-1" }, client)).toEqual({ ok: true });
     expect(client.rpc).toHaveBeenCalledWith("undo_dismiss_assignment_student_by_id", {
       p_teacher_id: "teacher-1", p_assignment_student_id: "as-1",
     });
+  });
+
+  it("by-id undo performs no RPC for an owned but ineligible assignment student", async () => {
+    const { client } = mutationClient({ id: "as-1", status: "missed", latest_attempt_id: null, dismissed_at: null });
+    expect(await undoDismissByAssignmentStudentId({ teacherId: "teacher-1", assignmentStudentId: "as-1" }, client)).toEqual({ ok: false, error: "not_found" });
+    expect(client.rpc).not.toHaveBeenCalled();
   });
 
   it("dismiss performs zero writes and returns not_found for a cross-teacher attempt", async () => {

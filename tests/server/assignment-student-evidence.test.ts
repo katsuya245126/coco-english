@@ -68,4 +68,19 @@ describe("assignment student evidence", () => {
       client as never,
     )).resolves.toBeNull();
   });
+
+  it("labels a missed assignment with no attempt as Not started", async () => {
+    const { client } = evidenceClient({
+      id: "as-1", status: "missed", submitted_at: null, latest_attempt_id: null, dismissed_at: null,
+      students: { display_name: "test" },
+      assignments: { id: "assignment-1", title: "Assignment title", mission_snapshot: snapshot, classes: { id: "class-1", name: "Test class", teacher_id: "teacher-1" } },
+    });
+
+    const result = await getAssignmentStudentEvidenceForTeacher(
+      { teacherId: "teacher-1", assignmentStudentId: "as-1" },
+      client as never,
+    );
+
+    expect(result?.statusLabel).toBe("Not started");
+  });
 });

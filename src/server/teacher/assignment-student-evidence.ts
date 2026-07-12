@@ -57,7 +57,7 @@ export async function getAssignmentStudentEvidenceForTeacher(
     studentName: String(one(row.students).display_name),
     missionTitle: snapshot.success ? snapshot.data.title : String(assignment.title),
     status,
-    statusLabel: status === "assigned" ? "Not started" : status,
+    statusLabel: "Not started",
     submittedLabel: row.submitted_at === null ? "Not yet submitted" : String(row.submitted_at),
     attemptCount: 0,
     highestHintLabel: "No hints used",

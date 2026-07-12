@@ -41,15 +41,23 @@ export function SubmissionReviewControls({
   });
   const markDone = () => startTransition(async () => {
     setError(false);
-    const result = await dismissAssignmentStudentAction({ attemptId });
-    if (result.ok) router.push(incompleteHref);
-    else setError(true);
+    try {
+      const result = await dismissAssignmentStudentAction({ attemptId });
+      if (result.ok) router.push(incompleteHref);
+      else setError(true);
+    } catch {
+      setError(true);
+    }
   });
   const undoDone = () => startTransition(async () => {
     setError(false);
-    const result = await undoDismissAction(attemptId);
-    if (result.ok) router.refresh();
-    else setError(true);
+    try {
+      const result = await undoDismissAction(attemptId);
+      if (result.ok) router.refresh();
+      else setError(true);
+    } catch {
+      setError(true);
+    }
   });
   const requestRetry = () => startTransition(async () => {
     setError(false);
