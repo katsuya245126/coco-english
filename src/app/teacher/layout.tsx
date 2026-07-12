@@ -3,6 +3,7 @@ import { requireTeacherProfile } from "@/server/auth/teacher-profile";
 import { listClassesForTeacher } from "@/server/classroom/class-service";
 import { getTeacherQueueSnapshot, listIncompleteForTeacher } from "@/server/teacher/assignment-operations";
 import { TeacherWorkspaceShell } from "@/components/teacher/TeacherWorkspaceShell";
+import "./teacher-workspace.css";
 
 export const dynamic = "force-dynamic";
 

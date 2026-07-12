@@ -4,10 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { reopenSubmissionReviewAction } from "@/app/teacher/assignment-actions";
+import { buildTeacherReviewPageHref } from "@/domain/teacher/review-pagination";
 import type { IncompleteAssignmentGroup, TeacherActivityRow, TeacherReviewRow } from "@/server/teacher/assignment-operations";
 
 const relativeTime = (value: string) => {
-  const minutes = Math.max(0, Math.floor((Date.now() - Date.parse(value)) / 60000));
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return "Recently";
+  const minutes = Math.max(0, Math.floor((Date.now() - parsed) / 60000));
   if (minutes < 1) return "Just now";
   if (minutes < 60) return `${minutes} min`;
   if (minutes < 1440) return `${Math.floor(minutes / 60)} hr`;
@@ -18,11 +21,15 @@ function Filters({ classes, extra }: { classes: string[]; extra?: string[] }) {
   return <nav className="filters" aria-label="Queue filters"><Link href="?">All classes</Link>{classes.map((name) => <Link key={name} href={`?class=${encodeURIComponent(name)}`}>{name}</Link>)}{extra?.map((name) => <Link key={name} href={`?filter=${name.toLowerCase()}`}>{name}</Link>)}</nav>;
 }
 
-export function TeacherReviewTable({ rows, classes }: { rows: TeacherReviewRow[]; classes: string[] }) {
+export function TeacherReviewTable({ rows, classes, page = 1, totalPages = 1, query = {} }: { rows: TeacherReviewRow[]; classes: string[]; page?: number; totalPages?: number; query?: { className?: string; filter?: string } }) {
   return <section><div className="heading"><h1>Needs review</h1><p>Submissions from all your classes, newest first.</p></div><Filters classes={classes} extra={["Unread", "Flagged"]}/><div className="review-head"><span>Student</span><span>Class</span><span>Submission</span><span>Status</span><span>Received</span></div><div className="queue">
     {rows.map((row) => <Link className={row.firstViewedAt === null ? "review-row unread" : "review-row"} href={`/teacher/evidence/${row.attemptId}`} key={row.attemptId}><strong>{row.studentName}</strong><span><i>{row.className}</i></span><span><b>{row.assignmentTitle}</b><small>{row.needsReviewReason ? "Flagged for teacher review" : "Conversation recap available"}</small></span><span><em>{row.needsReviewReason ? "Flagged" : "Completed"}</em></span><time>{relativeTime(row.receivedAt)}</time></Link>)}
     {rows.length === 0 && <p className="empty">Nothing needs review right now.</p>}
-  </div><QueueStyles/></section>;
+  </div>{totalPages > 1 && <nav className="pagination" aria-label="Needs review pages">
+    {page > 1 ? <Link href={buildTeacherReviewPageHref(page - 1, query)}>Previous</Link> : <span aria-disabled="true">Previous</span>}
+    <strong>Page {page} of {totalPages}</strong>
+    {page < totalPages ? <Link href={buildTeacherReviewPageHref(page + 1, query)}>Next</Link> : <span aria-disabled="true">Next</span>}
+  </nav>}<QueueStyles/></section>;
 }
 
 function IncompleteSection({ title, subtitle, groups }: { title: "Missed" | "Due soon"; subtitle: string; groups: IncompleteAssignmentGroup[] }) {
