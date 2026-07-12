@@ -43,21 +43,22 @@ describe("teacher workspace source contract", () => {
     );
   });
 
-  it("applies prototype shell styles globally so Next links stay styled", () => {
+  it("ships shell styles as a real stylesheet in the layout (no styled-jsx FOUC)", () => {
     const layout = source("src/app/teacher/layout.tsx");
-    const styles = source("src/components/teacher/TeacherWorkspaceStyles.tsx");
-    expect(layout).toContain("<TeacherWorkspaceStyles/>");
-    expect(styles).toContain("<style jsx global>");
+    const styles = source("src/app/teacher/teacher-workspace.css");
+    expect(layout).toContain('import "./teacher-workspace.css"');
+    expect(layout).not.toContain("TeacherWorkspaceStyles");
     expect(styles).toContain("grid-template-columns: 210px minmax(0, 1fr)");
     expect(styles).toContain(".teacher-shell .nav.active");
     expect(styles).toContain(".teacher-shell .count");
     expect(styles).toContain("@media (max-width: 800px)");
+    expect(styles).not.toContain("review-policy-control");
   });
 
   it("reveals overflowing class names and uses notification badges", () => {
     const shell = source("src/components/teacher/TeacherWorkspaceShell.tsx");
     const classLink = source("src/components/teacher/TeacherClassNavLink.tsx");
-    const styles = source("src/components/teacher/TeacherWorkspaceStyles.tsx");
+    const styles = source("src/app/teacher/teacher-workspace.css");
 
     expect(shell).toContain("<TeacherClassNavLink");
     expect(classLink).toContain("title={name}");

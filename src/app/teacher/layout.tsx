@@ -1,9 +1,9 @@
+import "./teacher-workspace.css";
 import type { ReactNode } from "react";
 import { requireTeacherProfile } from "@/server/auth/teacher-profile";
 import { listClassesForTeacher } from "@/server/classroom/class-service";
 import { getTeacherQueueSnapshot, listIncompleteForTeacher } from "@/server/teacher/assignment-operations";
 import { TeacherWorkspaceShell } from "@/components/teacher/TeacherWorkspaceShell";
-import { TeacherWorkspaceStyles } from "@/components/teacher/TeacherWorkspaceStyles";
 
 export const dynamic = "force-dynamic";
 
@@ -14,5 +14,5 @@ export default async function TeacherLayout({ children }: { children: ReactNode 
     getTeacherQueueSnapshot({ teacherId: profile.id }),
     listIncompleteForTeacher({ teacherId: profile.id }),
   ]);
-  return <><TeacherWorkspaceStyles/><TeacherWorkspaceShell profileName={profile.display_name ?? "Teacher"} classes={classes} initialSnapshot={snapshot} incompleteCount={incomplete.itemCount}>{children}</TeacherWorkspaceShell></>;
+  return <TeacherWorkspaceShell profileName={profile.display_name ?? "Teacher"} classes={classes} initialSnapshot={snapshot} incompleteCount={incomplete.itemCount}>{children}</TeacherWorkspaceShell>;
 }
