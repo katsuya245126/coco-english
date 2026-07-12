@@ -7,16 +7,18 @@ type ClassNameStyle = CSSProperties & { "--class-name-travel"?: string };
 
 export function TeacherClassNavLink({ id, name, rosterCount }: { id: string; name: string; rosterCount: number }) {
   const nameRef = useRef<HTMLSpanElement>(null);
+  const windowRef = useRef<HTMLSpanElement>(null);
   const [travel, setTravel] = useState(0);
 
   useEffect(() => {
     const nameElement = nameRef.current;
-    if (!nameElement) return;
+    const windowElement = windowRef.current;
+    if (!nameElement || !windowElement) return;
 
-    const measure = () => setTravel(Math.max(0, nameElement.scrollWidth - nameElement.clientWidth));
+    const measure = () => setTravel(Math.max(0, nameElement.scrollWidth - windowElement.clientWidth));
     measure();
     const observer = new ResizeObserver(measure);
-    observer.observe(nameElement);
+    observer.observe(windowElement);
     return () => observer.disconnect();
   }, [name]);
 
@@ -24,7 +26,7 @@ export function TeacherClassNavLink({ id, name, rosterCount }: { id: string; nam
   const style: ClassNameStyle = overflowing ? { "--class-name-travel": `${travel}px` } : {};
 
   return <Link className="nav class-nav-link" data-overflow={overflowing ? "true" : "false"} href={`/teacher/classes/${id}`} style={style} title={name}>
-    <span className="class-name-window"><span className="class-name-track" ref={nameRef}>{name}</span></span>
+    <span className="class-name-window" ref={windowRef}><span className="class-name-track" ref={nameRef}>{name}</span></span>
     <span className="count">{rosterCount}</span>
   </Link>;
 }

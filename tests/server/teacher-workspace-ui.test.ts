@@ -64,6 +64,10 @@ describe("teacher workspace source contract", () => {
     expect(classLink).toContain('className="count"');
     expect(classLink).toContain("ResizeObserver");
     expect(classLink).toContain("scrollWidth");
+    expect(classLink).toContain("windowRef");
+    expect(classLink).toContain("nameElement.scrollWidth - windowElement.clientWidth");
+    expect(classLink).toContain("observer.observe(windowElement)");
+    expect(classLink).not.toContain("observer.observe(nameElement)");
     expect(classLink).toContain('data-overflow={overflowing ? "true" : "false"}');
     expect(classLink).toContain("--class-name-travel");
     expect(styles).toContain(".class-name-window");
