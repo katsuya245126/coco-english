@@ -53,7 +53,12 @@ export default async function AttemptEvidencePage({
         </p>
         <h1 style={titleStyle}>Attempt evidence</h1>
 
-        <SubmissionReviewControls attemptId={attemptId} />
+        <SubmissionReviewControls
+          attemptId={attemptId}
+          assignmentStudentStatus={evidence.assignmentStudentStatus}
+          className={evidence.className}
+          dismissed={evidence.dismissedAt != null}
+        />
 
         <section style={summaryStyle} aria-label="Attempt summary">
           <div>

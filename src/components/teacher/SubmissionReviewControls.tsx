@@ -2,21 +2,53 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { markSubmissionReviewedAction, requestSubmissionRetryAction } from "@/app/teacher/evidence/[attemptId]/actions";
+import {
+  dismissAssignmentStudentAction,
+  markSubmissionReviewedAction,
+  requestSubmissionRetryAction,
+  undoDismissAction,
+} from "@/app/teacher/evidence/[attemptId]/actions";
 import { HoverButton } from "@/components/ui/HoverButton";
 import { primaryHover, secondaryHover } from "@/components/ui/hover-styles";
 
-export function SubmissionReviewControls({ attemptId }: { attemptId: string }) {
+const INCOMPLETE_STATUSES = ["assigned", "started", "missed"];
+
+export function SubmissionReviewControls({
+  attemptId,
+  assignmentStudentStatus,
+  className,
+  dismissed,
+}: {
+  attemptId: string;
+  assignmentStudentStatus: string;
+  className: string;
+  dismissed: boolean;
+}) {
   const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
   const [note, setNote] = useState("");
   const [error, setError] = useState(false);
   const [pending, startTransition] = useTransition();
 
+  const isIncomplete = INCOMPLETE_STATUSES.includes(assignmentStudentStatus);
+  const incompleteHref = `/teacher/incomplete?class=${encodeURIComponent(className)}`;
+
   const markReviewed = () => startTransition(async () => {
     setError(false);
     const result = await markSubmissionReviewedAction(attemptId);
     if (result.ok) router.push(`/teacher?reviewed=${attemptId}`);
+    else setError(true);
+  });
+  const markDone = () => startTransition(async () => {
+    setError(false);
+    const result = await dismissAssignmentStudentAction({ attemptId });
+    if (result.ok) router.push(incompleteHref);
+    else setError(true);
+  });
+  const undoDone = () => startTransition(async () => {
+    setError(false);
+    const result = await undoDismissAction(attemptId);
+    if (result.ok) router.refresh();
     else setError(true);
   });
   const requestRetry = () => startTransition(async () => {
@@ -28,10 +60,27 @@ export function SubmissionReviewControls({ attemptId }: { attemptId: string }) {
 
   return <section aria-label="Submission review actions" style={sectionStyle}>
     <h2 style={headingStyle}>Teacher action</h2>
-    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-      <HoverButton type="button" disabled={pending} onClick={markReviewed} style={primaryButtonStyle} hoverStyle={primaryHover}>Mark reviewed</HoverButton>
-      <HoverButton type="button" disabled={pending} onClick={() => dialog.current?.showModal()} style={secondaryButtonStyle} hoverStyle={secondaryHover}>Request retry</HoverButton>
-    </div>
+    {dismissed ? (
+      <>
+        <p style={helperStyle}>This assignment is marked done and hidden from your incomplete list.</p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <HoverButton type="button" disabled={pending} onClick={undoDone} style={secondaryButtonStyle} hoverStyle={secondaryHover}>Undo</HoverButton>
+        </div>
+      </>
+    ) : isIncomplete ? (
+      <>
+        <p style={helperStyle}>Removes this from your incomplete list. You can undo this.</p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <HoverButton type="button" disabled={pending} onClick={markDone} style={primaryButtonStyle} hoverStyle={primaryHover}>Mark as done</HoverButton>
+          <HoverButton type="button" disabled={pending} onClick={() => dialog.current?.showModal()} style={secondaryButtonStyle} hoverStyle={secondaryHover}>Request retry</HoverButton>
+        </div>
+      </>
+    ) : (
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <HoverButton type="button" disabled={pending} onClick={markReviewed} style={primaryButtonStyle} hoverStyle={primaryHover}>Mark reviewed</HoverButton>
+        <HoverButton type="button" disabled={pending} onClick={() => dialog.current?.showModal()} style={secondaryButtonStyle} hoverStyle={secondaryHover}>Request retry</HoverButton>
+      </div>
+    )}
     {error && <p role="alert" style={errorStyle}>Could not update this submission. Please try again.</p>}
     <dialog ref={dialog} aria-labelledby="retry-heading" style={dialogStyle}>
       <h2 id="retry-heading" style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 600 }}>Request retry?</h2>
@@ -59,6 +108,13 @@ const headingStyle: React.CSSProperties = {
   fontSize: 16,
   fontWeight: 600,
   color: "#111827",
+};
+
+const helperStyle: React.CSSProperties = {
+  margin: "0 0 12px",
+  fontSize: 14,
+  color: "#4B5563",
+  lineHeight: 1.5,
 };
 
 const primaryButtonStyle: React.CSSProperties = {

@@ -26,6 +26,7 @@ type AttemptOwnershipRow = {
   assignment_students: NestedRelation<{
     id: string;
     status: string;
+    dismissed_at: string | null;
     submitted_at: string | null;
     attempt_count: number;
     highest_hint_level: number;
@@ -121,6 +122,7 @@ export type AttemptEvidence = {
   studentName: string;
   attemptStatus: AttemptStatus;
   assignmentStudentStatus: string;
+  dismissedAt: string | null;
   submittedAt: string | null;
   completedAt: string | null;
   reviewReason: string | null;
@@ -150,6 +152,7 @@ function mapAttemptMetadata(row: AttemptOwnershipRow) {
     classId: assignmentClass?.id ?? "",
     className: assignmentClass?.name ?? "",
     assignmentStudentStatus: assignmentStudent?.status ?? "",
+    dismissedAt: assignmentStudent?.dismissed_at ?? null,
     missionTitle: assignment?.title ?? "Untitled mission",
     studentName: student?.display_name ?? "Unknown student",
     submittedAt: assignmentStudent?.submitted_at ?? null,
@@ -364,6 +367,7 @@ export async function getAttemptEvidenceForTeacher(input: {
         assignment_students!attempts_assignment_student_id_fkey!inner(
           id,
           status,
+          dismissed_at,
           submitted_at,
           attempt_count,
           highest_hint_level,
@@ -465,6 +469,7 @@ export async function getAttemptEvidenceForTeacher(input: {
     studentName: metadata.studentName,
     attemptStatus: attempt.data.status as AttemptStatus,
     assignmentStudentStatus: metadata.assignmentStudentStatus,
+    dismissedAt: metadata.dismissedAt,
     submittedAt: metadata.submittedAt,
     completedAt: attempt.data.completed_at,
     reviewReason: attempt.data.needs_review_reason,
