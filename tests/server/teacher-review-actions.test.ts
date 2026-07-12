@@ -1,18 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 import { markSubmissionReviewed, markSubmissionViewed, reopenSubmissionReview, requestSubmissionRetry } from "@/server/teacher/assignment-operations";
 
-function mutationClient(owned = true, rpcResult: any = { data: "ok", error: null }) {
-  const operations: any[] = [];
+function mutationClient(owned = true, rpcResult: { data: string | null; error: { message: string } | null } = { data: "ok", error: null }) {
+  const operations: Array<[string, ...unknown[]]> = [];
   const from = (table: string) => {
-    const chain: any = {
+    const chain: Record<string, unknown> = {
       select: () => chain, eq: (key: string, value: unknown) => { operations.push(["eq", table, key, value]); return chain; },
       maybeSingle: () => Promise.resolve({ data: owned ? { id: "attempt-1", status: "completed", assignment_students: { id: "as-1", status: "completed" } } : null, error: null }),
       upsert: (payload: unknown, options: unknown) => { operations.push(["upsert", table, payload, options]); return Promise.resolve({ error: null }); },
       update: (payload: unknown) => { operations.push(["update", table, payload]); return chain; },
-      then: (resolve: any) => Promise.resolve({ error: null }).then(resolve),
+      then: (resolve: (value: { error: null }) => unknown) => Promise.resolve({ error: null }).then(resolve),
     }; return chain;
   };
-  return { client: { from, rpc: vi.fn().mockResolvedValue(rpcResult) } as any, operations };
+  return { client: { from, rpc: vi.fn().mockResolvedValue(rpcResult) } as unknown as NonNullable<Parameters<typeof markSubmissionViewed>[1]>, operations };
 }
 
 describe("teacher review mutations", () => {
@@ -26,9 +26,9 @@ describe("teacher review mutations", () => {
     const { client, operations } = mutationClient();
     expect(await markSubmissionViewed({ teacherId: "teacher-1", attemptId: "attempt-1" }, client)).toEqual({ ok: true });
     const op = operations.find((item) => item[0] === "upsert");
-    expect(op[2]).toMatchObject({ teacher_id: "teacher-1", attempt_id: "attempt-1" });
-    expect(op[2]).not.toHaveProperty("reviewed_at");
-    expect(op[3]).toMatchObject({ ignoreDuplicates: true });
+    expect(op?.[2]).toMatchObject({ teacher_id: "teacher-1", attempt_id: "attempt-1" });
+    expect(op?.[2]).not.toHaveProperty("reviewed_at");
+    expect(op?.[3]).toMatchObject({ ignoreDuplicates: true });
   });
 
   it("review and retry are atomic RPC calls", async () => {

@@ -30,8 +30,12 @@ export type TeacherQueueSnapshot = {
   newest: { attemptId: string; studentName: string; assignmentTitle: string; className: string; href: string } | null;
 };
 
-type RawRow = Record<string, any>;
-const one = (value: any) => Array.isArray(value) ? value[0] : value;
+type RawValue = string | number | boolean | null | RawRow | RawRow[];
+interface RawRow { [key: string]: RawValue | undefined }
+const one = (value: RawValue | undefined): RawRow => {
+  const item = Array.isArray(value) ? value[0] : value;
+  return item && typeof item === "object" ? item as RawRow : {};
+};
 
 function mapRow(row: RawRow): TeacherReviewRow & { status: AssignmentStudentStatus; attemptStatus: string; reviewedAt: string | null; reviewPolicy: ClassReviewPolicy; isLatestAttempt: boolean } {
   const assignmentStudent = one(row.assignment_students);
@@ -39,19 +43,19 @@ function mapRow(row: RawRow): TeacherReviewRow & { status: AssignmentStudentStat
   const klass = one(assignment.classes);
   const receipt = one(row.submission_review_receipts) ?? {};
   return {
-    attemptId: row.id,
-    assignmentStudentId: assignmentStudent.id,
-    studentName: one(assignmentStudent.students).display_name,
-    assignmentTitle: assignment.title,
-    className: klass.name,
-    receivedAt: row.received_at ?? assignmentStudent.submitted_at ?? row.completed_at,
-    firstViewedAt: receipt.first_viewed_at ?? null,
-    reviewedAt: receipt.reviewed_at ?? null,
-    needsReviewReason: row.needs_review_reason ?? null,
-    reviewPolicy: klass.review_policy,
+    attemptId: String(row.id),
+    assignmentStudentId: String(assignmentStudent.id),
+    studentName: String(one(assignmentStudent.students).display_name),
+    assignmentTitle: String(assignment.title),
+    className: String(klass.name),
+    receivedAt: String(row.received_at ?? assignmentStudent.submitted_at ?? row.completed_at),
+    firstViewedAt: receipt.first_viewed_at ? String(receipt.first_viewed_at) : null,
+    reviewedAt: receipt.reviewed_at ? String(receipt.reviewed_at) : null,
+    needsReviewReason: row.needs_review_reason ? String(row.needs_review_reason) : null,
+    reviewPolicy: klass.review_policy as ClassReviewPolicy,
     isLatestAttempt: assignmentStudent.latest_attempt_id === row.id,
-    status: assignmentStudent.status,
-    attemptStatus: row.status,
+    status: assignmentStudent.status as AssignmentStudentStatus,
+    attemptStatus: String(row.status),
   };
 }
 
@@ -82,7 +86,7 @@ export async function listActivityForTeacher(input: { teacherId: string; offset?
 export async function listIncompleteForTeacher(input: { teacherId: string; now?: Date }, client: Client = createSupabaseServiceClient()) {
   const result = await client.from("assignment_students").select(`id, status, students!inner(display_name), assignments!inner(id, title, due_at, classes!inner(id, name, teacher_id))`).eq("assignments.classes.teacher_id", input.teacherId).in("status", ["assigned", "started", "missed"]);
   if (result.error) throw new Error(`Unable to load incomplete assignments: ${result.error.message}`);
-  const groups = groupIncompleteAssignments(((result.data ?? []) as RawRow[]).map((row) => { const assignment = one(row.assignments); const klass = one(assignment.classes); return { id: row.id, assignmentId: assignment.id, assignmentTitle: assignment.title, status: row.status, dueAt: assignment.due_at, studentName: one(row.students).display_name, classId: klass.id, className: klass.name }; }) as TeacherIncompleteRow[], input.now ?? new Date());
+  const groups = groupIncompleteAssignments(((result.data ?? []) as RawRow[]).map((row) => { const assignment = one(row.assignments); const klass = one(assignment.classes); return { id: String(row.id), assignmentId: String(assignment.id), assignmentTitle: String(assignment.title), status: row.status as TeacherIncompleteRow["status"], dueAt: assignment.due_at ? String(assignment.due_at) : null, studentName: String(one(row.students).display_name), classId: String(klass.id), className: String(klass.name) }; }) as TeacherIncompleteRow[], input.now ?? new Date());
   return { groups, itemCount: countIncompleteItems(groups) };
 }
 
@@ -109,7 +113,7 @@ export async function markSubmissionViewed(input: { teacherId: string; attemptId
 export async function markSubmissionReviewed(input: { teacherId: string; attemptId: string }, client: Client = createSupabaseServiceClient()) {
   const row = await loadOwnedAttempt(input, client); if (!row) return { ok: false as const, error: "not_found" as const };
   const ast = one(row.assignment_students);
-  if (!(["completed", "teacher_review"].includes(ast.status) && ["completed", "teacher_review"].includes(row.status))) return { ok: false as const, error: "invalid_transition" as const };
+  if (!(["completed", "teacher_review"].includes(String(ast.status)) && ["completed", "teacher_review"].includes(String(row.status)))) return { ok: false as const, error: "invalid_transition" as const };
   const result = await client.rpc("mark_submission_reviewed", { p_teacher_id: input.teacherId, p_attempt_id: input.attemptId });
   return result.error || result.data !== "ok" ? { ok: false as const, error: result.data === "invalid_status" ? "invalid_transition" as const : "db_error" as const } : { ok: true as const };
 }
@@ -123,7 +127,7 @@ export async function reopenSubmissionReview(input: { teacherId: string; attempt
 export async function requestSubmissionRetry(input: { teacherId: string; attemptId: string; reasonNote?: string }, client: Client = createSupabaseServiceClient()) {
   const row = await loadOwnedAttempt(input, client); if (!row) return { ok: false as const, error: "not_found" as const };
   const ast = one(row.assignment_students);
-  try { assertTransitionRequest({ previousStatus: ast.status, nextStatus: "needs_retry", actorType: "teacher", actorId: input.teacherId, reasonCode: "teacher_requested_retry", occurredAt: new Date().toISOString() }); } catch { return { ok: false as const, error: "invalid_transition" as const }; }
+  try { assertTransitionRequest({ previousStatus: ast.status as AssignmentStudentStatus, nextStatus: "needs_retry", actorType: "teacher", actorId: input.teacherId, reasonCode: "teacher_requested_retry", occurredAt: new Date().toISOString() }); } catch { return { ok: false as const, error: "invalid_transition" as const }; }
   const result = await client.rpc("request_submission_retry", { p_teacher_id: input.teacherId, p_attempt_id: input.attemptId, p_reason_note: input.reasonNote ?? "" });
   return result.error || result.data !== "ok" ? { ok: false as const, error: result.data === "invalid_status" ? "invalid_transition" as const : "db_error" as const } : { ok: true as const };
 }

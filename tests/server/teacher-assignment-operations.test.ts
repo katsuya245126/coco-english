@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { getTeacherQueueSnapshot, listNeedsReviewForTeacher } from "@/server/teacher/assignment-operations";
 
 function client(rows: unknown[]) {
-  const chain: any = { select: () => chain, eq: () => Promise.resolve({ data: rows, error: null }) };
-  return { from: () => chain } as any;
+  const chain: Record<string, unknown> = {};
+  chain.select = () => chain;
+  chain.eq = () => Promise.resolve({ data: rows, error: null });
+  return { from: () => chain } as unknown as NonNullable<Parameters<typeof listNeedsReviewForTeacher>[1]>;
 }
 
 const ownedRow = (overrides: Record<string, unknown> = {}) => ({
