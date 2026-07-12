@@ -141,3 +141,16 @@ export async function overrideAssignmentStatusAction(
   }
   return { ok: false, error: "invalid_transition" };
 }
+
+export async function markSubmissionReviewedAction(attemptId: string) {
+  const profile = await requireTeacherProfile();
+  return markSubmissionReviewed({ teacherId: profile.id, attemptId });
+}
+
+export async function requestSubmissionRetryAction(input: {
+  attemptId: string;
+  reasonNote?: string;
+}) {
+  const profile = await requireTeacherProfile();
+  return requestSubmissionRetry({ teacherId: profile.id, ...input });
+}

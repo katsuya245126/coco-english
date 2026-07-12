@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import { requireTeacherProfile } from "@/server/auth/teacher-profile";
 import { getAttemptEvidenceForTeacher } from "@/server/teacher/audio-evidence";
 import { AudioClipPlayer } from "@/components/teacher/AudioClipPlayer";
-import { OverrideControls } from "@/components/teacher/OverrideControls";
+import { SubmissionReviewControls } from "@/components/teacher/SubmissionReviewControls";
+import { markSubmissionViewed } from "@/server/teacher/assignment-operations";
 import { PronunciationDiagnosticPanel } from "@/components/teacher/PronunciationDiagnosticPanel";
 import { HoverButton } from "@/components/ui/HoverButton";
 import { HoverLink } from "@/components/ui/HoverLink";
@@ -31,6 +32,7 @@ export default async function AttemptEvidencePage({
   if (!evidence) {
     notFound();
   }
+  await markSubmissionViewed({ teacherId: profile.id, attemptId });
 
   return (
     <div style={shellStyle}>
@@ -115,10 +117,7 @@ export default async function AttemptEvidencePage({
           ))}
         </section>
 
-        <OverrideControls
-          assignmentStudentId={evidence.assignmentStudentId}
-          attemptStatus={evidence.assignmentStudentStatus as import("@/domain/foundation/status").AssignmentStudentStatus}
-        />
+        <SubmissionReviewControls attemptId={attemptId} />
       </main>
     </div>
   );
