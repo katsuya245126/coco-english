@@ -29,4 +29,15 @@ describe("teacher workspace source contract", () => {
     expect(shell).toContain("aria-expanded");
     expect(shell).not.toMatch(/email|push|sms|digest|notification-settings|realtime/i);
   });
+
+  it("renders the three approved operational queues and action boundaries", () => {
+    const views = source("src/components/teacher/TeacherQueueViews.tsx");
+    const evidence = source("src/app/teacher/evidence/[attemptId]/page.tsx");
+    for (const label of ["Needs review", "Incomplete", "All activity", "Move back to Needs review", "Missed", "Due soon", "Later", "Not started", "Started"]) expect(views).toContain(label);
+    expect(views).toContain("?student=${item.id}");
+    expect(views).toMatch(/<details[^>]*>/);
+    expect(views).not.toMatch(/<details[^>]*open/);
+    expect(views).not.toMatch(/type="checkbox"|bulk-select/i);
+    expect(evidence).not.toContain("Move back to Needs review");
+  });
 });
