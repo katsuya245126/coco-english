@@ -190,6 +190,19 @@ describe("no-attempt assignment evidence source", () => {
     expect(controls).not.toContain("Request retry");
   });
 
+  it("shows the assignment error when either dismiss action rejects", () => {
+    const controls = source(
+      "src/components/teacher/AssignmentStudentDismissControls.tsx",
+    );
+
+    expect(controls).toMatch(
+      /const markDone[\s\S]*?dismissAssignmentStudentByIdAction[\s\S]*?catch[\s\S]*?setError\(true\)/,
+    );
+    expect(controls).toMatch(
+      /const undo[\s\S]*?undoDismissByAssignmentStudentIdAction[\s\S]*?catch[\s\S]*?setError\(true\)/,
+    );
+  });
+
   it("keeps attempt evidence navigation and links no-attempt rows to assignment details", () => {
     const review = source(
       "src/app/teacher/classes/[id]/review/[assignmentId]/page.tsx",

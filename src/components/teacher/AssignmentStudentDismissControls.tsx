@@ -25,16 +25,24 @@ export function AssignmentStudentDismissControls({
 
   const markDone = () => startTransition(async () => {
     setError(false);
-    const result = await dismissAssignmentStudentByIdAction({ assignmentStudentId });
-    if (result.ok) router.push(incompleteHref);
-    else setError(true);
+    try {
+      const result = await dismissAssignmentStudentByIdAction({ assignmentStudentId });
+      if (result.ok) router.push(incompleteHref);
+      else setError(true);
+    } catch {
+      setError(true);
+    }
   });
 
   const undo = () => startTransition(async () => {
     setError(false);
-    const result = await undoDismissByAssignmentStudentIdAction(assignmentStudentId);
-    if (result.ok) router.refresh();
-    else setError(true);
+    try {
+      const result = await undoDismissByAssignmentStudentIdAction(assignmentStudentId);
+      if (result.ok) router.refresh();
+      else setError(true);
+    } catch {
+      setError(true);
+    }
   });
 
   return (
