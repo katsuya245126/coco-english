@@ -128,8 +128,17 @@ Undo: `undo_dismiss_assignment_student(...)` clears the three columns + audit ev
   submission), the Teacher action section shows **Dismiss** (primary) instead of the
   misfiring "Mark reviewed". Copy: **"Mark as done"** with helper text
   "Removes this from your incomplete list. You can undo this." Keep "Request retry" secondary.
-- On success: `router.push('/teacher')` (or back to the class incomplete view) and the item
-  is gone from Incomplete; the fingerprint-keyed snapshot sync (already built) drops the count.
+- On success: **redirect to the class incomplete view** = `/teacher/incomplete?class={className}`
+  (the existing Incomplete queue pre-filtered to that one class), so the teacher lands back on
+  the same class's remaining incomplete list and can keep clearing. The dismissed item is gone
+  from that list; the fingerprint-keyed snapshot sync (already built) drops the sidebar count.
+  - **Data threading:** the evidence metadata currently exposes `classId` but NOT `className`,
+    while the `/teacher/incomplete` filter matches by class *name* (`?class={className}`).
+    Resolve by **adding `className` to the evidence metadata select** (small addition in
+    `audio-evidence.ts` `mapAttemptMetadata`) and passing `className` into
+    `SubmissionReviewControls` alongside `attemptId`, so the client can build the redirect URL.
+    (Chosen over changing the incomplete filter to `classId` to keep this change small and
+    localized; a name→id filter migration is out of scope.)
 - For a **completed/teacher_review** submission the controls are unchanged (Mark reviewed +
   Request retry as today).
 - If the row is already dismissed, show an **Undo** affordance instead.
@@ -158,8 +167,9 @@ Undo: `undo_dismiss_assignment_student(...)` clears the three columns + audit ev
 typecheck + lint + build (baseline: 488 pass / 4 skip, all clean).
 
 ## Verification (human, after implementation)
-- Open an incomplete (missed/not-started) attempt → **Mark as done** → lands back on
-  `/teacher`, item gone from Incomplete, sidebar count dropped instantly.
+- Open an incomplete (missed/not-started) attempt → **Mark as done** → lands back on the
+  **class incomplete view** (`/teacher/incomplete?class={className}`), item gone from that
+  class's Incomplete list, sidebar count dropped instantly.
 - Undo works (item reappears).
 - A completed submission still shows Mark reviewed (unchanged).
 - After Part A cleanup: teacher queues show only the two real "John's Speaking Class" classes'
