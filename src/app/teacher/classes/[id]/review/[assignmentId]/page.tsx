@@ -288,7 +288,7 @@ export default async function AssignmentReviewPage({
                             ? `Submitted ${formatDateTime(entry.submittedAt)}`
                             : "Not yet submitted"}
                         </span>
-                        {entry.latestAttemptId && (
+                        {entry.latestAttemptId ? (
                           <Link
                             href={`/teacher/evidence/${entry.latestAttemptId}`}
                             aria-label={`Review ${entry.studentName}'s attempt`}
@@ -301,6 +301,20 @@ export default async function AssignmentReviewPage({
                             }}
                           >
                             Review evidence
+                          </Link>
+                        ) : (
+                          <Link
+                            href={`/teacher/assignment-students/${entry.id}`}
+                            aria-label={`View ${entry.studentName}'s assignment`}
+                            style={{
+                              color: "#2563EB",
+                              textDecoration: "none",
+                              fontSize: 14,
+                              fontWeight: 600,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            View assignment
                           </Link>
                         )}
                       </div>

@@ -143,3 +143,61 @@ describe("SubmissionReviewControls source", () => {
     expect(src).toContain("/teacher/incomplete?class=");
   });
 });
+
+describe("no-attempt assignment evidence source", () => {
+  it("shows truthful assignment details with dismissal actions before metadata", () => {
+    const page = source(
+      "src/app/teacher/assignment-students/[assignmentStudentId]/page.tsx",
+    );
+
+    for (const value of [
+      "Student",
+      "Mission",
+      "Status",
+      "Submitted",
+      "Attempts",
+      "Highest hint used",
+      "studentName",
+      "missionTitle",
+      "statusLabel",
+      "submittedLabel",
+      "attemptCount",
+      "highestHintLabel",
+    ]) {
+      expect(page).toContain(value);
+    }
+    expect(page.indexOf("AssignmentStudentDismissControls")).toBeLessThan(
+      page.indexOf('aria-label="Assignment summary"'),
+    );
+    expect(page).not.toMatch(
+      /Request retry|transcript|AudioClipPlayer|PronunciationDiagnosticPanel/,
+    );
+  });
+
+  it("offers only dismissal and undo controls for a no-attempt assignment", () => {
+    const controls = source(
+      "src/components/teacher/AssignmentStudentDismissControls.tsx",
+    );
+
+    expect(controls).toContain("Mark as done");
+    expect(controls).toContain(
+      "Removes this from your incomplete list. You can undo this.",
+    );
+    expect(controls).toContain("Undo");
+    expect(controls).toContain(
+      "/teacher/incomplete?class=${encodeURIComponent(className)}",
+    );
+    expect(controls).not.toContain("Request retry");
+  });
+
+  it("keeps attempt evidence navigation and links no-attempt rows to assignment details", () => {
+    const review = source(
+      "src/app/teacher/classes/[id]/review/[assignmentId]/page.tsx",
+    );
+
+    expect(review).toContain("/teacher/evidence/${entry.latestAttemptId}");
+    expect(review).toContain("Review evidence");
+    expect(review).toContain("/teacher/assignment-students/${entry.id}");
+    expect(review).toContain("View assignment");
+  });
+});
