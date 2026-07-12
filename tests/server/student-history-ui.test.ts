@@ -6,6 +6,8 @@ const root = process.cwd();
 const page = fs.readFileSync(path.join(root, "src/app/student/home/page.tsx"), "utf8");
 const shell = fs.readFileSync(path.join(root, "src/components/student/StudentHomeShell.tsx"), "utf8");
 const item = fs.readFileSync(path.join(root, "src/components/student/AssignmentListItem.tsx"), "utf8");
+const recapPage = fs.readFileSync(path.join(root, "src/app/student/history/[assignmentStudentId]/page.tsx"), "utf8");
+const recap = fs.readFileSync(path.join(root, "src/components/student/StudentMissionRecap.tsx"), "utf8");
 
 describe("student history UI source contracts", () => {
   it("requests an exact five-item URL-addressable page", () => {
@@ -20,5 +22,14 @@ describe("student history UI source contracts", () => {
     expect(item).toContain('item.displayStatus === "late"'); expect(item).not.toContain('item.displayStatus === "review" ||');
     expect(item).toContain("View what I said"); expect(item).toContain("/student/history/");
     expect(item.indexOf('item.displayStatus === "done"')).toBeLessThan(item.indexOf("const isLaunchable"));
+  });
+  it("renders a conversation-shaped, read-only final recap", () => {
+    expect(recapPage).toContain("Read-only recap"); expect(recapPage).toContain("← Past missions");
+    expect(recap).toContain("You said"); expect(recap).toContain("Recording expired");
+    expect(recap).toContain("cocoPrompt"); expect(recap).toContain("Qualitative pronunciation feedback");
+  });
+  it("contains no mutation or teacher evidence controls", () => {
+    const historySource = recapPage + recap;
+    for (const forbidden of ["VoiceRecorderControl", "startOrResume", "completeAttempt", "Request retry", "resubmitAction"]) expect(historySource).not.toContain(forbidden);
   });
 });
