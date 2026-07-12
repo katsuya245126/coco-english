@@ -31,12 +31,46 @@ export function TeacherWorkspaceStyles() {
     .teacher-shell .pagination a, .teacher-shell .pagination span { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; color: #2563eb; text-align: center; text-decoration: none; }
     .teacher-shell .pagination span { background: #f8fafc; color: #94a3b8; }
     .teacher-shell .pagination a:last-child, .teacher-shell .pagination span:last-child { justify-self: end; }
+    .teacher-shell .class-review-workspace { max-width: 1120px; margin: 0 auto; }
+    .teacher-shell .class-review-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
+    .teacher-shell .class-review-eyebrow { margin: 0 0 5px; color: #2563eb; font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+    .teacher-shell .class-review-header h1 { margin: 0; color: #172554; font-size: 27px; line-height: 1.2; }
+    .teacher-shell .class-review-header p:last-child { margin: 6px 0 0; color: #64748b; font-size: 13px; }
+    .teacher-shell .review-policy-control { display: grid; gap: 5px; min-width: 210px; color: #64748b; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+    .teacher-shell .review-policy-control select { min-height: 38px; padding: 8px 30px 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; color: #334155; font-size: 12px; text-transform: none; }
+    .teacher-shell .class-workspace-tabs { display: flex; gap: 22px; overflow-x: auto; border-bottom: 1px solid #e2e8f0; margin-bottom: 22px; }
+    .teacher-shell .class-workspace-tabs a { padding: 10px 2px; border-bottom: 2px solid transparent; color: #64748b; font-size: 13px; text-decoration: none; white-space: nowrap; }
+    .teacher-shell .class-workspace-tabs a:hover, .teacher-shell .class-workspace-tabs a.active { border-color: #2563eb; color: #1d4ed8; }
+    .teacher-shell .class-workspace-tabs a.active { font-weight: 800; }
+    .teacher-shell .class-workspace-tabs a span { display: inline-block; min-width: 20px; margin-left: 4px; padding: 2px 6px; border-radius: 999px; background: #2563eb; color: #fff; text-align: center; font-size: 10px; }
+    .teacher-shell .class-review-queue { margin-bottom: 34px; }
+    .teacher-shell .class-review-section { margin: 34px 0; scroll-margin-top: 20px; }
+    .teacher-shell .class-section-heading { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 12px; }
+    .teacher-shell .class-section-heading h2 { margin: 0; color: #172554; font-size: 19px; }
+    .teacher-shell .class-section-heading p { margin: 4px 0 0; color: #64748b; font-size: 12px; }
+    .teacher-shell .class-section-heading > span { min-width: 28px; padding: 4px 8px; border-radius: 999px; background: #e0e7ff; color: #3730a3; text-align: center; font-size: 11px; font-weight: 800; }
+    .teacher-shell .class-card-grid { display: grid; gap: 9px; }
+    .teacher-shell .class-card-grid.students { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .teacher-shell .class-assignment-card, .teacher-shell .class-student-card, .teacher-shell .class-empty { border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; }
+    .teacher-shell .class-assignment-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 16px; }
+    .teacher-shell .class-assignment-card strong, .teacher-shell .class-student-card strong { color: #0f172a; font-size: 14px; }
+    .teacher-shell .class-assignment-card p { margin: 4px 0 0; color: #64748b; font-size: 11px; }
+    .teacher-shell .class-assignment-card a, .teacher-shell .class-student-card > span:last-child { color: #2563eb; font-size: 12px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+    .teacher-shell .class-assignment-card:hover, .teacher-shell .class-student-card:hover { border-color: #93c5fd; box-shadow: 0 5px 18px #0f172a12; transform: translateY(-1px); }
+    .teacher-shell .class-student-card { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 13px 14px; color: inherit; text-decoration: none; }
+    .teacher-shell .student-initial { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: #e0e7ff; color: #3730a3; font-size: 12px; font-weight: 800; }
+    .teacher-shell .class-empty { padding: 18px; color: #475569; font-size: 13px; }
+    .teacher-shell .class-empty p { margin: 4px 0 0; }
     @media (max-width: 800px) {
       .teacher-shell { grid-template-columns: 1fr; padding-top: 48px; }
       .teacher-shell .sidebar { display: none; position: fixed; z-index: 9; inset: 48px 0 0; overflow: auto; }
       .teacher-shell .sidebar.open { display: block; }
       .teacher-shell .workspace > header { position: absolute; top: 0; left: 0; right: 0; padding-left: 110px; }
       .teacher-shell .workspace > main { padding: 16px; }
+      .teacher-shell .class-review-header { display: grid; gap: 14px; }
+      .teacher-shell .review-policy-control { min-width: 0; width: 100%; }
+      .teacher-shell .class-card-grid.students { grid-template-columns: 1fr; }
+      .teacher-shell .class-assignment-card { align-items: flex-start; }
     }
     @media (prefers-reduced-motion: reduce) {
       .teacher-shell *, .teacher-shell *::before, .teacher-shell *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }

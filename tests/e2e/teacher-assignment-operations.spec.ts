@@ -6,9 +6,11 @@ const source = (path: string) => readFileSync(join(process.cwd(), path), "utf8")
 
 test("class workspace exposes the focused queue and exact review policy", () => {
   const page = source("src/app/teacher/classes/[id]/page.tsx");
+  const workspace = source("src/components/teacher/ClassReviewWorkspace.tsx");
   const policy = source("src/components/teacher/ClassReviewPolicyControl.tsx");
-  expect(page).toContain("TeacherReviewTable");
-  for (const label of ["Needs review", "All activity", "Assignments", "Students", "Class settings"]) expect(page).toContain(label);
+  expect(page).toContain("ClassReviewWorkspace");
+  expect(workspace).toContain("TeacherReviewTable");
+  for (const label of ["Needs review", "All activity", "Assignments", "Students", "Class settings"]) expect(workspace).toContain(label);
   expect(policy).toContain("Review every submission");
   expect(policy).toContain("Review flagged submissions only");
 });
