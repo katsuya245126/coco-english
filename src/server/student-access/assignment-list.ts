@@ -42,7 +42,7 @@ type AssignmentRow = {
     due_at: string | null;
     canceled_at: string | null;
   };
-  latest_attempt: { completed_at: string | null; turns?: Array<{ count: number }> } | null;
+  latest_attempt: { completed_at: string | null; attempt_turns?: Array<{ count: number }> } | null;
 };
 
 function timestamp(value: string | null): number | null {
@@ -68,7 +68,7 @@ export async function listStudentAssignmentPage(
     .select(`
       id, status, submitted_at, latest_attempt_id,
       assignments!inner (title, mission_snapshot, due_at, canceled_at),
-      latest_attempt:attempts!assignment_students_latest_attempt_fk (completed_at, turns(count))
+      latest_attempt:attempts!assignment_students_latest_attempt_fk (completed_at, attempt_turns(count))
     `)
     .eq("student_id", studentId)
     .order("created_at", { ascending: false });
@@ -100,7 +100,7 @@ export async function listStudentAssignmentPage(
         dueAt: row.assignments.due_at,
         completedAt,
         turnCount: snapshot.data.requiredTurns,
-        completedTurnCount: row.latest_attempt?.turns?.[0]?.count ?? 0,
+        completedTurnCount: row.latest_attempt?.attempt_turns?.[0]?.count ?? 0,
         targetPattern: snapshot.data.targetPattern,
         displayStatus,
       });

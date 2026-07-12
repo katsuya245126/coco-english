@@ -14,6 +14,7 @@ describe("student history UI source contracts", () => {
   it("requests an exact five-item URL-addressable page", () => {
     expect(page).toContain("pageSize: 5"); expect(page).toContain('query.tab === "past"');
     expect(page).toContain("assignmentPage={page}"); expect(page).not.toContain("assignments={assignments}");
+    expect(fs.readFileSync(path.join(root, "src/server/student-access/assignment-list.ts"), "utf8")).toContain("attempt_turns(count)");
   });
   it("renders accessible Current/Past missions and page links", () => {
     expect(shell).toContain("Current"); expect(shell).toContain("Past missions");
