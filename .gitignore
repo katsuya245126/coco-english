@@ -23,6 +23,7 @@ supabase/.temp/
 .vercel
 .env*
 .scratch
+.worktrees/
 
 # Personal notes, not for the repo (interview prep etc.)
 docs/DESIGN-DECISIONS.md
