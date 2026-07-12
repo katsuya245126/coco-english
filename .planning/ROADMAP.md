@@ -148,7 +148,7 @@ Archive:
 
 **Wave 3** *(primary user surfaces)*
 
-- [ ] 10.1-03-PLAN.md — shared teacher workspace, 30-second non-disruptive freshness, Needs review, Incomplete, and All activity
+- [x] 10.1-03-PLAN.md — shared teacher workspace, 30-second non-disruptive freshness, Needs review, Incomplete, and All activity
 - [ ] 10.1-07-PLAN.md — student-scoped final-attempt recap, on-demand audio, expiry fallback, and isolation tests
 
 **Wave 4** *(teacher drill-down integration)*
@@ -238,7 +238,7 @@ Phases execute in numeric order: 8 → 9 → 10 → 10.1 → 11 → 12 → 13 (P
 | 8. Coco Voice (TTS) | v2.0 | 5/5 | Complete (accepted with residual low-end-device risk) | 2026-07-02 |
 | 9. Pronunciation Scoring | v2.0 | 6/6 | Complete | 2026-07-03 |
 | 10. VN-Style Mascot | v2.0 | 4/4 | Complete (accepted with residual low-end-device risk) | 2026-07-11 |
-| 10.1 Assignment Operations & Student History | v2.0 | 3/7 | In Progress|  |
+| 10.1 Assignment Operations & Student History | v2.0 | 5/7 | In Progress|  |
 | 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 0/7 | Planned | - |
 | 12. UI Overhaul | v2.0 | 0/TBD | Not started | - |
 | 13. Pronunciation Remediation Videos | v2.0 | 0/TBD | Not planned | - |
