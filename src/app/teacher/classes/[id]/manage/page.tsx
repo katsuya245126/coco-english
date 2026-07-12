@@ -55,8 +55,8 @@ export default async function ClassManagePage({
           borderBottom: "1px solid #E5E7EB",
         }}
       >
-        <Link href="/teacher" style={{ fontSize: 14, color: "#2563EB", textDecoration: "none" }}>
-          ← Classes
+        <Link href={`/teacher/classes/${classId}`} style={{ fontSize: 14, color: "#2563EB", textDecoration: "none" }}>
+          ← Back to class
         </Link>
       </header>
 

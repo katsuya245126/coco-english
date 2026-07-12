@@ -131,6 +131,13 @@ describe("teacher workspace source contract", () => {
     expect(assignments).toContain("class-assignment-card");
     expect(students).toContain("class-student-card");
   });
+
+  it("class settings links back to the class workspace, not the teacher home", () => {
+    const manage = source("src/app/teacher/classes/[id]/manage/page.tsx");
+    expect(manage).toContain("← Back to class");
+    expect(manage).toContain("/teacher/classes/${classId}");
+    expect(manage).not.toContain('href="/teacher"');
+  });
 });
 
 describe("SubmissionReviewControls source", () => {
