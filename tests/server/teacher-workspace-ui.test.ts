@@ -45,8 +45,9 @@ describe("teacher workspace source contract", () => {
 
   it("applies prototype shell styles globally so Next links stay styled", () => {
     const layout = source("src/app/teacher/layout.tsx");
-    const styles = source("src/app/teacher/teacher-workspace.css");
-    expect(layout).toContain('import "./teacher-workspace.css"');
+    const styles = source("src/components/teacher/TeacherWorkspaceStyles.tsx");
+    expect(layout).toContain("<TeacherWorkspaceStyles/>");
+    expect(styles).toContain("<style jsx global>");
     expect(styles).toContain("grid-template-columns: 210px minmax(0, 1fr)");
     expect(styles).toContain(".teacher-shell .nav.active");
     expect(styles).toContain(".teacher-shell .count");
