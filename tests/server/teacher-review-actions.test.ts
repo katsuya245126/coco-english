@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { dismissAssignmentStudent, markSubmissionReviewed, markSubmissionViewed, reopenSubmissionReview, requestSubmissionRetry, undoDismiss } from "@/server/teacher/assignment-operations";
+import { dismissAssignmentStudent, dismissAssignmentStudentById, markSubmissionReviewed, markSubmissionViewed, reopenSubmissionReview, requestSubmissionRetry, undoDismiss, undoDismissByAssignmentStudentId } from "@/server/teacher/assignment-operations";
 
 function mutationClient(owned = true, rpcResult: { data: string | null; error: { message: string } | null } = { data: "ok", error: null }) {
   const operations: Array<[string, ...unknown[]]> = [];
@@ -16,6 +16,34 @@ function mutationClient(owned = true, rpcResult: { data: string | null; error: {
 }
 
 describe("teacher review mutations", () => {
+  it("by-id dismiss performs no RPC for a cross-teacher assignment student", async () => {
+    const { client } = mutationClient(false);
+    expect(await dismissAssignmentStudentById({ teacherId: "teacher-2", assignmentStudentId: "as-1" }, client)).toEqual({ ok: false, error: "not_found" });
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it("by-id dismiss calls the exact RPC for an owned assignment student", async () => {
+    const { client } = mutationClient();
+    expect(await dismissAssignmentStudentById({ teacherId: "teacher-1", assignmentStudentId: "as-1" }, client)).toEqual({ ok: true });
+    expect(client.rpc).toHaveBeenCalledWith("dismiss_assignment_student_by_id", {
+      p_teacher_id: "teacher-1", p_assignment_student_id: "as-1", p_reason: "",
+    });
+  });
+
+  it("by-id undo performs no RPC for a cross-teacher assignment student", async () => {
+    const { client } = mutationClient(false);
+    expect(await undoDismissByAssignmentStudentId({ teacherId: "teacher-2", assignmentStudentId: "as-1" }, client)).toEqual({ ok: false, error: "not_found" });
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it("by-id undo calls the exact RPC for an owned assignment student", async () => {
+    const { client } = mutationClient();
+    expect(await undoDismissByAssignmentStudentId({ teacherId: "teacher-1", assignmentStudentId: "as-1" }, client)).toEqual({ ok: true });
+    expect(client.rpc).toHaveBeenCalledWith("undo_dismiss_assignment_student_by_id", {
+      p_teacher_id: "teacher-1", p_assignment_student_id: "as-1",
+    });
+  });
+
   it("dismiss performs zero writes and returns not_found for a cross-teacher attempt", async () => {
     const { client, operations } = mutationClient(false);
     expect(await dismissAssignmentStudent({ teacherId: "teacher-2", attemptId: "attempt-1", reason: "test" }, client)).toEqual({ ok: false, error: "not_found" });
