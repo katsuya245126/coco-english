@@ -1,18 +1,13 @@
-export type ClassReviewPolicy = "every_submission" | "flagged_only";
-
 export type ReviewEligibilityInput = {
   isLatestAttempt: boolean;
   reviewedAt: string | null;
-  needsReviewReason: string | null;
-  reviewPolicy: ClassReviewPolicy;
   status: "completed" | "teacher_review" | "started" | "assigned" | "missed" | "needs_retry";
   attemptStatus: string;
 };
 
 export function isSubmissionPendingReview(input: ReviewEligibilityInput): boolean {
   if (!input.isLatestAttempt || input.reviewedAt !== null) return false;
-  if (!["completed", "teacher_review"].includes(input.status) || !["completed", "teacher_review"].includes(input.attemptStatus)) return false;
-  return input.needsReviewReason !== null || input.reviewPolicy === "every_submission";
+  return ["completed", "teacher_review"].includes(input.status) && ["completed", "teacher_review"].includes(input.attemptStatus);
 }
 
 export type IncompleteStatus = "assigned" | "started" | "missed" | "completed" | "needs_retry" | "teacher_review";

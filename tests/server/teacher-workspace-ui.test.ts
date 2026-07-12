@@ -117,17 +117,16 @@ describe("teacher workspace source contract", () => {
   it("renders the approved class review workspace without a nested legacy shell", () => {
     const page = source("src/app/teacher/classes/[id]/page.tsx");
     const workspace = source("src/components/teacher/ClassReviewWorkspace.tsx");
-    const policy = source("src/components/teacher/ClassReviewPolicyControl.tsx");
     expect(page).toContain("<ClassReviewWorkspace");
     expect(page).not.toContain('minHeight: "100dvh"');
     expect(page).not.toContain("<header");
     for (const label of ["Assignment Review", "Needs review", "Assignments", "Students", "Class settings"]) expect(workspace).toContain(label);
     expect(workspace).not.toContain("All activity");
+    expect(workspace).not.toContain("ClassReviewPolicyControl");
     expect(workspace).toContain("class-review-header");
     expect(workspace).toContain("class-workspace-tabs");
     expect(workspace).toContain("class-assignment-card");
     expect(workspace).toContain("class-student-card");
-    expect(policy).toContain("review-policy-control");
   });
 });
 

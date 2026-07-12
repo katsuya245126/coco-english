@@ -10,7 +10,7 @@ function client(rows: unknown[]) {
 
 const ownedRow = (overrides: Record<string, unknown> = {}) => ({
   id: "attempt-1", status: "completed", completed_at: "2026-07-12T00:00:00Z", needs_review_reason: null,
-  assignment_students: { id: "as-1", status: "completed", submitted_at: "2026-07-12T00:00:00Z", latest_attempt_id: "attempt-1", students: { display_name: "Mina" }, assignments: { id: "a-1", title: "Hello", classes: { name: "A", review_policy: "every_submission" } } },
+  assignment_students: { id: "as-1", status: "completed", submitted_at: "2026-07-12T00:00:00Z", latest_attempt_id: "attempt-1", students: { display_name: "Mina" }, assignments: { id: "a-1", title: "Hello", classes: { name: "A" } } },
   submission_review_receipts: [], ...overrides,
 });
 
@@ -20,8 +20,8 @@ describe("teacher assignment reads", () => {
     expect((await listNeedsReviewForTeacher({ teacherId: "teacher-1" }, client([reviewed, ownedRow()]))).map((r) => r.attemptId)).toEqual(["attempt-1"]);
   });
 
-  it("uses durable flagged origin in flagged-only classes", async () => {
-    const row = ownedRow({ needs_review_reason: "low_confidence", assignment_students: { ...ownedRow().assignment_students, assignments: { ...ownedRow().assignment_students.assignments, classes: { name: "A", review_policy: "flagged_only" } } } });
+  it("includes ordinary completions without any policy gate", async () => {
+    const row = ownedRow({ needs_review_reason: null });
     expect(await listNeedsReviewForTeacher({ teacherId: "teacher-1" }, client([row]))).toHaveLength(1);
   });
 

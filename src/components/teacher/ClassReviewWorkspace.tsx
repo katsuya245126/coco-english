@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { ClassReviewPolicyControl } from "@/components/teacher/ClassReviewPolicyControl";
 import { TeacherReviewTable } from "@/components/teacher/TeacherQueueViews";
-import type { ClassReviewPolicy } from "@/domain/teacher/assignment-operations";
 import type { TeacherReviewRow } from "@/server/teacher/assignment-operations";
 
 type ClassAssignment = { id: string; title: string; dueAt: string | null };
@@ -12,11 +10,10 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(value));
 }
 
-export function ClassReviewWorkspace({ classId, className, joinCode, reviewPolicy, assignments, students, reviewRows }: { classId: string; className: string; joinCode: string | null; reviewPolicy: ClassReviewPolicy; assignments: ClassAssignment[]; students: ClassStudent[]; reviewRows: TeacherReviewRow[] }) {
+export function ClassReviewWorkspace({ classId, className, joinCode, assignments, students, reviewRows }: { classId: string; className: string; joinCode: string | null; assignments: ClassAssignment[]; students: ClassStudent[]; reviewRows: TeacherReviewRow[] }) {
   return <section className="class-review-workspace">
     <div className="class-review-header">
-      <div><p className="class-review-eyebrow">Assignment Review</p><h1>{className}</h1><p>{students.length} active student{students.length === 1 ? "" : "s"} · {reviewPolicy === "every_submission" ? "Review every submission" : "Review flagged submissions only"}</p>{joinCode && <p className="class-review-joincode">Class code <code>{joinCode}</code></p>}</div>
-      <ClassReviewPolicyControl classId={classId} value={reviewPolicy}/>
+      <div><p className="class-review-eyebrow">Assignment Review</p><h1>{className}</h1><p>{students.length} active student{students.length === 1 ? "" : "s"}</p>{joinCode && <p className="class-review-joincode">Class code <code>{joinCode}</code></p>}</div>
     </div>
 
     <nav aria-label="Class workspace" className="class-workspace-tabs">

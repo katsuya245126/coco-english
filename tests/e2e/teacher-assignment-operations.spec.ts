@@ -4,15 +4,13 @@ import { expect, test } from "@playwright/test";
 
 const source = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
 
-test("class workspace exposes the focused queue and exact review policy", () => {
+test("class workspace exposes the focused queue without a review-policy control", () => {
   const page = source("src/app/teacher/classes/[id]/page.tsx");
   const workspace = source("src/components/teacher/ClassReviewWorkspace.tsx");
-  const policy = source("src/components/teacher/ClassReviewPolicyControl.tsx");
   expect(page).toContain("ClassReviewWorkspace");
   expect(workspace).toContain("TeacherReviewTable");
   for (const label of ["Needs review", "Assignments", "Students", "Class settings"]) expect(workspace).toContain(label);
-  expect(policy).toContain("Review every submission");
-  expect(policy).toContain("Review flagged submissions only");
+  expect(workspace).not.toContain("ClassReviewPolicyControl");
 });
 
 test("assignment drill-down validates and highlights only an in-scope student", () => {
