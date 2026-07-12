@@ -40,7 +40,7 @@ const LEGAL_TRANSITIONS: Record<
   assigned: new Set(["started", "missed"]),
   started: new Set(["completed", "missed", "needs_retry", "teacher_review"]),
   completed: new Set(["teacher_review", "needs_retry"]),
-  missed: new Set(),
+  missed: new Set(["started"]),
   needs_retry: new Set(["started", "teacher_review"]),
   teacher_review: new Set(["completed", "needs_retry", "started"]),
 };

@@ -25,6 +25,7 @@ describe("foundation assignment status rules", () => {
     ["started", "missed"],
     ["started", "needs_retry"],
     ["started", "teacher_review"],
+    ["missed", "started"],
     ["needs_retry", "started"],
     ["needs_retry", "teacher_review"],
     ["teacher_review", "completed"],
@@ -38,7 +39,9 @@ describe("foundation assignment status rules", () => {
   it.each([
     ["assigned", "completed"],
     ["assigned", "needs_retry"],
-    ["missed", "started"],
+    ["missed", "completed"],
+    ["missed", "teacher_review"],
+    ["missed", "needs_retry"],
     ["completed", "started"],
     ["needs_retry", "missed"],
   ] as const)("rejects illegal transition %s -> %s", (previousStatus, nextStatus) => {

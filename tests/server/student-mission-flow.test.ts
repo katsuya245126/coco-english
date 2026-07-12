@@ -194,6 +194,26 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(missionFlowSource).toContain("reason_code: reasonCode");
   });
 
+  it("missed-but-open homework starts through the owned audited transition (D-22)", () => {
+    const missionFlowSource = readFileSync(
+      "src/server/student-access/mission-flow.ts",
+      "utf8",
+    );
+
+    expect(missionFlowSource).toContain('asRow.status !== "missed"');
+    expect(missionFlowSource).toContain('asRow.status === "missed"');
+    expect(missionFlowSource).toContain('"late_mission_started"');
+    expect(missionFlowSource).toContain('.eq("student_id", studentId)');
+    expect(missionFlowSource).toContain("assignments(canceled_at)");
+    expect(missionFlowSource).toContain("if (assignment?.canceled_at) return null");
+    expect(missionFlowSource).toContain('.eq("status", asRow.status)');
+    expect(missionFlowSource).toContain("attempt_count: asRow.attempt_count + 1");
+    expect(missionFlowSource).toContain("latest_attempt_id: newAttempt.id");
+    expect(missionFlowSource).toContain('actor_type: "student_session"');
+    expect(missionFlowSource).toContain("reason_code: reasonCode");
+    expect(missionFlowSource).toContain('status: "abandoned" as const');
+  });
+
   it("completion is delegated to the atomic database RPC", () => {
     const missionFlowSource = readFileSync(
       "src/server/student-access/mission-flow.ts",

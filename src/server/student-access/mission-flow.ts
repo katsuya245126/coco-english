@@ -191,8 +191,9 @@ export async function routeAssignmentStudentToTeacherReview(input: {
  * Start or resume an attempt for an assignment (D-04, Pitfall 1).
  *
  * If status is 'started' and an in_progress attempt exists, resumes it
- * at the next unfinished turn. If status is 'assigned', creates exactly
- * one new attempt and performs the audited assigned->started transition.
+ * at the next unfinished turn. If status is 'assigned', 'missed', or
+ * 'needs_retry', creates exactly one new attempt and performs the audited
+ * transition to started.
  * Never creates a second attempt when one is in_progress.
  */
 export async function startOrResumeAttempt(input: {
@@ -256,8 +257,12 @@ export async function startOrResumeAttempt(input: {
       }
     }
 
-    // 3. Only create a new attempt if status is 'assigned' or 'needs_retry' (D-10)
-    if (asRow.status !== "assigned" && asRow.status !== "needs_retry") {
+    // 3. Create a new attempt only for fresh, late-open, or teacher-reopened work.
+    if (
+      asRow.status !== "assigned" &&
+      asRow.status !== "missed" &&
+      asRow.status !== "needs_retry"
+    ) {
       return { ok: false, error: "not_assigned_or_started" };
     }
 
@@ -278,7 +283,11 @@ export async function startOrResumeAttempt(input: {
     // 5. Audited transition — use actual prior status and appropriate reason code
     const nowIso = new Date().toISOString();
     const reasonCode =
-      asRow.status === "needs_retry" ? "reopened_by_teacher" : "mission_started";
+      asRow.status === "needs_retry"
+        ? "reopened_by_teacher"
+        : asRow.status === "missed"
+          ? "late_mission_started"
+          : "mission_started";
     assertTransitionRequest({
       previousStatus: asRow.status,
       nextStatus: "started",
@@ -288,7 +297,7 @@ export async function startOrResumeAttempt(input: {
     });
 
     // Conditional UPDATE. Use dynamic prior status as the claim guard so optimistic
-    // locking works for both 'assigned' and 'needs_retry' paths (T-07-08).
+    // locking works for assigned, missed, and needs_retry paths (T-07-08).
     const { data: claimed, error: claimError } = await supabase
       .from("assignment_students")
       .update({
