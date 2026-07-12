@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { readStudentUnlock } from "@/app/join/actions";
 import { StudentHomeShell } from "@/components/student/StudentHomeShell";
 import { listStudentAssignmentPage, type StudentAssignmentTab } from "@/server/student-access/assignment-list";
-import { pageStyle, panelStyle } from "@/components/student/styles";
+import { StudentHomeStyles } from "@/components/student/StudentHomeStyles";
 
 // Student home shell route (STUD-04, STUD-05, FLOW-01, D-14).
 //
@@ -27,14 +27,17 @@ export default async function StudentHomePage({ searchParams }: { searchParams: 
     page: Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1,
     pageSize: 5,
   });
+  const currentCount = tab === "current" ? page.total : (await listStudentAssignmentPage(unlock.studentId, { tab: "current", page: 1, pageSize: 1 })).total;
 
   return (
-    <main style={pageStyle}>
-      <div style={panelStyle}>
+    <main className="student-home-page">
+      <StudentHomeStyles/>
+      <div className="student-home-phone">
         <StudentHomeShell
           className={unlock.className}
           displayName={unlock.displayName}
           assignmentPage={page}
+          currentCount={currentCount}
         />
       </div>
     </main>

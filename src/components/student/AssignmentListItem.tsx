@@ -1,158 +1,20 @@
 "use client";
 
 import type { StudentAssignmentListItem } from "@/server/student-access/assignment-list";
-import {
-  badgeStartStyle,
-  badgeContinueStyle,
-  badgeDoneStyle,
-  badgeLateStyle,
-  badgeRetryStyle,
-} from "@/components/student/styles";
-import type { CSSProperties } from "react";
 
-const cardStyle: CSSProperties = {
-  background: "#FFFFFF",
-  border: "1px solid #D1D5DB",
-  borderRadius: 8,
-  padding: 16,
-  boxSizing: "border-box",
-};
+const BADGE_LABELS: Record<StudentAssignmentListItem["displayStatus"], string> = { start: "New", continue: "In progress", retry: "Retry", done: "Completed", late: "Late", review: "Teacher review" };
+const ACTION_LABELS: Partial<Record<StudentAssignmentListItem["displayStatus"], string>> = { start: "Start mission", continue: "Continue mission", retry: "Try again", late: "Continue mission" };
 
-const doneCardStyle: CSSProperties = {
-  ...cardStyle,
-  background: "#F9FAFB",
-  border: "1px solid #E5E7EB",
-  opacity: 0.75,
-};
-
-const linkCardStyle: CSSProperties = {
-  ...cardStyle,
-  display: "block",
-  textDecoration: "none",
-  color: "inherit",
-};
-
-const row1Style: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 8,
-};
-
-const titleStyle: CSSProperties = {
-  fontSize: 16,
-  fontWeight: 400,
-  lineHeight: 1.5,
-  color: "#111827",
-  margin: 0,
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  whiteSpace: "nowrap",
-  flex: 1,
-  minWidth: 0,
-};
-
-const row2Style: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginTop: 4,
-};
-
-const metaStyle: CSSProperties = {
-  fontSize: 14,
-  fontWeight: 600,
-  lineHeight: 1.4,
-  color: "#4B5563",
-  margin: 0,
-};
-
-const BADGE_STYLES: Record<
-  StudentAssignmentListItem["displayStatus"],
-  CSSProperties
-> = {
-  start: badgeStartStyle,
-  continue: badgeContinueStyle,
-  retry: badgeRetryStyle,
-  done: badgeDoneStyle,
-  late: badgeLateStyle,
-  review: badgeRetryStyle,
-};
-
-const BADGE_LABELS: Record<
-  StudentAssignmentListItem["displayStatus"],
-  string
-> = {
-  start: "Start",
-  continue: "Continue",
-  retry: "Retry",
-  done: "Done",
-  late: "Late",
-  review: "Teacher review",
-};
-
-function formatDueDate(dueAt: string | null): string {
-  if (!dueAt) return "No deadline";
-  const d = new Date(dueAt);
-  if (Number.isNaN(d.getTime())) return "No deadline";
-  return `Due ${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+function dateLabel(value: string | null, prefix: string) {
+  if (!value || Number.isNaN(new Date(value).getTime())) return prefix === "Due" ? "No deadline" : "Completed";
+  return `${prefix} ${new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
 }
 
-function formatCompletedDate(completedAt: string | null): string {
-  if (!completedAt || Number.isNaN(new Date(completedAt).getTime())) return "Completed";
-  return `Completed ${new Date(completedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
-}
+export function AssignmentListItem({ item }: { item: StudentAssignmentListItem }) {
+  if (item.displayStatus === "done") return <article className="student-mission-card past"><div className="student-mission-top"><div><h2>{item.title}</h2><p>Practice: “{item.targetPattern}” · {item.turnCount} turns</p></div><span className="student-mission-badge done">Completed</span></div><div className="student-mission-past-meta"><span>{dateLabel(item.completedAt, "Completed")}</span><a href={`/student/history/${item.assignmentStudentId}`}>View what I said →</a></div></article>;
 
-export function AssignmentListItem({
-  item,
-}: {
-  item: StudentAssignmentListItem;
-}) {
-  const badge = (
-    <span style={BADGE_STYLES[item.displayStatus]}>
-      {BADGE_LABELS[item.displayStatus]}
-    </span>
-  );
+  const isLaunchable = item.displayStatus === "start" || item.displayStatus === "continue" || item.displayStatus === "retry" || item.displayStatus === "late";
+  const content = <><div className="student-mission-top"><div><h2>{item.title}</h2><p>Practice: “{item.targetPattern}” · {item.turnCount} turns</p></div><span className={`student-mission-badge ${item.displayStatus}`}>{BADGE_LABELS[item.displayStatus]}</span></div>{item.completedTurnCount > 0 && <div className="student-mission-progress" aria-label={`${item.completedTurnCount} of ${item.turnCount} turns completed`}><span style={{ width: `${Math.min(100, (item.completedTurnCount / item.turnCount) * 100)}%` }}/></div>}<div className="student-mission-meta"><span>{item.completedTurnCount > 0 ? `${item.completedTurnCount} of ${item.turnCount} turns completed` : dateLabel(item.dueAt, "Due")}</span>{item.completedTurnCount > 0 && <span>{dateLabel(item.dueAt, "Due")}</span>}</div>{isLaunchable && <span className="student-mission-action">{ACTION_LABELS[item.displayStatus]}</span>}</>;
 
-  const meta = (
-    <div style={row2Style}>
-      <span style={metaStyle}>{item.turnCount} turns</span>
-      <span style={metaStyle}>{formatDueDate(item.dueAt)}</span>
-    </div>
-  );
-
-  if (item.displayStatus === "done") {
-    return <div style={doneCardStyle}><div style={row1Style}><p style={titleStyle}>{item.title}</p><span style={badgeDoneStyle}>Completed</span></div><div style={row2Style}><span style={metaStyle}>{formatCompletedDate(item.completedAt)}</span><a href={`/student/history/${item.assignmentStudentId}`}>View what I said</a></div></div>;
-  }
-
-  const isLaunchable =
-    item.displayStatus === "start" ||
-    item.displayStatus === "continue" ||
-    item.displayStatus === "retry" ||
-    item.displayStatus === "late";
-
-  if (isLaunchable) {
-    return (
-      <a
-        href={`/student/missions/${item.assignmentStudentId}`}
-        style={linkCardStyle}
-      >
-        <div style={row1Style}>
-          <p style={titleStyle}>{item.title}</p>
-          {badge}
-        </div>
-        {meta}
-      </a>
-    );
-  }
-
-  return (
-    <div style={doneCardStyle}>
-      <div style={row1Style}>
-        <p style={titleStyle}>{item.title}</p>
-        {badge}
-      </div>
-      {meta}
-    </div>
-  );
+  return isLaunchable ? <a className="student-mission-card" href={`/student/missions/${item.assignmentStudentId}`}>{content}</a> : <article className="student-mission-card waiting">{content}</article>;
 }

@@ -2,105 +2,38 @@
 
 import { useRouter } from "next/navigation";
 import { clearStudentUnlockAction } from "@/app/join/actions";
-import {
-  bodyStyle,
-  displayTitleStyle,
-  headingStyle,
-  secondaryButtonStyle,
-} from "@/components/student/styles";
 import { AssignmentListItem } from "@/components/student/AssignmentListItem";
 import type { StudentAssignmentPage } from "@/server/student-access/assignment-list";
 
-// Verbatim UI-SPEC copy.
-const NO_HOMEWORK_HEADING = "No homework yet";
-const NO_HOMEWORK_BODY =
-  "You are signed in for this class. Your teacher has not assigned speaking homework yet.";
-
-type StudentHomeShellProps = {
-  className: string;
-  displayName: string;
-  assignmentPage: StudentAssignmentPage;
-};
-
-// Student home shell (STUD-05, D-14, FLOW-01).
-//
-// Renders the student's assignment list with per-item badge states, or falls
-// back to the "No homework yet" empty state when no assignments exist (D-13).
-// The assignment list is passed from the SSR page; no client-side data fetching.
-export function StudentHomeShell({
-  className,
-  displayName,
-  assignmentPage,
-}: StudentHomeShellProps) {
+export function StudentHomeShell({ className, displayName, assignmentPage, currentCount }: { className: string; displayName: string; assignmentPage: StudentAssignmentPage; currentCount: number }) {
   const router = useRouter();
+  const pageHref = (page: number) => `/student/home?tab=${assignmentPage.tab}&page=${page}`;
 
   async function handleSwitchClass() {
     await clearStudentUnlockAction();
     router.push("/join");
   }
 
-  const hasAssignments = assignmentPage.items.length > 0;
-  const pageHref = (page: number) => `/student/home?tab=${assignmentPage.tab}&page=${page}`;
-
-  return (
-    <div>
-      <h1 style={displayTitleStyle}>{className}</h1>
-      <p style={{ ...bodyStyle, marginBottom: 24 }}>
-        Signed in as <strong>{displayName}</strong>
-      </p>
-
-      <nav aria-label="Mission lists" style={{ display: "flex", gap: 20, borderBottom: "1px solid #E5E7EB", marginBottom: 20 }}>
-        <a href="/student/home?tab=current&page=1" aria-current={assignmentPage.tab === "current" ? "page" : undefined} style={{ padding: "10px 2px", color: assignmentPage.tab === "current" ? "#2563EB" : "#64748B", fontWeight: 700, textDecoration: "none", borderBottom: assignmentPage.tab === "current" ? "2px solid #2563EB" : "2px solid transparent" }}>Current{assignmentPage.tab === "current" ? ` · ${assignmentPage.total}` : ""}</a>
-        <a href="/student/home?tab=past&page=1" aria-current={assignmentPage.tab === "past" ? "page" : undefined} style={{ padding: "10px 2px", color: assignmentPage.tab === "past" ? "#2563EB" : "#64748B", fontWeight: 700, textDecoration: "none", borderBottom: assignmentPage.tab === "past" ? "2px solid #2563EB" : "2px solid transparent" }}>Past missions</a>
+  return <div className="student-home-shell">
+    <header className="student-home-header">
+      <div className="student-home-greeting"><div><h1>Hi, {displayName}! <span aria-hidden="true">👋</span></h1><p>{className}</p></div><div aria-hidden="true" className="student-home-avatar">🥥</div></div>
+      <nav aria-label="Mission lists" className="student-home-tabs">
+        <a aria-current={assignmentPage.tab === "current" ? "page" : undefined} href="/student/home?tab=current&page=1">Current · {currentCount}</a>
+        <a aria-current={assignmentPage.tab === "past" ? "page" : undefined} href="/student/home?tab=past&page=1">Past missions</a>
       </nav>
+    </header>
 
-      {hasAssignments ? (
-        <section aria-live="polite">
-          <h2 style={{ ...headingStyle, marginBottom: 8 }}>{assignmentPage.tab === "current" ? "Your missions" : "Completed missions"}</h2>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-              marginBottom: 16,
-            }}
-          >
-            {assignmentPage.items.map((item) => (
-              <AssignmentListItem
-                key={item.assignmentStudentId}
-                item={item}
-              />
-            ))}
-          </div>
-          {assignmentPage.totalPages > 1 ? <nav aria-label="Mission pages" style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginBottom: 16 }}>
-            {assignmentPage.page > 1 ? <a href={pageHref(assignmentPage.page - 1)}>Previous</a> : <span>Previous</span>}
-            {Array.from({ length: assignmentPage.totalPages }, (_, index) => index + 1).map((page) => <a key={page} href={pageHref(page)} aria-current={page === assignmentPage.page ? "page" : undefined}>{page}</a>)}
-            {assignmentPage.page < assignmentPage.totalPages ? <a href={pageHref(assignmentPage.page + 1)}>Next</a> : <span>Next</span>}
-          </nav> : null}
-        </section>
-      ) : (
-        <section
-          aria-live="polite"
-          style={{
-            background: "#F7F8FA",
-            border: "1px solid #E5E7EB",
-            borderRadius: 8,
-            padding: 24,
-            marginBottom: 16,
-          }}
-        >
-          <h2 style={headingStyle}>{assignmentPage.tab === "past" ? "No past missions yet" : NO_HOMEWORK_HEADING}</h2>
-          <p style={{ ...bodyStyle, marginBottom: 0 }}>{assignmentPage.tab === "past" ? "Completed speaking missions will show up here." : NO_HOMEWORK_BODY}</p>
-        </section>
-      )}
+    <section aria-live="polite" className="student-home-list">
+      <div className="student-home-section-title"><strong>{assignmentPage.tab === "current" ? "Your missions" : "Completed missions"}</strong><span>{assignmentPage.tab === "current" ? "Due soon first" : "Newest first"}</span></div>
+      {assignmentPage.items.length > 0 ? assignmentPage.items.map((item) => <AssignmentListItem item={item} key={item.assignmentStudentId}/>) : <div className="student-home-empty"><div aria-hidden="true">{assignmentPage.tab === "past" ? "🗂️" : "🌱"}</div><h2>{assignmentPage.tab === "past" ? "No past missions yet" : "No homework yet"}</h2><p>{assignmentPage.tab === "past" ? "Completed speaking missions will show up here." : "Your teacher has not assigned speaking homework yet."}</p></div>}
 
-      <button
-        type="button"
-        style={secondaryButtonStyle}
-        onClick={handleSwitchClass}
-      >
-        Switch class
-      </button>
-    </div>
-  );
+      {assignmentPage.totalPages > 1 && <nav aria-label="Mission pages" className="student-home-pager">
+        {assignmentPage.page > 1 ? <a aria-label="Previous page" href={pageHref(assignmentPage.page - 1)}>‹</a> : <span aria-disabled="true">‹</span>}
+        {Array.from({ length: assignmentPage.totalPages }, (_, index) => index + 1).map((page) => <a aria-current={page === assignmentPage.page ? "page" : undefined} href={pageHref(page)} key={page}>{page}</a>)}
+        {assignmentPage.page < assignmentPage.totalPages ? <a aria-label="Next page" href={pageHref(assignmentPage.page + 1)}>›</a> : <span aria-disabled="true">›</span>}
+      </nav>}
+      <p className="student-home-page-hint">Up to 5 missions per page</p>
+      <button className="student-switch-class" onClick={handleSwitchClass} type="button">Switch class</button>
+    </section>
+  </div>;
 }

@@ -31,6 +31,7 @@ describe("listStudentAssignmentPage", () => {
     const { listStudentAssignmentPage } = await import("@/server/student-access/assignment-list");
     const page = await listStudentAssignmentPage("student-1", { tab: "current", page: 1 });
     expect(page.items.map((item) => item.assignmentStudentId)).toEqual(["retry", "soon", "boundary", "later"]);
+    expect(page.items[0]).toMatchObject({ targetPattern: "I like X.", completedTurnCount: 0 });
     expect(eq).toHaveBeenCalledWith("student_id", "student-1");
   });
 
