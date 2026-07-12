@@ -194,13 +194,20 @@ describe("no-attempt assignment evidence source", () => {
     const controls = source(
       "src/components/teacher/AssignmentStudentDismissControls.tsx",
     );
+    const markDoneStart = controls.indexOf("const markDone");
+    const undoStart = controls.indexOf("const undo");
+    const renderStart = controls.indexOf("return (");
+    const markDone = controls.slice(markDoneStart, undoStart);
+    const undo = controls.slice(undoStart, renderStart);
 
-    expect(controls).toMatch(
-      /const markDone[\s\S]*?dismissAssignmentStudentByIdAction[\s\S]*?catch[\s\S]*?setError\(true\)/,
-    );
-    expect(controls).toMatch(
-      /const undo[\s\S]*?undoDismissByAssignmentStudentIdAction[\s\S]*?catch[\s\S]*?setError\(true\)/,
-    );
+    expect(markDoneStart).toBeGreaterThan(-1);
+    expect(undoStart).toBeGreaterThan(markDoneStart);
+    expect(renderStart).toBeGreaterThan(undoStart);
+    expect(markDone).toContain("dismissAssignmentStudentByIdAction");
+    expect(markDone).toMatch(/try[\s\S]*catch[\s\S]*setError\(true\)/);
+    expect(markDone).not.toContain("undoDismissByAssignmentStudentIdAction");
+    expect(undo).toContain("undoDismissByAssignmentStudentIdAction");
+    expect(undo).toMatch(/try[\s\S]*catch[\s\S]*setError\(true\)/);
   });
 
   it("keeps attempt evidence navigation and links no-attempt rows to assignment details", () => {
