@@ -144,7 +144,7 @@ Archive:
 **Wave 2** *(server operations and student lists)*
 
 - [x] 10.1-02-PLAN.md — tenant-safe teacher queue/activity/incomplete services plus view/review/reopen/retry/policy actions
-- [ ] 10.1-06-PLAN.md — student-scoped Current/Past ordering, five-item pagination, tabs, cards, and page links
+- [x] 10.1-06-PLAN.md — student-scoped Current/Past ordering, five-item pagination, tabs, cards, and page links
 
 **Wave 3** *(primary user surfaces)*
 

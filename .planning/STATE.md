@@ -5,16 +5,16 @@ milestone_name: — Coco Comes Alive
 current_phase: 10.1
 current_phase_name: assignment-operations-student-history
 status: executing
-stopped_at: Completed 10.1-02-PLAN.md
-last_updated: "2026-07-12T01:31:22Z"
+stopped_at: Completed 10.1-06-PLAN.md
+last_updated: "2026-07-12T01:34:50Z"
 last_activity: 2026-07-12
-last_activity_desc: Completed Phase 10.1 Plan 02 tenant-safe teacher assignment operations
+last_activity_desc: Completed Phase 10.1 Plan 06 bounded student Current/Past mission pages
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 29
-  completed_plans: 18
-  percent: 62
+  completed_plans: 19
+  percent: 66
 ---
 
 # Project State
@@ -30,16 +30,16 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 
 Phase: 10.1 (assignment-operations-student-history) — EXECUTING
 Previous phase: 10 (mascot-vn-style) — COMPLETE
-Plan: 4 of 7
+Plan: 4 of 7 completed
 Status: Ready to execute
 Quick task 260710-hbn completed the interrupted student retry/audio feedback work in commit `33779fa1`. The follow-up `retry-feedback-flow` debug session fixed final-turn review gating, repeat retry audio/actions, and transcript carryover. The subsequent code-review follow-up removed the unsafe grammar-only fill-in bypass, moved mission completion into a deployed atomic RPC, restored persisted feedback/audio on refresh, included evaluation in resume decisions, and fixed Coco playback teardown. Those follow-ups are complete and Phase 10 remains closed.
 The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on desktop but only 133px on a 375px phone. Responsive clamped insets now preserve the desktop framing at 226px on both standard phone and desktop widths without changing stage, dialogue, or recorder geometry.
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
 The `mission-create-retry-cleanup` follow-up found mission creation itself was healthy: an active dev server had been corrupted when production builds rewrote its `.next` chunks, leaving the form unhydrated and causing native GET submission. A clean restart restored two verified real saves. The retry route now honors `needs_retry` past the original deadline, and the teacher AI mission-draft feature was removed end-to-end. Phase 11's roadmap now requires standalone scene-premise generation rather than restoring full mission drafting.
 
-Last activity: 2026-07-12 — Completed Phase 10.1 Plan 02 tenant-safe teacher assignment operations
+Last activity: 2026-07-12 — Completed Phase 10.1 Plan 06 bounded student Current/Past mission pages
 
-Progress: [██████░░░░] 62%
+Progress: [███████░░░] 66%
 
 **Codex handoff (merged to main 2026-07-05, branch feature/per-student-sound-profile deleted):**
 
