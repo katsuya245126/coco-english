@@ -25,6 +25,7 @@ export type IncompleteAssignmentRow = {
   assignmentTitle: string;
   status: IncompleteStatus;
   dueAt: string | null;
+  dismissedAt?: string | null;
 };
 
 export type GroupedIncompleteItem<T extends IncompleteAssignmentRow = IncompleteAssignmentRow> = T & {
@@ -45,6 +46,7 @@ export function groupIncompleteAssignments<T extends IncompleteAssignmentRow>(ro
   const dueSoonEnd = now.getTime() + 24 * 60 * 60 * 1000;
 
   for (const row of rows) {
+    if (row.dismissedAt != null) continue;
     if (["completed", "needs_retry", "teacher_review"].includes(row.status)) continue;
     const dueTime = row.dueAt === null ? null : new Date(row.dueAt).getTime();
     const urgency: IncompleteUrgency = row.status === "missed" || (dueTime !== null && dueTime <= now.getTime())

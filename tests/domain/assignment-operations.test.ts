@@ -55,6 +55,15 @@ describe("groupIncompleteAssignments", () => {
     ], now);
     expect(result).toEqual([]);
   });
+
+  it("excludes dismissed rows", () => {
+    const result = groupIncompleteAssignments([
+      { ...row("live", "a1", "missed", "2026-07-11T00:00:00.000Z") },
+      { ...row("dismissed", "a1", "missed", "2026-07-11T00:00:00.000Z"), dismissedAt: "2026-07-12T00:00:00.000Z" },
+    ], now);
+    const ids = result.flatMap((group) => group.items.map((item) => item.id));
+    expect(ids).toEqual(["live"]);
+  });
 });
 
 describe("compareSubmissionRecency", () => {
