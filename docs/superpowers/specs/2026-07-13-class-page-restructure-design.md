@@ -64,9 +64,13 @@ Routes:
 
 Structure:
 
-- New `src/app/teacher/classes/[id]/layout.tsx` — server layout that loads
-  the class row (name, join code) and roster count once, renders the class
-  header (eyebrow text: "Class") and the tab bar, then `{children}`.
+- New `src/app/teacher/classes/[id]/(workspace)/layout.tsx` — server layout
+  that loads the class row (name, join code) and roster count once, renders
+  the class header (eyebrow text: "Class") and the tab bar, then
+  `{children}`. The `(workspace)` route group keeps the same URLs but stops
+  the layout from wrapping the `manage/` and `review/[assignmentId]` routes,
+  which keep their standalone pages. The three tab pages live inside the
+  group.
 - Tab bar becomes `ClassWorkspaceTabs` (client component) using
   `usePathname()` to highlight the active tab. Tabs: Needs review (with
   count badge), Assignments, Students, Class settings.
