@@ -11,7 +11,7 @@ type Client = ReturnType<typeof createSupabaseServiceClient>;
 
 export type TeacherReviewRow = {
   attemptId: string; assignmentStudentId: string; studentName: string;
-  assignmentTitle: string; className: string; receivedAt: string;
+  assignmentTitle: string; className: string; classId: string; receivedAt: string;
   firstViewedAt: string | null; needsReviewReason: string | null;
 };
 
@@ -47,6 +47,7 @@ function mapRow(row: RawRow): TeacherReviewRow & { status: AssignmentStudentStat
     studentName: String(one(assignmentStudent.students).display_name),
     assignmentTitle: String(assignment.title),
     className: String(klass.name),
+    classId: String(klass.id),
     receivedAt: String(row.received_at ?? assignmentStudent.submitted_at ?? row.completed_at),
     firstViewedAt: receipt.first_viewed_at ? String(receipt.first_viewed_at) : null,
     reviewedAt: receipt.reviewed_at ? String(receipt.reviewed_at) : null,
