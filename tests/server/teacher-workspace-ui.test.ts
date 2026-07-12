@@ -138,6 +138,16 @@ describe("teacher workspace source contract", () => {
     expect(manage).toContain("/teacher/classes/${classId}");
     expect(manage).not.toContain('href="/teacher"');
   });
+
+  it("assignment cards show completion counts, a progress bar, and a truthful breakdown", () => {
+    const page = source("src/app/teacher/classes/[id]/(workspace)/assignments/page.tsx");
+    const styles = source("src/app/teacher/teacher-workspace.css");
+    expect(page).toContain("listAssignmentProgressForClass");
+    expect(page).toContain("of {progress.total} completed");
+    expect(page).toContain("assignment-progress-bar");
+    for (const label of ["awaiting review", "needs retry", "in progress", "not started", "missed", "No students assigned"]) expect(page).toContain(label);
+    expect(styles).toContain(".teacher-shell .assignment-progress-bar");
+  });
 });
 
 describe("SubmissionReviewControls source", () => {

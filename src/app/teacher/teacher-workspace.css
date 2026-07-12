@@ -57,6 +57,11 @@
 .teacher-shell .student-initial { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: #e0e7ff; color: #3730a3; font-size: 12px; font-weight: 800; }
 .teacher-shell .class-empty { padding: 18px; color: #475569; font-size: 13px; }
 .teacher-shell .class-empty p { margin: 4px 0 0; }
+.teacher-shell .assignment-progress { margin-top: 8px; display: grid; gap: 4px; }
+.teacher-shell .assignment-progress-label { color: #334155; font-size: 12px; font-weight: 600; }
+.teacher-shell .assignment-progress-bar { display: block; height: 6px; width: 100%; max-width: 320px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+.teacher-shell .assignment-progress-bar > span { display: block; height: 100%; border-radius: 999px; background: #2563eb; }
+.teacher-shell .assignment-progress-breakdown { margin: 0; color: #64748b; font-size: 11px; }
 @media (max-width: 800px) {
   .teacher-shell { grid-template-columns: 1fr; padding-top: 48px; }
   .teacher-shell .sidebar { display: none; position: fixed; z-index: 9; inset: 48px 0 0; overflow: auto; }
