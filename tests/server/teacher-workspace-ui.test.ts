@@ -45,12 +45,23 @@ describe("teacher workspace source contract", () => {
 
   it("ships shell styles as a real stylesheet in the layout (no styled-jsx FOUC)", () => {
     const layout = source("src/app/teacher/layout.tsx");
+    const shell = source("src/components/teacher/TeacherWorkspaceShell.tsx");
     const styles = source("src/app/teacher/teacher-workspace.css");
     expect(layout).toContain('import "./teacher-workspace.css"');
     expect(layout).not.toContain("TeacherWorkspaceStyles");
+    // The shell must not inject styles at runtime — styled-jsx renders
+    // client-side after hydration, which is the FOUC on hard refresh.
+    expect(shell).not.toContain("<style jsx");
+    expect(shell).not.toContain("style jsx>");
     expect(styles).toContain("grid-template-columns: 210px minmax(0, 1fr)");
     expect(styles).toContain(".teacher-shell .nav.active");
     expect(styles).toContain(".teacher-shell .count");
+    // Shell chrome rules that only lived in the old styled-jsx block must
+    // now ship in the stylesheet, or those elements flash unstyled.
+    expect(styles).toContain(".teacher-shell .mobile-trigger");
+    expect(styles).toContain(".teacher-shell .banner");
+    expect(styles).toContain(".teacher-shell .notice");
+    expect(styles).toContain(".teacher-shell .workspace > header button");
     expect(styles).toContain("@media (max-width: 800px)");
     expect(styles).not.toContain("review-policy-control");
   });

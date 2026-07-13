@@ -21,7 +21,14 @@
 .teacher-shell .create { color: #2563eb; }
 .teacher-shell .workspace { min-width: 0; }
 .teacher-shell .workspace > header { height: 64px; padding: 0 24px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; }
+.teacher-shell .workspace > header span, .teacher-shell .workspace > header form { display: flex; align-items: center; gap: 6px; color: #64748b; font-size: 12px; }
+.teacher-shell .workspace > header button { border: 0; background: none; color: #2563eb; cursor: pointer; }
 .teacher-shell .workspace > main { padding: 24px; }
+.teacher-shell .mobile-trigger { display: none; }
+.teacher-shell .banner { display: block; width: calc(100% - 48px); margin: 16px 24px 0; padding: 10px; border: 1px solid #93c5fd; border-radius: 8px; background: #eff6ff; color: #1d4ed8; font-weight: 700; cursor: pointer; }
+.teacher-shell .notice { position: fixed; z-index: 5; right: 20px; bottom: 20px; max-width: 440px; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid #bfdbfe; border-radius: 9px; background: #fff; box-shadow: 0 8px 28px #0f172a22; font-size: 13px; }
+.teacher-shell .notice a { color: #2563eb; font-weight: 700; }
+.teacher-shell .notice button { border: 0; background: none; font-size: 18px; cursor: pointer; }
 .teacher-shell .pagination { display: grid; grid-template-columns: 90px 1fr 90px; align-items: center; margin-top: 18px; font-size: 12px; }
 .teacher-shell .pagination strong { text-align: center; color: #475569; }
 .teacher-shell .pagination a, .teacher-shell .pagination span { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; color: #2563eb; text-align: center; text-decoration: none; }
@@ -64,6 +71,7 @@
 .teacher-shell .assignment-progress-breakdown { margin: 0; color: #64748b; font-size: 11px; }
 @media (max-width: 800px) {
   .teacher-shell { grid-template-columns: 1fr; padding-top: 48px; }
+  .teacher-shell .mobile-trigger { display: block; position: fixed; z-index: 10; left: 10px; top: 8px; border: 1px solid #cbd5e1; background: #fff; border-radius: 7px; padding: 8px 10px; }
   .teacher-shell .sidebar { display: none; position: fixed; z-index: 9; inset: 48px 0 0; overflow: auto; }
   .teacher-shell .sidebar.open { display: block; }
   .teacher-shell .workspace > header { position: absolute; top: 0; left: 0; right: 0; padding-left: 110px; }
