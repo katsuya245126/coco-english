@@ -1,7 +1,15 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const source = (path: string) => readFileSync(path, "utf8");
+
+const sourceFilesUnder = (dir: string): string[] =>
+  readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) return sourceFilesUnder(full);
+    return /\.(tsx|ts)$/.test(entry.name) ? [full] : [];
+  });
 
 describe("teacher workspace source contract", () => {
   it("polls one snapshot without moving inbox rows until the banner is clicked", () => {
@@ -64,6 +72,38 @@ describe("teacher workspace source contract", () => {
     expect(styles).toContain(".teacher-shell .workspace > header button");
     expect(styles).toContain("@media (max-width: 800px)");
     expect(styles).not.toContain("review-policy-control");
+  });
+
+  it("bans runtime styled-jsx everywhere — every page must be styled at first paint", () => {
+    // styled-jsx in client components injects styles after hydration, which
+    // flashes unstyled content on every hard refresh. All styles must ship
+    // as real stylesheets. This scan is what catches the next regression.
+    const offenders = sourceFilesUnder("src").filter((file) => source(file).includes("<style jsx"));
+    expect(offenders).toEqual([]);
+  });
+
+  it("ships the queue-view styles in the stylesheet (no styled-jsx FOUC)", () => {
+    const views = source("src/components/teacher/TeacherQueueViews.tsx");
+    const styles = source("src/app/teacher/teacher-workspace.css");
+    expect(views).not.toContain("QueueStyles");
+    for (const selector of [
+      ".teacher-shell .heading h1",
+      ".teacher-shell .review-row.unread",
+      ".teacher-shell .activity-head, .teacher-shell .activity-row",
+      ".teacher-shell .incomplete-group",
+      ".teacher-shell .undo",
+      ".teacher-shell .empty",
+    ])
+      expect(styles).toContain(selector);
+  });
+
+  it("ships the student home styles as a real stylesheet (no styled-jsx FOUC)", () => {
+    const page = source("src/app/student/home/page.tsx");
+    const styles = source("src/app/student/home/student-home.css");
+    expect(page).toContain('import "./student-home.css"');
+    expect(page).not.toContain("StudentHomeStyles");
+    expect(styles).toContain(".student-home-phone");
+    expect(styles).toContain(".student-mission-card");
   });
 
   it("reveals overflowing class names and uses notification badges", () => {

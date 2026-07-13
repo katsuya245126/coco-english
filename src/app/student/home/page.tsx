@@ -1,8 +1,8 @@
+import "./student-home.css";
 import { redirect } from "next/navigation";
 import { readStudentUnlock } from "@/app/join/actions";
 import { StudentHomeShell } from "@/components/student/StudentHomeShell";
 import { listStudentAssignmentPage, type StudentAssignmentTab } from "@/server/student-access/assignment-list";
-import { StudentHomeStyles } from "@/components/student/StudentHomeStyles";
 
 // Student home shell route (STUD-04, STUD-05, FLOW-01, D-14).
 //
@@ -31,7 +31,6 @@ export default async function StudentHomePage({ searchParams }: { searchParams: 
 
   return (
     <main className="student-home-page">
-      <StudentHomeStyles/>
       <div className="student-home-phone">
         <StudentHomeShell
           className={unlock.className}

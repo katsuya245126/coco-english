@@ -6,7 +6,7 @@ const root = process.cwd();
 const page = fs.readFileSync(path.join(root, "src/app/student/home/page.tsx"), "utf8");
 const shell = fs.readFileSync(path.join(root, "src/components/student/StudentHomeShell.tsx"), "utf8");
 const item = fs.readFileSync(path.join(root, "src/components/student/AssignmentListItem.tsx"), "utf8");
-const styles = fs.readFileSync(path.join(root, "src/components/student/StudentHomeStyles.tsx"), "utf8");
+const styles = fs.readFileSync(path.join(root, "src/app/student/home/student-home.css"), "utf8");
 const recapPage = fs.readFileSync(path.join(root, "src/app/student/history/[assignmentStudentId]/page.tsx"), "utf8");
 const recap = fs.readFileSync(path.join(root, "src/components/student/StudentMissionRecap.tsx"), "utf8");
 
