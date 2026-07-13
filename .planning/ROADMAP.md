@@ -134,7 +134,7 @@ Archive:
   5. Student home has bounded Current/Past pages: Retry → due soon → later/no-date ordering, late/missed open work remains launchable, and Past contains five completed missions per page newest-first.
   6. A Past mission opens only the unlocked student's final completed attempt as a read-only Coco/You said recap with transcripts, retained audio, qualitative pronunciation feedback, and Recording expired fallback.
 
-**Plans:** 7/7 plans executed (automated verification passed; two live/responsive human checks remain before phase close)
+**Plans:** 8 plans (7 executed + 1 gap-closure from UAT test 3)
 
 **Wave 1** *(independent foundations)*
 
@@ -154,6 +154,10 @@ Archive:
 **Wave 4** *(teacher drill-down integration)*
 
 - [x] 10.1-04-PLAN.md — class/assignment queue integration, review policy, selected-student drill-down, and exact evidence review/recovery loop
+
+**Wave 5** *(UAT gap closure — test 3 recap quality)*
+
+- [ ] 10.1-08-PLAN.md — child-facing recap: label-aware pronunciation feedback (all-clear summary vs. surfaced practice words) and a button-styled back-to-past-missions control
 
 ### Phase 11: Coco Chat (dynamic turns + scene framing)
 
