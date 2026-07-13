@@ -43,6 +43,7 @@ describe("student history UI source contracts", () => {
   it("styles the back-to-past-missions control as a solid primary arrow button", () => {
     expect(recapPage).toContain("...primaryButtonStyle"); expect(recapPage).toContain("inline-flex");
     expect(recapPage).toContain("width: 44"); expect(recapPage).toContain("minHeight: 44");
+    expect(recapPage).toContain("recap-back-btn:hover"); expect(recapPage).toContain("#1D4ED8");
   });
   it("contains no mutation or teacher evidence controls", () => {
     const historySource = recapPage + recap;

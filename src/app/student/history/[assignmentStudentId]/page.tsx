@@ -26,7 +26,8 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
   const recap = await getCompletedMissionRecap(unlock.studentId, assignmentStudentId);
   if (!recap) notFound();
   return <main style={pageStyle}><div style={{ ...panelStyle, maxWidth: 430 }}>
-    <Link href="/student/home?tab=past" style={backLinkStyle} aria-label="Back to past missions" title="Back to past missions">←</Link>
+    <style>{".recap-back-btn:hover { background: #1D4ED8 !important; } .recap-back-btn:active { background: #1E40AF !important; }"}</style>
+    <Link href="/student/home?tab=past" className="recap-back-btn" style={backLinkStyle} aria-label="Back to past missions" title="Back to past missions">←</Link>
     <h1 style={{ marginBottom: 4 }}>{recap.title}</h1>
     <p style={{ color: "#64748B", marginTop: 0 }}>{recap.completedAt ? `Completed ${new Date(recap.completedAt).toLocaleDateString("en-US", { month: "long", day: "numeric" })} · ` : ""}Read-only recap</p>
     <StudentMissionRecap recap={recap} />
