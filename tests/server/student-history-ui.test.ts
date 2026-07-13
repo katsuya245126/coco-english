@@ -32,15 +32,17 @@ describe("student history UI source contracts", () => {
     expect(item).not.toContain("item.targetPattern"); expect(item).toContain("item.completedTurnCount");
   });
   it("renders a conversation-shaped, read-only final recap", () => {
-    expect(recapPage).toContain("Read-only recap"); expect(recapPage).toContain("← Past missions");
+    expect(recapPage).toContain("Read-only recap"); expect(recapPage).toContain('aria-label="Back to past missions"');
+    expect(recapPage).toContain(">←</Link>"); expect(recapPage).toContain("/student/home?tab=past");
     expect(recap).toContain("You said"); expect(recap).toContain("Recording expired");
     expect(recap).toContain("cocoPrompt"); expect(recap).toContain("Pronunciation</strong>");
     expect(recap).not.toContain("word.word}: ${word.label");
     expect(recap).toContain('label !== "Clear"');
     expect(recap).toContain("practiceWords.length === 0");
   });
-  it("styles the back-to-past-missions control as a clickable pill", () => {
-    expect(recapPage).toContain("#2563EB"); expect(recapPage).toContain("inline-block");
+  it("styles the back-to-past-missions control as a clickable arrow button", () => {
+    expect(recapPage).toContain("#2563EB"); expect(recapPage).toContain("inline-flex");
+    expect(recapPage).toContain("width: 44"); expect(recapPage).toContain("height: 44");
   });
   it("contains no mutation or teacher evidence controls", () => {
     const historySource = recapPage + recap;
