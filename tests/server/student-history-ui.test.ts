@@ -35,6 +35,12 @@ describe("student history UI source contracts", () => {
     expect(recapPage).toContain("Read-only recap"); expect(recapPage).toContain("← Past missions");
     expect(recap).toContain("You said"); expect(recap).toContain("Recording expired");
     expect(recap).toContain("cocoPrompt"); expect(recap).toContain("Qualitative pronunciation feedback");
+    expect(recap).not.toContain("word.word}: ${word.label");
+    expect(recap).toContain('label !== "Clear"');
+    expect(recap).toContain("practiceWords.length === 0");
+  });
+  it("styles the back-to-past-missions control as a clickable pill", () => {
+    expect(recapPage).toContain("#2563EB"); expect(recapPage).toContain("inline-block");
   });
   it("contains no mutation or teacher evidence controls", () => {
     const historySource = recapPage + recap;
