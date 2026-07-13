@@ -34,7 +34,7 @@ describe("student history UI source contracts", () => {
   it("renders a conversation-shaped, read-only final recap", () => {
     expect(recapPage).toContain("Read-only recap"); expect(recapPage).toContain("← Past missions");
     expect(recap).toContain("You said"); expect(recap).toContain("Recording expired");
-    expect(recap).toContain("cocoPrompt"); expect(recap).toContain("Qualitative pronunciation feedback");
+    expect(recap).toContain("cocoPrompt"); expect(recap).toContain("How you sounded");
     expect(recap).not.toContain("word.word}: ${word.label");
     expect(recap).toContain('label !== "Clear"');
     expect(recap).toContain("practiceWords.length === 0");

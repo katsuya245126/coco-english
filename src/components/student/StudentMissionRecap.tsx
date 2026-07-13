@@ -10,11 +10,11 @@ export function StudentMissionRecap({ recap }: { recap: Recap }) {
       <p style={{ ...speaker, marginLeft: 28, marginTop: 12 }}>You said</p><div style={studentBubble}><p style={{ margin: 0 }}>{turn.transcript}</p>
         {turn.audio?.playback === "available" ? <StudentHistoryAudioPlayer audioClipId={turn.audio.id} /> : turn.audio?.playback === "expired" ? <p style={muted}>Recording expired</p> : <p style={muted}>Recording unavailable</p>}
       </div>
-      {turn.pronunciation ? <div style={feedback}><strong>{"★".repeat(turn.pronunciation.starBand)} Qualitative pronunciation feedback</strong>{(() => {
+      {turn.pronunciation ? <div style={feedback}><strong>{"★".repeat(turn.pronunciation.starBand)} How you sounded</strong>{(() => {
         const practiceWords = turn.pronunciation.words.filter((word) => word.label !== "Clear");
         const allClear = turn.pronunciation.words.length > 0 && practiceWords.length === 0;
-        if (allClear) return <p style={{ margin: "6px 0 0" }}>Great job — every word came through clearly!</p>;
-        if (practiceWords.length > 0) return <p style={{ margin: "6px 0 0" }}>Words to keep practicing: {practiceWords.map((word) => word.word).join(" · ")}</p>;
+        if (allClear) return <p style={{ margin: "6px 0 0" }}>Every word was clear. Great job!</p>;
+        if (practiceWords.length > 0) return <p style={{ margin: "6px 0 0" }}>Words to practice: {practiceWords.map((word) => word.word).join(" · ")}</p>;
         return null;
       })()}</div> : null}
     </section>)}
