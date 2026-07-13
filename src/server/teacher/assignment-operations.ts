@@ -4,7 +4,6 @@ import {
   countIncompleteItems,
   groupIncompleteAssignments,
   isSubmissionPendingReview,
-  type ClassReviewPolicy,
 } from "@/domain/teacher/assignment-operations";
 import { assertTransitionRequest, type AssignmentStudentStatus } from "@/domain/foundation/status";
 
@@ -12,7 +11,7 @@ type Client = ReturnType<typeof createSupabaseServiceClient>;
 
 export type TeacherReviewRow = {
   attemptId: string; assignmentStudentId: string; studentName: string;
-  assignmentTitle: string; className: string; receivedAt: string;
+  assignmentTitle: string; className: string; classId: string; receivedAt: string;
   firstViewedAt: string | null; needsReviewReason: string | null;
 };
 
@@ -37,7 +36,7 @@ const one = (value: RawValue | undefined): RawRow => {
   return item && typeof item === "object" ? item as RawRow : {};
 };
 
-function mapRow(row: RawRow): TeacherReviewRow & { status: AssignmentStudentStatus; attemptStatus: string; reviewedAt: string | null; reviewPolicy: ClassReviewPolicy; isLatestAttempt: boolean } {
+function mapRow(row: RawRow): TeacherReviewRow & { status: AssignmentStudentStatus; attemptStatus: string; reviewedAt: string | null; isLatestAttempt: boolean } {
   const assignmentStudent = one(row.assignment_students);
   const assignment = one(assignmentStudent.assignments);
   const klass = one(assignment.classes);
@@ -48,11 +47,11 @@ function mapRow(row: RawRow): TeacherReviewRow & { status: AssignmentStudentStat
     studentName: String(one(assignmentStudent.students).display_name),
     assignmentTitle: String(assignment.title),
     className: String(klass.name),
+    classId: String(klass.id),
     receivedAt: String(row.received_at ?? assignmentStudent.submitted_at ?? row.completed_at),
     firstViewedAt: receipt.first_viewed_at ? String(receipt.first_viewed_at) : null,
     reviewedAt: receipt.reviewed_at ? String(receipt.reviewed_at) : null,
     needsReviewReason: row.needs_review_reason ? String(row.needs_review_reason) : null,
-    reviewPolicy: klass.review_policy as ClassReviewPolicy,
     isLatestAttempt: assignmentStudent.latest_attempt_id === row.id,
     status: assignmentStudent.status as AssignmentStudentStatus,
     attemptStatus: String(row.status),
@@ -65,7 +64,7 @@ async function loadOwnedAttempts(teacherId: string, client: Client = createSupab
     assignment_students!attempts_assignment_student_id_fkey!inner(
       id, status, submitted_at, latest_attempt_id,
       students!inner(display_name),
-      assignments!inner(id, title, due_at, classes!inner(id, name, teacher_id, review_policy))
+      assignments!inner(id, title, due_at, classes!inner(id, name, teacher_id))
     ),
     submission_review_receipts(first_viewed_at, reviewed_at)
   `).eq("assignment_students.assignments.classes.teacher_id", teacherId);
@@ -75,12 +74,12 @@ async function loadOwnedAttempts(teacherId: string, client: Client = createSupab
 
 export async function listNeedsReviewForTeacher(input: { teacherId: string }, client?: Client): Promise<TeacherReviewRow[]> {
   const rows = await loadOwnedAttempts(input.teacherId, client);
-  return rows.filter((row) => isSubmissionPendingReview(row)).sort(compareSubmissionRecency).map(({ status: _s, attemptStatus: _a, reviewedAt: _r, reviewPolicy: _p, isLatestAttempt: _l, ...row }) => row);
+  return rows.filter((row) => isSubmissionPendingReview(row)).sort(compareSubmissionRecency).map(({ status: _s, attemptStatus: _a, reviewedAt: _r, isLatestAttempt: _l, ...row }) => row);
 }
 
 export async function listActivityForTeacher(input: { teacherId: string; offset?: number; limit?: number }, client?: Client): Promise<TeacherActivityRow[]> {
   const rows = (await loadOwnedAttempts(input.teacherId, client)).filter((row) => row.isLatestAttempt).sort(compareSubmissionRecency);
-  return rows.slice(input.offset ?? 0, (input.offset ?? 0) + (input.limit ?? 50)).map(({ reviewPolicy: _p, isLatestAttempt: _l, attemptStatus: _a, ...row }) => row);
+  return rows.slice(input.offset ?? 0, (input.offset ?? 0) + (input.limit ?? 50)).map(({ isLatestAttempt: _l, attemptStatus: _a, ...row }) => row);
 }
 
 export async function listIncompleteForTeacher(input: { teacherId: string; now?: Date }, client: Client = createSupabaseServiceClient()) {
@@ -88,6 +87,28 @@ export async function listIncompleteForTeacher(input: { teacherId: string; now?:
   if (result.error) throw new Error(`Unable to load incomplete assignments: ${result.error.message}`);
   const groups = groupIncompleteAssignments(((result.data ?? []) as RawRow[]).map((row) => { const assignment = one(row.assignments); const klass = one(assignment.classes); return { id: String(row.id), assignmentId: String(assignment.id), assignmentTitle: String(assignment.title), status: row.status as TeacherIncompleteRow["status"], dueAt: assignment.due_at ? String(assignment.due_at) : null, studentName: String(one(row.students).display_name), classId: String(klass.id), className: String(klass.name) }; }) as TeacherIncompleteRow[], input.now ?? new Date());
   return { groups, itemCount: countIncompleteItems(groups) };
+}
+
+export type AssignmentProgress = { completed: number; teacherReview: number; started: number; needsRetry: number; assigned: number; missed: number; total: number };
+
+export async function listAssignmentProgressForClass(input: { teacherId: string; classId: string }, client: Client = createSupabaseServiceClient()): Promise<Map<string, AssignmentProgress>> {
+  const result = await client.from("assignment_students").select(`assignment_id, status, assignments!inner(class_id, canceled_at, classes!inner(teacher_id))`).eq("assignments.class_id", input.classId).eq("assignments.classes.teacher_id", input.teacherId).is("assignments.canceled_at", null);
+  if (result.error) throw new Error(`Unable to load assignment progress: ${result.error.message}`);
+  const progress = new Map<string, AssignmentProgress>();
+  for (const raw of (result.data ?? []) as RawRow[]) {
+    const assignmentId = String(raw.assignment_id);
+    const entry = progress.get(assignmentId) ?? { completed: 0, teacherReview: 0, started: 0, needsRetry: 0, assigned: 0, missed: 0, total: 0 };
+    entry.total += 1;
+    const status = String(raw.status);
+    if (status === "completed") entry.completed += 1;
+    else if (status === "teacher_review") entry.teacherReview += 1;
+    else if (status === "started") entry.started += 1;
+    else if (status === "needs_retry") entry.needsRetry += 1;
+    else if (status === "assigned") entry.assigned += 1;
+    else if (status === "missed") entry.missed += 1;
+    progress.set(assignmentId, entry);
+  }
+  return progress;
 }
 
 export async function getTeacherQueueSnapshot(input: { teacherId: string }, client?: Client): Promise<TeacherQueueSnapshot> {
@@ -168,9 +189,4 @@ export async function requestSubmissionRetry(input: { teacherId: string; attempt
   try { assertTransitionRequest({ previousStatus: ast.status as AssignmentStudentStatus, nextStatus: "needs_retry", actorType: "teacher", actorId: input.teacherId, reasonCode: "teacher_requested_retry", occurredAt: new Date().toISOString() }); } catch { return { ok: false as const, error: "invalid_transition" as const }; }
   const result = await client.rpc("request_submission_retry", { p_teacher_id: input.teacherId, p_attempt_id: input.attemptId, p_reason_note: input.reasonNote ?? "" });
   return result.error || result.data !== "ok" ? { ok: false as const, error: result.data === "invalid_status" ? "invalid_transition" as const : "db_error" as const } : { ok: true as const };
-}
-
-export async function updateClassReviewPolicy(input: { teacherId: string; classId: string; reviewPolicy: ClassReviewPolicy }, client: Client = createSupabaseServiceClient()) {
-  const result = await client.from("classes").update({ review_policy: input.reviewPolicy }).eq("id", input.classId).eq("teacher_id", input.teacherId).select("id").maybeSingle();
-  return result.error ? { ok: false as const, error: "db_error" as const } : result.data ? { ok: true as const } : { ok: false as const, error: "not_found" as const };
 }

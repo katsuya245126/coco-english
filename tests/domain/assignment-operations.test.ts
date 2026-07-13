@@ -8,22 +8,18 @@ import {
 
 describe("isSubmissionPendingReview", () => {
   it("requires the latest attempt and an unreviewed receipt", () => {
-    expect(isSubmissionPendingReview({ isLatestAttempt: false, reviewedAt: null, needsReviewReason: "low", reviewPolicy: "flagged_only", status: "completed", attemptStatus: "completed" })).toBe(false);
-    expect(isSubmissionPendingReview({ isLatestAttempt: true, reviewedAt: "2026-01-01", needsReviewReason: "low", reviewPolicy: "flagged_only", status: "completed", attemptStatus: "completed" })).toBe(false);
+    expect(isSubmissionPendingReview({ isLatestAttempt: false, reviewedAt: null, status: "completed", attemptStatus: "completed" })).toBe(false);
+    expect(isSubmissionPendingReview({ isLatestAttempt: true, reviewedAt: "2026-01-01", status: "completed", attemptStatus: "completed" })).toBe(false);
   });
 
-  it("keeps formerly flagged completed work eligible under flagged-only", () => {
-    expect(isSubmissionPendingReview({ isLatestAttempt: true, reviewedAt: null, needsReviewReason: "low_confidence", reviewPolicy: "flagged_only", status: "completed", attemptStatus: "completed" })).toBe(true);
+  it("includes every completed or in-review submission", () => {
+    expect(isSubmissionPendingReview({ isLatestAttempt: true, reviewedAt: null, status: "completed", attemptStatus: "completed" })).toBe(true);
+    expect(isSubmissionPendingReview({ isLatestAttempt: true, reviewedAt: null, status: "teacher_review", attemptStatus: "teacher_review" })).toBe(true);
   });
 
-  it("includes ordinary completions only under every-submission", () => {
-    expect(isSubmissionPendingReview({ isLatestAttempt: true, reviewedAt: null, needsReviewReason: null, reviewPolicy: "every_submission", status: "completed", attemptStatus: "completed" })).toBe(true);
-    expect(isSubmissionPendingReview({ isLatestAttempt: true, reviewedAt: null, needsReviewReason: null, reviewPolicy: "flagged_only", status: "completed", attemptStatus: "completed" })).toBe(false);
-  });
-
-  it("excludes in-progress attempts even under every-submission", () => {
-    expect(isSubmissionPendingReview({ isLatestAttempt: true, reviewedAt: null, needsReviewReason: null, reviewPolicy: "every_submission", status: "started", attemptStatus: "in_progress" })).toBe(false);
-    expect(isSubmissionPendingReview({ isLatestAttempt: true, reviewedAt: null, needsReviewReason: "low_confidence", reviewPolicy: "every_submission", status: "completed", attemptStatus: "in_progress" })).toBe(false);
+  it("excludes in-progress attempts", () => {
+    expect(isSubmissionPendingReview({ isLatestAttempt: true, reviewedAt: null, status: "started", attemptStatus: "in_progress" })).toBe(false);
+    expect(isSubmissionPendingReview({ isLatestAttempt: true, reviewedAt: null, status: "completed", attemptStatus: "in_progress" })).toBe(false);
   });
 });
 

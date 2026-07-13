@@ -1,7 +1,15 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const source = (path: string) => readFileSync(path, "utf8");
+
+const sourceFilesUnder = (dir: string): string[] =>
+  readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) return sourceFilesUnder(full);
+    return /\.(tsx|ts)$/.test(entry.name) ? [full] : [];
+  });
 
 describe("teacher workspace source contract", () => {
   it("polls one snapshot without moving inbox rows until the banner is clicked", () => {
@@ -43,21 +51,65 @@ describe("teacher workspace source contract", () => {
     );
   });
 
-  it("applies prototype shell styles globally so Next links stay styled", () => {
+  it("ships shell styles as a real stylesheet in the layout (no styled-jsx FOUC)", () => {
     const layout = source("src/app/teacher/layout.tsx");
-    const styles = source("src/components/teacher/TeacherWorkspaceStyles.tsx");
-    expect(layout).toContain("<TeacherWorkspaceStyles/>");
-    expect(styles).toContain("<style jsx global>");
+    const shell = source("src/components/teacher/TeacherWorkspaceShell.tsx");
+    const styles = source("src/app/teacher/teacher-workspace.css");
+    expect(layout).toContain('import "./teacher-workspace.css"');
+    expect(layout).not.toContain("TeacherWorkspaceStyles");
+    // The shell must not inject styles at runtime — styled-jsx renders
+    // client-side after hydration, which is the FOUC on hard refresh.
+    expect(shell).not.toContain("<style jsx");
+    expect(shell).not.toContain("style jsx>");
     expect(styles).toContain("grid-template-columns: 210px minmax(0, 1fr)");
     expect(styles).toContain(".teacher-shell .nav.active");
     expect(styles).toContain(".teacher-shell .count");
+    // Shell chrome rules that only lived in the old styled-jsx block must
+    // now ship in the stylesheet, or those elements flash unstyled.
+    expect(styles).toContain(".teacher-shell .mobile-trigger");
+    expect(styles).toContain(".teacher-shell .banner");
+    expect(styles).toContain(".teacher-shell .notice");
+    expect(styles).toContain(".teacher-shell .workspace > header button");
     expect(styles).toContain("@media (max-width: 800px)");
+    expect(styles).not.toContain("review-policy-control");
+  });
+
+  it("bans runtime styled-jsx everywhere — every page must be styled at first paint", () => {
+    // styled-jsx in client components injects styles after hydration, which
+    // flashes unstyled content on every hard refresh. All styles must ship
+    // as real stylesheets. This scan is what catches the next regression.
+    const offenders = sourceFilesUnder("src").filter((file) => source(file).includes("<style jsx"));
+    expect(offenders).toEqual([]);
+  });
+
+  it("ships the queue-view styles in the stylesheet (no styled-jsx FOUC)", () => {
+    const views = source("src/components/teacher/TeacherQueueViews.tsx");
+    const styles = source("src/app/teacher/teacher-workspace.css");
+    expect(views).not.toContain("QueueStyles");
+    for (const selector of [
+      ".teacher-shell .heading h1",
+      ".teacher-shell .review-row.unread",
+      ".teacher-shell .activity-head, .teacher-shell .activity-row",
+      ".teacher-shell .incomplete-group",
+      ".teacher-shell .undo",
+      ".teacher-shell .empty",
+    ])
+      expect(styles).toContain(selector);
+  });
+
+  it("ships the student home styles as a real stylesheet (no styled-jsx FOUC)", () => {
+    const page = source("src/app/student/home/page.tsx");
+    const styles = source("src/app/student/home/student-home.css");
+    expect(page).toContain('import "./student-home.css"');
+    expect(page).not.toContain("StudentHomeStyles");
+    expect(styles).toContain(".student-home-phone");
+    expect(styles).toContain(".student-mission-card");
   });
 
   it("reveals overflowing class names and uses notification badges", () => {
     const shell = source("src/components/teacher/TeacherWorkspaceShell.tsx");
     const classLink = source("src/components/teacher/TeacherClassNavLink.tsx");
-    const styles = source("src/components/teacher/TeacherWorkspaceStyles.tsx");
+    const styles = source("src/app/teacher/teacher-workspace.css");
 
     expect(shell).toContain("<TeacherClassNavLink");
     expect(classLink).toContain("title={name}");
@@ -114,20 +166,38 @@ describe("teacher workspace source contract", () => {
     expect(views).toContain('return "Recently"');
   });
 
-  it("renders the approved class review workspace without a nested legacy shell", () => {
-    const page = source("src/app/teacher/classes/[id]/page.tsx");
-    const workspace = source("src/components/teacher/ClassReviewWorkspace.tsx");
-    const policy = source("src/components/teacher/ClassReviewPolicyControl.tsx");
-    expect(page).toContain("<ClassReviewWorkspace");
-    expect(page).not.toContain('minHeight: "100dvh"');
-    expect(page).not.toContain("<header");
-    for (const label of ["Assignment Review", "Needs review", "Assignments", "Students", "Class settings"]) expect(workspace).toContain(label);
-    expect(workspace).not.toContain("All activity");
-    expect(workspace).toContain("class-review-header");
-    expect(workspace).toContain("class-workspace-tabs");
-    expect(workspace).toContain("class-assignment-card");
-    expect(workspace).toContain("class-student-card");
-    expect(policy).toContain("review-policy-control");
+  it("renders the class workspace as separate pages under a shared tabbed layout", () => {
+    const layout = source("src/app/teacher/classes/[id]/(workspace)/layout.tsx");
+    const tabs = source("src/components/teacher/ClassWorkspaceTabs.tsx");
+    const review = source("src/app/teacher/classes/[id]/(workspace)/page.tsx");
+    const assignments = source("src/app/teacher/classes/[id]/(workspace)/assignments/page.tsx");
+    const students = source("src/app/teacher/classes/[id]/(workspace)/students/page.tsx");
+    expect(layout).toContain("class-review-header");
+    expect(layout).toContain("<ClassWorkspaceTabs");
+    expect(layout).not.toContain("review_policy");
+    for (const label of ["Needs review", "Assignments", "Students", "Class settings"]) expect(tabs).toContain(label);
+    expect(tabs).toContain("usePathname");
+    expect(review).toContain("TeacherReviewTable");
+    expect(review).toContain("row.classId === classId");
+    expect(assignments).toContain("class-assignment-card");
+    expect(students).toContain("class-student-card");
+  });
+
+  it("class settings links back to the class workspace, not the teacher home", () => {
+    const manage = source("src/app/teacher/classes/[id]/manage/page.tsx");
+    expect(manage).toContain("← Back to class");
+    expect(manage).toContain("/teacher/classes/${classId}");
+    expect(manage).not.toContain('href="/teacher"');
+  });
+
+  it("assignment cards show completion counts, a progress bar, and a truthful breakdown", () => {
+    const page = source("src/app/teacher/classes/[id]/(workspace)/assignments/page.tsx");
+    const styles = source("src/app/teacher/teacher-workspace.css");
+    expect(page).toContain("listAssignmentProgressForClass");
+    expect(page).toContain("of {progress.total} completed");
+    expect(page).toContain("assignment-progress-bar");
+    for (const label of ["awaiting review", "needs retry", "in progress", "not started", "missed", "No students assigned"]) expect(page).toContain(label);
+    expect(styles).toContain(".teacher-shell .assignment-progress-bar");
   });
 });
 
