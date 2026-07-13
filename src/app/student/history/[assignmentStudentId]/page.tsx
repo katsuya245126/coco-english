@@ -2,23 +2,20 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { readStudentUnlock } from "@/app/join/actions";
 import { StudentMissionRecap } from "@/components/student/StudentMissionRecap";
-import { pageStyle, panelStyle } from "@/components/student/styles";
+import { pageStyle, panelStyle, primaryButtonStyle } from "@/components/student/styles";
 import { getCompletedMissionRecap } from "@/server/student-access/student-history";
 
 const backLinkStyle = {
+  ...primaryButtonStyle,
+  width: 44,
+  minHeight: 44,
+  padding: 0,
+  marginBottom: 12,
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  width: 44,
-  height: 44,
-  marginBottom: 12,
-  background: "none",
-  color: "#2563EB",
-  border: "1px solid #2563EB",
-  borderRadius: 6,
-  fontSize: 20,
-  fontWeight: 600,
   textDecoration: "none",
+  fontSize: 20,
   boxSizing: "border-box",
 } as const;
 

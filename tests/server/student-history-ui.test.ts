@@ -40,9 +40,9 @@ describe("student history UI source contracts", () => {
     expect(recap).toContain('label !== "Clear"');
     expect(recap).toContain("practiceWords.length === 0");
   });
-  it("styles the back-to-past-missions control as a clickable arrow button", () => {
-    expect(recapPage).toContain("#2563EB"); expect(recapPage).toContain("inline-flex");
-    expect(recapPage).toContain("width: 44"); expect(recapPage).toContain("height: 44");
+  it("styles the back-to-past-missions control as a solid primary arrow button", () => {
+    expect(recapPage).toContain("...primaryButtonStyle"); expect(recapPage).toContain("inline-flex");
+    expect(recapPage).toContain("width: 44"); expect(recapPage).toContain("minHeight: 44");
   });
   it("contains no mutation or teacher evidence controls", () => {
     const historySource = recapPage + recap;
