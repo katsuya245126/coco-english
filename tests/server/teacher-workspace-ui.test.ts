@@ -190,6 +190,28 @@ describe("teacher workspace source contract", () => {
     expect(manage).not.toContain('href="/teacher"');
   });
 
+  it("returns a student profile to the owning class Students tab", () => {
+    const roster = source(
+      "src/app/teacher/classes/[id]/(workspace)/students/page.tsx",
+    );
+    const profile = source("src/app/teacher/students/[id]/page.tsx");
+    const profileData = source("src/server/teacher/student-profile.ts");
+
+    expect(roster).toContain('href={`/teacher/students/${student.id}`}');
+    expect(profileData).toContain("classId: string;");
+    expect(profileData).toContain(
+      '.select("id, class_id, display_name, classes!inner(name)")',
+    );
+    expect(profileData).toContain("class_id: string;");
+    expect(profileData).toContain("classId: row.class_id,");
+    expect(profile).toContain(
+      'href={`/teacher/classes/${header.classId}/students`}',
+    );
+    expect(profile).toContain("← Back to students");
+    expect(profile).not.toContain('href="/teacher"');
+    expect(profile).not.toContain("← Classes");
+  });
+
   it("assignment cards show completion counts, a progress bar, and a truthful breakdown", () => {
     const page = source("src/app/teacher/classes/[id]/(workspace)/assignments/page.tsx");
     const styles = source("src/app/teacher/teacher-workspace.css");

@@ -44,10 +44,10 @@ export default async function StudentProfilePage({
         }}
       >
         <Link
-          href="/teacher"
+          href={`/teacher/classes/${header.classId}/students`}
           style={{ fontSize: 14, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}
         >
-          ← Classes
+          ← Back to students
         </Link>
       </header>
 

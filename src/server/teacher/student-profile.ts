@@ -84,6 +84,7 @@ export async function getStudentSoundProfile(
 
 export type StudentProfileHeader = {
   studentId: string;
+  classId: string;
   displayName: string;
   className: string;
 };
@@ -100,7 +101,7 @@ export async function getStudentProfileHeader(
 
   const student = await supabase
     .from("students")
-    .select("id, display_name, classes!inner(name)")
+    .select("id, class_id, display_name, classes!inner(name)")
     .eq("id", studentId)
     .maybeSingle();
 
@@ -111,6 +112,7 @@ export async function getStudentProfileHeader(
 
   const row = student.data as unknown as {
     id: string;
+    class_id: string;
     display_name: string;
     classes: { name: string } | { name: string }[] | null;
   };
@@ -118,6 +120,7 @@ export async function getStudentProfileHeader(
 
   return {
     studentId: row.id,
+    classId: row.class_id,
     displayName: row.display_name,
     className,
   };
