@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getTeacherQueueSnapshot, listNeedsReviewForTeacher, listAssignmentProgressForClass } from "@/server/teacher/assignment-operations";
+import { getTeacherQueueSnapshot, listActivityForTeacher, listNeedsReviewForTeacher, listAssignmentProgressForClass } from "@/server/teacher/assignment-operations";
 
 function client(rows: unknown[]) {
   const chain: Record<string, unknown> = {};
@@ -10,7 +10,7 @@ function client(rows: unknown[]) {
 
 const ownedRow = (overrides: Record<string, unknown> = {}) => ({
   id: "attempt-1", status: "completed", completed_at: "2026-07-12T00:00:00Z", needs_review_reason: null,
-  assignment_students: { id: "as-1", status: "completed", submitted_at: "2026-07-12T00:00:00Z", latest_attempt_id: "attempt-1", students: { display_name: "Mina" }, assignments: { id: "a-1", title: "Hello", classes: { id: "c-1", name: "A" } } },
+  assignment_students: { id: "as-1", status: "completed", submitted_at: "2026-07-12T00:00:00Z", latest_attempt_id: "attempt-1", students: { display_name: "Mina" }, assignments: { id: "a-1", title: "Hello", classes: { id: "c-1", name: "A", review_policy: "every_submission" } } },
   submission_review_receipts: [], ...overrides,
 });
 
@@ -20,8 +20,34 @@ describe("teacher assignment reads", () => {
     expect((await listNeedsReviewForTeacher({ teacherId: "teacher-1" }, client([reviewed, ownedRow()]))).map((r) => r.attemptId)).toEqual(["attempt-1"]);
   });
 
-  it("includes ordinary completions without any policy gate", async () => {
-    const row = ownedRow({ needs_review_reason: null });
+  it("applies live policy to Needs review without filtering All activity", async () => {
+    const flaggedOnly = ownedRow({
+      needs_review_reason: null,
+      assignment_students: {
+        ...ownedRow().assignment_students,
+        assignments: {
+          ...ownedRow().assignment_students.assignments,
+          classes: { id: "c-1", name: "A", review_policy: "flagged_only" },
+        },
+      },
+    });
+
+    expect(await listNeedsReviewForTeacher({ teacherId: "teacher-1" }, client([flaggedOnly]))).toEqual([]);
+    expect(await listActivityForTeacher({ teacherId: "teacher-1" }, client([flaggedOnly]))).toHaveLength(1);
+    expect(await listNeedsReviewForTeacher({ teacherId: "teacher-1" }, client([ownedRow()]))).toHaveLength(1);
+  });
+
+  it("keeps durable flagged completions in flagged-only Needs review", async () => {
+    const row = ownedRow({
+      needs_review_reason: "low_confidence",
+      assignment_students: {
+        ...ownedRow().assignment_students,
+        assignments: {
+          ...ownedRow().assignment_students.assignments,
+          classes: { id: "c-1", name: "A", review_policy: "flagged_only" },
+        },
+      },
+    });
     expect(await listNeedsReviewForTeacher({ teacherId: "teacher-1" }, client([row]))).toHaveLength(1);
   });
 

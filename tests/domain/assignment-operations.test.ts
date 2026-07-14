@@ -7,19 +7,33 @@ import {
 } from "@/domain/teacher/assignment-operations";
 
 describe("isSubmissionPendingReview", () => {
+  const eligible = {
+    isLatestAttempt: true,
+    reviewedAt: null,
+    status: "completed" as const,
+    attemptStatus: "completed",
+    needsReviewReason: null,
+    reviewPolicy: "every_submission" as const,
+  };
+
   it("requires the latest attempt and an unreviewed receipt", () => {
-    expect(isSubmissionPendingReview({ isLatestAttempt: false, reviewedAt: null, status: "completed", attemptStatus: "completed" })).toBe(false);
-    expect(isSubmissionPendingReview({ isLatestAttempt: true, reviewedAt: "2026-01-01", status: "completed", attemptStatus: "completed" })).toBe(false);
+    expect(isSubmissionPendingReview({ ...eligible, isLatestAttempt: false })).toBe(false);
+    expect(isSubmissionPendingReview({ ...eligible, reviewedAt: "2026-01-01" })).toBe(false);
   });
 
-  it("includes every completed or in-review submission", () => {
-    expect(isSubmissionPendingReview({ isLatestAttempt: true, reviewedAt: null, status: "completed", attemptStatus: "completed" })).toBe(true);
-    expect(isSubmissionPendingReview({ isLatestAttempt: true, reviewedAt: null, status: "teacher_review", attemptStatus: "teacher_review" })).toBe(true);
+  it("includes ordinary completed or in-review submissions when every submission is reviewed", () => {
+    expect(isSubmissionPendingReview(eligible)).toBe(true);
+    expect(isSubmissionPendingReview({ ...eligible, status: "teacher_review", attemptStatus: "teacher_review" })).toBe(true);
   });
 
-  it("excludes in-progress attempts", () => {
-    expect(isSubmissionPendingReview({ isLatestAttempt: true, reviewedAt: null, status: "started", attemptStatus: "in_progress" })).toBe(false);
-    expect(isSubmissionPendingReview({ isLatestAttempt: true, reviewedAt: null, status: "completed", attemptStatus: "in_progress" })).toBe(false);
+  it("includes only durable flagged submissions under flagged-only review", () => {
+    expect(isSubmissionPendingReview({ ...eligible, reviewPolicy: "flagged_only" })).toBe(false);
+    expect(isSubmissionPendingReview({ ...eligible, reviewPolicy: "flagged_only", needsReviewReason: "low_confidence" })).toBe(true);
+  });
+
+  it("excludes in-progress attempts under either policy", () => {
+    expect(isSubmissionPendingReview({ ...eligible, status: "started", attemptStatus: "in_progress" })).toBe(false);
+    expect(isSubmissionPendingReview({ ...eligible, attemptStatus: "in_progress", reviewPolicy: "flagged_only", needsReviewReason: "low_confidence" })).toBe(false);
   });
 });
 
