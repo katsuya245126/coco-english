@@ -9,6 +9,7 @@ const item = fs.readFileSync(path.join(root, "src/components/student/AssignmentL
 const styles = fs.readFileSync(path.join(root, "src/app/student/home/student-home.css"), "utf8");
 const recapPage = fs.readFileSync(path.join(root, "src/app/student/history/[assignmentStudentId]/page.tsx"), "utf8");
 const recap = fs.readFileSync(path.join(root, "src/components/student/StudentMissionRecap.tsx"), "utf8");
+const recapMapper = fs.readFileSync(path.join(root, "src/server/student-access/student-history.ts"), "utf8");
 
 describe("student history UI source contracts", () => {
   it("requests an exact five-item URL-addressable page", () => {
@@ -37,8 +38,11 @@ describe("student history UI source contracts", () => {
     expect(recap).toContain("You said"); expect(recap).toContain("Recording expired");
     expect(recap).toContain("cocoPrompt"); expect(recap).toContain("Pronunciation</strong>");
     expect(recap).not.toContain("word.word}: ${word.label");
-    expect(recap).toContain('label !== "Clear"');
-    expect(recap).toContain("practiceWords.length === 0");
+    expect(recapMapper).toContain("wordsToPractice(score.word_scores as WordScore[], transcript)");
+    expect(recap).not.toContain('label !== "Clear"');
+    expect(recap).toContain("turn.pronunciation.words.length === 0");
+    expect(recap).toContain("Great job!");
+    expect(recap).toContain("Words to practice:");
   });
   it("styles the back-to-past-missions control as a solid primary arrow button", () => {
     expect(recapPage).toContain("...primaryButtonStyle"); expect(recapPage).toContain("inline-flex");
