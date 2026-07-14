@@ -7,7 +7,7 @@ import { dismissAssignmentStudent, dismissAssignmentStudentById, markSubmissionR
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/server/teacher/auth", () => ({ requireTeacherProfile: vi.fn().mockResolvedValue({ id: "teacher-1" }) }));
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => vi.clearAllMocks());
 
 function mutationClient(
   owned: boolean | Record<string, unknown> = true,

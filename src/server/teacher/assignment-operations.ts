@@ -127,6 +127,21 @@ export async function getTeacherQueueSnapshot(input: { teacherId: string }, clie
   return { version: 1, needsReviewCount: rows.length, unreadCount: rows.filter((row) => row.firstViewedAt === null).length, newest: newest ? { attemptId: newest.attemptId, studentName: newest.studentName, assignmentTitle: newest.assignmentTitle, className: newest.className, href: `/teacher/evidence/${newest.attemptId}` } : null };
 }
 
+export async function updateClassReviewPolicy(
+  input: { teacherId: string; classId: string; reviewPolicy: ClassReviewPolicy },
+  client: Client = createSupabaseServiceClient(),
+) {
+  const result = await client.from("classes")
+    .update({ review_policy: input.reviewPolicy })
+    .eq("id", input.classId)
+    .eq("teacher_id", input.teacherId)
+    .select("id")
+    .maybeSingle();
+  if (result.error) return { ok: false as const, error: "db_error" as const };
+  if (!result.data) return { ok: false as const, error: "not_found" as const };
+  return { ok: true as const };
+}
+
 async function loadOwnedAttempt(input: { teacherId: string; attemptId: string }, client: Client) {
   const result = await client.from("attempts").select(`id, status, assignment_students!attempts_assignment_student_id_fkey!inner(id, status, latest_attempt_id, dismissed_at, assignments!inner(classes!inner(teacher_id)))`).eq("id", input.attemptId).eq("assignment_students.assignments.classes.teacher_id", input.teacherId).maybeSingle();
   if (result.error) throw new Error(`Unable to authorize teacher submission: ${result.error.message}`);
