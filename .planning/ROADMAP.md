@@ -178,12 +178,12 @@ Archive:
   6. Every Coco output is moderated/safety-checked before it is shown or spoken to a student.
   7. Coco's dynamically generated lines are persisted (`attempt_turns.coco_line`) and the full exchange is teacher-reviewable as a transcript using the existing review UI, with the target pattern visually identifiable in the transcript.
 
-**Plans**: 1/7 plans executed
+**Plans**: 2/7 plans executed
 
 **Wave 1** *(parallel foundation)*
 
 - [x] 11-01-PLAN.md — additive migration (missions.scene_premise/conversation_mode, attempt_turns.coco_line/moderation_event) + conditional snapshot refine + live push (SCENE-01, CHAT-01, CHAT-06)
-- [ ] 11-02-PLAN.md — conversation-generator + fail-closed content-moderation adapters, domain schemas, fallback lines, FERPA/COPPA moderation data-use note (CHAT-01, CHAT-02, CHAT-04, CHAT-05)
+- [x] 11-02-PLAN.md — conversation-generator + fail-closed content-moderation adapters, domain schemas, fallback lines, FERPA/COPPA moderation data-use note (CHAT-01, CHAT-02, CHAT-04, CHAT-05)
 
 **Wave 2** *(server orchestration, blocked on Wave 1)*
 
@@ -247,7 +247,7 @@ Phases execute in numeric order: 8 → 9 → 10 → 10.1 → 11 → 12 → 13 (P
 | 9. Pronunciation Scoring | v2.0 | 6/6 | Complete | 2026-07-03 |
 | 10. VN-Style Mascot | v2.0 | 4/4 | Complete (accepted with residual low-end-device risk) | 2026-07-11 |
 | 10.1 Assignment Operations & Student History | v2.0 | 12/12 | Complete   | 2026-07-14 |
-| 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 1/7 | In Progress|  |
+| 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 2/7 | In Progress|  |
 | 12. UI Overhaul | v2.0 | 0/TBD | Not started | - |
 | 13. Pronunciation Remediation Videos | v2.0 | 0/TBD | Not planned | - |
 
