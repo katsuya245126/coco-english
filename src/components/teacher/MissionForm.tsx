@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   createMissionAction,
+  generatePremiseAction,
   updateMissionAction,
   type MissionActionResult,
 } from "@/app/teacher/missions/actions";
@@ -50,9 +51,32 @@ export function MissionForm({
       hintLadder: turn.hintLadder,
     })) ?? [createEmptyTurn()],
   );
+  const [conversationMode, setConversationMode] = useState(
+    mission?.conversationMode ?? false,
+  );
+  const [requiredTurns, setRequiredTurns] = useState(
+    mission?.conversationMode ? mission.requiredTurns : 5,
+  );
+  const [scenePremise, setScenePremise] = useState(
+    mission?.scenePremise ?? "",
+  );
+  const [generatingPremise, setGeneratingPremise] = useState(false);
+  const [premiseError, setPremiseError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  async function handleGeneratePremise() {
+    setPremiseError(null);
+    setGeneratingPremise(true);
+    const result = await generatePremiseAction({ targetPattern, level });
+    setGeneratingPremise(false);
+    if (result.ok) {
+      setScenePremise(result.scenePremise);
+    } else {
+      setPremiseError(result.error);
+    }
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -67,8 +91,13 @@ export function MissionForm({
     formData.set("targetPattern", targetPattern);
     formData.set("topic", topic);
     formData.set("level", level);
-    formData.set("requiredTurns", String(turns.length));
-    formData.set("turns", JSON.stringify(turns));
+    formData.set(
+      "requiredTurns",
+      String(conversationMode ? requiredTurns : turns.length),
+    );
+    formData.set("turns", JSON.stringify(conversationMode ? [] : turns));
+    formData.set("conversationMode", conversationMode ? "true" : "false");
+    formData.set("scenePremise", scenePremise);
 
     const result: MissionActionResult =
       mode === "edit"
@@ -126,6 +155,52 @@ export function MissionForm({
           value={targetPattern}
           onChange={setTargetPattern}
         />
+
+        <div style={{ marginTop: 16 }}>
+          <label htmlFor="scene-premise" style={labelStyle}>
+            Scene premise
+          </label>
+          <p id="scene-premise-help" style={helpTextStyle}>
+            A short setting Coco and your student share at the start of this
+            mission (e.g. &quot;You arrive at school and meet Coco —
+            introduce yourself&quot;).
+          </p>
+          <textarea
+            id="scene-premise"
+            name="scenePremise"
+            value={scenePremise}
+            onChange={(event) => setScenePremise(event.target.value)}
+            aria-describedby="scene-premise-help"
+            rows={3}
+            style={{ ...inputStyle, resize: "vertical" }}
+          />
+          <div style={{ marginTop: 8 }}>
+            <HoverButton
+              type="button"
+              onClick={handleGeneratePremise}
+              disabled={generatingPremise}
+              style={secondaryButtonStyle}
+              hoverStyle={secondaryHover}
+            >
+              {generatingPremise ? (
+                <span
+                  style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+                >
+                  <span className="spinner" aria-hidden="true" />
+                  Generating…
+                </span>
+              ) : (
+                "Generate premise"
+              )}
+            </HoverButton>
+          </div>
+          {premiseError ? (
+            <p role="alert" style={fieldErrorStyle}>
+              {premiseError}
+            </p>
+          ) : null}
+        </div>
+
         <Field
           id="topic"
           name="topic"
@@ -154,7 +229,67 @@ export function MissionForm({
         </div>
       </section>
 
-      <TurnEditor turns={turns} onChange={setTurns} />
+      <section style={panelStyle}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <input
+            id="conversation-mode"
+            type="checkbox"
+            checked={conversationMode}
+            onChange={(event) => setConversationMode(event.target.checked)}
+            aria-describedby="conversation-mode-help"
+            style={toggleInputStyle}
+          />
+          <label htmlFor="conversation-mode" style={labelStyle}>
+            Dynamic conversation mode
+          </label>
+        </div>
+        <p id="conversation-mode-help" style={helpTextStyle}>
+          Coco responds naturally to what your student says, instead of
+          following fixed turns. Off by default.
+        </p>
+
+        {conversationMode ? (
+          <div style={{ marginTop: 16, maxWidth: 240 }}>
+            <label htmlFor="required-turns" style={labelStyle}>
+              Turns to complete this mission
+            </label>
+            <input
+              id="required-turns"
+              type="number"
+              min={3}
+              max={8}
+              value={requiredTurns}
+              onChange={(event) =>
+                setRequiredTurns(Number(event.target.value))
+              }
+              aria-describedby="required-turns-help"
+              style={{ ...inputStyle, marginTop: 8 }}
+            />
+            <p id="required-turns-help" style={helpTextStyle}>
+              Your student earns credit after this many turns. They can keep
+              chatting a little longer if they want — Coco will wrap up
+              naturally.
+            </p>
+            {requiredTurns < 3 || requiredTurns > 8 ? (
+              <p role="alert" style={fieldErrorStyle}>
+                Choose between 3 and 8 turns.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+
+      {conversationMode ? (
+        <section style={panelStyle}>
+          <h2 style={headingStyle}>Turns (optional preview)</h2>
+          <p style={helpTextStyle}>
+            Coco generates turns live in dynamic conversation mode — authoring
+            turns below is optional and only used as a fallback reference.
+          </p>
+        </section>
+      ) : (
+        <TurnEditor turns={turns} onChange={setTurns} />
+      )}
 
       <div style={footerStyle}>
         <HoverButton
@@ -243,6 +378,22 @@ const labelStyle: React.CSSProperties = {
   fontSize: 14,
   fontWeight: 600,
   color: "#111827",
+};
+
+const helpTextStyle: React.CSSProperties = {
+  fontSize: 14,
+  fontWeight: 400,
+  color: "#4B5563",
+  margin: "4px 0 0",
+};
+
+const toggleInputStyle: React.CSSProperties = {
+  width: 44,
+  height: 44,
+  minWidth: 44,
+  minHeight: 44,
+  accentColor: "#2563EB",
+  cursor: "pointer",
 };
 
 const inputStyle: React.CSSProperties = {
