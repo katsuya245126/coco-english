@@ -160,3 +160,7 @@ None - no further external service configuration required. The one external step
 ---
 *Phase: 11-coco-chat-dynamic-turns-scene-framing*
 *Completed: 2026-07-15*
+
+## Self-Check: PASSED
+
+All 8 key files and 6 commit hashes (5 task commits + this summary commit) verified present on disk and in git log.
