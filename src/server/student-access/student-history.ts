@@ -1,4 +1,5 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
+import { wordsToPractice, type WordScore } from "@/domain/pronunciation/scoring";
 
 const AUDIO_TTL_SECONDS = 300;
 const AUDIO_BUCKET = "student-audio";
@@ -86,9 +87,10 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
     completedAt: (attempt.data as { completed_at: string | null }).completed_at ?? row.submitted_at,
     turns: turnRows.map((turn) => {
       const acceptedRepeat = turn.repeat_accepted === true && Boolean(turn.repeat_transcript);
+      const transcript = acceptedRepeat ? turn.repeat_transcript! : turn.original_transcript ?? "";
       const clip = clips.find((item) => item.attempt_turn_id === turn.id && item.clip_kind === (acceptedRepeat ? "repeat_attempt" : "original_answer")) ?? null;
       const score = clip ? scores.find((item) => item.audio_clip_id === clip.id) : undefined;
-      return { id: turn.id, turnOrder: turn.turn_order, cocoPrompt: prompts.get(turn.turn_order) ?? "Coco's question", transcript: acceptedRepeat ? turn.repeat_transcript! : turn.original_transcript ?? "", audio: clip ? { id: clip.id, playback: playbackFor(clip) } : null, pronunciation: score && [1,2,3].includes(score.star_band) ? { starBand: score.star_band as 1|2|3, words: Array.isArray(score.word_scores) ? score.word_scores.flatMap((entry) => { const word = entry as { word?: unknown; errorType?: unknown }; return typeof word.word === "string" ? [{ word: word.word, label: word.errorType === "None" ? "Clear" : "Keep practicing" }] : []; }) : [] } : null };
+      return { id: turn.id, turnOrder: turn.turn_order, cocoPrompt: prompts.get(turn.turn_order) ?? "Coco's question", transcript, audio: clip ? { id: clip.id, playback: playbackFor(clip) } : null, pronunciation: score && [1,2,3].includes(score.star_band) ? { starBand: score.star_band as 1|2|3, words: Array.isArray(score.word_scores) ? wordsToPractice(score.word_scores as WordScore[], transcript) : [] } : null };
     }),
   };
 }
