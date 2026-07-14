@@ -33,7 +33,7 @@ Archive:
 - [x] **Phase 8: Coco Voice (TTS)** - Coco's mission/prompt lines are spoken aloud with caching and standard `<audio>` playback. All 5 plans executed; automated verification passed; Samsung S23 + Mac preview smoke tests passed; Chromebook/older-tablet coverage unavailable and accepted as residual risk at closeout (2026-07-02).
 - [x] **Phase 9: Pronunciation Scoring** - Students get encouraging, banded pronunciation feedback; teachers see word-level diagnostic detail.
 - [x] **Phase 10: VN-Style Mascot** - Coco appears as a persistent 2D character with content-tied expressions and audio-driven speaking state. All 4 plans complete 2026-07-11; MASCOT-01..04 verified (real-low-end-device check closed via accepted residual risk — no device available, per Phase 8 precedent).
-- [ ] **Phase 10.1: Assignment Operations & Student History (INSERTED)** - Add a Gmail-like teacher review inbox, a separate incomplete-work queue, and bounded student Current/Past mission history before Coco Chat. Gap closure in progress (11/12 plans complete).
+- [x] **Phase 10.1: Assignment Operations & Student History (INSERTED)** - Add a Gmail-like teacher review inbox, a separate incomplete-work queue, and bounded student Current/Past mission history before Coco Chat. All 12 plans complete; final repository verification passed 2026-07-14.
 - [ ] **Phase 11: Coco Chat (dynamic turns + scene framing)** - Missions get a scene premise and an optional bounded, moderated dynamic conversation mode.
 - [ ] **Phase 12: UI Overhaul** - One cohesive visual pass unifying voice, mascot, and chat, gated on a full prior-phase UAT re-run.
 - [ ] **Phase 13: Pronunciation Remediation Videos** - Data-triggered video homework targeting a student's own weak sound, using stored Azure pronunciation scores from Phase 9. Promoted out of the deferred backlog (2026-07-09).
@@ -134,7 +134,7 @@ Archive:
   5. Student home has bounded Current/Past pages: Retry → due soon → later/no-date ordering, late/missed open work remains launchable, and Past contains five completed missions per page newest-first.
   6. A Past mission opens only the unlocked student's final completed attempt as a read-only Coco/You said recap with transcripts, retained audio, qualitative pronunciation feedback, and Recording expired fallback.
 
-**Plans:** 11/12 plans complete; 1 gap-closure plan ready
+**Plans:** 12/12 plans complete
 
 **Wave 1** *(independent foundations)*
 
@@ -161,7 +161,7 @@ Archive:
 **Wave 5** *(UI gap closure and final repository verification)*
 
 - [x] 10.1-08-PLAN.md — child-facing recap: label-aware pronunciation feedback (all-clear summary vs. surfaced practice words) and a button-styled back-to-past-missions control
-- [ ] 10.1-10-PLAN.md — restore the approved per-class review-policy control, both policy-direction queue outcomes, and the final full verification gate
+- [x] 10.1-10-PLAN.md — restore the approved per-class review-policy control, both policy-direction queue outcomes, and the final full verification gate
 
 ### Phase 11: Coco Chat (dynamic turns + scene framing)
 
@@ -246,14 +246,14 @@ Phases execute in numeric order: 8 → 9 → 10 → 10.1 → 11 → 12 → 13 (P
 | 8. Coco Voice (TTS) | v2.0 | 5/5 | Complete (accepted with residual low-end-device risk) | 2026-07-02 |
 | 9. Pronunciation Scoring | v2.0 | 6/6 | Complete | 2026-07-03 |
 | 10. VN-Style Mascot | v2.0 | 4/4 | Complete (accepted with residual low-end-device risk) | 2026-07-11 |
-| 10.1 Assignment Operations & Student History | v2.0 | 11/12 | In Progress | — |
+| 10.1 Assignment Operations & Student History | v2.0 | 12/12 | Complete   | 2026-07-14 |
 | 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 0/7 | Planned | - |
 | 12. UI Overhaul | v2.0 | 0/TBD | Not started | - |
 | 13. Pronunciation Remediation Videos | v2.0 | 0/TBD | Not planned | - |
 
 ## Next Up
 
-Phase 10.1 (Assignment Operations & Student History) has completed three verification gap plans: 10.1-11, 10.1-09, and 10.1-12. Plan 10.1-10 remains for review-policy UI and final phase verification.
+Phase 10.1 (Assignment Operations & Student History) completed all four verification gap plans: late-open resume safety, policy-aware queue contracts, transcript-accurate recap words, and the live per-class policy UI with final repository verification.
 
 Phase 11 (Coco Chat) remains fully planned (7 plans, 4 waves) and follows Phase 10.1 once it closes; its existing plans are unchanged.
 
