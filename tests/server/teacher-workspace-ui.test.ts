@@ -191,6 +191,7 @@ describe("teacher workspace source contract", () => {
   });
 
   it("renders the class workspace as separate pages under a shared tabbed layout", () => {
+    const data = source("src/server/teacher/class-workspace-data.ts");
     const layout = source("src/app/teacher/classes/[id]/(workspace)/layout.tsx");
     const tabs = source("src/components/teacher/ClassWorkspaceTabs.tsx");
     const review = source("src/app/teacher/classes/[id]/(workspace)/page.tsx");
@@ -199,12 +200,26 @@ describe("teacher workspace source contract", () => {
     expect(layout).toContain("class-review-header");
     expect(layout).toContain("<ClassWorkspaceTabs");
     expect(layout).toContain("ClassReviewPolicyControl");
+    expect(data).toContain('select("id, name, join_code, review_policy")');
+    expect(layout).toContain("value={ownedClass.review_policy}");
     for (const label of ["Needs review", "Assignments", "Students", "Class settings"]) expect(tabs).toContain(label);
     expect(tabs).toContain("usePathname");
     expect(review).toContain("TeacherReviewTable");
     expect(review).toContain("row.classId === classId");
     expect(assignments).toContain("class-assignment-card");
     expect(students).toContain("class-student-card");
+  });
+
+  it("keeps the review policy control responsive and within the approved visual tokens", () => {
+    const styles = source("src/app/teacher/teacher-workspace.css");
+    expect(styles).toMatch(/\.review-policy-control[^{]*\{[^}]*min-width:\s*210px/);
+    expect(styles).toMatch(/\.review-policy-control select[^{]*\{[^}]*min-height:\s*44px/);
+    expect(styles).toMatch(/\.review-policy-control select[^{]*\{[^}]*border:[^;}]*#cbd5e1/i);
+    expect(styles).toMatch(/\.review-policy-control select:focus-visible[^{]*\{[^}]*#2563eb/i);
+    expect(styles).toMatch(/\.review-policy-error[^{]*\{[^}]*#b42318/i);
+    expect(styles).toMatch(
+      /@media \(max-width: 800px\)[\s\S]*\.review-policy-control[^{]*\{[^}]*width:\s*100%/,
+    );
   });
 
   it("class settings links back to the class workspace, not the teacher home", () => {
