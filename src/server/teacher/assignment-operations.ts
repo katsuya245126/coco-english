@@ -4,6 +4,7 @@ import {
   countIncompleteItems,
   groupIncompleteAssignments,
   isSubmissionPendingReview,
+  type ClassReviewPolicy,
 } from "@/domain/teacher/assignment-operations";
 import { assertTransitionRequest, type AssignmentStudentStatus } from "@/domain/foundation/status";
 
@@ -36,7 +37,15 @@ const one = (value: RawValue | undefined): RawRow => {
   return item && typeof item === "object" ? item as RawRow : {};
 };
 
-function mapRow(row: RawRow): TeacherReviewRow & { status: AssignmentStudentStatus; attemptStatus: string; reviewedAt: string | null; isLatestAttempt: boolean } {
+type OwnedAttemptRow = TeacherReviewRow & {
+  status: AssignmentStudentStatus;
+  attemptStatus: string;
+  reviewedAt: string | null;
+  isLatestAttempt: boolean;
+  reviewPolicy: ClassReviewPolicy;
+};
+
+function mapRow(row: RawRow): OwnedAttemptRow {
   const assignmentStudent = one(row.assignment_students);
   const assignment = one(assignmentStudent.assignments);
   const klass = one(assignment.classes);
@@ -55,6 +64,7 @@ function mapRow(row: RawRow): TeacherReviewRow & { status: AssignmentStudentStat
     isLatestAttempt: assignmentStudent.latest_attempt_id === row.id,
     status: assignmentStudent.status as AssignmentStudentStatus,
     attemptStatus: String(row.status),
+    reviewPolicy: klass.review_policy as ClassReviewPolicy,
   };
 }
 
@@ -64,7 +74,7 @@ async function loadOwnedAttempts(teacherId: string, client: Client = createSupab
     assignment_students!attempts_assignment_student_id_fkey!inner(
       id, status, submitted_at, latest_attempt_id,
       students!inner(display_name),
-      assignments!inner(id, title, due_at, classes!inner(id, name, teacher_id))
+      assignments!inner(id, title, due_at, classes!inner(id, name, teacher_id, review_policy))
     ),
     submission_review_receipts(first_viewed_at, reviewed_at)
   `).eq("assignment_students.assignments.classes.teacher_id", teacherId);
@@ -74,12 +84,12 @@ async function loadOwnedAttempts(teacherId: string, client: Client = createSupab
 
 export async function listNeedsReviewForTeacher(input: { teacherId: string }, client?: Client): Promise<TeacherReviewRow[]> {
   const rows = await loadOwnedAttempts(input.teacherId, client);
-  return rows.filter((row) => isSubmissionPendingReview(row)).sort(compareSubmissionRecency).map(({ status: _s, attemptStatus: _a, reviewedAt: _r, isLatestAttempt: _l, ...row }) => row);
+  return rows.filter((row) => isSubmissionPendingReview(row)).sort(compareSubmissionRecency).map(({ status: _s, attemptStatus: _a, reviewedAt: _r, isLatestAttempt: _l, reviewPolicy: _p, ...row }) => row);
 }
 
 export async function listActivityForTeacher(input: { teacherId: string; offset?: number; limit?: number }, client?: Client): Promise<TeacherActivityRow[]> {
   const rows = (await loadOwnedAttempts(input.teacherId, client)).filter((row) => row.isLatestAttempt).sort(compareSubmissionRecency);
-  return rows.slice(input.offset ?? 0, (input.offset ?? 0) + (input.limit ?? 50)).map(({ isLatestAttempt: _l, attemptStatus: _a, ...row }) => row);
+  return rows.slice(input.offset ?? 0, (input.offset ?? 0) + (input.limit ?? 50)).map(({ isLatestAttempt: _l, attemptStatus: _a, reviewPolicy: _p, ...row }) => row);
 }
 
 export async function listIncompleteForTeacher(input: { teacherId: string; now?: Date }, client: Client = createSupabaseServiceClient()) {
