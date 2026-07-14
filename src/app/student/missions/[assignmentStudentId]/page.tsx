@@ -199,6 +199,8 @@ export default async function MissionPage({ params }: MissionPageProps) {
           missionTitle={snapshot.title}
           turns={sortedTurns}
           requiredTurns={snapshot.requiredTurns}
+          scenePremise={snapshot.scenePremise}
+          conversationMode={snapshot.conversationMode}
           characterProfile={{
             displayName: characterProfile.displayName,
             questionIntro: characterProfile.questionIntro,

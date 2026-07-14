@@ -59,6 +59,10 @@ export const ttsVoiceSchema = z.enum(TTS_VOICES);
  * - `coco_transition`        D-08 — "Good job! Ready for the next one?"
  * - `coco_feedback`          D-09 — bounded supportive feedback line.
  * - `completion_celebration` D-11 — mission-complete celebration line.
+ * - `coco_dynamic_line`      Phase 11 CHAT-02 — Coco's dynamically-generated
+ *   conversation-mode reply, resolved server-side from the moderated,
+ *   already-persisted `attempt_turns.coco_line` for the given turnOrder
+ *   (same "descriptor only, never client text" boundary as every other kind).
  *
  * Student transcript / original recognition text (D-10) is deliberately absent
  * and rejected by {@link isVoiceEligibleLineKind}.
@@ -69,6 +73,7 @@ export const VOICE_ELIGIBLE_LINE_KINDS = [
   "coco_transition",
   "coco_feedback",
   "completion_celebration",
+  "coco_dynamic_line",
 ] as const;
 
 export type VoiceEligibleLineKind = (typeof VOICE_ELIGIBLE_LINE_KINDS)[number];

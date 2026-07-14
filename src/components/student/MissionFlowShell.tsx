@@ -33,6 +33,8 @@ import { StepImprovedRepeat } from "@/components/student/StepImprovedRepeat";
 import { StepAiEvaluationFeedback } from "@/components/student/StepAiEvaluationFeedback";
 import { StepTurnTransition } from "@/components/student/StepTurnTransition";
 import { StepMissionComplete } from "@/components/student/StepMissionComplete";
+import { StepCocoThinking } from "@/components/student/StepCocoThinking";
+import { ScenePremiseCard } from "@/components/student/ScenePremiseCard";
 import { MascotStage } from "@/components/student/MascotStage";
 import {
   CocoSpeechAudio,
@@ -48,6 +50,7 @@ import type { PendingTurnReview } from "@/domain/flow/completion";
 
 export type FlowStep =
   | "question"
+  | "cocoThinking"
   | "aiFeedback"
   | "repeat"
   | "repeatFeedback"
@@ -117,6 +120,10 @@ type FlowState = {
   // 1-star result only forces a retry the first time, so this never traps a
   // student who genuinely struggles with a turn (D-04 checkpoint decision).
   hasRetriedThisTurn: boolean;
+  // Coco's dynamically-generated conversation-mode reply for the current
+  // turn's original answer (CHAT-02); null for preset missions and null
+  // until the round-trip resolves.
+  cocoLine: string | null;
 };
 
 export type CharacterProfileLines = {
@@ -135,6 +142,8 @@ export type MissionFlowShellProps = {
   missionTitle: string;
   turns: MissionSnapshotTurn[];
   requiredTurns: number;
+  scenePremise: string | null;
+  conversationMode: boolean;
   characterProfile: CharacterProfileLines;
   startingTurnIndex: number;
   isResume: boolean;
@@ -162,6 +171,7 @@ function initialFlowState(
     originalFeedback: null,
     repeatFeedback: null,
     hasRetriedThisTurn: false,
+    cocoLine: null,
   };
 
   if (!initialReview) return emptyState;
@@ -214,6 +224,8 @@ export function MissionFlowShell({
   missionTitle,
   turns,
   requiredTurns,
+  scenePremise,
+  conversationMode,
   characterProfile,
   startingTurnIndex,
   isResume,
@@ -302,6 +314,9 @@ export function MissionFlowShell({
     };
     starBand?: PronunciationStarBand | null;
     wordsToPractice?: WordHighlight[];
+    // Coco's dynamically-generated conversation-mode reply (CHAT-02); only
+    // ever present for conversation-mode original-answer uploads.
+    cocoLine?: string | null;
   };
 
   async function uploadVoiceClip(input: {
@@ -333,6 +348,7 @@ export function MissionFlowShell({
           evaluation?: UploadVoiceClipPayload["evaluation"];
           starBand?: PronunciationStarBand | null;
           wordsToPractice?: WordHighlight[];
+          cocoLine?: string | null;
         }
       | null;
     if (
@@ -352,6 +368,7 @@ export function MissionFlowShell({
       evaluation: payload.evaluation,
       starBand: payload.starBand,
       wordsToPractice: payload.wordsToPractice,
+      cocoLine: payload.cocoLine ?? null,
     };
   }
 
@@ -417,6 +434,14 @@ export function MissionFlowShell({
         throw new Error("attempt_start_failed");
       }
 
+      // Conversation-mode missions run a server round-trip (moderation ->
+      // generation -> moderation -> TTS warmup) on the original-answer
+      // upload — show the "Coco is thinking…" step while it's in flight
+      // (CHAT-02, UI-SPEC interaction contract).
+      if (conversationMode) {
+        setFlow((prev) => ({ ...prev, step: "cocoThinking" }));
+      }
+
       const upload = await uploadVoiceClip({
         recording,
         aid,
@@ -446,6 +471,7 @@ export function MissionFlowShell({
             : null,
         originalFeedback,
         repeatFeedback: null,
+        cocoLine: upload.cocoLine ?? null,
       }));
     } finally {
       if (token === submissionTokenRef.current) setIsSubmittingVoice(false);
@@ -636,6 +662,7 @@ export function MissionFlowShell({
         originalFeedback: null,
         repeatFeedback: null,
         hasRetriedThisTurn: false,
+        cocoLine: null,
       });
     }
   }
@@ -647,6 +674,13 @@ export function MissionFlowShell({
       {/* Page header */}
       <h1 style={displayTitleStyle}>{missionTitle}</h1>
       <TurnProgressBar current={currentTurnNumber} total={requiredTurns} />
+
+      {/* Scene premise (SCENE-01): rendered once above turn 1, on mission
+          start only (fresh start or resume at turn 1) — never re-shown on
+          later turns. */}
+      {startingTurnIndex === 0 && (
+        <ScenePremiseCard scenePremise={scenePremise} />
+      )}
 
       {/* Resume notice (D-04) */}
       {showResumeNotice && (
@@ -706,6 +740,8 @@ export function MissionFlowShell({
             {actionError}
           </p>
         )}
+
+        {flow.step === "cocoThinking" && <StepCocoThinking />}
 
         {flow.step === "question" && currentTurn && (
           <StepBuddyQuestion
@@ -867,10 +903,36 @@ function getMascotDialogue({
     return { text: actionError, line: null };
   }
 
+  if (flow.step === "cocoThinking") {
+    // No dialogue bubble/voice during the wait — StepCocoThinking already
+    // shows the "Coco is thinking…" indicator (CHAT-02).
+    return { text: null, line: null };
+  }
+
   if (flow.step === "question" && currentTurn) {
     return {
       text: currentTurn.prompt,
       line: { lineKind: "mission_prompt", turnOrder: currentTurn.turnOrder },
+    };
+  }
+
+  // Conversation-mode dynamic reply takes over Coco's spoken line on the
+  // feedback step that follows the round-trip, in place of the static
+  // acceptedOriginal/needsCorrection copy — same CocoSpeechAudio prop
+  // contract, just a different lineKind (CHAT-02, 11-PATTERNS.md).
+  if (
+    flow.step === "aiFeedback" &&
+    flow.cocoLine &&
+    currentTurn &&
+    (flow.originalFeedback?.kind === "acceptedOriginal" ||
+      flow.originalFeedback?.kind === "needsCorrection")
+  ) {
+    return {
+      text: flow.cocoLine,
+      line: {
+        lineKind: "coco_dynamic_line",
+        turnOrder: currentTurn.turnOrder,
+      },
     };
   }
 

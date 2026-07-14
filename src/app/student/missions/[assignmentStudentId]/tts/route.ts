@@ -29,6 +29,7 @@ type RouteContext = {
 type ResolvedSnapshotTurn = {
   prompt: string;
   improvedSentence: string | null;
+  cocoLine: string | null;
 };
 
 /**
@@ -57,6 +58,11 @@ function resolveLineText(
       return resolveFeedbackLineText(feedbackVariant) ?? profile.improvedSentenceIntro;
     case "completion_celebration":
       return `${profile.completionHeading} ${profile.completionBody(turnCount)}`;
+    case "coco_dynamic_line":
+      // Phase 11 CHAT-02 — Coco's dynamically-generated reply. Already
+      // moderated + persisted server-side (11-03); resolved here from
+      // attempt_turns.coco_line only, never from client-supplied text.
+      return turn?.cocoLine ?? null;
     default:
       return null;
   }
@@ -150,23 +156,45 @@ export async function POST(request: Request, context: RouteContext) {
 
   let resolvedTurn: ResolvedSnapshotTurn | null = null;
   if (parsed.data.turnOrder && snapshot) {
+    // Conversation-mode missions generate turns dynamically and may have zero
+    // or few pre-authored snapshot turns — the dynamic-line lookup does not
+    // depend on a matching snapshotTurn existing.
     const snapshotTurn = snapshot.turns.find(
       (missionTurn) => missionTurn.turnOrder === parsed.data.turnOrder,
     );
-    if (snapshotTurn) {
-      let improvedSentence: string | null = null;
-      if (parsed.data.lineKind === "improved_sentence") {
-        const { data: turnRow } = await supabase
-          .from("attempt_turns")
-          .select("improved_sentence, attempts!inner(assignment_student_id)")
-          .eq("attempts.assignment_student_id", assignmentStudentId)
-          .eq("turn_order", parsed.data.turnOrder)
-          .maybeSingle();
-        improvedSentence =
-          (turnRow as { improved_sentence?: string | null } | null)
-            ?.improved_sentence ?? null;
-      }
-      resolvedTurn = { prompt: snapshotTurn.prompt, improvedSentence };
+
+    let improvedSentence: string | null = null;
+    let cocoLine: string | null = null;
+
+    if (parsed.data.lineKind === "improved_sentence") {
+      const { data: turnRow } = await supabase
+        .from("attempt_turns")
+        .select("improved_sentence, attempts!inner(assignment_student_id)")
+        .eq("attempts.assignment_student_id", assignmentStudentId)
+        .eq("turn_order", parsed.data.turnOrder)
+        .maybeSingle();
+      improvedSentence =
+        (turnRow as { improved_sentence?: string | null } | null)
+          ?.improved_sentence ?? null;
+    }
+
+    if (parsed.data.lineKind === "coco_dynamic_line") {
+      const { data: turnRow } = await supabase
+        .from("attempt_turns")
+        .select("coco_line, attempts!inner(assignment_student_id)")
+        .eq("attempts.assignment_student_id", assignmentStudentId)
+        .eq("turn_order", parsed.data.turnOrder)
+        .maybeSingle();
+      cocoLine =
+        (turnRow as { coco_line?: string | null } | null)?.coco_line ?? null;
+    }
+
+    if (snapshotTurn || parsed.data.lineKind === "coco_dynamic_line") {
+      resolvedTurn = {
+        prompt: snapshotTurn?.prompt ?? "",
+        improvedSentence,
+        cocoLine,
+      };
     }
   }
 
