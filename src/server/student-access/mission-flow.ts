@@ -1,5 +1,5 @@
 /**
- * Mission-flow service (D-01..D-08, FLOW-02/04/05/07).
+ * Mission-flow service (D-01..D-08, FLOW-02/04/05/07; D-01..D-05 Phase 11).
  *
  * Server-only module — performs NO free-text generation and imports NO
  * AI client (AI-06 structural). Uses the service-role client to bypass
@@ -11,10 +11,12 @@
  */
 
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
+import type { Json } from "@/lib/db/types";
 import { assertTransitionRequest } from "@/domain/foundation/status";
 import { buildPlaceholderEvaluation } from "@/domain/flow/evaluation";
 import { log } from "@/server/logging/logger";
 import { nextUnfinishedTurnOrder } from "@/domain/flow/completion";
+import { HARD_TURN_CAP } from "@/domain/ai/conversation-generation";
 
 // ─── Result types ───
 
@@ -56,6 +58,10 @@ export type RouteTeacherReviewResult =
   | { ok: true }
   | { ok: false; error: "not_found" | "invalid_transition" | "db_error" };
 
+export type RecordCocoLineResult =
+  | { ok: true }
+  | { ok: false; error: "not_found" | "db_error" };
+
 // ─── Helpers ───
 
 /** Load assignment_students row scoped to both id AND student_id (V4 ownership). */
@@ -96,6 +102,18 @@ async function loadOwnedAttempt(
 }
 
 // ─── Service functions ───
+
+/**
+ * Server-owned hard-cap gate for dynamic conversation turns (CHAT-03, T-11-08).
+ *
+ * HARD_TURN_CAP is a literal constant imported from conversation-generation.ts,
+ * entirely independent of a mission's own required_turns — never trust a
+ * client-supplied turn number; callers must derive turnOrder from the actual
+ * count of attempt_turns rows for the attempt (Pitfall 4).
+ */
+export function canGenerateNextDynamicTurn(turnOrder: number): boolean {
+  return turnOrder <= HARD_TURN_CAP;
+}
 
 export async function routeAssignmentStudentToTeacherReview(input: {
   studentId: string;
@@ -410,6 +428,67 @@ export async function recordAnswer(input: {
           original_transcript: trimmed,
           target_attempted: true,
           evaluation: buildPlaceholderEvaluation(),
+        },
+        { onConflict: "attempt_id,turn_order" },
+      );
+
+    if (error) return { ok: false, error: "db_error" };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "db_error" };
+  }
+}
+
+/**
+ * Persist Coco's generated line + moderation event for a dynamic conversation
+ * turn (CHAT-03/05/06, D-10/D-11/D-13, T-11-08, T-11-11).
+ *
+ * Upserts on (attempt_id, turn_order) — same idempotency shape as
+ * recordAnswer, so a second call for the same turn_order overwrites rather
+ * than duplicates. Enforces ownership via loadOwnedAssignmentStudent +
+ * loadOwnedAttempt before writing (V4) — never trusts a client-supplied
+ * turn number. Generation/moderation calls themselves live in the
+ * orchestration layer (audio-upload.ts); this function is persistence-only,
+ * preserving the "imports NO AI client" boundary above.
+ */
+export async function recordCocoLine(input: {
+  studentId: string;
+  assignmentStudentId: string;
+  attemptId: string;
+  turnOrder: number;
+  cocoLine: string;
+  moderationEvent?: object | null;
+}): Promise<RecordCocoLineResult> {
+  try {
+    const supabase = createSupabaseServiceClient();
+
+    // Verify ownership
+    const asRow = await loadOwnedAssignmentStudent(
+      supabase,
+      input.assignmentStudentId,
+      input.studentId,
+    );
+    if (!asRow) return { ok: false, error: "not_found" };
+
+    const attempt = await loadOwnedAttempt(
+      supabase,
+      input.assignmentStudentId,
+      input.attemptId,
+    );
+    if (!attempt.ok) return attempt;
+    if (attempt.attempt.status !== "in_progress") {
+      return { ok: false, error: "not_found" };
+    }
+
+    // Upsert on (attempt_id, turn_order) — idempotent, mirrors recordAnswer
+    const { error } = await supabase
+      .from("attempt_turns")
+      .upsert(
+        {
+          attempt_id: input.attemptId,
+          turn_order: input.turnOrder,
+          coco_line: input.cocoLine,
+          moderation_event: (input.moderationEvent ?? null) as Json,
         },
         { onConflict: "attempt_id,turn_order" },
       );
