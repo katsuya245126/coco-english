@@ -70,6 +70,31 @@ describe("foundation assignment status rules", () => {
     expect(shouldMarkMissed({ status: "assigned", dueAt: null, now })).toBe(false);
   });
 
+  it("preserves overdue started homework while its latest attempt is in progress", () => {
+    const now = new Date("2026-06-25T12:00:00.000Z");
+    const past = "2026-06-25T11:59:00.000Z";
+
+    expect(
+      shouldMarkMissed({
+        status: "started",
+        dueAt: past,
+        now,
+        latestAttemptStatus: "in_progress",
+      }),
+    ).toBe(false);
+
+    for (const latestAttemptStatus of ["completed", "abandoned", null] as const) {
+      expect(
+        shouldMarkMissed({
+          status: "started",
+          dueAt: past,
+          now,
+          latestAttemptStatus,
+        }),
+      ).toBe(true);
+    }
+  });
+
   it("requires teacher override audit data", () => {
     const base = {
       previousStatus: "teacher_review",
