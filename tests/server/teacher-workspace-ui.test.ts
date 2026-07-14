@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -12,6 +12,30 @@ const sourceFilesUnder = (dir: string): string[] =>
   });
 
 describe("teacher workspace source contract", () => {
+  it("uses a controlled, non-optimistic class review-policy control", () => {
+    const path = "src/components/teacher/ClassReviewPolicyControl.tsx";
+    expect(existsSync(path)).toBe(true);
+    const control = existsSync(path) ? source(path) : "";
+
+    expect(control).toContain("export function ClassReviewPolicyControl");
+    expect(control).toContain('aria-label="Class review policy"');
+    expect(control).toContain("Review every submission");
+    expect(control).toContain("Review flagged submissions only");
+    expect(control).toContain('role="status"');
+    expect(control).toContain('role="alert"');
+    expect(control).toContain("Saving review setting…");
+    expect(control).toContain("Review setting updated.");
+    expect(control).toContain(
+      "Could not update the review setting. Your previous setting is still active. Please try again.",
+    );
+    expect(control).toContain("updateClassReviewPolicyAction");
+    expect(control).toMatch(
+      /if \(result\.ok\)[\s\S]*setConfirmedValue\(nextValue\)[\s\S]*router\.refresh\(\)/,
+    );
+    expect(control.match(/router\.refresh\(\)/g)).toHaveLength(1);
+    expect(control).not.toContain("<style jsx");
+  });
+
   it("polls one snapshot without moving inbox rows until the banner is clicked", () => {
     const shell = source("src/components/teacher/TeacherWorkspaceShell.tsx");
     expect(shell).toContain("30000");
@@ -71,7 +95,7 @@ describe("teacher workspace source contract", () => {
     expect(styles).toContain(".teacher-shell .notice");
     expect(styles).toContain(".teacher-shell .workspace > header button");
     expect(styles).toContain("@media (max-width: 800px)");
-    expect(styles).not.toContain("review-policy-control");
+    expect(styles).toContain("review-policy-control");
   });
 
   it("bans runtime styled-jsx everywhere — every page must be styled at first paint", () => {
@@ -174,7 +198,7 @@ describe("teacher workspace source contract", () => {
     const students = source("src/app/teacher/classes/[id]/(workspace)/students/page.tsx");
     expect(layout).toContain("class-review-header");
     expect(layout).toContain("<ClassWorkspaceTabs");
-    expect(layout).not.toContain("review_policy");
+    expect(layout).toContain("ClassReviewPolicyControl");
     for (const label of ["Needs review", "Assignments", "Students", "Class settings"]) expect(tabs).toContain(label);
     expect(tabs).toContain("usePathname");
     expect(review).toContain("TeacherReviewTable");

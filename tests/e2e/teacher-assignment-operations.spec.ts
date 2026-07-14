@@ -6,10 +6,18 @@ const source = (path: string) => readFileSync(join(process.cwd(), path), "utf8")
 
 test("class workspace splits queue, assignments, and students into pages", () => {
   const review = source("src/app/teacher/classes/[id]/(workspace)/page.tsx");
+  const layout = source("src/app/teacher/classes/[id]/(workspace)/layout.tsx");
+  const policy = source("src/components/teacher/ClassReviewPolicyControl.tsx");
   const tabs = source("src/components/teacher/ClassWorkspaceTabs.tsx");
   expect(review).toContain("TeacherReviewTable");
   for (const label of ["Needs review", "Assignments", "Students", "Class settings"]) expect(tabs).toContain(label);
-  expect(tabs).not.toContain("ClassReviewPolicyControl");
+  expect(layout).toContain("ClassReviewPolicyControl");
+  expect(layout).toContain("ownedClass.review_policy");
+  expect(policy).toContain("Review every submission");
+  expect(policy).toContain("Review flagged submissions only");
+  expect(policy).toContain("Saving review setting…");
+  expect(policy).toContain("Review setting updated.");
+  expect(policy).toMatch(/if \(result\.ok\)[\s\S]*router\.refresh\(\)/);
 });
 
 test("assignment drill-down validates and highlights only an in-scope student", () => {
