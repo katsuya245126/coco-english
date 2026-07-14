@@ -75,6 +75,8 @@ test("teacher switches review policy in both directions while All activity stays
   const className = `Review Policy Class ${stamp}`;
   const ordinaryName = `Ordinary Student ${stamp}`;
   const flaggedName = `Flagged Student ${stamp}`;
+  let createdUserId: string | null = null;
+  let createdProfileId: string | null = null;
 
   const user = await admin.auth.admin.createUser({
     email,
@@ -82,107 +84,109 @@ test("teacher switches review policy in both directions while All activity stays
     email_confirm: true,
   });
   expect(user.error).toBeNull();
-
-  const profile = await admin
-    .from("teacher_profiles")
-    .insert({
-      auth_user_id: user.data.user!.id,
-      display_name: `Review Policy Teacher ${stamp}`,
-    })
-    .select("id")
-    .single();
-  expect(profile.error).toBeNull();
-
-  const klass = await admin
-    .from("classes")
-    .insert({
-      teacher_id: profile.data!.id,
-      name: className,
-      join_code: `RP${stamp}`.slice(-12),
-      data_mode: "real",
-      review_policy: "every_submission",
-    })
-    .select("id")
-    .single();
-  expect(klass.error).toBeNull();
-
-  const students = await admin
-    .from("students")
-    .insert([
-      { class_id: klass.data!.id, display_name: ordinaryName },
-      { class_id: klass.data!.id, display_name: flaggedName },
-    ])
-    .select("id, display_name");
-  expect(students.error).toBeNull();
-
-  const mission = await admin
-    .from("missions")
-    .insert({
-      teacher_id: profile.data!.id,
-      title: `Policy Mission ${stamp}`,
-      target_pattern: "I like ___.",
-      topic: "favorites",
-      level: "elementary",
-      required_turns: 1,
-      character_id: "default-buddy",
-    })
-    .select("id")
-    .single();
-  expect(mission.error).toBeNull();
-
-  const assignment = await admin
-    .from("assignments")
-    .insert({
-      class_id: klass.data!.id,
-      mission_id: mission.data!.id,
-      title: `Policy Mission ${stamp}`,
-      mission_snapshot: { requiredTurns: 1 },
-      data_mode: "real",
-    })
-    .select("id")
-    .single();
-  expect(assignment.error).toBeNull();
-
-  const completedAt = new Date().toISOString();
-  const assignmentStudents = await admin
-    .from("assignment_students")
-    .insert(
-      students.data!.map((student) => ({
-        assignment_id: assignment.data!.id,
-        student_id: student.id,
-        status: "completed" as const,
-        submitted_at: completedAt,
-      })),
-    )
-    .select("id, student_id");
-  expect(assignmentStudents.error).toBeNull();
-
-  const ordinaryStudent = students.data!.find(
-    (student) => student.display_name === ordinaryName,
-  )!;
-  const attempts = await admin
-    .from("attempts")
-    .insert(
-      assignmentStudents.data!.map((row) => ({
-        assignment_student_id: row.id,
-        status: "completed" as const,
-        completed_at: completedAt,
-        needs_review_reason:
-          row.student_id === ordinaryStudent.id ? null : "low_confidence",
-      })),
-    )
-    .select("id, assignment_student_id");
-  expect(attempts.error).toBeNull();
-
-  for (const attempt of attempts.data!) {
-    const latest = await admin
-      .from("assignment_students")
-      .update({ latest_attempt_id: attempt.id })
-      .eq("id", attempt.assignment_student_id);
-    expect(latest.error).toBeNull();
-  }
+  createdUserId = user.data.user!.id;
 
   try {
+    const profile = await admin
+      .from("teacher_profiles")
+      .insert({
+        auth_user_id: createdUserId,
+        display_name: `Review Policy Teacher ${stamp}`,
+      })
+      .select("id")
+      .single();
+    expect(profile.error).toBeNull();
+    createdProfileId = profile.data!.id;
+
+    const klass = await admin
+      .from("classes")
+      .insert({
+        teacher_id: profile.data!.id,
+        name: className,
+        join_code: `RP${stamp}`.slice(-12),
+        data_mode: "real",
+        review_policy: "every_submission",
+      })
+      .select("id")
+      .single();
+    expect(klass.error).toBeNull();
+
+    const students = await admin
+      .from("students")
+      .insert([
+        { class_id: klass.data!.id, display_name: ordinaryName },
+        { class_id: klass.data!.id, display_name: flaggedName },
+      ])
+      .select("id, display_name");
+    expect(students.error).toBeNull();
+
+    const mission = await admin
+      .from("missions")
+      .insert({
+        teacher_id: profile.data!.id,
+        title: `Policy Mission ${stamp}`,
+        target_pattern: "I like ___.",
+        topic: "favorites",
+        level: "elementary",
+        required_turns: 1,
+        character_id: "default-buddy",
+      })
+      .select("id")
+      .single();
+    expect(mission.error).toBeNull();
+
+    const assignment = await admin
+      .from("assignments")
+      .insert({
+        class_id: klass.data!.id,
+        mission_id: mission.data!.id,
+        title: `Policy Mission ${stamp}`,
+        mission_snapshot: { requiredTurns: 1 },
+        data_mode: "real",
+      })
+      .select("id")
+      .single();
+    expect(assignment.error).toBeNull();
+
+    const completedAt = new Date().toISOString();
+    const assignmentStudents = await admin
+      .from("assignment_students")
+      .insert(
+        students.data!.map((student) => ({
+          assignment_id: assignment.data!.id,
+          student_id: student.id,
+          status: "completed" as const,
+          submitted_at: completedAt,
+        })),
+      )
+      .select("id, student_id");
+    expect(assignmentStudents.error).toBeNull();
+
+    const ordinaryStudent = students.data!.find(
+      (student) => student.display_name === ordinaryName,
+    )!;
+    const attempts = await admin
+      .from("attempts")
+      .insert(
+        assignmentStudents.data!.map((row) => ({
+          assignment_student_id: row.id,
+          status: "completed" as const,
+          completed_at: completedAt,
+          needs_review_reason:
+            row.student_id === ordinaryStudent.id ? null : "low_confidence",
+        })),
+      )
+      .select("id, assignment_student_id");
+    expect(attempts.error).toBeNull();
+
+    for (const attempt of attempts.data!) {
+      const latest = await admin
+        .from("assignment_students")
+        .update({ latest_attempt_id: attempt.id })
+        .eq("id", attempt.assignment_student_id);
+      expect(latest.error).toBeNull();
+    }
+
     await page.goto("/auth/login");
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill(password);
@@ -213,8 +217,23 @@ test("teacher switches review policy in both directions while All activity stays
     await expect(page.getByText(ordinaryName, { exact: true })).toBeVisible();
     await expect(page.getByText(flaggedName, { exact: true })).toBeVisible();
   } finally {
-    await admin.from("teacher_profiles").delete().eq("id", profile.data!.id);
-    await admin.auth.admin.deleteUser(user.data.user!.id);
+    if (createdProfileId) {
+      const profileCleanup = await admin
+        .from("teacher_profiles")
+        .delete()
+        .eq("id", createdProfileId);
+      expect.soft(
+        profileCleanup.error,
+        `cleanup teacher profile ${createdProfileId}`,
+      ).toBeNull();
+    }
+    if (createdUserId) {
+      const userCleanup = await admin.auth.admin.deleteUser(createdUserId);
+      expect.soft(
+        userCleanup.error,
+        `cleanup auth user ${createdUserId}`,
+      ).toBeNull();
+    }
   }
 });
 
