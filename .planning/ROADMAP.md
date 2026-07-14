@@ -134,7 +134,7 @@ Archive:
   5. Student home has bounded Current/Past pages: Retry → due soon → later/no-date ordering, late/missed open work remains launchable, and Past contains five completed missions per page newest-first.
   6. A Past mission opens only the unlocked student's final completed attempt as a read-only Coco/You said recap with transcripts, retained audio, qualitative pronunciation feedback, and Recording expired fallback.
 
-**Plans:** 8/8 plans complete
+**Plans:** 8/12 plans complete; 4 gap-closure plans ready
 
 **Wave 1** *(independent foundations)*
 
@@ -145,19 +145,23 @@ Archive:
 
 - [x] 10.1-02-PLAN.md — tenant-safe teacher queue/activity/incomplete services plus view/review/reopen/retry/policy actions
 - [x] 10.1-06-PLAN.md — student-scoped Current/Past ordering, five-item pagination, tabs, cards, and page links
+- [ ] 10.1-11-PLAN.md — preserve late-opened in-progress attempts across the missed-status cron and prove same-attempt resume
 
 **Wave 3** *(primary user surfaces)*
 
 - [x] 10.1-03-PLAN.md — shared teacher workspace, 30-second non-disruptive freshness, Needs review, Incomplete, and All activity
 - [x] 10.1-07-PLAN.md — student-scoped final-attempt recap, on-demand audio, expiry fallback, and isolation tests
+- [ ] 10.1-09-PLAN.md — restore policy-aware queue eligibility, policy-independent activity history, and owned review-policy mutation
 
 **Wave 4** *(teacher drill-down integration)*
 
 - [x] 10.1-04-PLAN.md — class/assignment queue integration, review policy, selected-student drill-down, and exact evidence review/recovery loop
+- [ ] 10.1-12-PLAN.md — derive recap practice words from the displayed transcript through shared pronunciation behavior
 
-**Wave 5** *(UAT gap closure — test 3 recap quality)*
+**Wave 5** *(UI gap closure and final repository verification)*
 
 - [x] 10.1-08-PLAN.md — child-facing recap: label-aware pronunciation feedback (all-clear summary vs. surfaced practice words) and a button-styled back-to-past-missions control
+- [ ] 10.1-10-PLAN.md — restore the approved per-class review-policy control, both policy-direction queue outcomes, and the final full verification gate
 
 ### Phase 11: Coco Chat (dynamic turns + scene framing)
 
