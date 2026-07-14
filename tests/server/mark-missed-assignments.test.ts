@@ -100,6 +100,7 @@ function createMockSupabase() {
   ];
   const operations: Operation[] = [];
   const auditEvents: unknown[] = [];
+  let claimAssignedOverdueBeforeUpdate = false;
 
   class Query {
     private kind: Operation["kind"] = "select";
@@ -116,6 +117,22 @@ function createMockSupabase() {
     }
 
     update(payload: unknown) {
+      if (
+        this.table === "assignment_students" &&
+        claimAssignedOverdueBeforeUpdate
+      ) {
+        const row = assignmentStudents.find(
+          (candidate) => candidate.id === "assigned-overdue",
+        )!;
+        row.status = "started";
+        row.latest_attempt_id = "attempt-claimed";
+        attempts.push({
+          id: "attempt-claimed",
+          assignment_student_id: row.id,
+          status: "in_progress",
+        });
+        claimAssignedOverdueBeforeUpdate = false;
+      }
       this.kind = "update";
       this.payload = payload;
       return this;
@@ -128,6 +145,11 @@ function createMockSupabase() {
     }
 
     eq(column: string, value: unknown) {
+      this.filters.push([column, value]);
+      return this;
+    }
+
+    is(column: string, value: null) {
       this.filters.push([column, value]);
       return this;
     }
@@ -242,6 +264,9 @@ function createMockSupabase() {
     turns,
     operations,
     auditEvents,
+    claimAssignedOverdueBeforeUpdate: () => {
+      claimAssignedOverdueBeforeUpdate = true;
+    },
     from: (table: string) => new Query(table),
   };
 }
@@ -307,5 +332,28 @@ describe("markMissedAssignments", () => {
           ),
       ),
     ).toBeDefined();
+  });
+
+  it("does not overwrite, audit, or count an assignment claimed after candidate selection", async () => {
+    const { markMissedAssignments } = await import(
+      "@/server/foundation/markMissedAssignments"
+    );
+    mockSupabase.claimAssignedOverdueBeforeUpdate();
+
+    const result = await markMissedAssignments();
+
+    expect(
+      mockSupabase.assignmentStudents.find(
+        (row) => row.id === "assigned-overdue",
+      ),
+    ).toMatchObject({
+      status: "started",
+      latest_attempt_id: "attempt-claimed",
+    });
+    expect(result).toEqual({
+      markedCount: 1,
+      assignmentStudentIds: ["stale-started"],
+    });
+    expect(mockSupabase.auditEvents).toHaveLength(1);
   });
 });

@@ -34,6 +34,7 @@ export async function markMissedAssignments(): Promise<MarkMissedAssignmentsResu
       now,
     });
   });
+  const claimedIds: string[] = [];
 
   for (const row of candidates) {
     assertTransitionRequest({
@@ -44,15 +45,26 @@ export async function markMissedAssignments(): Promise<MarkMissedAssignmentsResu
       occurredAt: now.toISOString(),
     });
 
-    const update = await supabase
+    let updateQuery = supabase
       .from("assignment_students")
       .update({ status: "missed" })
-      .eq("id", row.id);
+      .eq("id", row.id)
+      .eq("status", row.status);
+
+    updateQuery = row.latest_attempt_id === null
+      ? updateQuery.is("latest_attempt_id", null)
+      : updateQuery.eq("latest_attempt_id", row.latest_attempt_id);
+
+    const update = await updateQuery.select("id").maybeSingle();
 
     if (update.error) {
       throw new Error(
         `Unable to mark assignment student ${row.id} missed: ${update.error.message}`,
       );
+    }
+
+    if (!update.data) {
+      continue;
     }
 
     const event = await supabase.from("assignment_status_events").insert({
@@ -69,10 +81,12 @@ export async function markMissedAssignments(): Promise<MarkMissedAssignmentsResu
         `Unable to audit missed assignment student ${row.id}: ${event.error.message}`,
       );
     }
+
+    claimedIds.push(row.id);
   }
 
   return {
-    markedCount: candidates.length,
-    assignmentStudentIds: candidates.map((row) => row.id),
+    markedCount: claimedIds.length,
+    assignmentStudentIds: claimedIds,
   };
 }
