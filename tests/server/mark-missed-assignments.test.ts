@@ -23,7 +23,7 @@ type Turn = {
   original_transcript: string;
   repeat_transcript: string | null;
   repeat_accepted: boolean | null;
-  evaluation: { outcome: string };
+  evaluation: { version: string; outcome: string; requireRepeat?: boolean };
 };
 
 type Operation = {
@@ -91,7 +91,11 @@ function createMockSupabase() {
       original_transcript: "I played soccer.",
       repeat_transcript: null,
       repeat_accepted: null,
-      evaluation: { outcome: "accepted_original" },
+      evaluation: {
+        version: "ai-eval-v1",
+        outcome: "accepted_original",
+        requireRepeat: false,
+      },
     },
   ];
   const operations: Operation[] = [];

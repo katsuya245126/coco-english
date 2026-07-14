@@ -12,7 +12,7 @@ export async function markMissedAssignments(): Promise<MarkMissedAssignmentsResu
 
   const rows = await supabase
     .from("assignment_students")
-    .select("id, status, assignments!inner(due_at)")
+    .select("id, status, latest_attempt_id, assignments!inner(due_at), latest_attempt:attempts!assignment_students_latest_attempt_fk(status)")
     .in("status", ["assigned", "started"]);
 
   if (rows.error) {
@@ -23,10 +23,14 @@ export async function markMissedAssignments(): Promise<MarkMissedAssignmentsResu
     const assignment = Array.isArray(row.assignments)
       ? row.assignments[0]
       : row.assignments;
+    const latestAttempt = Array.isArray(row.latest_attempt)
+      ? row.latest_attempt[0]
+      : row.latest_attempt;
 
     return shouldMarkMissed({
       status: row.status,
       dueAt: assignment?.due_at ?? null,
+      latestAttemptStatus: latestAttempt?.status ?? null,
       now,
     });
   });

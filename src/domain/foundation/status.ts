@@ -30,7 +30,13 @@ export type TransitionRequest = {
 export type MissedStatusInput = {
   status: AssignmentStudentStatus;
   dueAt: string | Date | null;
-  latestAttemptStatus?: "in_progress" | "completed" | "abandoned" | null;
+  latestAttemptStatus?:
+    | "in_progress"
+    | "completed"
+    | "abandoned"
+    | "needs_retry"
+    | "teacher_review"
+    | null;
   now?: string | Date;
 };
 
