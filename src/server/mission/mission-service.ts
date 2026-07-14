@@ -16,6 +16,8 @@ export type TeacherMission = {
   level: MissionLevel;
   requiredTurns: number;
   characterId: string;
+  conversationMode: boolean;
+  scenePremise: string | null;
   turnCount: number;
   assignmentCount: number;
   activeAssignmentCount: number;
@@ -47,6 +49,8 @@ type MissionRow = {
   level: string;
   required_turns: number;
   character_id: string;
+  conversation_mode: boolean;
+  scene_premise: string | null;
   archived_at: string | null;
 };
 
@@ -93,6 +97,8 @@ function mapMission(row: MissionRow, counts?: {
     level: row.level as MissionLevel,
     requiredTurns: row.required_turns,
     characterId: row.character_id,
+    conversationMode: row.conversation_mode,
+    scenePremise: row.scene_premise,
     turnCount: counts?.turnCount ?? row.required_turns,
     assignmentCount: counts?.assignmentCount ?? 0,
     activeAssignmentCount: counts?.activeAssignmentCount ?? 0,
@@ -135,6 +141,8 @@ function toMissionInsert(input: MissionFormInput, teacherId: string) {
     level: input.level,
     required_turns: input.requiredTurns,
     character_id: DEFAULT_CHARACTER_ID,
+    conversation_mode: input.conversationMode,
+    scene_premise: input.scenePremise,
   };
 }
 
@@ -208,7 +216,7 @@ export async function createMission(
     .from("missions")
     .insert(toMissionInsert(parsed, input.teacherId))
     .select(
-      "id, title, target_pattern, topic, level, required_turns, character_id, archived_at",
+      "id, title, target_pattern, topic, level, required_turns, character_id, conversation_mode, scene_premise, archived_at",
     )
     .single();
 
@@ -239,7 +247,7 @@ export async function updateMission(
     .eq("id", input.missionId)
     .eq("teacher_id", input.teacherId)
     .select(
-      "id, title, target_pattern, topic, level, required_turns, character_id, archived_at",
+      "id, title, target_pattern, topic, level, required_turns, character_id, conversation_mode, scene_premise, archived_at",
     )
     .single();
 
@@ -355,7 +363,7 @@ export async function getMissionForTeacher(input: {
   const mission = await supabase
     .from("missions")
     .select(
-      "id, title, target_pattern, topic, level, required_turns, character_id, archived_at",
+      "id, title, target_pattern, topic, level, required_turns, character_id, conversation_mode, scene_premise, archived_at",
     )
     .eq("teacher_id", input.teacherId)
     .eq("id", input.missionId)
@@ -401,7 +409,7 @@ export async function listMissionsForTeacher(input: {
   const missions = await supabase
     .from("missions")
     .select(
-      "id, title, target_pattern, topic, level, required_turns, character_id, archived_at",
+      "id, title, target_pattern, topic, level, required_turns, character_id, conversation_mode, scene_premise, archived_at",
     )
     .eq("teacher_id", input.teacherId)
     .is("archived_at", null)
@@ -422,7 +430,7 @@ export async function listArchivedMissionsForTeacher(input: {
   const missions = await supabase
     .from("missions")
     .select(
-      "id, title, target_pattern, topic, level, required_turns, character_id, archived_at",
+      "id, title, target_pattern, topic, level, required_turns, character_id, conversation_mode, scene_premise, archived_at",
     )
     .eq("teacher_id", input.teacherId)
     .not("archived_at", "is", null)
