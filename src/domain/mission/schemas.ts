@@ -60,12 +60,31 @@ export const missionFormSchema = z
       .trim()
       .min(1)
       .default(DEFAULT_CHARACTER_ID),
-    turns: z.array(missionTurnInputSchema).min(1, "Add at least one turn."),
+    conversationMode: z.boolean().default(false),
+    scenePremise: z.string().trim().nullable().default(null),
+    turns: z.array(missionTurnInputSchema).default([]),
   })
-  .refine((value) => value.requiredTurns === value.turns.length, {
-    path: ["requiredTurns"],
-    message: "Required turns must match the number of authored turns.",
-  });
+  .refine(
+    (value) =>
+      value.conversationMode || value.requiredTurns === value.turns.length,
+    {
+      path: ["requiredTurns"],
+      message: "Required turns must match the number of authored turns.",
+    },
+  )
+  .refine((value) => value.conversationMode || value.turns.length >= 1, {
+    path: ["turns"],
+    message: "Add at least one turn.",
+  })
+  .refine(
+    (value) =>
+      !value.conversationMode ||
+      (value.requiredTurns >= 3 && value.requiredTurns <= 8),
+    {
+      path: ["requiredTurns"],
+      message: "Choose between 3 and 8 turns.",
+    },
+  );
 
 export type MissionFormInput = z.infer<typeof missionFormSchema>;
 
@@ -84,11 +103,21 @@ export const missionSnapshotSchema = z
     level: missionLevelSchema,
     requiredTurns: z.number().int().min(1),
     characterId: z.string().trim().min(1).default(DEFAULT_CHARACTER_ID),
-    turns: z.array(missionSnapshotTurnSchema).min(1),
+    conversationMode: z.boolean().default(false),
+    scenePremise: z.string().trim().nullable().default(null),
+    turns: z.array(missionSnapshotTurnSchema).default([]),
   })
-  .refine((value) => value.requiredTurns === value.turns.length, {
-    path: ["requiredTurns"],
-    message: "Snapshot required turns must match turn count.",
+  .refine(
+    (value) =>
+      value.conversationMode || value.requiredTurns === value.turns.length,
+    {
+      path: ["requiredTurns"],
+      message: "Snapshot required turns must match turn count.",
+    },
+  )
+  .refine((value) => value.conversationMode || value.turns.length >= 1, {
+    path: ["turns"],
+    message: "Snapshot must include at least one turn.",
   });
 
 export type MissionSnapshot = z.infer<typeof missionSnapshotSchema>;

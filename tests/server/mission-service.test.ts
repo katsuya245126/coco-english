@@ -25,6 +25,8 @@ const completeInput = {
   level: "elementary" as const,
   requiredTurns: 1,
   characterId: "default-buddy",
+  conversationMode: false,
+  scenePremise: null,
   turns: [
     {
       prompt: "What do you do at seven?",
