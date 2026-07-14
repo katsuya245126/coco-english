@@ -1,0 +1,552 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Database } from "@/lib/db/types";
+
+// Conversation-mode orchestration in audio-upload.ts (CHAT-01/03/05/06,
+// D-10/D-11/D-13). Mirrors the mocking shape of tests/server/audio-upload.test.ts
+// (the preset-path suite, left untouched) but scoped to the new chat-mode
+// branch: dual-direction moderation, hard-cap refusal, retry-once, shared
+// canned-fallback path, and idempotent coco_line/moderation_event persistence.
+
+let mockSupabase: ReturnType<typeof createMockSupabase>;
+const { mockLog } = vi.hoisted(() => ({ mockLog: vi.fn() }));
+
+vi.mock("@/lib/supabase/server", () => ({
+  createSupabaseServiceClient: () => mockSupabase,
+}));
+
+vi.mock("@/server/logging/logger", () => ({
+  log: mockLog,
+}));
+
+type Operation = {
+  table: string;
+  action: "select" | "insert" | "update" | "upsert";
+  payload?: unknown;
+  filters: Array<[string, unknown]>;
+};
+
+function audioInput(overrides: {
+  turnOrder?: number;
+  body?: string;
+} = {}) {
+  const body = overrides.body ?? "voice";
+  const mimeType = "audio/webm";
+  const file = new Blob([body], { type: mimeType });
+
+  return {
+    studentId: "student-1",
+    assignmentStudentId: "as-1",
+    attemptId: "attempt-1",
+    turnOrder: overrides.turnOrder ?? 1,
+    clipKind: "original_answer" as Database["public"]["Enums"]["audio_clip_kind"],
+    file,
+    mimeType,
+    durationMs: 1200,
+    byteSize: body.length,
+  };
+}
+
+function successfulTranscriber(text: string) {
+  return vi.fn(async () => ({ ok: true as const, text }));
+}
+
+function successfulOriginalEvaluator(overrides = {}) {
+  return vi.fn(async () => ({
+    ok: true as const,
+    evaluation: {
+      version: "ai-eval-v1" as const,
+      outcome: "correct" as const,
+      meaningUnderstood: true,
+      targetPatternAttempted: true,
+      correctionNeeded: false,
+      improvedSentence: null,
+      englishLanguage: "english" as const,
+      confidence: "high" as const,
+      reviewReason: null,
+      ...overrides,
+    },
+  }));
+}
+
+// The code requires a matching snapshot turn to exist for input.turnOrder
+// even in conversationMode (readMissionSnapshot + snapshotTurn lookup gate
+// runs before the conversation branch), so provide placeholder turns
+// covering every turnOrder exercised by these tests (1..9).
+const conversationMissionSnapshotFixture = {
+  missionId: "11111111-1111-4111-8111-111111111111",
+  title: "Coffee shop scene",
+  targetPattern: "Can I have ___, please?",
+  topic: "ordering food",
+  level: "elementary",
+  requiredTurns: 4,
+  characterId: "default-buddy",
+  conversationMode: true,
+  scenePremise: "You walk into Coco's coffee shop after school.",
+  turns: Array.from({ length: 9 }, (_, index) => ({
+    turnOrder: index + 1,
+    prompt: "What would you like to say?",
+    targetExample: "Can I have a juice, please?",
+    hintLadder: {
+      tier1: "Can I have ___?",
+      tier2: "juice",
+      tier3: "Can I have a juice, please?",
+    },
+  })),
+};
+
+function createMockSupabase(options: {
+  assignmentFound?: boolean;
+  attemptFound?: boolean;
+  attemptStatus?: Database["public"]["Enums"]["attempt_status"];
+  uploadError?: Error | null;
+  missionSnapshot?: typeof conversationMissionSnapshotFixture;
+  previousCocoLine?: string | null;
+  cocoLineUpsertError?: { message: string } | null;
+} = {}) {
+  const operations: Operation[] = [];
+  const upload = vi.fn(async () => ({ error: options.uploadError ?? null }));
+
+  function createQuery(table: string) {
+    const operation: Operation = { table, action: "select", filters: [] };
+
+    // resolvedError() determines what an awaited terminal call (upsert/update
+    // with no further .select()/.single() chained) resolves to. Only the
+    // coco_line upsert path is parameterized with an injectable error in
+    // these tests; every other terminal write defaults to success.
+    function resolvedError() {
+      if (
+        table === "attempt_turns" &&
+        options.cocoLineUpsertError &&
+        typeof operation.payload === "object" &&
+        operation.payload !== null &&
+        "coco_line" in operation.payload
+      ) {
+        return options.cocoLineUpsertError;
+      }
+      return null;
+    }
+
+    const query: Record<string, unknown> & PromiseLike<{ error: unknown }> = {
+      select: vi.fn(() => query),
+      insert: vi.fn((payload: unknown) => {
+        operation.action = "insert";
+        operation.payload = payload;
+        operations.push(operation);
+        return query;
+      }),
+      update: vi.fn((payload: unknown) => {
+        operation.action = "update";
+        operation.payload = payload;
+        operations.push(operation);
+        return query;
+      }),
+      upsert: vi.fn((payload: unknown) => {
+        operation.action = "upsert";
+        operation.payload = payload;
+        operations.push(operation);
+        return query;
+      }),
+      eq: vi.fn((column: string, value: unknown) => {
+        operation.filters.push([column, value]);
+        return query;
+      }),
+      // Makes `query` itself awaitable — supports call sites that await the
+      // builder directly with no terminal .select()/.single() (e.g. the
+      // pronunciation_scores upsert and the attempt_turns/audio_clips
+      // .update().eq() writes).
+      then: (<TResult1, TResult2 = never>(
+        onFulfilled?:
+          | ((value: { error: unknown }) => TResult1 | PromiseLike<TResult1>)
+          | null,
+        onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+      ) => {
+        if (!operations.includes(operation)) operations.push(operation);
+        return Promise.resolve({ error: resolvedError() }).then(
+          onFulfilled ?? undefined,
+          onRejected ?? undefined,
+        );
+      }) as PromiseLike<{ error: unknown }>["then"],
+      maybeSingle: vi.fn(async () => {
+        operations.push(operation);
+        if (table === "assignment_students") {
+          return {
+            data:
+              options.assignmentFound === false
+                ? null
+                : {
+                    id: "as-1",
+                    assignment_id: "assignment-1",
+                    student_id: "student-1",
+                    status: options.attemptFound === false ? "started" : "started",
+                    latest_attempt_id: "attempt-1",
+                    attempt_count: 1,
+                    highest_hint_level: 0,
+                    assignments: {
+                      mission_snapshot:
+                        options.missionSnapshot ?? conversationMissionSnapshotFixture,
+                      canceled_at: null,
+                    },
+                  },
+            error: null,
+          };
+        }
+        if (table === "attempts") {
+          return {
+            data:
+              options.attemptFound === false
+                ? null
+                : {
+                    id: "attempt-1",
+                    assignment_student_id: "as-1",
+                    status: options.attemptStatus ?? "in_progress",
+                  },
+            error: null,
+          };
+        }
+        if (table === "attempt_turns") {
+          // Previous-turn coco_line lookup (turnOrder > 1 path).
+          const hasPreviousLineFilter = operation.filters.some(
+            ([col]) => col === "turn_order",
+          );
+          if (hasPreviousLineFilter && operation.action === "select") {
+            return {
+              data:
+                options.previousCocoLine !== undefined
+                  ? { coco_line: options.previousCocoLine }
+                  : null,
+              error: null,
+            };
+          }
+        }
+        return { data: null, error: null };
+      }),
+      single: vi.fn(async () => {
+        if (!operations.includes(operation)) operations.push(operation);
+        if (table === "attempt_turns") {
+          return {
+            data: { id: "turn-1", original_transcript: null, improved_sentence: null },
+            error: null,
+          };
+        }
+        if (table === "audio_clips") {
+          return { data: { id: "clip-1" }, error: null };
+        }
+        return { data: null, error: null };
+      }),
+    };
+
+    return query;
+  }
+
+  return {
+    operations,
+    storage: { from: vi.fn(() => ({ upload })) },
+    upload,
+    from: vi.fn((table: string) => createQuery(table)),
+  };
+}
+
+function fakeGenerateCocoReply(
+  impl: () => Promise<
+    | { ok: true; reply: { line: string } }
+    | { ok: false; error: "missing_api_key" | "provider_failed" | "schema_failed" }
+  >,
+) {
+  return vi.fn(impl);
+}
+
+function fakeIsContentSafe(
+  impl: (text: string) => Promise<
+    { safe: boolean; failedOpen: false } | { safe: false; failedOpen: true }
+  >,
+) {
+  return vi.fn(impl);
+}
+
+describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    mockLog.mockClear();
+    mockSupabase = createMockSupabase();
+    process.env.STUDENT_AUDIO_BUCKET = "student-audio";
+  });
+
+  it("preset mission (conversationMode false) never calls generateCocoReply/isContentSafe", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        conversationMode: false,
+        requiredTurns: 1,
+        turns: [
+          {
+            turnOrder: 1,
+            prompt: "What do you want to order?",
+            targetExample: "Can I have a juice, please?",
+            hintLadder: { tier1: "Can I have ___?", tier2: "juice", tier3: "Can I have a juice, please?" },
+          },
+        ],
+      } as unknown as typeof conversationMissionSnapshotFixture,
+    });
+
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "should never be called" },
+    }));
+    const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("Can I have a juice, please?"),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: generate,
+      isContentSafe: moderate,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(generate).not.toHaveBeenCalled();
+    expect(moderate).not.toHaveBeenCalled();
+    if (result.ok) {
+      expect(result.cocoLine).toBeNull();
+    }
+  });
+
+  it("flagged student input: no generateCocoReply call; canned redirect persisted with flagged_student_input event", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "should never be called" },
+    }));
+    const moderate = fakeIsContentSafe(async () => ({ safe: false, failedOpen: false }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      transcribeAudioFile: successfulTranscriber("something inappropriate"),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: generate,
+      isContentSafe: moderate,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(generate).not.toHaveBeenCalled();
+    if (result.ok) {
+      expect(result.cocoLine).toBeTruthy();
+      expect(result.cocoLineModerationEvent).toEqual({ kind: "flagged_student_input" });
+    }
+
+    const cocoLineUpsert = mockSupabase.operations.find(
+      (op) =>
+        op.table === "attempt_turns" &&
+        op.action === "upsert" &&
+        typeof op.payload === "object" &&
+        op.payload !== null &&
+        "coco_line" in op.payload,
+    );
+    expect(cocoLineUpsert?.payload).toMatchObject({
+      moderation_event: { kind: "flagged_student_input" },
+    });
+  });
+
+  it("turnOrder > HARD_TURN_CAP: no generateCocoReply call, no coco_line produced", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "should never be called" },
+    }));
+    const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 9 }), {
+      transcribeAudioFile: successfulTranscriber("I would like more coffee."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: generate,
+      isContentSafe: moderate,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(generate).not.toHaveBeenCalled();
+    if (result.ok) {
+      expect(result.cocoLine).toBeNull();
+      expect(result.cocoLineModerationEvent).toBeNull();
+    }
+  });
+
+  it("generated line passes moderation: coco_line persisted with no moderation_event; TTS warmed", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "That sounds great! What else would you like?" },
+    }));
+    const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
+    const warm = vi.fn(async () => ({ ok: true as const, warmed: 1, skipped: 0, failed: 0 }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      transcribeAudioFile: successfulTranscriber("Can I have a juice, please?"),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: generate,
+      isContentSafe: moderate,
+      warmTtsAudioCache: warm,
+    });
+
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(moderate).toHaveBeenCalledWith("Can I have a juice, please?");
+    expect(moderate).toHaveBeenCalledWith(
+      "That sounds great! What else would you like?",
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.cocoLine).toBe("That sounds great! What else would you like?");
+      expect(result.cocoLineModerationEvent).toBeNull();
+    }
+    expect(warm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        texts: ["That sounds great! What else would you like?"],
+      }),
+    );
+
+    const cocoLineUpsert = mockSupabase.operations.find(
+      (op) =>
+        op.table === "attempt_turns" &&
+        op.action === "upsert" &&
+        typeof op.payload === "object" &&
+        op.payload !== null &&
+        "coco_line" in op.payload,
+    );
+    expect(cocoLineUpsert?.payload).toMatchObject({
+      coco_line: "That sounds great! What else would you like?",
+      moderation_event: null,
+    });
+  });
+
+  it("fails moderation once then passes on regenerate: retried event persisted", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const generate = fakeGenerateCocoReply(
+      (() => {
+        let call = 0;
+        return async () => {
+          call += 1;
+          return {
+            ok: true as const,
+            reply: {
+              line: call === 1 ? "unsafe first draft" : "That's great! Tell me more.",
+            },
+          };
+        };
+      })(),
+    );
+    const moderate = fakeIsContentSafe(async (text: string) => ({
+      safe: text !== "unsafe first draft",
+      failedOpen: false,
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      transcribeAudioFile: successfulTranscriber("Can I have a juice, please?"),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: generate,
+      isContentSafe: moderate,
+    });
+
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.cocoLine).toBe("That's great! Tell me more.");
+      expect(result.cocoLineModerationEvent).toEqual({ kind: "retried" });
+    }
+  });
+
+  it("fails moderation twice: canned fallback persisted with canned_fallback event", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "always unsafe" },
+    }));
+    // The student transcript itself must pass moderation (step b) so the
+    // pipeline reaches generation; only the generated line is unsafe both
+    // times (step d, then the post-retry re-check), forcing the shared
+    // canned-fallback path.
+    const moderate = fakeIsContentSafe(async (text: string) => ({
+      safe: text === "Can I have a juice, please?",
+      failedOpen: false,
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      transcribeAudioFile: successfulTranscriber("Can I have a juice, please?"),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: generate,
+      isContentSafe: moderate,
+    });
+
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.cocoLine).toBeTruthy();
+      expect(result.cocoLineModerationEvent).toEqual({ kind: "canned_fallback" });
+    }
+  });
+
+  it("provider failure: shares the same canned-fallback path as moderation failure", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: false,
+      error: "provider_failed",
+    }));
+    const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      transcribeAudioFile: successfulTranscriber("Can I have a juice, please?"),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: generate,
+      isContentSafe: moderate,
+    });
+
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.cocoLine).toBeTruthy();
+      expect(result.cocoLineModerationEvent).toEqual({ kind: "canned_fallback" });
+    }
+  });
+
+  it("computes windDown relative to the fixed hard cap (turnOrder >= 6), not required_turns", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "Let's start wrapping up our chat soon." },
+    }));
+    const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
+
+    // requiredTurns is 4 on the fixture, but turnOrder=6 should still trigger
+    // windDown relative to the fixed cap of 8 (Pitfall 4), not requiredTurns.
+    await uploadAttemptAudioClip(audioInput({ turnOrder: 6 }), {
+      transcribeAudioFile: successfulTranscriber("More coffee please."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: generate,
+      isContentSafe: moderate,
+    });
+
+    expect(generate).toHaveBeenCalledWith(
+      expect.objectContaining({ windDown: true, turnOrder: 6, requiredTurns: 4 }),
+    );
+  });
+});

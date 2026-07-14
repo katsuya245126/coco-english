@@ -44,9 +44,14 @@ import {
   type RepeatTurnEvaluationResult,
 } from "@/server/ai/turn-evaluator";
 import {
+  canGenerateNextDynamicTurn,
+  recordCocoLine,
   routeAssignmentStudentToTeacherReview,
   type TeacherReviewReason,
 } from "@/server/student-access/mission-flow";
+import { generateCocoReply } from "@/server/ai/conversation-generator";
+import { isContentSafe } from "@/server/ai/content-moderation";
+import { selectFallbackLine } from "@/domain/conversation/fallback-lines";
 import { log } from "@/server/logging/logger";
 
 const DEFAULT_AUDIO_BUCKET = "student-audio";
@@ -77,6 +82,15 @@ export type UploadAttemptAudioClipInput = {
   byteSize: number;
 };
 
+export type CocoLineModerationEventKind =
+  | "flagged_student_input"
+  | "retried"
+  | "canned_fallback";
+
+export type CocoLineModerationEvent = {
+  kind: CocoLineModerationEventKind;
+};
+
 export type UploadAttemptAudioClipResult =
   | {
       ok: true;
@@ -86,6 +100,8 @@ export type UploadAttemptAudioClipResult =
       evaluation?: StoredOriginalTurnEvaluation | StoredRepeatTurnEvaluation;
       starBand: PronunciationStarBand | null;
       wordsToPractice: WordHighlight[];
+      cocoLine?: string | null;
+      cocoLineModerationEvent?: CocoLineModerationEvent | null;
     }
   | {
       ok: false;
@@ -102,6 +118,8 @@ export type UploadAttemptAudioClipDeps = {
   transcribeAudioFile?: typeof transcribeAudioFile;
   evaluateOriginalTurn?: typeof evaluateOriginalTurn;
   evaluateRepeatTurn?: typeof evaluateRepeatTurn;
+  generateCocoReply?: typeof generateCocoReply;
+  isContentSafe?: typeof isContentSafe;
   warmTtsAudioCache?: typeof warmTtsAudioCache;
   scorePronunciation?: typeof scorePronunciation;
 };
@@ -325,6 +343,109 @@ function errorMessage(error: unknown) {
 
 function elapsedMs(startedAt: number) {
   return Math.max(0, Date.now() - startedAt);
+}
+
+type ConversationTurnContext = {
+  studentId: string;
+  assignmentStudentId: string;
+  attemptId: string;
+  turnOrder: number;
+  scenePremise: string | null;
+  targetPattern: string;
+  requiredTurns: number;
+  studentTranscript: string;
+  previousCocoLine: string | null;
+};
+
+type ConversationTurnOutcome = {
+  cocoLine: string | null;
+  moderationEvent: CocoLineModerationEvent | null;
+};
+
+/**
+ * Conversation-mode orchestration (CHAT-01/03/05/06, D-10/D-11/D-13,
+ * RESEARCH.md step a-f pipeline). Runs ONLY for conversationMode missions,
+ * after the student's original-answer turn write has already succeeded.
+ * All generation/moderation calls live HERE (never in mission-flow.ts),
+ * preserving the AI-06 boundary.
+ *
+ * Order (never reordered):
+ *  a. hard-cap check (canGenerateNextDynamicTurn)
+ *  b. moderate student input FIRST — flagged input never reaches the generator
+ *  c. generate Coco's next line
+ *  d. moderate the generated line; regenerate once with stronger steering if flagged
+ *  e. provider failure shares the same canned-fallback path as (d)
+ *  f. persist (recordCocoLine) — coco_line + moderation_event
+ */
+async function runConversationTurn(
+  context: ConversationTurnContext,
+  deps: {
+    generateCocoReply: typeof generateCocoReply;
+    isContentSafe: typeof isContentSafe;
+  },
+): Promise<ConversationTurnOutcome> {
+  // (a) HARD-CAP: refuse to generate past the fixed ceiling of 8, regardless
+  // of the mission's own required_turns (Pitfall 4).
+  if (!canGenerateNextDynamicTurn(context.turnOrder)) {
+    return { cocoLine: null, moderationEvent: null };
+  }
+
+  // (b) MODERATE STUDENT INPUT FIRST (D-11) — a flagged transcript never
+  // reaches the generator; the extra moderation call per turn is accepted.
+  const studentInputCheck = await deps.isContentSafe(context.studentTranscript);
+  if (!studentInputCheck.safe) {
+    return {
+      cocoLine: selectFallbackLine(context.turnOrder),
+      moderationEvent: { kind: "flagged_student_input" },
+    };
+  }
+
+  const windDown = context.turnOrder >= 6; // relative to the fixed hard cap of 8, not required_turns
+
+  const generationInput = {
+    scenePremise: context.scenePremise ?? "",
+    targetPattern: context.targetPattern,
+    turnOrder: context.turnOrder,
+    requiredTurns: context.requiredTurns,
+    hardCap: 8 as const,
+    windDown,
+    studentTranscript: context.studentTranscript,
+    previousCocoLine: context.previousCocoLine,
+  };
+
+  // (c) GENERATE
+  const firstAttempt = await deps.generateCocoReply(generationInput);
+
+  // (e) PROVIDER/SCHEMA FAILURE shares the same canned-fallback path as (d)'s
+  // final fallback (D-13).
+  if (!firstAttempt.ok) {
+    return {
+      cocoLine: selectFallbackLine(context.turnOrder),
+      moderationEvent: { kind: "canned_fallback" },
+    };
+  }
+
+  // (d) MODERATE OUTPUT
+  const firstLineCheck = await deps.isContentSafe(firstAttempt.reply.line);
+  if (firstLineCheck.safe) {
+    return { cocoLine: firstAttempt.reply.line, moderationEvent: null };
+  }
+
+  // Regenerate ONCE with stronger safety steering. Every regenerated line is
+  // re-moderated — never assumed clean (RESEARCH.md anti-pattern warning).
+  const retryAttempt = await deps.generateCocoReply(generationInput);
+  if (retryAttempt.ok) {
+    const retryLineCheck = await deps.isContentSafe(retryAttempt.reply.line);
+    if (retryLineCheck.safe) {
+      return { cocoLine: retryAttempt.reply.line, moderationEvent: { kind: "retried" } };
+    }
+  }
+
+  // Fail twice / retry itself failed to generate -> shared canned fallback.
+  return {
+    cocoLine: selectFallbackLine(context.turnOrder),
+    moderationEvent: { kind: "canned_fallback" },
+  };
 }
 
 export async function uploadAttemptAudioClip(
@@ -789,6 +910,99 @@ export async function uploadAttemptAudioClip(
       return { ok: false, error: "db_error", retryable: true };
     }
 
+    // Conversation-mode dynamic-turn orchestration (CHAT-01/03/05/06). Runs
+    // only for chat-mode missions, only on the original-answer turn (the
+    // student's utterance Coco is replying to), after the turn write above
+    // has already succeeded. Preset missions (conversationMode !== true)
+    // behave exactly as before — no generateCocoReply/isContentSafe call.
+    let cocoLine: string | null = null;
+    let cocoLineModerationEvent: CocoLineModerationEvent | null = null;
+
+    if (snapshot.conversationMode === true && input.clipKind === "original_answer") {
+      // Look up the immediately-preceding turn's Coco line for stateless
+      // re-grounding (CHAT-04) — passed explicitly as data, never relied on
+      // via provider-side chaining.
+      const previousCocoLine =
+        input.turnOrder > 1
+          ? await timeStage("previousCocoLineLookup", async () => {
+              const { data: previousTurn } = await supabase
+                .from("attempt_turns")
+                .select("coco_line")
+                .eq("attempt_id", input.attemptId)
+                .eq("turn_order", input.turnOrder - 1)
+                .maybeSingle();
+              return previousTurn?.coco_line ?? null;
+            })
+          : null;
+
+      const conversationOutcome = await timeStage("conversationTurn", () =>
+        runConversationTurn(
+          {
+            studentId: input.studentId,
+            assignmentStudentId: input.assignmentStudentId,
+            attemptId: input.attemptId,
+            turnOrder: input.turnOrder,
+            scenePremise: snapshot.scenePremise,
+            targetPattern: snapshot.targetPattern,
+            requiredTurns: snapshot.requiredTurns,
+            studentTranscript: transcript,
+            previousCocoLine,
+          },
+          {
+            generateCocoReply: deps.generateCocoReply ?? generateCocoReply,
+            isContentSafe: deps.isContentSafe ?? isContentSafe,
+          },
+        ),
+      );
+
+      cocoLine = conversationOutcome.cocoLine;
+      cocoLineModerationEvent = conversationOutcome.moderationEvent;
+      const resolvedCocoLine = cocoLine;
+      const resolvedModerationEvent = cocoLineModerationEvent;
+
+      if (resolvedCocoLine !== null) {
+        const recordResult = await timeStage("cocoLineWrite", () =>
+          recordCocoLine({
+            studentId: input.studentId,
+            assignmentStudentId: input.assignmentStudentId,
+            attemptId: input.attemptId,
+            turnOrder: input.turnOrder,
+            cocoLine: resolvedCocoLine,
+            moderationEvent: resolvedModerationEvent,
+          }),
+        );
+
+        if (!recordResult.ok) {
+          log("warn", "audio.coco_line_persist_failed", {
+            assignmentStudentId: input.assignmentStudentId,
+            attemptId: input.attemptId,
+            turnOrder: input.turnOrder,
+            error: recordResult.error,
+          });
+        } else {
+          // Kick off TTS for Coco's new line via the existing warm-cache path
+          // used for preset/improved lines — no forked audio pipeline.
+          try {
+            const warm = deps.warmTtsAudioCache ?? warmTtsAudioCache;
+            await timeStage("ttsWarmupCocoLine", () =>
+              warm({
+                characterId: snapshot.characterId,
+                voice: DEFAULT_COCO_TTS_VOICE,
+                texts: [resolvedCocoLine],
+              }),
+            );
+          } catch (error) {
+            log("warn", "audio.tts_coco_line_warmup_failed", {
+              assignmentStudentId: input.assignmentStudentId,
+              attemptId: input.attemptId,
+              turnOrder: input.turnOrder,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+      }
+    }
+
     let starBand: PronunciationStarBand | null = null;
     let wordHighlights: WordHighlight[] = [];
 
@@ -908,6 +1122,8 @@ export async function uploadAttemptAudioClip(
       evaluation: originalEvaluation ?? repeatEvaluation,
       starBand,
       wordsToPractice: wordHighlights,
+      cocoLine,
+      cocoLineModerationEvent,
     };
   } catch (error) {
     logTiming("failed", {
