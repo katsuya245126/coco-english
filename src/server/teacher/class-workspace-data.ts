@@ -9,7 +9,7 @@ import { listNeedsReviewForTeacher } from "@/server/teacher/assignment-operation
 
 export const getOwnedClass = cache(async (classId: string) => {
   const supabase = await createSupabaseServerClient();
-  const result = await supabase.from("classes").select("id, name, join_code").eq("id", classId).maybeSingle();
+  const result = await supabase.from("classes").select("id, name, join_code, review_policy").eq("id", classId).maybeSingle();
   if (result.error) throw new Error(`Unable to load class: ${result.error.message}`);
   if (!result.data) notFound();
   return result.data;

@@ -41,6 +41,15 @@
 .teacher-shell .class-review-header p:last-child { margin: 6px 0 0; color: #64748b; font-size: 13px; }
 .teacher-shell .class-review-joincode { display: inline-flex; align-items: center; gap: 8px; }
 .teacher-shell .class-review-joincode code { padding: 3px 8px; border-radius: 6px; background: #eff6ff; color: #1d4ed8; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; font-weight: 700; letter-spacing: .08em; }
+.teacher-shell .review-policy-control { min-width: 210px; display: grid; gap: 4px; }
+.teacher-shell .review-policy-control label { color: #334155; font-size: 12px; font-weight: 600; line-height: 1.4; }
+.teacher-shell .review-policy-control select { width: 100%; min-height: 44px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #334155; font: 400 14px/1.5 Inter, ui-sans-serif, system-ui, sans-serif; }
+.teacher-shell .review-policy-control select:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+.teacher-shell .review-policy-control select:disabled { background: #f8fafc; color: #64748b; cursor: wait; }
+.teacher-shell .review-policy-helper, .teacher-shell .review-policy-status, .teacher-shell .review-policy-error { margin: 0; font-size: 12px; font-weight: 400; line-height: 1.4; }
+.teacher-shell .review-policy-helper, .teacher-shell .review-policy-status { color: #64748b; }
+.teacher-shell .review-policy-status:empty { display: none; }
+.teacher-shell .review-policy-error { color: #b42318; }
 .teacher-shell .class-workspace-tabs { display: flex; gap: 22px; overflow-x: auto; border-bottom: 1px solid #e2e8f0; margin-bottom: 22px; }
 .teacher-shell .class-workspace-tabs a { padding: 10px 2px; border-bottom: 2px solid transparent; color: #64748b; font-size: 13px; text-decoration: none; white-space: nowrap; }
 .teacher-shell .class-workspace-tabs a:hover, .teacher-shell .class-workspace-tabs a.active { border-color: #2563eb; color: #1d4ed8; }
@@ -77,6 +86,7 @@
   .teacher-shell .workspace > header { position: absolute; top: 0; left: 0; right: 0; padding-left: 110px; }
   .teacher-shell .workspace > main { padding: 16px; }
   .teacher-shell .class-review-header { display: grid; gap: 14px; }
+  .teacher-shell .review-policy-control { width: 100%; min-width: 0; }
   .teacher-shell .class-card-grid.students { grid-template-columns: 1fr; }
   .teacher-shell .class-assignment-card { align-items: flex-start; }
 }

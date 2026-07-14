@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { requireTeacherProfile } from "@/server/auth/teacher-profile";
+import { ClassReviewPolicyControl } from "@/components/teacher/ClassReviewPolicyControl";
 import { ClassWorkspaceTabs } from "@/components/teacher/ClassWorkspaceTabs";
 import { getClassRoster, getNeedsReviewRows, getOwnedClass } from "@/server/teacher/class-workspace-data";
 
@@ -19,6 +20,7 @@ export default async function ClassWorkspaceLayout({ children, params }: { child
         <p>{roster.length} active student{roster.length === 1 ? "" : "s"}</p>
         {ownedClass.join_code && <p className="class-review-joincode">Class code <code>{ownedClass.join_code}</code></p>}
       </div>
+      <ClassReviewPolicyControl classId={classId} value={ownedClass.review_policy}/>
     </div>
     <ClassWorkspaceTabs classId={classId} needsReviewCount={needsReviewCount}/>
     {children}
