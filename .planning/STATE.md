@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 10.1
 current_phase_name: assignment-operations-student-history
 status: phase_complete
-stopped_at: Completed 10.1-10-PLAN.md — Phase 10.1 complete
-last_updated: "2026-07-14T14:20:30+09:00"
+stopped_at: Completed Phase 10.1 post-review fixes — phase remains complete
+last_updated: "2026-07-14T14:30:19+09:00"
 last_activity: 2026-07-14
-last_activity_desc: Completed Phase 10.1 with the live per-class review-policy UI, bidirectional queue regression, and full repository gate passing
+last_activity_desc: Closed Phase 10.1 review findings with cron compare-and-swap protection and reliable live-test cleanup; focused checks pass
 progress:
   total_phases: 7
   completed_phases: 4
@@ -32,13 +32,13 @@ Phase: 10.1 (assignment-operations-student-history) — COMPLETE
 Previous phase: 10 (mascot-vn-style) — COMPLETE
 Plan: 12 of 12 complete
 Status: Phase 10.1 complete — ready for phase verification and Phase 11
-Active feature work: dismiss-incomplete and clickable no-attempt assignment evidence are implemented on `feature/dismiss-incomplete-assignment`; migrations `202607120003`, `202607120004`, and `202607120005` are live. Both by-ID and attempt-keyed dismiss/undo paths are state-sensitive. Final verification is 547 passed / 4 skipped with typecheck and build clean, lint at zero errors / one pre-existing warning, and the live review-policy Playwright regression 5/5.
+Active feature work: dismiss-incomplete and clickable no-attempt assignment evidence are implemented on `feature/dismiss-incomplete-assignment`; migrations `202607120003`, `202607120004`, and `202607120005` are live. Both by-ID and attempt-keyed dismiss/undo paths are state-sensitive. Phase 10.1 post-review fixes add compare-and-swap protection to the missed-status worker and reliable seeded-test cleanup. The cron regression passes 2/2, the live review-policy Playwright regression passes 5/5, typecheck passes, and the approved clean-cache production build succeeds.
 Quick task 260710-hbn completed the interrupted student retry/audio feedback work in commit `33779fa1`. The follow-up `retry-feedback-flow` debug session fixed final-turn review gating, repeat retry audio/actions, and transcript carryover. The subsequent code-review follow-up removed the unsafe grammar-only fill-in bypass, moved mission completion into a deployed atomic RPC, restored persisted feedback/audio on refresh, included evaluation in resume decisions, and fixed Coco playback teardown. Those follow-ups are complete and Phase 10 remains closed.
 The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on desktop but only 133px on a 375px phone. Responsive clamped insets now preserve the desktop framing at 226px on both standard phone and desktop widths without changing stage, dialogue, or recorder geometry.
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
 The `mission-create-retry-cleanup` follow-up found mission creation itself was healthy: an active dev server had been corrupted when production builds rewrote its `.next` chunks, leaving the form unhydrated and causing native GET submission. A clean restart restored two verified real saves. The retry route now honors `needs_retry` past the original deadline, and the teacher AI mission-draft feature was removed end-to-end. Phase 11's roadmap now requires standalone scene-premise generation rather than restoring full mission drafting.
 
-Last activity: 2026-07-14 — Completed Phase 10.1 with the live per-class review-policy UI, bidirectional queue regression, and full repository gate passing
+Last activity: 2026-07-14 — Closed Phase 10.1 review findings with cron compare-and-swap protection and reliable live-test cleanup; focused checks pass
 
 Progress: [████████░░] 79%
 
@@ -214,6 +214,6 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 **Handoff docs:** `.planning/handoff/` holds two 2026-07-10 session handoffs (mascot-audio-copy, audio-reclick-still-broken), committed 2026-07-11 as historical records — every open item in them has since landed: the replay re-click silence was resolved in `33779fa1` by removing Web Audio entirely from `CocoSpeechAudio.tsx` (native `<audio>` playback + synthetic mouth pulse; never reintroduce `createMediaElementSource` — a source test bans it), the terse "Say this sentence:" repeat-card label and the sprite-framing/dialogue-box overlap fixes landed in the same commit and the mobile follow-ups `f87766f5`/`7a599097`. Audible replay confirmation remains user-ear-only (agent preview and driven-Chrome tabs can't produce sound) and is folded into the existing Task 3 checkpoint.
 
-Last session: 2026-07-14T05:20:27.241Z
-Stopped at: Completed 10.1-10-PLAN.md — Phase 10.1 complete
+Last session: 2026-07-14T14:30:19+09:00
+Stopped at: Completed Phase 10.1 post-review fixes — phase remains complete
 Note: Branch `phase-10-mascot-wip` is fully merged and can still be deleted (not yet done — ask before deleting). `.planning/phases/11-coco-chat-dynamic-turns-scene-framing/` is active again now that Phase 10 is back to the mascot. Phase 13 (Pronunciation Remediation Videos, MEDIA-F1) is new — not yet planned, no phase directory exists yet. Two incidental fixes landed this session outside Plan 10-04's own scope: `d104f16d` (CocoSpeechAudio analyser-ordering bug, found uncommitted, directly tied to the MASCOT-02 wiring) and `58bcc921` (repeat-turn exact-match fast-path, committed independently by the user during the same session — unrelated to Phase 10, not reviewed here).
