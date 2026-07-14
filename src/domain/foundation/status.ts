@@ -30,6 +30,7 @@ export type TransitionRequest = {
 export type MissedStatusInput = {
   status: AssignmentStudentStatus;
   dueAt: string | Date | null;
+  latestAttemptStatus?: "in_progress" | "completed" | "abandoned" | null;
   now?: string | Date;
 };
 
@@ -83,9 +84,14 @@ export function assertTransitionRequest(request: TransitionRequest): void {
 export function shouldMarkMissed({
   status,
   dueAt,
+  latestAttemptStatus,
   now = new Date(),
 }: MissedStatusInput): boolean {
   if (status !== "assigned" && status !== "started") {
+    return false;
+  }
+
+  if (status === "started" && latestAttemptStatus === "in_progress") {
     return false;
   }
 
