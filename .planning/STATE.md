@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: — Coco Comes Alive
-current_phase: 10.1
-current_phase_name: assignment-operations-student-history
-status: phase_complete
-stopped_at: Fixed D-19 sidebar Incomplete count, closed 10.1-SECURITY.md with user-approved accepted risks, and reverified — Phase 10.1 fully complete, ready to deploy
-last_updated: "2026-07-14T16:10:00+09:00"
+current_phase: 11
+current_phase_name: coco-chat-dynamic-turns-scene-framing
+status: executing
+stopped_at: "Phase 11 Plan 01 complete: additive schema + conditional schema refine + assign-snapshot capture; migration verified live; typecheck and full suite (63 files/556 tests) green"
+last_updated: "2026-07-14T15:40:31.120Z"
 last_activity: 2026-07-14
-last_activity_desc: Applied lean TDD fix so countIncompleteItems sums all urgency groups (D-19); wrote 10.1-SECURITY.md (41/41 threats closed, 3 accepted risks approved by user); refreshed 10.1-VALIDATION.md and 10.1-VERIFICATION.md; full aggregate gate green (548 tests, typecheck, lint, build, Playwright 5/5)
+last_activity_desc: Phase 11 execution started
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 34
-  completed_plans: 27
-  percent: 79
+  completed_plans: 28
+  percent: 57
 ---
 
 # Project State
@@ -24,21 +24,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-01)
 
 **Core value:** Students must complete useful spoken English practice outside class, and teachers must be able to verify that it happened.
-**Current focus:** Phase 10.1 — assignment-operations-student-history
+**Current focus:** Phase 11 — coco-chat-dynamic-turns-scene-framing
 
 ## Current Position
 
-Phase: 10.1 (assignment-operations-student-history) — COMPLETE
+Phase: 11 (coco-chat-dynamic-turns-scene-framing) — EXECUTING
 Previous phase: 10 (mascot-vn-style) — COMPLETE
-Plan: 12 of 12 complete
-Status: Phase 10.1 complete — ready for phase verification and Phase 11
+Plan: 2 of 7
+Status: Ready to execute
 Active feature work: dismiss-incomplete and clickable no-attempt assignment evidence are implemented on `feature/dismiss-incomplete-assignment`; migrations `202607120003`, `202607120004`, and `202607120005` are live. Both by-ID and attempt-keyed dismiss/undo paths are state-sensitive. Phase 10.1 post-review fixes add compare-and-swap protection to the missed-status worker and reliable seeded-test cleanup. The cron regression passes 2/2, the live review-policy Playwright regression passes 5/5, typecheck passes, and the approved clean-cache production build succeeds.
 Quick task 260710-hbn completed the interrupted student retry/audio feedback work in commit `33779fa1`. The follow-up `retry-feedback-flow` debug session fixed final-turn review gating, repeat retry audio/actions, and transcript carryover. The subsequent code-review follow-up removed the unsafe grammar-only fill-in bypass, moved mission completion into a deployed atomic RPC, restored persisted feedback/audio on refresh, included evaluation in resume decisions, and fixed Coco playback teardown. Those follow-ups are complete and Phase 10 remains closed.
 The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on desktop but only 133px on a 375px phone. Responsive clamped insets now preserve the desktop framing at 226px on both standard phone and desktop widths without changing stage, dialogue, or recorder geometry.
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
 The `mission-create-retry-cleanup` follow-up found mission creation itself was healthy: an active dev server had been corrupted when production builds rewrote its `.next` chunks, leaving the form unhydrated and causing native GET submission. A clean restart restored two verified real saves. The retry route now honors `needs_retry` past the original deadline, and the teacher AI mission-draft feature was removed end-to-end. Phase 11's roadmap now requires standalone scene-premise generation rather than restoring full mission drafting.
 
-Last activity: 2026-07-14 — Closed Phase 10.1 review findings with cron compare-and-swap protection and reliable live-test cleanup; focused checks pass
+Last activity: 2026-07-14 — Phase 11 execution started
 
 Progress: [████████░░] 79%
 
@@ -101,6 +101,7 @@ Progress: [████████░░] 79%
 | Phase 10.1 P11 | 3min | 2 tasks | 4 files |
 | Phase 10.1 P09 | 3min | 2 tasks | 6 files |
 | Phase 10.1 P10 | 7 min | 3 tasks | 6 files |
+| Phase 11 P01 | 25min | 5 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -178,6 +179,8 @@ Recent decisions affecting current work:
 - [Phase 10.1]: 10.1-10: Class review-policy changes remain server-confirmed until persistence succeeds; successful changes refresh Needs review while All activity remains policy-independent.
 - [Phase 10.1]: D-19 fix (2026-07-14): a Nyquist audit found countIncompleteItems excluded Later-urgency groups from the sidebar Incomplete badge, contradicting D-19 ("count is all outstanding student-assignment items"). Fixed via lean TDD: test expectation changed 2→4, RED confirmed, then countIncompleteItems sums every group unconditionally. Grouping/collapse behavior in the Later disclosure is unchanged — only the badge count.
 - [Phase 10.1]: 10.1-SECURITY.md closed 2026-07-14: 41/41 threats CLOSED. 3 low-risk items (recap field exposure, no separate audit history on review-policy changes, cron reads only IDs/status/no PII) recorded as accepted risk with explicit user approval (not auto-accepted). 1 item (Plan 01 T-10.1-02) was a threat-model wording correction, not a vulnerability — code already matched the corrected invariant (accepting a flagged submission may finalize teacher_review→completed via the atomic RPC; Undo/reopen only clears the receipt, never reverts completed status).
+- [Phase ?]: 11-01: Additive migration (missions.scene_premise/conversation_mode, attempt_turns.coco_line/moderation_event) verified live via supabase migration list + db query --linked information_schema.columns check
+- [Phase ?]: 11-01: missionFormSchema/missionSnapshotSchema conditional refine skips exact-turn-count check when conversationMode=true; chat-mode requiredTurns constrained to 3-8; preset-mission behavior unchanged
 
 ### Pending Todos
 
@@ -216,6 +219,6 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 **Handoff docs:** `.planning/handoff/` holds two 2026-07-10 session handoffs (mascot-audio-copy, audio-reclick-still-broken), committed 2026-07-11 as historical records — every open item in them has since landed: the replay re-click silence was resolved in `33779fa1` by removing Web Audio entirely from `CocoSpeechAudio.tsx` (native `<audio>` playback + synthetic mouth pulse; never reintroduce `createMediaElementSource` — a source test bans it), the terse "Say this sentence:" repeat-card label and the sprite-framing/dialogue-box overlap fixes landed in the same commit and the mobile follow-ups `f87766f5`/`7a599097`. Audible replay confirmation remains user-ear-only (agent preview and driven-Chrome tabs can't produce sound) and is folded into the existing Task 3 checkpoint.
 
-Last session: 2026-07-14T16:10:00+09:00
-Stopped at: Fixed D-19 sidebar Incomplete count, closed 10.1-SECURITY.md with user-approved accepted risks, and reverified — Phase 10.1 fully complete, ready to deploy
+Last session: 2026-07-14T15:40:31.112Z
+Stopped at: Phase 11 Plan 01 complete: additive schema + conditional schema refine + assign-snapshot capture; migration verified live; typecheck and full suite (63 files/556 tests) green
 Note: Branch `phase-10-mascot-wip` is fully merged and can still be deleted (not yet done — ask before deleting). `.planning/phases/11-coco-chat-dynamic-turns-scene-framing/` is active again now that Phase 10 is back to the mascot. Phase 13 (Pronunciation Remediation Videos, MEDIA-F1) is new — not yet planned, no phase directory exists yet. Two incidental fixes landed this session outside Plan 10-04's own scope: `d104f16d` (CocoSpeechAudio analyser-ordering bug, found uncommitted, directly tied to the MASCOT-02 wiring) and `58bcc921` (repeat-turn exact-match fast-path, committed independently by the user during the same session — unrelated to Phase 10, not reviewed here).
