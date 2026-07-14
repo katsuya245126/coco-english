@@ -5,16 +5,16 @@ milestone_name: — Coco Comes Alive
 current_phase: 10.1
 current_phase_name: assignment-operations-student-history
 status: executing
-stopped_at: Phase 10.1 Plan 09 complete — next gap plan 10.1-12
-last_updated: "2026-07-14T14:04:00+09:00"
+stopped_at: Phase 10.1 Plan 12 complete — final gap plan 10.1-10 remains
+last_updated: "2026-07-14T14:10:00+09:00"
 last_activity: 2026-07-14
-last_activity_desc: Completed Plan 10.1-09 review-policy backend contract with 40 focused tests and typecheck passing
+last_activity_desc: Completed Plan 10.1-12 transcript-accurate recap words with 64 focused tests and typecheck passing
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 34
-  completed_plans: 25
-  percent: 74
+  completed_plans: 26
+  percent: 76
 ---
 
 # Project State
@@ -30,17 +30,17 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 
 Phase: 10.1 (assignment-operations-student-history) — EXECUTING
 Previous phase: 10 (mascot-vn-style) — COMPLETE
-Plan: 10 of 12 complete
-Status: Executing Phase 10.1 — Plan 10.1-09 complete; next is 10.1-12
+Plan: 11 of 12 complete
+Status: Executing Phase 10.1 — Plan 10.1-12 complete; final gap plan is 10.1-10
 Active feature work: dismiss-incomplete and clickable no-attempt assignment evidence are implemented on `feature/dismiss-incomplete-assignment`; migrations `202607120003`, `202607120004`, and `202607120005` are live. Both by-ID and attempt-keyed dismiss/undo paths are state-sensitive. Final verification is 526 passed / 4 skipped with typecheck and build clean and lint at zero errors / one pre-existing warning; human browser acceptance remains.
 Quick task 260710-hbn completed the interrupted student retry/audio feedback work in commit `33779fa1`. The follow-up `retry-feedback-flow` debug session fixed final-turn review gating, repeat retry audio/actions, and transcript carryover. The subsequent code-review follow-up removed the unsafe grammar-only fill-in bypass, moved mission completion into a deployed atomic RPC, restored persisted feedback/audio on refresh, included evaluation in resume decisions, and fixed Coco playback teardown. Those follow-ups are complete and Phase 10 remains closed.
 The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on desktop but only 133px on a 375px phone. Responsive clamped insets now preserve the desktop framing at 226px on both standard phone and desktop widths without changing stage, dialogue, or recorder geometry.
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
 The `mission-create-retry-cleanup` follow-up found mission creation itself was healthy: an active dev server had been corrupted when production builds rewrote its `.next` chunks, leaving the form unhydrated and causing native GET submission. A clean restart restored two verified real saves. The retry route now honors `needs_retry` past the original deadline, and the teacher AI mission-draft feature was removed end-to-end. Phase 11's roadmap now requires standalone scene-premise generation rather than restoring full mission drafting.
 
-Last activity: 2026-07-14 — Completed Plan 10.1-09 review-policy backend contract with 40 focused tests and typecheck passing
+Last activity: 2026-07-14 — Completed Plan 10.1-12 transcript-accurate recap words with 64 focused tests and typecheck passing
 
-Progress: [███████░░░] 74%
+Progress: [████████░░] 76%
 
 **Codex handoff (merged to main 2026-07-05, branch feature/per-student-sound-profile deleted):**
 
@@ -173,6 +173,7 @@ Recent decisions affecting current work:
 - [Phase ?]: 10.1-08: Recap feedback heading is 'Pronunciation' and all-clear line is 'Great job!' (user-specified at checkpoint); practice lead-in 'Words to practice:' matches mission-flow idiom
 - [Phase ?]: 10.1-08: Recap back control is an arrow-only 44x44 solid-primary button with aria-label and hover/active states; !important needed because inline base style beats stylesheet hover rules
 - [Phase 10.1]: 10.1-09: Needs review derives from each class live review policy while All activity remains policy-independent; policy writes require authenticated ownership and an exact two-value allowlist.
+- [Phase 10.1]: 10.1-12: Recap and live mission feedback share wordsToPractice with the displayed original-or-accepted-repeat transcript; the component consumes a practice-only list.
 
 ### Pending Todos
 
@@ -207,10 +208,10 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 ## Session Continuity
 
-**Resume file:** .planning/phases/10.1-assignment-operations-student-history/10.1-12-PLAN.md
+**Resume file:** .planning/phases/10.1-assignment-operations-student-history/10.1-10-PLAN.md
 
 **Handoff docs:** `.planning/handoff/` holds two 2026-07-10 session handoffs (mascot-audio-copy, audio-reclick-still-broken), committed 2026-07-11 as historical records — every open item in them has since landed: the replay re-click silence was resolved in `33779fa1` by removing Web Audio entirely from `CocoSpeechAudio.tsx` (native `<audio>` playback + synthetic mouth pulse; never reintroduce `createMediaElementSource` — a source test bans it), the terse "Say this sentence:" repeat-card label and the sprite-framing/dialogue-box overlap fixes landed in the same commit and the mobile follow-ups `f87766f5`/`7a599097`. Audible replay confirmation remains user-ear-only (agent preview and driven-Chrome tabs can't produce sound) and is folded into the existing Task 3 checkpoint.
 
-Last session: 2026-07-14T14:04:00+09:00
-Stopped at: Phase 10.1 Plan 09 complete — next gap plan 10.1-12
+Last session: 2026-07-14T14:10:00+09:00
+Stopped at: Phase 10.1 Plan 12 complete — final gap plan 10.1-10 remains
 Note: Branch `phase-10-mascot-wip` is fully merged and can still be deleted (not yet done — ask before deleting). `.planning/phases/11-coco-chat-dynamic-turns-scene-framing/` is active again now that Phase 10 is back to the mascot. Phase 13 (Pronunciation Remediation Videos, MEDIA-F1) is new — not yet planned, no phase directory exists yet. Two incidental fixes landed this session outside Plan 10-04's own scope: `d104f16d` (CocoSpeechAudio analyser-ordering bug, found uncommitted, directly tied to the MASCOT-02 wiring) and `58bcc921` (repeat-turn exact-match fast-path, committed independently by the user during the same session — unrelated to Phase 10, not reviewed here).
