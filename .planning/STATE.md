@@ -4,17 +4,17 @@ milestone: v2.0
 milestone_name: — Coco Comes Alive
 current_phase: 10.1
 current_phase_name: assignment-operations-student-history
-status: ready_to_execute
-stopped_at: Phase 10.1 gap planning complete — 4 plans ready
-last_updated: "2026-07-14T10:34:16+09:00"
+status: executing
+stopped_at: Phase 10.1 Plan 11 complete — next gap plan 10.1-09
+last_updated: "2026-07-14T04:48:00Z"
 last_activity: 2026-07-14
-last_activity_desc: Planned four verified Phase 10.1 gap closures across four waves; 28/28 decisions covered and ready to execute
+last_activity_desc: Completed Plan 10.1-11 late-open cron safety with 46 focused tests and typecheck passing
 progress:
   total_phases: 7
-  completed_phases: 4
+  completed_phases: 3
   total_plans: 34
-  completed_plans: 23
-  percent: 68
+  completed_plans: 24
+  percent: 71
 ---
 
 # Project State
@@ -24,23 +24,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-01)
 
 **Core value:** Students must complete useful spoken English practice outside class, and teachers must be able to verify that it happened.
-**Current focus:** Phase 10.1 — four verified gap-closure plans are ready to execute.
+**Current focus:** Phase 10.1 — assignment-operations-student-history
 
 ## Current Position
 
-Phase: 10.1 (assignment-operations-student-history) — GAP CLOSURES PLANNED
+Phase: 10.1 (assignment-operations-student-history) — EXECUTING
 Previous phase: 10 (mascot-vn-style) — COMPLETE
-Plan: 8 of 12 complete; plans 10.1-09 through 10.1-12 are ready to execute
-Status: Ready to execute — run `$gsd-execute-phase 10.1`.
+Plan: 9 of 12 complete
+Status: Executing Phase 10.1 — Plan 10.1-11 complete; next is 10.1-09
 Active feature work: dismiss-incomplete and clickable no-attempt assignment evidence are implemented on `feature/dismiss-incomplete-assignment`; migrations `202607120003`, `202607120004`, and `202607120005` are live. Both by-ID and attempt-keyed dismiss/undo paths are state-sensitive. Final verification is 526 passed / 4 skipped with typecheck and build clean and lint at zero errors / one pre-existing warning; human browser acceptance remains.
 Quick task 260710-hbn completed the interrupted student retry/audio feedback work in commit `33779fa1`. The follow-up `retry-feedback-flow` debug session fixed final-turn review gating, repeat retry audio/actions, and transcript carryover. The subsequent code-review follow-up removed the unsafe grammar-only fill-in bypass, moved mission completion into a deployed atomic RPC, restored persisted feedback/audio on refresh, included evaluation in resume decisions, and fixed Coco playback teardown. Those follow-ups are complete and Phase 10 remains closed.
 The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on desktop but only 133px on a 375px phone. Responsive clamped insets now preserve the desktop framing at 226px on both standard phone and desktop widths without changing stage, dialogue, or recorder geometry.
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
 The `mission-create-retry-cleanup` follow-up found mission creation itself was healthy: an active dev server had been corrupted when production builds rewrote its `.next` chunks, leaving the form unhydrated and causing native GET submission. A clean restart restored two verified real saves. The retry route now honors `needs_retry` past the original deadline, and the teacher AI mission-draft feature was removed end-to-end. Phase 11's roadmap now requires standalone scene-premise generation rather than restoring full mission drafting.
 
-Last activity: 2026-07-14 — Planned four verified Phase 10.1 gap closures across four waves; 28/28 decisions covered.
+Last activity: 2026-07-14 — Completed Plan 10.1-11 late-open cron safety with 46 focused tests and typecheck passing
 
-Progress: [███████░░░] 68%
+Progress: [███████░░░] 71%
 
 **Codex handoff (merged to main 2026-07-05, branch feature/per-student-sound-profile deleted):**
 
@@ -98,6 +98,7 @@ Progress: [███████░░░] 68%
 | Phase 10.1 P01 | 5min | 3 tasks | 5 files |
 | Phase 10.1 P05 | 5min | 1 tasks | 4 files |
 | Phase 10.1 P08 | 35min | 3 tasks | 3 files |
+| Phase 10.1 P11 | 3min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -204,10 +205,10 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 ## Session Continuity
 
-**Resume file:** .planning/phases/10.1-assignment-operations-student-history/10.1-11-PLAN.md
+**Resume file:** .planning/phases/10.1-assignment-operations-student-history/10.1-09-PLAN.md
 
 **Handoff docs:** `.planning/handoff/` holds two 2026-07-10 session handoffs (mascot-audio-copy, audio-reclick-still-broken), committed 2026-07-11 as historical records — every open item in them has since landed: the replay re-click silence was resolved in `33779fa1` by removing Web Audio entirely from `CocoSpeechAudio.tsx` (native `<audio>` playback + synthetic mouth pulse; never reintroduce `createMediaElementSource` — a source test bans it), the terse "Say this sentence:" repeat-card label and the sprite-framing/dialogue-box overlap fixes landed in the same commit and the mobile follow-ups `f87766f5`/`7a599097`. Audible replay confirmation remains user-ear-only (agent preview and driven-Chrome tabs can't produce sound) and is folded into the existing Task 3 checkpoint.
 
-Last session: 2026-07-14T10:34:16+09:00
-Stopped at: Phase 10.1 gap planning complete — 4 plans ready
+Last session: 2026-07-14T13:48:00+09:00
+Stopped at: Phase 10.1 Plan 11 complete — next gap plan 10.1-09
 Note: Branch `phase-10-mascot-wip` is fully merged and can still be deleted (not yet done — ask before deleting). `.planning/phases/11-coco-chat-dynamic-turns-scene-framing/` is active again now that Phase 10 is back to the mascot. Phase 13 (Pronunciation Remediation Videos, MEDIA-F1) is new — not yet planned, no phase directory exists yet. Two incidental fixes landed this session outside Plan 10-04's own scope: `d104f16d` (CocoSpeechAudio analyser-ordering bug, found uncommitted, directly tied to the MASCOT-02 wiring) and `58bcc921` (repeat-turn exact-match fast-path, committed independently by the user during the same session — unrelated to Phase 10, not reviewed here).
