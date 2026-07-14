@@ -26,6 +26,8 @@ const missionRow = {
   level: "elementary",
   required_turns: 1,
   character_id: "default-buddy",
+  scene_premise: null,
+  conversation_mode: false,
 };
 
 const turnRows = [

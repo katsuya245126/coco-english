@@ -76,6 +76,8 @@ export type Database = {
           level: string;
           required_turns: number;
           character_id: string;
+          scene_premise: string | null;
+          conversation_mode: boolean;
           archived_at: string | null;
           created_at: string;
           updated_at: string;
@@ -89,6 +91,8 @@ export type Database = {
           level: string;
           required_turns: number;
           character_id: string;
+          scene_premise?: string | null;
+          conversation_mode?: boolean;
           archived_at?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -213,6 +217,8 @@ export type Database = {
           target_attempted: boolean | null;
           repeat_accepted: boolean | null;
           hint_level_used: number;
+          coco_line: string | null;
+          moderation_event: Json | null;
           created_at: string;
           updated_at: string;
         };
@@ -228,6 +234,8 @@ export type Database = {
           target_attempted?: boolean | null;
           repeat_accepted?: boolean | null;
           hint_level_used?: number;
+          coco_line?: string | null;
+          moderation_event?: Json | null;
           created_at?: string;
           updated_at?: string;
         };

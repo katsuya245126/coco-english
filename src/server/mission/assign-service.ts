@@ -29,6 +29,8 @@ type MissionRow = {
   level: string;
   required_turns: number;
   character_id: string;
+  scene_premise: string | null;
+  conversation_mode: boolean;
 };
 
 type TurnRow = {
@@ -51,6 +53,8 @@ export function buildMissionSnapshot(input: {
     level: input.mission.level,
     requiredTurns: input.mission.required_turns,
     characterId: input.mission.character_id,
+    conversationMode: input.mission.conversation_mode,
+    scenePremise: input.mission.scene_premise,
     turns: input.turns
       .slice()
       .sort((a, b) => a.turn_order - b.turn_order)
@@ -87,7 +91,7 @@ export async function assignMissionToClass(input: {
   const mission = await supabase
     .from("missions")
     .select(
-      "id, title, target_pattern, topic, level, required_turns, character_id",
+      "id, title, target_pattern, topic, level, required_turns, character_id, scene_premise, conversation_mode",
     )
     .eq("teacher_id", input.teacherId)
     .eq("id", input.missionId)
