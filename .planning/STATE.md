@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 10.1
 current_phase_name: assignment-operations-student-history
 status: phase_complete
-stopped_at: Completed Phase 10.1 post-review fixes — phase remains complete
-last_updated: "2026-07-14T14:30:19+09:00"
+stopped_at: Fixed D-19 sidebar Incomplete count, closed 10.1-SECURITY.md with user-approved accepted risks, and reverified — Phase 10.1 fully complete, ready to deploy
+last_updated: "2026-07-14T16:10:00+09:00"
 last_activity: 2026-07-14
-last_activity_desc: Closed Phase 10.1 review findings with cron compare-and-swap protection and reliable live-test cleanup; focused checks pass
+last_activity_desc: Applied lean TDD fix so countIncompleteItems sums all urgency groups (D-19); wrote 10.1-SECURITY.md (41/41 threats closed, 3 accepted risks approved by user); refreshed 10.1-VALIDATION.md and 10.1-VERIFICATION.md; full aggregate gate green (548 tests, typecheck, lint, build, Playwright 5/5)
 progress:
   total_phases: 7
   completed_phases: 4
@@ -176,6 +176,8 @@ Recent decisions affecting current work:
 - [Phase 10.1]: 10.1-09: Needs review derives from each class live review policy while All activity remains policy-independent; policy writes require authenticated ownership and an exact two-value allowlist.
 - [Phase 10.1]: 10.1-12: Recap and live mission feedback share wordsToPractice with the displayed original-or-accepted-repeat transcript; the component consumes a practice-only list.
 - [Phase 10.1]: 10.1-10: Class review-policy changes remain server-confirmed until persistence succeeds; successful changes refresh Needs review while All activity remains policy-independent.
+- [Phase 10.1]: D-19 fix (2026-07-14): a Nyquist audit found countIncompleteItems excluded Later-urgency groups from the sidebar Incomplete badge, contradicting D-19 ("count is all outstanding student-assignment items"). Fixed via lean TDD: test expectation changed 2→4, RED confirmed, then countIncompleteItems sums every group unconditionally. Grouping/collapse behavior in the Later disclosure is unchanged — only the badge count.
+- [Phase 10.1]: 10.1-SECURITY.md closed 2026-07-14: 41/41 threats CLOSED. 3 low-risk items (recap field exposure, no separate audit history on review-policy changes, cron reads only IDs/status/no PII) recorded as accepted risk with explicit user approval (not auto-accepted). 1 item (Plan 01 T-10.1-02) was a threat-model wording correction, not a vulnerability — code already matched the corrected invariant (accepting a flagged submission may finalize teacher_review→completed via the atomic RPC; Undo/reopen only clears the receipt, never reverts completed status).
 
 ### Pending Todos
 
@@ -214,6 +216,6 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 **Handoff docs:** `.planning/handoff/` holds two 2026-07-10 session handoffs (mascot-audio-copy, audio-reclick-still-broken), committed 2026-07-11 as historical records — every open item in them has since landed: the replay re-click silence was resolved in `33779fa1` by removing Web Audio entirely from `CocoSpeechAudio.tsx` (native `<audio>` playback + synthetic mouth pulse; never reintroduce `createMediaElementSource` — a source test bans it), the terse "Say this sentence:" repeat-card label and the sprite-framing/dialogue-box overlap fixes landed in the same commit and the mobile follow-ups `f87766f5`/`7a599097`. Audible replay confirmation remains user-ear-only (agent preview and driven-Chrome tabs can't produce sound) and is folded into the existing Task 3 checkpoint.
 
-Last session: 2026-07-14T14:30:19+09:00
-Stopped at: Completed Phase 10.1 post-review fixes — phase remains complete
+Last session: 2026-07-14T16:10:00+09:00
+Stopped at: Fixed D-19 sidebar Incomplete count, closed 10.1-SECURITY.md with user-approved accepted risks, and reverified — Phase 10.1 fully complete, ready to deploy
 Note: Branch `phase-10-mascot-wip` is fully merged and can still be deleted (not yet done — ask before deleting). `.planning/phases/11-coco-chat-dynamic-turns-scene-framing/` is active again now that Phase 10 is back to the mascot. Phase 13 (Pronunciation Remediation Videos, MEDIA-F1) is new — not yet planned, no phase directory exists yet. Two incidental fixes landed this session outside Plan 10-04's own scope: `d104f16d` (CocoSpeechAudio analyser-ordering bug, found uncommitted, directly tied to the MASCOT-02 wiring) and `58bcc921` (repeat-turn exact-match fast-path, committed independently by the user during the same session — unrelated to Phase 10, not reviewed here).

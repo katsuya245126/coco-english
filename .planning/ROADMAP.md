@@ -253,7 +253,7 @@ Phases execute in numeric order: 8 → 9 → 10 → 10.1 → 11 → 12 → 13 (P
 
 ## Next Up
 
-Phase 10.1 (Assignment Operations & Student History) completed all four verification gap plans: late-open resume safety, policy-aware queue contracts, transcript-accurate recap words, and the live per-class policy UI with final repository verification.
+Phase 10.1 (Assignment Operations & Student History) completed all four verification gap plans: late-open resume safety, policy-aware queue contracts, transcript-accurate recap words, and the live per-class policy UI with final repository verification. A later Nyquist audit found one remaining decision mismatch (D-19: sidebar Incomplete badge excluded Later-urgency items) and 4 unresolved security-register entries; both were closed 2026-07-14 (lean TDD fix + user-approved accepted risks in `10.1-SECURITY.md`, 41/41 threats closed). Phase 10.1 is now fully closed and ready to deploy.
 
 Phase 11 (Coco Chat) remains fully planned (7 plans, 4 waves) and follows Phase 10.1 once it closes; its existing plans are unchanged.
 
