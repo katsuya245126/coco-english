@@ -42,7 +42,7 @@ REQ-ID categories continue from v1 with new codes: VOICE, PRON, MASCOT, CHAT, SC
 - [x] **SCENE-01**: Each mission is framed by a lightweight scene premise ("you arrive at school and meet Coco — introduce yourself") generated from the mission's target pattern, stored on the mission (`missions.scene_premise`).
 - [x] **CHAT-01**: A mission can run in a dynamic conversation mode (`missions.conversation_mode`) where Coco responds naturally and contextually to what the student says, anchored to the target grammar pattern, instead of fully preset turns.
 - [x] **CHAT-02**: Coco shares first and has a consistent, friendly personality, giving the student something natural to react to (models English, feels like chatting with a friend, not an interrogation).
-- [ ] **CHAT-03**: The conversation is bounded to ~5 turns by a **server-enforced** hard cap plus a "wrap it up" nudge — not client-side and not left to the LLM's own judgment.
+- [x] **CHAT-03**: The conversation is bounded to ~5 turns by a **server-enforced** hard cap plus a "wrap it up" nudge — not client-side and not left to the LLM's own judgment.
 - [x] **CHAT-04**: The conversation is kept on the target pattern by architectural guardrails (system-level steering + scene purpose), not prompt hope alone; it does not slide into open-ended free chat.
 - [x] **CHAT-05**: Every Coco output is moderated/safety-checked before it is shown or spoken to a child.
 - [x] **CHAT-06**: Coco's dynamically generated lines are persisted (`attempt_turns.coco_line`) and the full exchange is teacher-reviewable as a transcript, reusing the existing attempts/turns/status/review machinery.
@@ -102,7 +102,7 @@ Each active v2.0 requirement is mapped to exactly one phase. 25/25 mapped, no or
 | SCENE-01 | Phase 11 (v2.4 Coco Chat) | Complete |
 | CHAT-01 | Phase 11 (v2.4 Coco Chat) | Complete |
 | CHAT-02 | Phase 11 (v2.4 Coco Chat) | Complete |
-| CHAT-03 | Phase 11 (v2.4 Coco Chat) | Pending |
+| CHAT-03 | Phase 11 (v2.4 Coco Chat) | Complete |
 | CHAT-04 | Phase 11 (v2.4 Coco Chat) | Complete |
 | CHAT-05 | Phase 11 (v2.4 Coco Chat) | Complete |
 | CHAT-06 | Phase 11 (v2.4 Coco Chat) | Complete |

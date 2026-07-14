@@ -178,7 +178,7 @@ Archive:
   6. Every Coco output is moderated/safety-checked before it is shown or spoken to a student.
   7. Coco's dynamically generated lines are persisted (`attempt_turns.coco_line`) and the full exchange is teacher-reviewable as a transcript using the existing review UI, with the target pattern visually identifiable in the transcript.
 
-**Plans**: 2/7 plans executed
+**Plans**: 3/7 plans executed
 
 **Wave 1** *(parallel foundation)*
 
@@ -187,7 +187,7 @@ Archive:
 
 **Wave 2** *(server orchestration, blocked on Wave 1)*
 
-- [ ] 11-03-PLAN.md — hard-turn-cap gate + coco_line persistence (mission-flow), conversation orchestration with dual-direction moderation + retry-once + shared fallback (audio-upload), standalone scene-premise generation without restoring full AI mission drafting (CHAT-01, CHAT-03, CHAT-05, CHAT-06, SCENE-01)
+- [x] 11-03-PLAN.md — hard-turn-cap gate + coco_line persistence (mission-flow), conversation orchestration with dual-direction moderation + retry-once + shared fallback (audio-upload), standalone scene-premise generation without restoring full AI mission drafting (CHAT-01, CHAT-03, CHAT-05, CHAT-06, SCENE-01)
 
 **Wave 3** *(parallel UI, blocked on Wave 2)*
 

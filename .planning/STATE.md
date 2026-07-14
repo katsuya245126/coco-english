@@ -5,15 +5,15 @@ milestone_name: — Coco Comes Alive
 current_phase: 11
 current_phase_name: coco-chat-dynamic-turns-scene-framing
 status: executing
-stopped_at: Completed 11-02-PLAN.md
-last_updated: "2026-07-14T15:56:01.083Z"
+stopped_at: Completed 11-03-PLAN.md
+last_updated: "2026-07-14T16:22:23.000Z"
 last_activity: 2026-07-14
-last_activity_desc: Phase 11 execution started
+last_activity_desc: Completed 11-03-PLAN.md
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 34
-  completed_plans: 29
+  completed_plans: 30
   percent: 57
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 
 Phase: 11 (coco-chat-dynamic-turns-scene-framing) — EXECUTING
 Previous phase: 10 (mascot-vn-style) — COMPLETE
-Plan: 3 of 7
+Plan: 4 of 7
 Status: Ready to execute
 Active feature work: dismiss-incomplete and clickable no-attempt assignment evidence are implemented on `feature/dismiss-incomplete-assignment`; migrations `202607120003`, `202607120004`, and `202607120005` are live. Both by-ID and attempt-keyed dismiss/undo paths are state-sensitive. Phase 10.1 post-review fixes add compare-and-swap protection to the missed-status worker and reliable seeded-test cleanup. The cron regression passes 2/2, the live review-policy Playwright regression passes 5/5, typecheck passes, and the approved clean-cache production build succeeds.
 Quick task 260710-hbn completed the interrupted student retry/audio feedback work in commit `33779fa1`. The follow-up `retry-feedback-flow` debug session fixed final-turn review gating, repeat retry audio/actions, and transcript carryover. The subsequent code-review follow-up removed the unsafe grammar-only fill-in bypass, moved mission completion into a deployed atomic RPC, restored persisted feedback/audio on refresh, included evaluation in resume decisions, and fixed Coco playback teardown. Those follow-ups are complete and Phase 10 remains closed.
@@ -38,7 +38,7 @@ The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on de
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
 The `mission-create-retry-cleanup` follow-up found mission creation itself was healthy: an active dev server had been corrupted when production builds rewrote its `.next` chunks, leaving the form unhydrated and causing native GET submission. A clean restart restored two verified real saves. The retry route now honors `needs_retry` past the original deadline, and the teacher AI mission-draft feature was removed end-to-end. Phase 11's roadmap now requires standalone scene-premise generation rather than restoring full mission drafting.
 
-Last activity: 2026-07-14 — Phase 11 execution started
+Last activity: 2026-07-14 — Completed 11-03-PLAN.md
 
 Progress: [████████░░] 79%
 
@@ -103,6 +103,7 @@ Progress: [████████░░] 79%
 | Phase 10.1 P10 | 7 min | 3 tasks | 6 files |
 | Phase 11 P01 | 25min | 5 tasks | 8 files |
 | Phase 11 P02 | 20min | 3 tasks | 7 files |
+| Phase 11 P03 | 45min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -184,6 +185,7 @@ Recent decisions affecting current work:
 - [Phase ?]: 11-01: missionFormSchema/missionSnapshotSchema conditional refine skips exact-turn-count check when conversationMode=true; chat-mode requiredTurns constrained to 3-8; preset-mission behavior unchanged
 - [Phase 11]: Moderation checkpoint resolved as option-a: existing OpenAI data-use posture extends to omni-moderation-latest; written with Phase 9/Azure structural rigor (11-MODERATION-DATA-USE.md)
 - [Phase 11]: mission-generator.ts does not exist in this codebase despite RESEARCH.md references; turn-evaluator.ts used as the real adapter-shape precedent for conversation-generator.ts and content-moderation.ts
+- [Phase 11]: 11-03: Conversation orchestration lives entirely in audio-upload.ts (never mission-flow.ts), preserving the AI-06 boundary — mission-flow.ts stays persistence/gate-only; windDown computed as turnOrder >= 6 against the fixed HARD_TURN_CAP (8), never against mission.required_turns; moderation failure (after one regenerate-and-recheck retry) and provider/schema failure share the same canned-fallback degrade path; scene-premise-generator.ts is a standalone adapter targeting net-new files, independent of the deleted mission-draft feature
 
 ### Pending Todos
 
@@ -222,6 +224,6 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 **Handoff docs:** `.planning/handoff/` holds two 2026-07-10 session handoffs (mascot-audio-copy, audio-reclick-still-broken), committed 2026-07-11 as historical records — every open item in them has since landed: the replay re-click silence was resolved in `33779fa1` by removing Web Audio entirely from `CocoSpeechAudio.tsx` (native `<audio>` playback + synthetic mouth pulse; never reintroduce `createMediaElementSource` — a source test bans it), the terse "Say this sentence:" repeat-card label and the sprite-framing/dialogue-box overlap fixes landed in the same commit and the mobile follow-ups `f87766f5`/`7a599097`. Audible replay confirmation remains user-ear-only (agent preview and driven-Chrome tabs can't produce sound) and is folded into the existing Task 3 checkpoint.
 
-Last session: 2026-07-14T15:56:01.074Z
-Stopped at: Completed 11-02-PLAN.md
+Last session: 2026-07-14T16:22:23.000Z
+Stopped at: Completed 11-03-PLAN.md
 Note: Branch `phase-10-mascot-wip` is fully merged and can still be deleted (not yet done — ask before deleting). `.planning/phases/11-coco-chat-dynamic-turns-scene-framing/` is active again now that Phase 10 is back to the mascot. Phase 13 (Pronunciation Remediation Videos, MEDIA-F1) is new — not yet planned, no phase directory exists yet. Two incidental fixes landed this session outside Plan 10-04's own scope: `d104f16d` (CocoSpeechAudio analyser-ordering bug, found uncommitted, directly tied to the MASCOT-02 wiring) and `58bcc921` (repeat-turn exact-match fast-path, committed independently by the user during the same session — unrelated to Phase 10, not reviewed here).
