@@ -65,7 +65,7 @@
 - Consumes: `MissionLevel` from `src/domain/mission/schemas.ts`.
 - Produces: `TranslationPhrase`, `TranslationHint`, `TranslatableCocoLine`, `translationHintSchema`, `translationHintRequestSchema`, `parseTranslationHint(sourceText, value)`, and `buildTranslationSegments(sourceText, phrases)`.
 
-- [ ] **Step 1: Write failing pure-domain tests**
+- [x] **Step 1: Write failing pure-domain tests**
 
 Create `tests/domain/translation-hint.test.ts`:
 
@@ -231,7 +231,7 @@ describe("translation hint domain contract", () => {
 });
 ```
 
-- [ ] **Step 2: Run the domain test and verify RED**
+- [x] **Step 2: Run the domain test and verify RED**
 
 Run:
 
@@ -241,7 +241,7 @@ npx vitest run tests/domain/translation-hint.test.ts
 
 Expected: FAIL because `src/domain/ai/translation-hint.ts` does not exist.
 
-- [ ] **Step 3: Implement the pure contract**
+- [x] **Step 3: Implement the pure contract**
 
 Create `src/domain/ai/translation-hint.ts` with these public types:
 
@@ -324,7 +324,7 @@ export type ParseTranslationHintResult =
 
 `buildTranslationSegments` must append untouched gaps, phrase segments, and the final untouched tail. It accepts only already validated phrases and never uses HTML.
 
-- [ ] **Step 4: Run the domain test and verify GREEN**
+- [x] **Step 4: Run the domain test and verify GREEN**
 
 Run:
 
@@ -334,7 +334,7 @@ npx vitest run tests/domain/translation-hint.test.ts
 
 Expected: all translation-domain tests PASS.
 
-- [ ] **Step 5: Commit the domain contract**
+- [x] **Step 5: Commit the domain contract**
 
 ```bash
 git add src/domain/ai/translation-hint.ts tests/domain/translation-hint.test.ts
