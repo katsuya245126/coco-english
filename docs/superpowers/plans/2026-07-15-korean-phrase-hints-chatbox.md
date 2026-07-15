@@ -757,7 +757,7 @@ git commit -m "feat(11): cache locale-aware phrase translations"
 - Consumes: student ID from `readStudentUnlock`, assignment-student ID from route params, `TranslatableCocoLine`, mission snapshot schema, and Task 3 cache service.
 - Produces: `resolveOwnedTranslationSource(input)` returning `{ sourceText, studentLevel }` or `not_found`; POST route returning validated phrases or retryable unavailability.
 
-- [ ] **Step 1: Write failing provenance tests**
+- [x] **Step 1: Write failing provenance tests**
 
 Create resolver tests with a mocked service-role Supabase client. Cover these exact results:
 
@@ -777,9 +777,9 @@ expect(
 });
 ```
 
-For `coco_dynamic_line`, assert the result uses `attempt_turns.coco_line` for the owned assignment and requested turn order, not `mission_snapshot.turns[].prompt`. Add failures for wrong student ownership, canceled assignment, missing snapshot turn, and missing dynamic row. Assert the resolver queries `attempts.assignment_student_id = assignmentStudentId` before returning dynamic text.
+For `coco_dynamic_line`, assert the result uses `attempt_turns.coco_line` from `assignment_students.latest_attempt_id` and the requested turn order, not `mission_snapshot.turns[].prompt`. Add failures for wrong student ownership, canceled assignment, missing snapshot turn, and missing dynamic row. Assert the resolver filters `attempt_turns.attempt_id` to the latest attempt so restarted missions cannot create duplicate turn-order matches.
 
-- [ ] **Step 2: Run resolver tests and verify RED**
+- [x] **Step 2: Run resolver tests and verify RED**
 
 Run:
 
@@ -789,7 +789,7 @@ npx vitest run tests/server/translation-source.test.ts
 
 Expected: FAIL because the resolver does not exist.
 
-- [ ] **Step 3: Implement the owned resolver**
+- [x] **Step 3: Implement the owned resolver**
 
 Export:
 
@@ -805,19 +805,19 @@ export type ResolveOwnedTranslationSourceResult =
   | { ok: false; error: "not_found" | "db_error" };
 ```
 
-Perform the same app-level ownership query as TTS:
+Perform the same app-level ownership query as TTS, including the current attempt pointer:
 
 ```ts
 .from("assignment_students")
-.select("id, student_id, assignments(mission_snapshot, canceled_at)")
+.select("id, student_id, latest_attempt_id, assignments(mission_snapshot, canceled_at)")
 .eq("id", assignmentStudentId)
 .eq("student_id", studentId)
 .maybeSingle();
 ```
 
-Parse `mission_snapshot` before reading level or turns. Resolve `mission_prompt` only from the matching immutable snapshot turn. Resolve `coco_dynamic_line` only from `attempt_turns.coco_line` joined through `attempts!inner(assignment_student_id)` and filtered to the owned assignment plus requested `turn_order`. Trim only to test non-emptiness; return the persisted/source string itself so indices match exact rendered text.
+Parse `mission_snapshot` before reading level or turns. Resolve `mission_prompt` only from the matching immutable snapshot turn. Resolve `coco_dynamic_line` only from `attempt_turns.coco_line` filtered by `latest_attempt_id` plus requested `turn_order`. Trim only to test non-emptiness; return the persisted/source string itself so indices match exact rendered text.
 
-- [ ] **Step 4: Run resolver tests and verify GREEN**
+- [x] **Step 4: Run resolver tests and verify GREEN**
 
 Run:
 
@@ -827,7 +827,7 @@ npx vitest run tests/server/translation-source.test.ts
 
 Expected: all provenance/ownership tests PASS.
 
-- [ ] **Step 5: Write failing route boundary tests**
+- [x] **Step 5: Write failing route boundary tests**
 
 Create a source-contract test that asserts the route:
 
@@ -841,7 +841,7 @@ expect(routeSource).not.toMatch(/body\.(sourceText|text|contentHash|sourceDigest
 expect(routeSource).toContain('error: "translation_unavailable_retryable"');
 ```
 
-- [ ] **Step 6: Run route boundary tests and verify RED**
+- [x] **Step 6: Run route boundary tests and verify RED**
 
 Run:
 
@@ -851,7 +851,7 @@ npx vitest run tests/server/translation-hint-route-source.test.ts
 
 Expected: FAIL because the route does not exist.
 
-- [ ] **Step 7: Implement the student-gated route**
+- [x] **Step 7: Implement the student-gated route**
 
 The POST route must:
 
@@ -865,7 +865,7 @@ The POST route must:
 
 The response must not return source text, a digest, provider metadata, or cache rows.
 
-- [ ] **Step 8: Run all server translation tests**
+- [x] **Step 8: Run all server translation tests**
 
 Run:
 
@@ -875,7 +875,7 @@ npx vitest run tests/server/translation-source.test.ts tests/server/translation-
 
 Expected: all server translation tests PASS.
 
-- [ ] **Step 9: Commit server-owned resolution and route**
+- [x] **Step 9: Commit server-owned resolution and route**
 
 ```bash
 git add src/server/student-access/translation-source.ts tests/server/translation-source.test.ts src/app/student/missions/'[assignmentStudentId]'/translation-hint/route.ts tests/server/translation-hint-route-source.test.ts
