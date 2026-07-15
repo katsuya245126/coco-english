@@ -1398,7 +1398,7 @@ git commit -m "fix(11): keep completion narration concise"
 - Consumes: all tasks in this plan and the completed dynamic-conversation repair plan.
 - Produces: verified cache schema, server boundary, accessible prompt interaction, and regression evidence.
 
-- [ ] **Step 1: Run focused translation/chatbox tests**
+- [x] **Step 1: Run focused translation/chatbox tests**
 
 ```bash
 npx vitest run tests/domain/translation-hint.test.ts tests/server/translation-hint-generator.test.ts tests/server/translation-hint-cache.test.ts tests/server/translation-source.test.ts tests/server/translation-hint-route-source.test.ts tests/schema/translation-hint-cache-schema.test.ts src/domain/mission/student-question-state.test.ts tests/server/student-mission-flow.test.ts tests/domain/tts-ui-source.test.ts tests/server/mission-assign.test.ts tests/domain/character-profile.test.ts
@@ -1406,7 +1406,7 @@ npx vitest run tests/domain/translation-hint.test.ts tests/server/translation-hi
 
 Expected: all listed files PASS; fake clients are the only provider clients used.
 
-- [ ] **Step 2: Run repository quality gates**
+- [x] **Step 2: Run repository quality gates**
 
 ```bash
 npm run typecheck
@@ -1460,11 +1460,11 @@ At 375px and 420px viewport widths, and once at desktop width, verify:
 
 Expected: all thirteen checks pass.
 
-- [ ] **Step 6: Record truthful GSD completion state**
+- [x] **Step 6: Record truthful GSD completion state**
 
 Update `.planning/STATE.md` YAML and prose together with the actual test results, migration state, and UI UAT result. Keep the optional three-heart/token policy in `Deferred Items`; do not mark Phase 11 complete unless every other Phase 11 requirement is complete.
 
-- [ ] **Step 7: Commit verification state**
+- [x] **Step 7: Commit verification state**
 
 ```bash
 git add .planning/STATE.md
