@@ -816,7 +816,11 @@ export function MissionFlowShell({
         assignmentStudentId={assignmentStudentId}
         displayName={characterProfile.displayName}
         dialogueText={mascotDialogue.text}
-        translationLine={null}
+        translationLine={
+          flow.step === "question" && activeQuestion.kind !== "unavailable"
+            ? activeQuestion.line
+            : null
+        }
         voiceControl={
           mascotDialogue.line ? (
             <CocoSpeechAudio
@@ -853,7 +857,7 @@ export function MissionFlowShell({
 
         {flow.step === "cocoThinking" && <StepCocoThinking />}
 
-        {flow.step === "question" && activeQuestion.kind === "authored" && (
+        {flow.step === "question" && activeQuestion.kind === "preset" && (
           <StepBuddyQuestion
             assignmentStudentId={assignmentStudentId}
             turnOrder={activeQuestion.activeTurnOrder}
@@ -870,18 +874,15 @@ export function MissionFlowShell({
           />
         )}
 
-        {flow.step === "question" && activeQuestion.kind === "dynamic" && (
+        {flow.step === "question" && activeQuestion.kind === "conversation" && (
           <StepBuddyQuestion
             assignmentStudentId={assignmentStudentId}
             turnOrder={activeQuestion.activeTurnOrder}
             prompt={activeQuestion.prompt}
-            singleHint={activeQuestion.singleHint}
-            hintLevel={flow.hintLevel}
             onAmplitudeFrame={handleMascotAmplitudeFrame}
             onPlayingChange={handleMascotPlayingChange}
             showCocoLine={false}
             onRecorderStateChange={setOriginalRecorderState}
-            onRevealHint={handleRevealHint}
             onVoiceRecorded={handleSubmitOriginalVoice}
             isSubmitting={isSubmittingVoice}
           />
@@ -941,7 +942,7 @@ export function MissionFlowShell({
         {flow.step === "repeat" &&
           activeQuestion.kind !== "unavailable" &&
           (flow.improvedSentence ||
-            (activeQuestion.kind === "authored" ? activeQuestion.targetExample : null)) && (
+            (activeQuestion.kind === "preset" ? activeQuestion.targetExample : null)) && (
           <StepImprovedRepeat
             assignmentStudentId={assignmentStudentId}
             turnOrder={activeQuestion.activeTurnOrder}
@@ -950,7 +951,7 @@ export function MissionFlowShell({
             improvedSentenceLabel="Say"
             targetExample={
               flow.improvedSentence ??
-              (activeQuestion.kind === "authored" ? activeQuestion.targetExample : "")
+              (activeQuestion.kind === "preset" ? activeQuestion.targetExample : "")
             }
             onAmplitudeFrame={handleMascotAmplitudeFrame}
             onPlayingChange={handleMascotPlayingChange}

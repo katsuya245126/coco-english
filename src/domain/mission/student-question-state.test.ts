@@ -19,7 +19,7 @@ const opener: MissionSnapshotTurn = {
 };
 
 describe("student question state", () => {
-  it("keeps the authored opener authoritative when dynamic state exists", () => {
+  it("uses translation-only question state for a conversation opener", () => {
     const question = deriveActiveStudentQuestion({
       conversationMode: true,
       turnIndex: 0,
@@ -28,11 +28,9 @@ describe("student question state", () => {
     });
 
     expect(question).toEqual({
-      kind: "authored",
+      kind: "conversation",
       prompt: opener.prompt,
       activeTurnOrder: 1,
-      hintLadder: opener.hintLadder,
-      targetExample: opener.targetExample,
       recordingEnabled: true,
       line: { lineKind: "mission_prompt", turnOrder: 1 },
     });
@@ -54,10 +52,9 @@ describe("student question state", () => {
       dynamicPrompt: "Tell me more about soccer.",
     });
     expect(question).toEqual({
-      kind: "dynamic",
+      kind: "conversation",
       prompt: "Tell me more about soccer.",
       activeTurnOrder: 2,
-      singleHint: "Try using: I like to play soccer after school.",
       recordingEnabled: true,
       line: { lineKind: "coco_dynamic_line", turnOrder: 1 },
     });
@@ -83,9 +80,28 @@ describe("student question state", () => {
         dynamicPrompt,
       }),
     ).toMatchObject({
-      kind: "dynamic",
+      kind: "conversation",
       prompt: "Tell me more about soccer.",
       line: { lineKind: "coco_dynamic_line", turnOrder: 1 },
+    });
+  });
+
+  it("keeps the answer-help ladder for preset missions", () => {
+    expect(
+      deriveActiveStudentQuestion({
+        conversationMode: false,
+        turnIndex: 0,
+        turns: [opener],
+        dynamicPrompt: null,
+      }),
+    ).toEqual({
+      kind: "preset",
+      prompt: opener.prompt,
+      activeTurnOrder: 1,
+      hintLadder: opener.hintLadder,
+      targetExample: opener.targetExample,
+      recordingEnabled: true,
+      line: { lineKind: "mission_prompt", turnOrder: 1 },
     });
   });
 

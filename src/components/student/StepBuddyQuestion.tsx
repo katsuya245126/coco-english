@@ -13,10 +13,8 @@ import {
   stepCardStyle,
   buddyCardStyle,
 } from "@/components/student/styles";
-import {
-  HintRevealer,
-  type HintContent,
-} from "@/components/student/HintRevealer";
+import { HintRevealer } from "@/components/student/HintRevealer";
+import type { HintLadder } from "@/domain/mission/schemas";
 import { CocoSpeechAudio } from "@/components/student/CocoSpeechAudio";
 import {
   VoiceRecorderControl,
@@ -28,16 +26,26 @@ export type RecordedVoiceClip = VoiceRecordingMetadata & {
   blob: Blob;
 };
 
-type StepBuddyQuestionProps = HintContent & {
+type AnswerHelpProps =
+  | {
+      hintLadder: HintLadder;
+      hintLevel: number;
+      onRevealHint: (nextLevel: number) => void;
+    }
+  | {
+      hintLadder?: never;
+      hintLevel?: never;
+      onRevealHint?: never;
+    };
+
+type StepBuddyQuestionProps = AnswerHelpProps & {
   assignmentStudentId: string;
   turnOrder: number;
   prompt: string;
-  hintLevel: number;
   onAmplitudeFrame?: (level: number) => void;
   onPlayingChange?: (playing: boolean) => void;
   showCocoLine?: boolean;
   onRecorderStateChange?: (state: RecorderState) => void;
-  onRevealHint: (nextLevel: number) => void;
   onVoiceRecorded: (recording: RecordedVoiceClip) => void | Promise<void>;
   isSubmitting: boolean;
 };
@@ -46,6 +54,7 @@ export function StepBuddyQuestion({
   assignmentStudentId,
   turnOrder,
   prompt,
+  hintLadder,
   hintLevel,
   onAmplitudeFrame,
   onPlayingChange,
@@ -54,7 +63,6 @@ export function StepBuddyQuestion({
   onRevealHint,
   onVoiceRecorded,
   isSubmitting,
-  ...hintContent
 }: StepBuddyQuestionProps) {
   return (
     <div style={stepCardStyle} aria-live="polite">
@@ -75,14 +83,15 @@ export function StepBuddyQuestion({
         </div>
       ) : null}
 
-      {/* Hint area */}
-      <div style={{ marginTop: showCocoLine ? 16 : 0 }}>
-        <HintRevealer
-          {...hintContent}
-          hintLevel={hintLevel}
-          onReveal={onRevealHint}
-        />
-      </div>
+      {hintLadder && hintLevel !== undefined && onRevealHint ? (
+        <div style={{ marginTop: showCocoLine ? 16 : 0 }}>
+          <HintRevealer
+            hintLadder={hintLadder}
+            hintLevel={hintLevel}
+            onReveal={onRevealHint}
+          />
+        </div>
+      ) : null}
 
       {/* Answer recorder area */}
       <div style={{ marginTop: 16 }}>

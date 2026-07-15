@@ -238,7 +238,7 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(clientSource).not.toMatch(/@\/server\/ai/);
   });
 
-  it("keeps authored hint ladders while allowing exactly one dynamic pattern hint", () => {
+  it("keeps authored hint ladders while removing stale dynamic pattern hints", () => {
     const hintSource = readFileSync(
       "src/components/student/HintRevealer.tsx",
       "utf8",
@@ -248,12 +248,11 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
       "utf8",
     );
 
-    expect(hintSource).toContain("export type HintContent");
-    expect(hintSource).toContain("singleHint: string");
-    expect(hintSource).toContain("hintLadder?: never");
+    expect(hintSource).toContain("hintLadder: HintLadder");
+    expect(hintSource).not.toContain("singleHint");
+    expect(questionSource).toContain("hintLadder?: never");
     expect(hintSource).toContain('label: "Hint: Pattern"');
     expect(hintSource).toContain("const maxLevel =");
-    expect(questionSource).toContain("HintContent");
     expect(questionSource).toContain("<HintRevealer");
   });
 

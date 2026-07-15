@@ -1095,7 +1095,7 @@ git commit -m "feat(11): add VN phrase-hint dialogue tabs"
 - Consumes: `translationLine` prop from Task 5 and the existing active question line descriptor.
 - Produces: preset questions with answer-help ladder plus translation; conversation opener/dynamic questions with translation only.
 
-- [ ] **Step 1: Write failing question-state tests**
+- [x] **Step 1: Write failing question-state tests**
 
 Replace authored/dynamic expectations with mode-specific kinds:
 
@@ -1155,7 +1155,7 @@ it("uses translation-only question state for persisted dynamic prompts", () => {
 });
 ```
 
-- [ ] **Step 2: Run question-state tests and verify RED**
+- [x] **Step 2: Run question-state tests and verify RED**
 
 Run:
 
@@ -1165,7 +1165,7 @@ npx vitest run src/domain/mission/student-question-state.test.ts
 
 Expected: FAIL because the current model returns `authored`/`dynamic` and adds `singleHint`.
 
-- [ ] **Step 3: Split preset and conversation question types**
+- [x] **Step 3: Split preset and conversation question types**
 
 Replace `AuthoredStudentQuestion` and `DynamicStudentQuestion` with:
 
@@ -1191,7 +1191,7 @@ type ConversationStudentQuestion = {
 
 When `snapshotTurn` exists, return `conversation` without ladder/example if `conversationMode` is true; otherwise return `preset` with the existing ladder/example. For later conversation turns, require only a nonblank dynamic prompt and return `conversation`; remove the `patternExample` gate and `singleHint` construction. Keep the existing unavailable fail-closed branch.
 
-- [ ] **Step 4: Run question-state tests and verify GREEN**
+- [x] **Step 4: Run question-state tests and verify GREEN**
 
 Run:
 
@@ -1201,7 +1201,7 @@ npx vitest run src/domain/mission/student-question-state.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 5: Make `HintRevealer` preset-ladder-only**
+- [x] **Step 5: Make `HintRevealer` preset-ladder-only**
 
 Replace the union with:
 
@@ -1233,7 +1233,7 @@ type AnswerHelpProps =
 
 Render `<HintRevealer>` only when `hintLadder` exists. Keep the recorder spacing at 16px whether or not the answer-help ladder exists.
 
-- [ ] **Step 6: Wire the descriptor into `MascotStage` and update question branches**
+- [x] **Step 6: Wire the descriptor into `MascotStage` and update question branches**
 
 Pass:
 
@@ -1270,7 +1270,7 @@ Retain the existing expression override in the real JSX. Render `StepBuddyQuesti
 
 Do not pass translation descriptors for feedback, correction encouragement, repeat instructions, transitions, errors, or completion because those are not recordable prompts in this scope.
 
-- [ ] **Step 7: Update flow source contracts**
+- [x] **Step 7: Update flow source contracts**
 
 Replace the old `singleHint` assertions in `tests/server/student-mission-flow.test.ts` with:
 
@@ -1286,7 +1286,7 @@ expect(shellSource).not.toContain("activeQuestion.singleHint");
 
 Keep assertions that preset `HintRevealer`, dynamic prompt provenance, recording availability, and server-owned line descriptors remain present.
 
-- [ ] **Step 8: Run state, flow, and TTS tests**
+- [x] **Step 8: Run state, flow, and TTS tests**
 
 Run:
 
@@ -1296,7 +1296,7 @@ npx vitest run src/domain/mission/student-question-state.test.ts tests/server/st
 
 Expected: all files PASS. Preset ladder remains three levels; conversation has no answer-pattern hint.
 
-- [ ] **Step 9: Commit mode-specific hint wiring**
+- [x] **Step 9: Commit mode-specific hint wiring**
 
 ```bash
 git add src/domain/mission/student-question-state.ts src/domain/mission/student-question-state.test.ts src/components/student/HintRevealer.tsx src/components/student/StepBuddyQuestion.tsx src/components/student/MissionFlowShell.tsx tests/server/student-mission-flow.test.ts
