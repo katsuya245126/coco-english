@@ -223,7 +223,7 @@ Archive:
 
 **Wave 2** *(opener integration, blocked on its Wave 1 contract)*
 
-- [ ] 11.1-02-PLAN.md — mirrored form/snapshot opener backstop and complete turn-1 generate-then-edit serialization (CHAT-01, CHAT-02)
+- [x] 11.1-02-PLAN.md — mirrored form/snapshot opener backstop and complete turn-1 generate-then-edit serialization (CHAT-01, CHAT-02)
 
 **Wave 3** *(student integration, blocked on opener + runtime contracts)*
 
@@ -276,7 +276,7 @@ Phases execute in numeric order: 8 → 9 → 10 → 10.1 → 11 → 11.1 → 12 
 | 10. VN-Style Mascot | v2.0 | 4/4 | Complete (accepted with residual low-end-device risk) | 2026-07-11 |
 | 10.1 Assignment Operations & Student History | v2.0 | 12/12 | Complete   | 2026-07-14 |
 | 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 2/7 | In Progress|  |
-| 11.1 Coco Chat Opening Line & Dynamic-Turn Runnability | v2.0 | 2/4 | In Progress | - |
+| 11.1 Coco Chat Opening Line & Dynamic-Turn Runnability | v2.0 | 3/4 | In Progress | - |
 | 12. UI Overhaul | v2.0 | 0/TBD | Not started | - |
 | 13. Pronunciation Remediation Videos | v2.0 | 0/TBD | Not planned | - |
 
