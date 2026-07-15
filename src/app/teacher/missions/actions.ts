@@ -8,6 +8,7 @@ import {
   missionFormSchema,
   missionIdSchema,
 } from "@/domain/mission/schemas";
+import { openerGenerationInputSchema } from "@/domain/ai/opener-generation";
 import { scenePremiseInputSchema } from "@/domain/ai/scene-premise";
 import { assignMissionToClass } from "@/server/mission/assign-service";
 import {
@@ -21,6 +22,7 @@ import {
   type MissionAssignmentSummary,
 } from "@/server/mission/mission-service";
 import { generateScenePremise } from "@/server/ai/scene-premise-generator";
+import { generateOpener } from "@/server/ai/opener-generator";
 
 const GENERIC_FAILURE =
   "We could not save the mission. Check the highlighted fields and try again.";
@@ -42,6 +44,9 @@ const CANCEL_ASSIGNMENT_FAILURE =
 
 const GENERATE_PREMISE_FAILURE =
   "We could not generate a scene premise. You can write one yourself or try again.";
+
+const GENERATE_OPENER_FAILURE =
+  "We could not generate Coco's opening line. You can write one yourself or try again.";
 
 export type MissionActionResult =
   | { ok: true; missionId: string }
@@ -73,6 +78,10 @@ export type ListMissionAssignmentsActionResult =
 
 export type GeneratePremiseActionResult =
   | { ok: true; scenePremise: string }
+  | { ok: false; error: string };
+
+export type GenerateOpenerActionResult =
+  | { ok: true; opener: string }
   | { ok: false; error: string };
 
 const cancelMissionAssignmentSchema = z.object({
@@ -293,6 +302,24 @@ export async function generatePremiseAction(
   }
 
   return { ok: true, scenePremise: result.scenePremise };
+}
+
+export async function generateOpenerAction(
+  input: unknown,
+): Promise<GenerateOpenerActionResult> {
+  await requireTeacherProfile();
+  const parsed = openerGenerationInputSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return { ok: false, error: GENERATE_OPENER_FAILURE };
+  }
+
+  const result = await generateOpener(parsed.data);
+  if (!result.ok) {
+    return { ok: false, error: GENERATE_OPENER_FAILURE };
+  }
+
+  return { ok: true, opener: result.opener };
 }
 
 export async function listMissionAssignmentsAction(

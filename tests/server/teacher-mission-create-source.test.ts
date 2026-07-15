@@ -22,4 +22,29 @@ describe("manual teacher mission creation", () => {
     expect(existsSync(resolve(root, "src/domain/ai/mission-generation.ts"))).toBe(false);
     expect(existsSync(resolve(root, "src/server/ai/mission-generator.ts"))).toBe(false);
   });
+
+  it("keeps Coco opener generation authenticated and draft-only", () => {
+    const actions = readSource("src/app/teacher/missions/actions.ts");
+    const actionStart = actions.indexOf("export async function generateOpenerAction");
+    const actionEnd = actions.indexOf(
+      "export async function listMissionAssignmentsAction",
+      actionStart,
+    );
+    const openerAction = actions.slice(actionStart, actionEnd);
+
+    expect(actions).toContain("export type GenerateOpenerActionResult");
+    expect(actions).toContain("const GENERATE_OPENER_FAILURE");
+    expect(actions).toContain("openerGenerationInputSchema");
+    expect(actions).toContain("generateOpener");
+    expect(openerAction.indexOf("await requireTeacherProfile()")).toBeLessThan(
+      openerAction.indexOf("openerGenerationInputSchema.safeParse"),
+    );
+    expect(openerAction.indexOf("openerGenerationInputSchema.safeParse")).toBeLessThan(
+      openerAction.indexOf("generateOpener(parsed.data)"),
+    );
+    expect(openerAction).not.toContain("createMission");
+    expect(openerAction).not.toContain("updateMission");
+    expect(openerAction).not.toContain("revalidatePath");
+    expect(openerAction).not.toContain("selectFallbackLine");
+  });
 });
