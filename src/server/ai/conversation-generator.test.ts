@@ -99,6 +99,37 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     const expectedPrompt = buildConversationPrompt(baseInput);
     expect(JSON.parse(userMessage?.content ?? "{}")).toEqual(expectedPrompt);
   });
+
+  it("prioritizes the student's meaning and topic over target-pattern repetition", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(async () => ({
+      output_parsed: { line: "Oh, what do you like to do instead?" },
+    }));
+
+    await generateCocoReply(
+      {
+        ...baseInput,
+        targetPattern: "How often do you _____?",
+        previousCocoLine: "How often do you play soccer?",
+        studentTranscript: "I don't play soccer.",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const call = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const system = call?.input.find((message) => message.role === "system")?.content ?? "";
+    const user = call?.input.find((message) => message.role === "user")?.content ?? "{}";
+    const prompt = JSON.parse(user) as { instructions?: string[] };
+    const combined = `${system} ${prompt.instructions?.join(" ") ?? ""}`;
+
+    expect(combined).toContain("acknowledge or react to the student's meaning");
+    expect(combined).toContain("Keep the current subject");
+    expect(combined).toContain("soft lesson context");
+    expect(combined).toContain("merely swaps in a new noun or activity");
+    expect(combined).not.toContain(
+      "Stay anchored to the target grammar pattern every turn",
+    );
+  });
 });
 
 describe("conversation-generator.ts source contract (stateless guarantee)", () => {
