@@ -574,7 +574,7 @@ git commit -m "feat(11): generate Korean semantic phrase hints"
 - Consumes: `generateTranslationHint` from Task 2 and validated `TranslationHint` data.
 - Produces: `DEFAULT_TRANSLATION_LOCALE = "ko"`, `computeTranslationSourceDigest(sourceText)`, and `getOrCreateTranslationHint(input, deps)` returning `cacheStatus: "hit" | "miss"`.
 
-- [ ] **Step 1: Write failing migration tests**
+- [x] **Step 1: Write failing migration tests**
 
 Create `tests/schema/translation-hint-cache-schema.test.ts` and assert the migration contains:
 
@@ -596,7 +596,7 @@ expect(migration).toContain(
 expect(migration).not.toContain("create policy");
 ```
 
-- [ ] **Step 2: Run migration tests and verify RED**
+- [x] **Step 2: Run migration tests and verify RED**
 
 Run:
 
@@ -606,7 +606,7 @@ npx vitest run tests/schema/translation-hint-cache-schema.test.ts
 
 Expected: FAIL because the migration file does not exist.
 
-- [ ] **Step 3: Add the service-role-only cache table and DB types**
+- [x] **Step 3: Add the service-role-only cache table and DB types**
 
 Create an additive migration with this table shape:
 
@@ -632,7 +632,7 @@ grant select, insert, update, delete
 
 Do not store `sourceText`, assignment IDs, student IDs, or transcripts in this cache. Add the corresponding `Row`, `Insert`, `Update`, and empty `Relationships` entry to `src/lib/db/types.ts`.
 
-- [ ] **Step 4: Run migration tests and verify GREEN**
+- [x] **Step 4: Run migration tests and verify GREEN**
 
 Run:
 
@@ -642,7 +642,7 @@ npx vitest run tests/schema/translation-hint-cache-schema.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 5: Write failing cache-service tests**
+- [x] **Step 5: Write failing cache-service tests**
 
 Create a Supabase mock following `tests/server/tts-cache.test.ts`, then test:
 
@@ -684,7 +684,7 @@ it("generates once and hits cache for the same source, level, and locale", async
 
 Also test that changing `studentLevel` or `targetLocale` changes query filters, a select/upsert error returns `{ ok: false, error: "cache_failed" }`, provider failure returns `{ ok: false, error: "generation_failed" }`, and an invalid cached span is never returned to the client.
 
-- [ ] **Step 6: Run cache tests and verify RED**
+- [x] **Step 6: Run cache tests and verify RED**
 
 Run:
 
@@ -694,7 +694,7 @@ npx vitest run tests/server/translation-hint-cache.test.ts
 
 Expected: FAIL because the cache service does not exist.
 
-- [ ] **Step 7: Implement exact-text digest and cache-first lookup**
+- [x] **Step 7: Implement exact-text digest and cache-first lookup**
 
 Create `src/server/ai/translation-hint-cache.ts`. Export:
 
@@ -728,7 +728,7 @@ export type GetOrCreateTranslationHintDeps = {
 
 Query `translation_hint_cache` by `source_digest`, `student_level`, and `target_locale`. Revalidate cached `phrases` with `parseTranslationHint(sourceText, { phrases })`; return a hit only when valid. On a miss, call the injected `generate` or `generateTranslationHint`, then upsert with `onConflict: "source_digest,student_level,target_locale"`. Treat select/upsert errors as retryable cache failures and never return unvalidated cache/provider JSON.
 
-- [ ] **Step 8: Run cache, adapter, domain, and schema tests**
+- [x] **Step 8: Run cache, adapter, domain, and schema tests**
 
 Run:
 
@@ -738,7 +738,7 @@ npx vitest run tests/server/translation-hint-cache.test.ts tests/server/translat
 
 Expected: all four files PASS.
 
-- [ ] **Step 9: Commit persistent caching**
+- [x] **Step 9: Commit persistent caching**
 
 ```bash
 git add supabase/migrations/202607150001_translation_hint_cache.sql src/lib/db/types.ts tests/schema/translation-hint-cache-schema.test.ts src/server/ai/translation-hint-cache.ts tests/server/translation-hint-cache.test.ts

@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 11
 current_phase_name: coco-chat-dynamic-turns-scene-framing
 status: executing
-stopped_at: Korean phrase hints/VN chatbox Plan 2 Tasks 1-2 complete; fake-client selector returns validated Korean semantic phrase hints
-last_updated: "2026-07-15T16:21:00Z"
+stopped_at: Korean phrase hints/VN chatbox Plan 2 Tasks 1-3 complete; locale-aware service-role translation cache verified
+last_updated: "2026-07-15T16:23:00Z"
 last_activity: 2026-07-15
-last_activity_desc: Completed Plan 2 translation domain contract and fake-client phrase selector with 14 passing focused tests
+last_activity_desc: Completed Plan 2 translation domain, selector, and persistent locale-aware cache with 20 passing focused tests
 progress:
   total_phases: 8
   completed_phases: 5
@@ -49,14 +49,14 @@ Automated verification done (Task 7 Steps 1-2): the plan's 8 focused test files 
 - `npm run test:student-feedback-states` (deterministic feedback-state Playwright script) with `FEEDBACK_STATE_CLASS_CODE`/`FEEDBACK_STATE_STUDENT_NAME`/`FEEDBACK_STATE_PIN` exported only in the user's shell.
 - Manual 8-point soccer-mission UAT (accept a correct free-talk answer with no repeat-the-question or transition screen; correct `I no play soccer.` → `I don't play soccer.` with required spoken repeat; refresh on the correction/repeat screen and confirm the same pending Coco line persists; run one preset mission and confirm its evaluation/correction/retry/transition screens are unchanged).
 
-Plan 2 (Korean phrase hints + VN chatbox, `docs/superpowers/plans/2026-07-15-korean-phrase-hints-chatbox.md`) is in progress after live UAT confirmed the repaired correction flow and exposed the stale dynamic-pattern hint. Tasks 1-2 are complete: the translation-hint domain contract validates zero to three exact ordered semantic phrase spans, and the injected-client provider adapter selects Korean semantic phrases without paid test calls. Focused verification: 14 tests pass; typecheck exits 0.
+Plan 2 (Korean phrase hints + VN chatbox, `docs/superpowers/plans/2026-07-15-korean-phrase-hints-chatbox.md`) is in progress after live UAT confirmed the repaired correction flow and exposed the stale dynamic-pattern hint. Tasks 1-3 are complete: the translation-hint domain validates exact semantic spans, the injected-client adapter selects Korean phrases, and a service-role-only cache keys validated results by exact-text digest, student level, and locale. Focused verification: 20 tests pass; typecheck exits 0. Migration `202607150001_translation_hint_cache.sql` is committed locally but not yet applied remotely.
 Active feature work: dismiss-incomplete and clickable no-attempt assignment evidence are implemented on `feature/dismiss-incomplete-assignment`; migrations `202607120003`, `202607120004`, and `202607120005` are live. Both by-ID and attempt-keyed dismiss/undo paths are state-sensitive. Phase 10.1 post-review fixes add compare-and-swap protection to the missed-status worker and reliable seeded-test cleanup. The cron regression passes 2/2, the live review-policy Playwright regression passes 5/5, typecheck passes, and the approved clean-cache production build succeeds.
 Quick task 260710-hbn completed the interrupted student retry/audio feedback work in commit `33779fa1`. The follow-up `retry-feedback-flow` debug session fixed final-turn review gating, repeat retry audio/actions, and transcript carryover. The subsequent code-review follow-up removed the unsafe grammar-only fill-in bypass, moved mission completion into a deployed atomic RPC, restored persisted feedback/audio on refresh, included evaluation in resume decisions, and fixed Coco playback teardown. Those follow-ups are complete and Phase 10 remains closed.
 The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on desktop but only 133px on a 375px phone. Responsive clamped insets now preserve the desktop framing at 226px on both standard phone and desktop widths without changing stage, dialogue, or recorder geometry.
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
 The `mission-create-retry-cleanup` follow-up found mission creation itself was healthy: an active dev server had been corrupted when production builds rewrote its `.next` chunks, leaving the form unhydrated and causing native GET submission. A clean restart restored two verified real saves. The retry route now honors `needs_retry` past the original deadline, and the teacher AI mission-draft feature was removed end-to-end. Phase 11's roadmap now requires standalone scene-premise generation rather than restoring full mission drafting.
 
-Last activity: 2026-07-15 — Completed Plan 2 translation domain contract and fake-client phrase selector with 14 passing focused tests
+Last activity: 2026-07-15 — Completed Plan 2 translation domain, selector, and persistent locale-aware cache with 20 passing focused tests
 
 Progress: [█████████░] 89%
 

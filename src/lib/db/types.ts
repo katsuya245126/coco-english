@@ -297,6 +297,30 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["submission_review_receipts"]["Insert"]>;
         Relationships: [];
       };
+      translation_hint_cache: {
+        Row: {
+          id: string;
+          source_digest: string;
+          student_level: string;
+          target_locale: string;
+          phrases: Json;
+          created_at: string;
+          last_accessed_at: string;
+        };
+        Insert: {
+          id?: string;
+          source_digest: string;
+          student_level: string;
+          target_locale: string;
+          phrases: Json;
+          created_at?: string;
+          last_accessed_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["translation_hint_cache"]["Insert"]
+        >;
+        Relationships: [];
+      };
       tts_audio_cache: {
         Row: {
           id: string;
