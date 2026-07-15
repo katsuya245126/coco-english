@@ -9,12 +9,14 @@
  * No AI client import (AI-06).
  */
 
-import type { HintLadder } from "@/domain/mission/schemas";
 import {
   stepCardStyle,
   buddyCardStyle,
 } from "@/components/student/styles";
-import { HintRevealer } from "@/components/student/HintRevealer";
+import {
+  HintRevealer,
+  type HintContent,
+} from "@/components/student/HintRevealer";
 import { CocoSpeechAudio } from "@/components/student/CocoSpeechAudio";
 import {
   VoiceRecorderControl,
@@ -26,11 +28,10 @@ export type RecordedVoiceClip = VoiceRecordingMetadata & {
   blob: Blob;
 };
 
-type StepBuddyQuestionProps = {
+type StepBuddyQuestionProps = HintContent & {
   assignmentStudentId: string;
   turnOrder: number;
   prompt: string;
-  hintLadder: HintLadder;
   hintLevel: number;
   onAmplitudeFrame?: (level: number) => void;
   onPlayingChange?: (playing: boolean) => void;
@@ -45,7 +46,6 @@ export function StepBuddyQuestion({
   assignmentStudentId,
   turnOrder,
   prompt,
-  hintLadder,
   hintLevel,
   onAmplitudeFrame,
   onPlayingChange,
@@ -54,6 +54,7 @@ export function StepBuddyQuestion({
   onRevealHint,
   onVoiceRecorded,
   isSubmitting,
+  ...hintContent
 }: StepBuddyQuestionProps) {
   return (
     <div style={stepCardStyle} aria-live="polite">
@@ -77,7 +78,7 @@ export function StepBuddyQuestion({
       {/* Hint area */}
       <div style={{ marginTop: showCocoLine ? 16 : 0 }}>
         <HintRevealer
-          hintLadder={hintLadder}
+          {...hintContent}
           hintLevel={hintLevel}
           onReveal={onRevealHint}
         />

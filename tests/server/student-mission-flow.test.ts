@@ -237,4 +237,23 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(clientSource).not.toMatch(/from ["']openai["']/);
     expect(clientSource).not.toMatch(/@\/server\/ai/);
   });
+
+  it("keeps authored hint ladders while allowing exactly one dynamic pattern hint", () => {
+    const hintSource = readFileSync(
+      "src/components/student/HintRevealer.tsx",
+      "utf8",
+    );
+    const questionSource = readFileSync(
+      "src/components/student/StepBuddyQuestion.tsx",
+      "utf8",
+    );
+
+    expect(hintSource).toContain("export type HintContent");
+    expect(hintSource).toContain("singleHint: string");
+    expect(hintSource).toContain("hintLadder?: never");
+    expect(hintSource).toContain('label: "Hint: Pattern"');
+    expect(hintSource).toContain("const maxLevel =");
+    expect(questionSource).toContain("HintContent");
+    expect(questionSource).toContain("<HintRevealer");
+  });
 });
