@@ -817,7 +817,9 @@ export function MissionFlowShell({
         displayName={characterProfile.displayName}
         dialogueText={mascotDialogue.text}
         translationLine={
-          flow.step === "question" && activeQuestion.kind !== "unavailable"
+          !actionError &&
+          flow.step === "question" &&
+          activeQuestion.kind !== "unavailable"
             ? activeQuestion.line
             : null
         }
