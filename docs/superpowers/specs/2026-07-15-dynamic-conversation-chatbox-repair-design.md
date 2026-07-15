@@ -1,4 +1,4 @@
-# Dynamic Conversation and Chatbox Repair Design
+# Dynamic Conversation, Translation Hint, and Chatbox Repair Design
 
 **Date:** 2026-07-15
 **Status:** Approved
@@ -36,17 +36,17 @@ both controls into folder-style tabs on the box edge.
 - Continue from the student’s intended meaning and current topic.
 - Remove preset-mission transition language from dynamic conversation.
 - Keep preset mission evaluation and progression unchanged.
+- Provide on-demand Korean translations for selected semantic phrases in both
+  dynamic and preset Coco prompts.
 - Preserve the VN mascot sprite stage while moving the speaker label and TTS
-  control into matched folder-style tabs.
+  control into matched folder-style tabs and adding a matched Hint tab.
 
 ## Non-Goals
 
-- No translation hint implementation.
-- No hint button relocation.
 - No hint-heart or token economy.
+- No per-class or per-student language selector in this MVP.
 - No new scoring, leaderboard, or reward system.
-- No mission schema or database migration unless implementation proves an
-  existing persisted field cannot represent the approved behavior.
+- No word-by-word translation interaction or press-and-hold-only control.
 - No changes to moderation, audio retention, teacher transcript evidence,
   server-owned turn caps, or preset mission semantics.
 
@@ -142,6 +142,79 @@ activity to reuse the same target pattern. For the soccer example, suitable
 follow-ups include “Oh, what do you like to do instead?” and “I see. Do you play
 another sport?” An unrelated books-at-recess question is invalid continuity.
 
+## Translation Hint
+
+Every recordable Coco prompt—authored preset prompt, reviewed chat opener, and
+persisted dynamic Coco line—offers Korean help for selected semantic phrases.
+
+- The MVP target locale is Korean (`ko`).
+- A top-edge `Hint` tab uses the same visual language as the `Coco` name tab and
+  TTS tab.
+- Tapping `Hint` keeps the English sentence in its original inline layout and
+  makes only selected useful phrases visibly clickable.
+- Tapping a selected phrase opens a small anchored bubble containing only its
+  Korean meaning. It does not repeat the English phrase the student clicked.
+- No fixed translation panel, word-by-word chip row, or full-sentence translation
+  control appears in this version.
+- Press-and-hold is not required; tabs and phrases work with tap, click, and
+  keyboard activation.
+- The tab exposes loading, active, and retryable-error states. Phrase controls
+  expose their expanded state and keep a minimum 44px touch target without
+  breaking sentence flow.
+- Translation access never blocks recording or completion and introduces no
+  heart cost.
+
+Dynamic free talk uses this translation hint without the current pattern-derived
+single hint. Preset homework keeps its existing pattern → word bank → full
+example answer-help ladder and also receives the same translation tab. This
+keeps free talk conversation-first while preserving the stronger scaffolding of
+an assigned phrase-practice mission.
+
+Translation is resolved on demand from server-owned text. The browser sends a
+line descriptor and turn order, not arbitrary source text. The server reuses the
+same ownership and provenance model as TTS: preset prompts come from the
+immutable assignment snapshot and dynamic prompts come from persisted
+`attempt_turns.coco_line`.
+
+The selector/translator adapter accepts
+`{ sourceText, studentLevel, targetLocale }` and returns validated structured
+data:
+
+```ts
+type TranslationPhrase = {
+  source: string;
+  start: number;
+  end: number;
+  translation: string;
+};
+
+type TranslationHint = {
+  phrases: TranslationPhrase[];
+};
+```
+
+Selection rules are:
+
+- Return zero to three non-overlapping phrases in source order.
+- Prefer contextual meaning units, idioms, and level-appropriate difficult
+  chunks such as `How often`, `instead of`, or `would you like`.
+- Do not select isolated function words such as `do`, `the`, or `you`.
+- Do not select every word merely to cover the complete sentence.
+- Each `source` must equal the exact substring at `[start, end)`.
+- Each Korean translation must be non-empty and express that phrase’s meaning in
+  the sentence context.
+
+The server rejects malformed, overlapping, out-of-bounds, reordered, or
+non-matching spans before rendering them. Invalid output produces no clickable
+phrases; it never mutates the English sentence.
+
+A single server default sets `targetLocale` to `ko`; no locale literals are
+spread through UI components or provider prompts. Cached results are keyed by a
+stable source-text digest, student level, and target locale, so a later
+class/student locale setting can select a different language without changing
+the route or component contract. The implementation may add the smallest
+server-only persistent cache needed to avoid repeated paid calls.
+
 ## VN Chatbox
 
 The existing `MascotStage` remains the owner of sprite expression, stage
@@ -151,14 +224,16 @@ geometry, dialogue, and TTS playback state.
   pulse unchanged.
 - Move the `Coco` speaker label into a blue folder-style tab protruding from the
   dialogue box’s top-left edge.
+- Place the matched `Hint` tab beside the speaker label.
 - Move the existing `CocoSpeechAudio` button into a matching top-right tab.
 - Keep the TTS control’s existing 44×44 target, speaker icon, loading, playing,
   error, disabled, replay, and accessible-label behavior.
 - Use the current student design tokens: `#2563EB` accent, existing pale-blue
   secondary surface, 6–8px radii, 14–16px labels, visible focus treatment, and
   current mobile width constraints.
-- Place dialogue text below both tabs with enough top padding that labels and
-  controls never overlap content.
+- Place dialogue text below all tabs with enough top padding that labels and
+  controls never overlap content. An open Korean bubble anchors to its selected
+  phrase without reflowing or replacing the English sentence.
 - Apply the chatbox treatment anywhere `MascotStage` renders, including preset
   missions; do not fork separate dynamic and preset mascot components.
 
@@ -170,6 +245,9 @@ geometry, dialogue, and TTS playback state.
   behavior.
 - Missing pending Coco line fails closed; the client must not advance to an
   authored or invented prompt.
+- Translation provider/cache failure leaves the English prompt and recording
+  controls usable, shows a retryable “Translation unavailable” state, and never
+  fabricates phrase boundaries or Korean output.
 - TTS failure remains text-first and non-blocking.
 - No paid provider calls run in automated tests; evaluator and generator tests
   use injected fake clients.
@@ -191,26 +269,30 @@ Automated regressions must prove:
 8. Preset evaluator, repeat loop, and transition behavior remain unchanged.
 9. `MascotStage` retains the sprite and moves label/TTS into matched tabs without
    changing TTS state behavior or accessible naming.
-10. Typecheck, focused tests, lint, and the deterministic student feedback-state
+10. Preset, opener, and dynamic line descriptors resolve only server-owned text
+    for phrase selection and translation.
+11. The selector returns zero to three exact, ordered, non-overlapping semantic
+    spans and rejects isolated function-word or malformed selections.
+12. `MascotStage` places the Hint tab beside the matched Coco/TTS tabs without
+    overlapping dialogue at phone width; English remains inline while the
+    Korean-only bubble anchors to the selected phrase.
+13. Dynamic mode removes its pattern-derived single hint; preset mode retains
+    the existing answer-help ladder alongside translation hints.
+14. Locale-aware cached results degrade without blocking audio or recording.
+15. Typecheck, focused tests, lint, and the deterministic student feedback-state
     test remain green.
 
 Manual verification repeats the reported soccer scenario and confirms the next
 question stays on the student’s answer rather than changing to an unrelated
 activity.
 
-## Deferred Hint Backlog
+## Deferred Hint-Heart Backlog
 
-Future discussion will cover:
-
-- Sentence translation versus word-level translation.
-- A top-edge Hint tab beside the Coco and TTS tabs.
-- Whether hints use three hearts/tokens per mission, a soft budget with emergency
-  help, or no scarcity mechanic.
-- Consistent behavior across dynamic and preset homework.
-- Translation language ownership, generation, teacher review, persistence,
-  accessibility, and teacher-visible hint-use evidence.
-
-These items are intentionally excluded from this repair.
+Future discussion will decide whether translation hints use three hearts/tokens
+per mission, a soft budget with emergency help, or no scarcity mechanic. Hearts
+must not become a grade, completion gate, or harsh failure state. Only this
+scarcity/reward policy is deferred; Korean translation hints and their top-edge
+tab are part of this repair.
 
 ## Success Criteria
 
@@ -220,6 +302,10 @@ These items are intentionally excluded from this repair.
 - Dynamic conversation advances through contextual Coco lines with no generic
   mission transition.
 - The soccer scenario no longer parrots the question or jumps to books.
-- Preset missions behave exactly as before.
-- VN mascot chatboxes use the approved matched-tab treatment without regressing
-  TTS or sprite behavior.
+- Preset mission evaluation, correction, and progression behave exactly as
+  before; only the additive translation tab changes their prompt UI.
+- Preset and dynamic prompts provide accessible, on-demand Korean meaning for a
+  small set of validated semantic phrases without trusting client-supplied
+  source text.
+- VN mascot chatboxes use matched Coco/Hint/TTS tabs without regressing TTS or
+  sprite behavior.

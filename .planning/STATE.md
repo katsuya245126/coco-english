@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 11
 current_phase_name: coco-chat-dynamic-turns-scene-framing
 status: executing
-stopped_at: Dynamic conversation/chatbox repair design approved; implementation plan pending
-last_updated: "2026-07-15T12:03:53Z"
+stopped_at: Dynamic conversation/Korean phrase-hint/chatbox repair design approved; implementation plan pending
+last_updated: "2026-07-15T14:14:56Z"
 last_activity: 2026-07-15
-last_activity_desc: Approved dynamic conversation policy and VN chatbox tab design; deferred translation and hint-heart policy
+last_activity_desc: Approved AI-selected Korean phrase hints; deferred only hint-heart policy
 progress:
   total_phases: 8
   completed_phases: 5
@@ -31,14 +31,14 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 Phase: 11 (coco-chat-dynamic-turns-scene-framing) — EXECUTING
 Inserted repair: Phase 11.1 (coco-chat-opening-line-dynamic-turn-runnability) — COMPLETE
 Plan: 4 of 4 complete (11.1-01 through 11.1-04)
-Status: Phase 11.1 runnability is complete, but real UAT exposed a conversation-quality gap. The approved repair accepts relevant correct free-talk answers, requires spoken meaning-preserving corrections for incorrect English, advances directly through contextual Coco lines, and gives the VN dialogue box matched Coco/TTS tabs. Implementation planning is next; translation hints and hint-heart policy are deferred.
+Status: Phase 11.1 runnability is complete, but real UAT exposed a conversation-quality gap. The approved repair accepts relevant correct free-talk answers, requires spoken meaning-preserving corrections for incorrect English, advances directly through contextual Coco lines, and gives all Coco prompts AI-selected Korean phrase translations through matched Coco/Hint/TTS dialogue tabs. Implementation planning is next; only the optional hint-heart policy is deferred.
 Active feature work: dismiss-incomplete and clickable no-attempt assignment evidence are implemented on `feature/dismiss-incomplete-assignment`; migrations `202607120003`, `202607120004`, and `202607120005` are live. Both by-ID and attempt-keyed dismiss/undo paths are state-sensitive. Phase 10.1 post-review fixes add compare-and-swap protection to the missed-status worker and reliable seeded-test cleanup. The cron regression passes 2/2, the live review-policy Playwright regression passes 5/5, typecheck passes, and the approved clean-cache production build succeeds.
 Quick task 260710-hbn completed the interrupted student retry/audio feedback work in commit `33779fa1`. The follow-up `retry-feedback-flow` debug session fixed final-turn review gating, repeat retry audio/actions, and transcript carryover. The subsequent code-review follow-up removed the unsafe grammar-only fill-in bypass, moved mission completion into a deployed atomic RPC, restored persisted feedback/audio on refresh, included evaluation in resume decisions, and fixed Coco playback teardown. Those follow-ups are complete and Phase 10 remains closed.
 The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on desktop but only 133px on a 375px phone. Responsive clamped insets now preserve the desktop framing at 226px on both standard phone and desktop widths without changing stage, dialogue, or recorder geometry.
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
 The `mission-create-retry-cleanup` follow-up found mission creation itself was healthy: an active dev server had been corrupted when production builds rewrote its `.next` chunks, leaving the form unhydrated and causing native GET submission. A clean restart restored two verified real saves. The retry route now honors `needs_retry` past the original deadline, and the teacher AI mission-draft feature was removed end-to-end. Phase 11's roadmap now requires standalone scene-premise generation rather than restoring full mission drafting.
 
-Last activity: 2026-07-15 — Approved dynamic conversation policy and VN chatbox tab design; deferred translation and hint-heart policy
+Last activity: 2026-07-15 — Approved AI-selected Korean phrase hints; deferred only hint-heart policy
 
 Progress: [█████████░] 89%
 
@@ -217,11 +217,11 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 | verification | Phase 02 browser/manual sign-off items in 02-VERIFICATION.md | human_needed | 2026-07-01 |
 | verification | Phase 04 device/manual sign-off items in 04-VERIFICATION.md | human_needed | 2026-07-01 |
 | verification | Phase 06 live AI quality and browser draft round-trip in 06-VERIFICATION.md | human_needed | 2026-07-01 |
-| student hints | Cross-mode translation hints, top-edge Hint tab, and optional three-heart/token policy | design_backlog | 2026-07-15 |
+| student hints | Optional three-heart/token scarcity policy for translation hints | design_backlog | 2026-07-15 |
 
 ## Session Continuity
 
-**Resume file:** `docs/superpowers/specs/2026-07-15-dynamic-conversation-chatbox-repair-design.md` — write the TDD implementation plan, then repair dynamic evaluation/continuity/flow and the matched Coco/TTS dialogue tabs before repeating 11-07 UAT.
+**Resume file:** `docs/superpowers/specs/2026-07-15-dynamic-conversation-chatbox-repair-design.md` — write the TDD implementation plan, then repair dynamic evaluation/continuity/flow and add server-owned Korean phrase selection/translation through matched Coco/Hint/TTS dialogue tabs before repeating 11-07 UAT.
 
 **Handoff docs:** `.planning/handoff/` holds two 2026-07-10 session handoffs (mascot-audio-copy, audio-reclick-still-broken), committed 2026-07-11 as historical records — every open item in them has since landed: the replay re-click silence was resolved in `33779fa1` by removing Web Audio entirely from `CocoSpeechAudio.tsx` (native `<audio>` playback + synthetic mouth pulse; never reintroduce `createMediaElementSource` — a source test bans it), the terse "Say this sentence:" repeat-card label and the sprite-framing/dialogue-box overlap fixes landed in the same commit and the mobile follow-ups `f87766f5`/`7a599097`. Audible replay confirmation remains user-ear-only (agent preview and driven-Chrome tabs can't produce sound) and is folded into the existing Task 3 checkpoint.
 
