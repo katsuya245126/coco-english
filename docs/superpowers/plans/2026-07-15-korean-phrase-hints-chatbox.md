@@ -351,7 +351,7 @@ git commit -m "feat(11): validate semantic translation phrase spans"
 - Consumes: `parseTranslationHint`, `TranslationHint`, and `MissionLevel`.
 - Produces: `generateTranslationHint({ sourceText, studentLevel, targetLocale }, deps)` and `GenerateTranslationHintResult`.
 
-- [ ] **Step 1: Write failing adapter tests**
+- [x] **Step 1: Write failing adapter tests**
 
 Create tests that use an injected client matching the existing `responses.parse` adapter convention:
 
@@ -481,7 +481,7 @@ describe("generateTranslationHint", () => {
 });
 ```
 
-- [ ] **Step 2: Run adapter tests and verify RED**
+- [x] **Step 2: Run adapter tests and verify RED**
 
 Run:
 
@@ -491,7 +491,7 @@ npx vitest run tests/server/translation-hint-generator.test.ts
 
 Expected: FAIL because the adapter does not exist.
 
-- [ ] **Step 3: Implement the adapter**
+- [x] **Step 3: Implement the adapter**
 
 Follow `turn-evaluator.ts`'s injected-client shape. Export:
 
@@ -544,7 +544,7 @@ instructions: [
 
 Use `zodTextFormat` with the base structured schema, then call `parseTranslationHint(input.sourceText, response.output_parsed)` before returning success. Log only provider/model/error metadata; do not log source text.
 
-- [ ] **Step 4: Run adapter and domain tests**
+- [x] **Step 4: Run adapter and domain tests**
 
 Run:
 
@@ -554,7 +554,7 @@ npx vitest run tests/server/translation-hint-generator.test.ts tests/domain/tran
 
 Expected: both files PASS with fake clients only.
 
-- [ ] **Step 5: Commit the provider adapter**
+- [x] **Step 5: Commit the provider adapter**
 
 ```bash
 git add src/server/ai/translation-hint-generator.ts tests/server/translation-hint-generator.test.ts
