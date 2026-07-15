@@ -77,6 +77,13 @@ export const missionFormSchema = z
     message: "Add at least one turn.",
   })
   .refine(
+    (value) => !value.conversationMode || Boolean(value.turns[0]?.prompt.trim()),
+    {
+      path: ["turns"],
+      message: "Coco opening line is required.",
+    },
+  )
+  .refine(
     (value) =>
       !value.conversationMode ||
       (value.requiredTurns >= 3 && value.requiredTurns <= 8),
@@ -118,7 +125,14 @@ export const missionSnapshotSchema = z
   .refine((value) => value.conversationMode || value.turns.length >= 1, {
     path: ["turns"],
     message: "Snapshot must include at least one turn.",
-  });
+  })
+  .refine(
+    (value) => !value.conversationMode || Boolean(value.turns[0]?.prompt.trim()),
+    {
+      path: ["turns"],
+      message: "Snapshot Coco opening line is required.",
+    },
+  );
 
 export type MissionSnapshot = z.infer<typeof missionSnapshotSchema>;
 
