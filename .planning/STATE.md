@@ -4,16 +4,16 @@ milestone: v2.0
 milestone_name: — Coco Comes Alive
 current_phase: 11.1
 current_phase_name: coco-chat-opening-line-dynamic-turn-runnability
-status: ready_to_execute
-stopped_at: Phase 11.1 planned — 4 verified plans in 3 waves
-last_updated: "2026-07-15T04:58:34.440Z"
+status: executing
+stopped_at: 11.1-01 complete — opener draft contract/action implemented; 3 plans remaining
+last_updated: "2026-07-15T07:03:54Z"
 last_activity: 2026-07-15
-last_activity_desc: Planned Phase 11.1; plan checker passed and all 13 requirement/decision items are covered
+last_activity_desc: Completed 11.1-01 save-time Coco opener generator and authenticated draft action
 progress:
   total_phases: 8
   completed_phases: 4
-  total_plans: 34
-  completed_plans: 30
+  total_plans: 38
+  completed_plans: 31
   percent: 50
 ---
 
@@ -28,17 +28,17 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 
 ## Current Position
 
-Phase: 11.1 (coco-chat-opening-line-dynamic-turn-runnability) — PLANNED
+Phase: 11.1 (coco-chat-opening-line-dynamic-turn-runnability) — EXECUTING
 Parent phase: 11 (coco-chat-dynamic-turns-scene-framing) — EXECUTING
-Plan: 0 of 4 (3 execution waves)
-Status: Ready to execute
+Plan: 1 of 4 (11.1-01 complete)
+Status: Executing Phase 11.1 — Wave 1 opener contract complete; 11.1-03 remains
 Active feature work: dismiss-incomplete and clickable no-attempt assignment evidence are implemented on `feature/dismiss-incomplete-assignment`; migrations `202607120003`, `202607120004`, and `202607120005` are live. Both by-ID and attempt-keyed dismiss/undo paths are state-sensitive. Phase 10.1 post-review fixes add compare-and-swap protection to the missed-status worker and reliable seeded-test cleanup. The cron regression passes 2/2, the live review-policy Playwright regression passes 5/5, typecheck passes, and the approved clean-cache production build succeeds.
 Quick task 260710-hbn completed the interrupted student retry/audio feedback work in commit `33779fa1`. The follow-up `retry-feedback-flow` debug session fixed final-turn review gating, repeat retry audio/actions, and transcript carryover. The subsequent code-review follow-up removed the unsafe grammar-only fill-in bypass, moved mission completion into a deployed atomic RPC, restored persisted feedback/audio on refresh, included evaluation in resume decisions, and fixed Coco playback teardown. Those follow-ups are complete and Phase 10 remains closed.
 The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on desktop but only 133px on a 375px phone. Responsive clamped insets now preserve the desktop framing at 226px on both standard phone and desktop widths without changing stage, dialogue, or recorder geometry.
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
 The `mission-create-retry-cleanup` follow-up found mission creation itself was healthy: an active dev server had been corrupted when production builds rewrote its `.next` chunks, leaving the form unhydrated and causing native GET submission. A clean restart restored two verified real saves. The retry route now honors `needs_retry` past the original deadline, and the teacher AI mission-draft feature was removed end-to-end. Phase 11's roadmap now requires standalone scene-premise generation rather than restoring full mission drafting.
 
-Last activity: 2026-07-14 — Completed 11-03-PLAN.md
+Last activity: 2026-07-15 — Completed 11.1-01 save-time Coco opener generator and authenticated draft action
 
 Progress: [████████░░] 79%
 
