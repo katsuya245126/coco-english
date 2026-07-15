@@ -14,6 +14,8 @@ import { isExactTargetMatch } from "@/domain/ai/fast-path";
 import {
   AI_EVALUATION_VERSION,
   decideOriginalTurnOutcome,
+  guardParrotedConversationCorrection,
+  type OriginalTurnGuardContext,
   decideRepeatTurnOutcome,
   originalTurnProviderFailureResult,
   originalTurnSchemaFailureResult,
@@ -155,6 +157,7 @@ type StoredRepeatTurnEvaluation = {
 
 export function applyOriginalTurnEvaluation(
   result: OriginalTurnEvaluationResult,
+  guardContext?: OriginalTurnGuardContext,
 ): OriginalTurnWriteDecision {
   if (!result.ok) {
     const decision =
@@ -184,7 +187,10 @@ export function applyOriginalTurnEvaluation(
     };
   }
 
-  const decision = decideOriginalTurnOutcome(result.evaluation);
+  const decision = guardParrotedConversationCorrection(
+    decideOriginalTurnOutcome(result.evaluation),
+    guardContext ?? { evaluationMode: "preset", missionQuestion: null },
+  );
   const improvedSentence =
     decision.kind === "needs_correction" ? decision.improvedSentence : null;
 
@@ -825,7 +831,11 @@ export async function uploadAttemptAudioClip(
                     transcript,
                   });
                 });
-            const decision = applyOriginalTurnEvaluation(evaluationResult);
+            const decision = applyOriginalTurnEvaluation(evaluationResult, {
+              evaluationMode:
+                snapshot.conversationMode === true ? "conversation" : "preset",
+              missionQuestion: missionQuestion ?? null,
+            });
             originalEvaluation = decision.evaluation;
 
             const write = await timeStage("turnWrite", () =>

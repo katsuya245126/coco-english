@@ -107,6 +107,7 @@ const conversationInstructions = [
   "When the student's meaning is relevant but the English is incorrect, use needs_correction and write one natural improvedSentence; preserve the student's intended meaning.",
   "Never use the missionQuestion as improvedSentence. Never substitute an authored example or a question-shaped targetPattern unless it genuinely states the student's intended answer.",
   "Example: correct 'I no play soccer.' to 'I don't play soccer.'; do not correct it to 'How often do you play soccer?'.",
+  "If the transcript is an incomplete fragment such as 'I don't', expand it into one short full sentence that answers missionQuestion (for example 'I don't play soccer.') and use that as improvedSentence.",
 ];
 
 function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {

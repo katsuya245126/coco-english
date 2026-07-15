@@ -175,3 +175,102 @@ describe("repeat turn AI evaluation decisions (AI-04, AI-05)", () => {
     });
   });
 });
+
+describe("parroted conversation-correction guard (UAT 2026-07-16 regression)", () => {
+  const needsCorrectionParrot = {
+    kind: "needs_correction",
+    requireRepeat: true,
+    improvedSentence: "How often do you play soccer?",
+  } as const;
+
+  it("downgrades a correction that parrots the question inside a multi-sentence opener to retry_original", async () => {
+    const { guardParrotedConversationCorrection } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    const outcome = guardParrotedConversationCorrection(needsCorrectionParrot, {
+      evaluationMode: "conversation",
+      missionQuestion:
+        "How often do you play soccer? I play soccer three times a week.",
+    });
+
+    expect(outcome).toEqual({
+      kind: "retry_original",
+      reason: "parroted_correction",
+      requireRepeat: false,
+    });
+  });
+
+  it("catches a parrot that differs only by case and punctuation", async () => {
+    const { guardParrotedConversationCorrection } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    const outcome = guardParrotedConversationCorrection(
+      {
+        kind: "needs_correction",
+        requireRepeat: true,
+        improvedSentence: "how often do you play soccer",
+      },
+      {
+        evaluationMode: "conversation",
+        missionQuestion: "How often do you play soccer?",
+      },
+    );
+
+    expect(outcome.kind).toBe("retry_original");
+  });
+
+  it("keeps a meaning-preserving correction unchanged", async () => {
+    const { guardParrotedConversationCorrection } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    const decision = {
+      kind: "needs_correction",
+      requireRepeat: true,
+      improvedSentence: "I don't play soccer.",
+    } as const;
+
+    expect(
+      guardParrotedConversationCorrection(decision, {
+        evaluationMode: "conversation",
+        missionQuestion:
+          "How often do you play soccer? I play soccer three times a week.",
+      }),
+    ).toEqual(decision);
+  });
+
+  it("never rewrites preset-mode decisions even when the sentence echoes the question", async () => {
+    const { guardParrotedConversationCorrection } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    expect(
+      guardParrotedConversationCorrection(needsCorrectionParrot, {
+        evaluationMode: "preset",
+        missionQuestion: "How often do you play soccer?",
+      }),
+    ).toEqual(needsCorrectionParrot);
+  });
+
+  it("passes non-correction decisions through untouched", async () => {
+    const { guardParrotedConversationCorrection } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    const accepted = {
+      kind: "accepted_original",
+      requireRepeat: false,
+      improvedSentence: null,
+      reinforcement: "positive",
+    } as const;
+
+    expect(
+      guardParrotedConversationCorrection(accepted, {
+        evaluationMode: "conversation",
+        missionQuestion: "How often do you play soccer?",
+      }),
+    ).toEqual(accepted);
+  });
+});

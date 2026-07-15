@@ -124,6 +124,9 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
       expect.arrayContaining([
         expect.stringContaining("relevant response to missionQuestion"),
         expect.stringContaining("preserve the student's intended meaning"),
+        // Fragments like "I don't" must be expanded into a full-sentence
+        // answer, never "corrected" to the question itself (UAT 2026-07-16).
+        expect.stringContaining("incomplete fragment"),
       ]),
     );
   });

@@ -411,6 +411,45 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     });
   });
 
+  it("downgrades a correction that parrots the mission question to retry_original (UAT 2026-07-16)", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: soccerConversationSnapshot as unknown as typeof conversationMissionSnapshotFixture,
+    });
+
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    // Provider disobeys the "never use the missionQuestion as
+    // improvedSentence" instruction — the deterministic guard must catch it.
+    const evaluateOriginal = successfulOriginalEvaluator({
+      outcome: "needs_correction",
+      correctionNeeded: true,
+      improvedSentence: "How often do you play soccer?",
+    });
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "Oh, what do you like to do instead?" },
+    }));
+    const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      transcribeAudioFile: successfulTranscriber("I don't"),
+      evaluateOriginalTurn: evaluateOriginal,
+      generateCocoReply: generate,
+      isContentSafe: moderate,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "retry_original",
+        improvedSentence: null,
+        requireRepeat: false,
+      },
+    });
+  });
+
   it("flagged student input: no generateCocoReply call; canned redirect persisted with flagged_student_input event", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"

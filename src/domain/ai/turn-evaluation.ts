@@ -68,7 +68,7 @@ export type OriginalTurnDecision =
     }
   | {
       kind: "retry_original";
-      reason: "non_english";
+      reason: "non_english" | "parroted_correction";
       requireRepeat: false;
     }
   | {
@@ -164,6 +164,53 @@ export function decideOriginalTurnOutcome(
     requireRepeat: false,
     improvedSentence: null,
     reinforcement: "positive",
+  };
+}
+
+export type OriginalTurnGuardContext = {
+  evaluationMode: "preset" | "conversation";
+  missionQuestion: string | null;
+};
+
+function normalizeForParrotComparison(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}']+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Deterministic backstop for the conversation-mode prompt rule "never use
+ * the missionQuestion as improvedSentence" (UAT 2026-07-16: the provider
+ * corrected "I don't" to the opener question itself despite that
+ * instruction). A parroted correction would make the child repeat Coco's
+ * question as their answer, so downgrade it to retry_original — the student
+ * simply re-records and the parroted sentence is never shown or spoken.
+ * Flags a correction that normalizes to the whole missionQuestion, or a
+ * question-shaped sentence contained in a multi-sentence opener.
+ */
+export function guardParrotedConversationCorrection(
+  decision: OriginalTurnDecision,
+  context: OriginalTurnGuardContext,
+): OriginalTurnDecision {
+  if (context.evaluationMode !== "conversation") return decision;
+  if (decision.kind !== "needs_correction") return decision;
+
+  const question = normalizeForParrotComparison(context.missionQuestion ?? "");
+  const improved = normalizeForParrotComparison(decision.improvedSentence);
+  if (!question || !improved) return decision;
+
+  const parroted =
+    improved === question ||
+    (decision.improvedSentence.trim().endsWith("?") &&
+      question.includes(improved));
+  if (!parroted) return decision;
+
+  return {
+    kind: "retry_original",
+    reason: "parroted_correction",
+    requireRepeat: false,
   };
 }
 
