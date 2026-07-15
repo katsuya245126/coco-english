@@ -5,16 +5,16 @@ milestone_name: — Coco Comes Alive
 current_phase: 11
 current_phase_name: coco-chat-dynamic-turns-scene-framing
 status: executing
-stopped_at: Completed 11-03-PLAN.md
-last_updated: "2026-07-14T16:22:23.000Z"
+stopped_at: Phase 11.1 context gathered
+last_updated: "2026-07-15T02:28:04.240Z"
 last_activity: 2026-07-14
 last_activity_desc: Completed 11-03-PLAN.md
 progress:
-  total_phases: 7
+  total_phases: 8
   completed_phases: 4
   total_plans: 34
   completed_plans: 30
-  percent: 57
+  percent: 50
 ---
 
 # Project State
@@ -220,10 +220,10 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 ## Session Continuity
 
-**Resume file:** None
+**Resume file:** .planning/phases/11.1-coco-chat-opening-line-dynamic-turn-runnability/11.1-CONTEXT.md
 
 **Handoff docs:** `.planning/handoff/` holds two 2026-07-10 session handoffs (mascot-audio-copy, audio-reclick-still-broken), committed 2026-07-11 as historical records — every open item in them has since landed: the replay re-click silence was resolved in `33779fa1` by removing Web Audio entirely from `CocoSpeechAudio.tsx` (native `<audio>` playback + synthetic mouth pulse; never reintroduce `createMediaElementSource` — a source test bans it), the terse "Say this sentence:" repeat-card label and the sprite-framing/dialogue-box overlap fixes landed in the same commit and the mobile follow-ups `f87766f5`/`7a599097`. Audible replay confirmation remains user-ear-only (agent preview and driven-Chrome tabs can't produce sound) and is folded into the existing Task 3 checkpoint.
 
-Last session: 2026-07-14T16:22:23.000Z
-Stopped at: Completed 11-03-PLAN.md
+Last session: 2026-07-15T02:28:04.231Z
+Stopped at: Phase 11.1 context gathered
 Note: Branch `phase-10-mascot-wip` is fully merged and can still be deleted (not yet done — ask before deleting). `.planning/phases/11-coco-chat-dynamic-turns-scene-framing/` is active again now that Phase 10 is back to the mascot. Phase 13 (Pronunciation Remediation Videos, MEDIA-F1) is new — not yet planned, no phase directory exists yet. Two incidental fixes landed this session outside Plan 10-04's own scope: `d104f16d` (CocoSpeechAudio analyser-ordering bug, found uncommitted, directly tied to the MASCOT-02 wiring) and `58bcc921` (repeat-turn exact-match fast-path, committed independently by the user during the same session — unrelated to Phase 10, not reviewed here).
