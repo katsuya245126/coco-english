@@ -64,9 +64,12 @@ export function buildConversationPrompt(input: GenerateCocoReplyInput) {
     lastStudentTranscript: input.studentTranscript,
     lastCocoLine: input.previousCocoLine ?? null,
     instructions: [
+      "Speak to a young ESL learner: short, simple sentences with easy everyday words.",
+      "Keep the whole line under 12 words and ask exactly one question.",
       "Always acknowledge or react to the student's meaning before asking a follow-up.",
+      'Ask a follow-up about the student\'s actual answer using who, what, where, when, why, or how (student says they play games -> "What games do you play?").',
       "Keep the current subject unless the student changes it or windDown requires a natural close.",
-      "Treat targetPattern as soft lesson context that Coco may model naturally, never as a mandatory next-line template.",
+      "Treat targetPattern as soft lesson context only, never as a next-line template — do not steer the student back into the targetPattern format.",
       "Reject a follow-up that merely swaps in a new noun or activity to repeat targetPattern; the follow-up must connect to the student's actual answer.",
       "If windDown is true, begin gently wrapping up the scene toward a natural close.",
       "If turnOrder === hardCap, deliver a closing line — this is the last turn.",

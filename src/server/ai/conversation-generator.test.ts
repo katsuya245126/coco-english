@@ -130,6 +130,37 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
       "Stay anchored to the target grammar pattern every turn",
     );
   });
+
+  it("instructs short kid-friendly lines with one 5-W follow-up about the student's answer", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(async () => ({
+      output_parsed: { line: "Fun! What games do you play?" },
+    }));
+
+    await generateCocoReply(
+      {
+        ...baseInput,
+        previousCocoLine: "What do you do after school?",
+        studentTranscript: "I play games.",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const call = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const system = call?.input.find((message) => message.role === "system")?.content ?? "";
+    const user = call?.input.find((message) => message.role === "user")?.content ?? "{}";
+    const prompt = JSON.parse(user) as { instructions?: string[] };
+    const combined = `${system} ${prompt.instructions?.join(" ") ?? ""}`;
+
+    // Kid-friendly register: short simple sentences, easy words, hard word cap.
+    expect(combined).toContain("young ESL learner");
+    expect(combined).toContain("12 words");
+    expect(combined).toContain("exactly one question");
+    // Follow-ups dig into the student's actual answer with 5-W questions,
+    // instead of steering every turn back into the targetPattern format.
+    expect(combined).toContain("who, what, where, when, why, or how");
+    expect(combined).toContain("What games do you play?");
+  });
 });
 
 describe("conversation-generator.ts source contract (stateless guarantee)", () => {
