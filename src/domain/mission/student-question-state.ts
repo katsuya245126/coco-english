@@ -90,6 +90,40 @@ export function advanceConversationQuestion({
   return { turnIndex: turnIndex + 1, dynamicPrompt };
 }
 
+export type AcceptedConversationTurnResolution =
+  | {
+      kind: "next";
+      turnIndex: number;
+      dynamicPrompt: string;
+    }
+  | { kind: "complete" }
+  | { kind: "unavailable" };
+
+export function resolveAcceptedConversationTurn({
+  turnIndex,
+  requiredTurns,
+  pendingCocoLine,
+}: {
+  turnIndex: number;
+  requiredTurns: number;
+  pendingCocoLine: string | null;
+}): AcceptedConversationTurnResolution {
+  if (turnIndex + 1 >= requiredTurns) {
+    return { kind: "complete" };
+  }
+
+  const dynamicPrompt = pendingCocoLine?.trim();
+  if (!dynamicPrompt) {
+    return { kind: "unavailable" };
+  }
+
+  return {
+    kind: "next",
+    turnIndex: turnIndex + 1,
+    dynamicPrompt,
+  };
+}
+
 export function deriveResumedDynamicPrompt({
   conversationMode,
   startingTurnIndex,

@@ -4,6 +4,7 @@ import {
   advanceConversationQuestion,
   deriveActiveStudentQuestion,
   deriveResumedDynamicPrompt,
+  resolveAcceptedConversationTurn,
 } from "@/domain/mission/student-question-state";
 
 const opener: MissionSnapshotTurn = {
@@ -103,5 +104,39 @@ describe("student question state", () => {
         recordingEnabled: false,
       });
     }
+  });
+
+  it("advances an accepted chat turn directly to the pending Coco line", () => {
+    expect(
+      resolveAcceptedConversationTurn({
+        turnIndex: 0,
+        requiredTurns: 4,
+        pendingCocoLine: " Oh, what do you like to do instead? ",
+      }),
+    ).toEqual({
+      kind: "next",
+      turnIndex: 1,
+      dynamicPrompt: "Oh, what do you like to do instead?",
+    });
+  });
+
+  it("completes the final accepted chat turn without requiring another Coco line", () => {
+    expect(
+      resolveAcceptedConversationTurn({
+        turnIndex: 3,
+        requiredTurns: 4,
+        pendingCocoLine: null,
+      }),
+    ).toEqual({ kind: "complete" });
+  });
+
+  it("fails closed when a non-final accepted chat turn has no pending Coco line", () => {
+    expect(
+      resolveAcceptedConversationTurn({
+        turnIndex: 1,
+        requiredTurns: 4,
+        pendingCocoLine: "   ",
+      }),
+    ).toEqual({ kind: "unavailable" });
   });
 });
