@@ -97,6 +97,14 @@ describe("translation hint domain contract", () => {
       name: "isolated function word",
       phrases: [{ source: "you", start: 13, end: 16, translation: "너" }],
     },
+    {
+      name: "whitespace-only source",
+      phrases: [{ source: " ", start: 3, end: 4, translation: "공백" }],
+    },
+    {
+      name: "punctuation-only source",
+      phrases: [{ source: "?", start: 28, end: 29, translation: "물음표" }],
+    },
   ])("rejects $name", ({ phrases }) => {
     expect(parseTranslationHint(sourceText, { phrases })).toEqual({
       ok: false,

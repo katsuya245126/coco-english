@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   buildTranslationSegments,
   parseTranslationHint,
@@ -45,10 +45,19 @@ export function CocoDialogueBox({
   const [expandedPhraseIndex, setExpandedPhraseIndex] = useState<number | null>(
     null,
   );
+  const activeRequestRef = useRef<AbortController | null>(null);
+  const requestTokenRef = useRef(0);
 
   useEffect(() => {
+    requestTokenRef.current += 1;
+    activeRequestRef.current?.abort();
+    activeRequestRef.current = null;
     setTranslationState({ kind: "inactive" });
     setExpandedPhraseIndex(null);
+    return () => {
+      requestTokenRef.current += 1;
+      activeRequestRef.current?.abort();
+    };
   }, [
     assignmentStudentId,
     dialogueText,
@@ -58,6 +67,11 @@ export function CocoDialogueBox({
 
   async function loadTranslationHint() {
     if (!translationLine || !dialogueText) return;
+    activeRequestRef.current?.abort();
+    const controller = new AbortController();
+    activeRequestRef.current = controller;
+    const requestToken = requestTokenRef.current + 1;
+    requestTokenRef.current = requestToken;
     setTranslationState({ kind: "loading" });
     setExpandedPhraseIndex(null);
 
@@ -67,6 +81,7 @@ export function CocoDialogueBox({
         {
           method: "POST",
           headers: { "content-type": "application/json" },
+          signal: controller.signal,
           body: JSON.stringify({
             lineKind: translationLine.lineKind,
             turnOrder: translationLine.turnOrder,
@@ -74,6 +89,7 @@ export function CocoDialogueBox({
         },
       );
       const payload: unknown = await response.json();
+      if (requestTokenRef.current !== requestToken) return;
       if (
         !response.ok ||
         typeof payload !== "object" ||
@@ -89,13 +105,20 @@ export function CocoDialogueBox({
       const parsed = parseTranslationHint(dialogueText, {
         phrases: payload.phrases,
       });
+      if (requestTokenRef.current !== requestToken) return;
       if (!parsed.ok) {
         setTranslationState({ kind: "error" });
         return;
       }
       setTranslationState({ kind: "ready", phrases: parsed.hint.phrases });
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") return;
+      if (requestTokenRef.current !== requestToken) return;
       setTranslationState({ kind: "error" });
+    } finally {
+      if (activeRequestRef.current === controller) {
+        activeRequestRef.current = null;
+      }
     }
   }
 

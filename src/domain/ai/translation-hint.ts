@@ -90,6 +90,7 @@ export function parseTranslationHint(
       phrase.end > sourceText.length ||
       phrase.start < previousEnd ||
       sourceText.slice(phrase.start, phrase.end) !== phrase.source ||
+      !/[\p{L}\p{N}]/u.test(phrase.source) ||
       ISOLATED_FUNCTION_WORDS.has(phrase.source.trim().toLowerCase())
     ) {
       return { ok: false, error: "schema_failed" };

@@ -323,7 +323,7 @@ export const mascotDialogueBoxStyle: CSSProperties = {
   background: "#FFFFFF",
   borderTop: "3px solid #2563EB",
   borderRadius: 8,
-  padding: "22px 16px 12px",
+  padding: "52px 16px 8px",
   boxSizing: "border-box",
   overflowY: "auto",
 };
@@ -332,7 +332,7 @@ export const mascotDialogueTabsStyle: CSSProperties = {
   position: "absolute",
   left: 8,
   right: 8,
-  top: -3,
+  top: 0,
   display: "flex",
   alignItems: "flex-start",
   gap: 4,

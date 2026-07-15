@@ -131,6 +131,25 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     );
   });
 
+  it("cancels stale translation requests when the active prompt changes", () => {
+    const dialogueSource = readSource(
+      "src/components/student/CocoDialogueBox.tsx",
+    );
+
+    expect(dialogueSource).toContain("new AbortController()");
+    expect(dialogueSource).toContain("activeRequestRef.current?.abort()");
+    expect(dialogueSource).toContain("signal: controller.signal");
+    expect(dialogueSource).toContain("AbortError");
+  });
+
+  it("reserves the full tab row above dialogue text", () => {
+    const stylesSource = readSource("src/components/student/styles.ts");
+
+    expect(stylesSource).toContain('padding: "52px 16px 8px"');
+    expect(stylesSource).toContain("top: 0");
+    expect(stylesSource).toContain("minHeight: 44");
+  });
+
   it("wires CocoSpeechAudio into the buddy question, improved repeat, transition, and completion steps", () => {
     const questionSource = readSource(
       "src/components/student/StepBuddyQuestion.tsx",
