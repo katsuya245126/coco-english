@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 11
 current_phase_name: coco-chat-dynamic-turns-scene-framing
 status: executing
-stopped_at: Dynamic conversation repair and Korean phrase-hint/VN chatbox TDD plans ready; execution choice pending
-last_updated: "2026-07-15T14:29:31Z"
+stopped_at: Dynamic conversation repair (Plan 1 of 2) implemented and automated-verified; deterministic feedback-state script and manual soccer UAT still to be run by the user before Plan 2 (Korean phrase hints/VN chatbox) starts
+last_updated: "2026-07-15T15:00:00Z"
 last_activity: 2026-07-15
-last_activity_desc: Wrote two self-reviewed TDD implementation plans for the approved Phase 11 repair
+last_activity_desc: Implemented and automated-verified all 6 code tasks of the dynamic conversation repair plan (Plan 1)
 progress:
   total_phases: 8
   completed_phases: 5
@@ -31,7 +31,25 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 Phase: 11 (coco-chat-dynamic-turns-scene-framing) — EXECUTING
 Inserted repair: Phase 11.1 (coco-chat-opening-line-dynamic-turn-runnability) — COMPLETE
 Plan: 4 of 4 complete (11.1-01 through 11.1-04)
-Status: Phase 11.1 runnability is complete, but real UAT exposed a conversation-quality gap. The approved repair accepts relevant correct free-talk answers, requires spoken meaning-preserving corrections for incorrect English, advances directly through contextual Coco lines, and gives all Coco prompts AI-selected Korean phrase translations through matched Coco/Hint/TTS dialogue tabs. Two sequential TDD implementation plans are ready: dynamic conversation repair first, then Korean phrase hints and the VN chatbox. Only the optional hint-heart policy is deferred.
+Status: Phase 11.1 runnability is complete, but real UAT exposed a conversation-quality gap. The approved repair accepts relevant correct free-talk answers, requires spoken meaning-preserving corrections for incorrect English, advances directly through contextual Coco lines, and gives all Coco prompts AI-selected Korean phrase translations through matched Coco/Hint/TTS dialogue tabs. Two sequential TDD implementation plans were written: dynamic conversation repair first, then Korean phrase hints and the VN chatbox. Only the optional hint-heart policy is deferred.
+
+**Dynamic conversation repair (Plan 1 of 2) — code complete, automated-verified 2026-07-15, in worktree `phase11-dynamic-conversation-repair` (not yet merged to main):**
+
+All 6 code tasks implemented with TDD RED→GREEN→commit, each scoped-staged and committed individually:
+- Task 1 (`73fc7284`): explicit `evaluationMode: "preset" | "conversation"` policy in `turn-evaluator.ts` — conversation mode accepts relevant correct English and requires a meaning-preserving `improvedSentence` correction (never a repeat-the-question demand) when wrong.
+- Task 2 (`d46543b5`): `audio-upload.ts` routes conversation-mode turns through the new policy with `targetExample` forced null so the preset fast-path never fires for chat.
+- Task 3 (`334c93c2`): `conversation-generator.ts` follow-ups must acknowledge the student's actual answer and stay on-topic; `targetPattern` is soft context, never a mandatory template.
+- Task 4 (`95909654`): pure `resolveAcceptedConversationTurn` resolver in `student-question-state.ts` (next/complete/unavailable), replacing the old `advanceConversationQuestion` transition-screen path.
+- Task 5 (`6c8bcca3`): `MissionFlowShell.tsx` now calls `continueAcceptedConversationTurn` directly on any accepted chat original/repeat — no `Nice answer!`/`Good job! Ready for the next one?`/Next-turn screen for chat; preset missions are untouched and still use `StepTurnTransition`.
+- Task 6 (`524bb46f`): `attempt_turns.coco_line` now threads through `CompletionTurn`/`PendingTurnReview`/`initialFlowState`, so refreshing on a correction or repeat-review screen restores the exact same pending contextual Coco line instead of losing or regenerating it.
+
+Automated verification done (Task 7 Steps 1-2): the plan's 8 focused test files (103 tests) pass, `npm run typecheck` exits 0, `npm run lint` exits 0 (one pre-existing unrelated warning in `check-student-feedback-states.mjs`), and the full `vitest run` suite passes 634/638 (4 intentionally skipped).
+
+**Not yet run (Task 7 Steps 3-4 — require a live localhost:3000 app and real disposable class-code/student/PIN test-account values the assistant does not hold; user opted to run these separately):**
+- `npm run test:student-feedback-states` (deterministic feedback-state Playwright script) with `FEEDBACK_STATE_CLASS_CODE`/`FEEDBACK_STATE_STUDENT_NAME`/`FEEDBACK_STATE_PIN` exported only in the user's shell.
+- Manual 8-point soccer-mission UAT (accept a correct free-talk answer with no repeat-the-question or transition screen; correct `I no play soccer.` → `I don't play soccer.` with required spoken repeat; refresh on the correction/repeat screen and confirm the same pending Coco line persists; run one preset mission and confirm its evaluation/correction/retry/transition screens are unchanged).
+
+Plan 2 (Korean phrase hints + VN chatbox, `docs/superpowers/plans/2026-07-15-korean-phrase-hints-chatbox.md`) has not started — it assumes the repaired dynamic flow and must not begin until the user confirms the Task 7 Steps 3-4 manual checks pass.
 Active feature work: dismiss-incomplete and clickable no-attempt assignment evidence are implemented on `feature/dismiss-incomplete-assignment`; migrations `202607120003`, `202607120004`, and `202607120005` are live. Both by-ID and attempt-keyed dismiss/undo paths are state-sensitive. Phase 10.1 post-review fixes add compare-and-swap protection to the missed-status worker and reliable seeded-test cleanup. The cron regression passes 2/2, the live review-policy Playwright regression passes 5/5, typecheck passes, and the approved clean-cache production build succeeds.
 Quick task 260710-hbn completed the interrupted student retry/audio feedback work in commit `33779fa1`. The follow-up `retry-feedback-flow` debug session fixed final-turn review gating, repeat retry audio/actions, and transcript carryover. The subsequent code-review follow-up removed the unsafe grammar-only fill-in bypass, moved mission completion into a deployed atomic RPC, restored persisted feedback/audio on refresh, included evaluation in resume decisions, and fixed Coco playback teardown. Those follow-ups are complete and Phase 10 remains closed.
 The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on desktop but only 133px on a 375px phone. Responsive clamped insets now preserve the desktop framing at 226px on both standard phone and desktop widths without changing stage, dialogue, or recorder geometry.
