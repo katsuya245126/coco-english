@@ -203,14 +203,31 @@ Archive:
 
 ### Phase 11.1: Coco Chat Opening Line & Dynamic-Turn Runnability (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
-**Depends on:** Phase 11
-**Plans:** 0 plans
+**Goal:** Chat missions always open with a teacher-reviewed Coco line and remain runnable when the student advances beyond the authored snapshot turns, using real persisted conversation context without weakening preset behavior, ownership, or the server-owned hard cap.
+**Requirements**: CHAT-01, CHAT-02, CHAT-06 (verified runnability gaps in the Phase 11 implementation; canonical requirement ownership remains Phase 11)
+**Depends on:** Phase 11 plans 11-01 through 11-05 as present on `main`; this repair must complete before Phase 11 plan 11-07 manual conversation UAT.
+**Success Criteria** (what must be TRUE):
 
-Plans:
+  1. An authenticated teacher can generate, review, edit, or hand-type Coco's mission-level opening line, and a chat mission cannot save or be assigned without that opener stored as a complete turn-1 template in the immutable snapshot.
+  2. The opener is the normal turn-1 student-reply interaction and uses the ordinary cacheable `mission_prompt` TTS path; generation failure stays a soft retry/manual-entry error, with no runtime moderation or canned opener substitution.
+  3. An owned chat turn beyond the authored snapshot array is accepted only through the server-owned `HARD_TURN_CAP`, while preset out-of-snapshot turns and chat turns above the cap remain rejected.
+  4. Dynamic original evaluation uses the one real persisted previous `attempt_turns.coco_line` as `missionQuestion`, passes `targetExample: null`, skips exact-match acceptance, and leaves original/repeat pronunciation reference selection unchanged.
+  5. The student shell renders one dynamic question branch only beyond authored snapshots, carries/restores the real Coco prompt for current and resumed attempts, and exposes one generic pattern-derived hint without fabricating a snapshot turn.
 
-- [ ] TBD (run /gsd-plan-phase 11.1 to break down)
+**Plans:** 4 plans
+
+**Wave 1** *(parallel opener/runtime contracts)*
+
+- [ ] 11.1-01-PLAN.md — save-time opener schemas, fake-client generator, and authenticated soft-failure teacher action (CHAT-02)
+- [ ] 11.1-03-PLAN.md — nullable evaluator grounding plus ownership/cap-preserving dynamic snapshot-gate relaxation (CHAT-01, CHAT-06)
+
+**Wave 2** *(opener integration, blocked on its Wave 1 contract)*
+
+- [ ] 11.1-02-PLAN.md — mirrored form/snapshot opener backstop and complete turn-1 generate-then-edit serialization (CHAT-01, CHAT-02)
+
+**Wave 3** *(student integration, blocked on opener + runtime contracts)*
+
+- [ ] 11.1-04-PLAN.md — single dynamic student branch, one pattern hint, correct TTS provenance, and persisted prompt resume (CHAT-01, CHAT-02, CHAT-06)
 
 ### Phase 12: UI Overhaul
 
@@ -243,7 +260,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 8 → 9 → 10 → 10.1 → 11 → 12 → 13 (Phase 13 has no hard dependency on 10-12 and could be reordered earlier if desired)
+Phases execute in numeric order: 8 → 9 → 10 → 10.1 → 11 → 11.1 → 12 → 13 (Phase 11.1 closes urgent Phase 11 runnability gaps before 11-07 UAT; Phase 13 has no hard dependency on 10-12 and could be reordered earlier if desired)
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|-----------------|--------|-----------|
@@ -259,6 +276,7 @@ Phases execute in numeric order: 8 → 9 → 10 → 10.1 → 11 → 12 → 13 (P
 | 10. VN-Style Mascot | v2.0 | 4/4 | Complete (accepted with residual low-end-device risk) | 2026-07-11 |
 | 10.1 Assignment Operations & Student History | v2.0 | 12/12 | Complete   | 2026-07-14 |
 | 11. Coco Chat (dynamic turns + scene framing) | v2.0 | 2/7 | In Progress|  |
+| 11.1 Coco Chat Opening Line & Dynamic-Turn Runnability | v2.0 | 0/4 | Planned | - |
 | 12. UI Overhaul | v2.0 | 0/TBD | Not started | - |
 | 13. Pronunciation Remediation Videos | v2.0 | 0/TBD | Not planned | - |
 
