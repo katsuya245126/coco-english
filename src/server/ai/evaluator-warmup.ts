@@ -19,6 +19,7 @@ import type { MissionLevel } from "@/domain/mission/schemas";
 
 export function warmEvaluators(level: MissionLevel): void {
   evaluateOriginalTurn({
+    evaluationMode: "preset",
     targetPattern: "warmup",
     targetExample: "This is a warm-up.",
     level,
