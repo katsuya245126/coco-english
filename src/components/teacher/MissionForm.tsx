@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   createMissionAction,
+  generateOpenerAction,
   generatePremiseAction,
   updateMissionAction,
   type MissionActionResult,
@@ -13,6 +14,7 @@ import type {
   MissionLevel,
   MissionTurnInput,
 } from "@/domain/mission/schemas";
+import { serializeMissionTurns } from "@/domain/mission/mission-turn-serialization";
 import type { MissionWithTurns } from "@/server/mission/mission-service";
 import { createEmptyTurn, TurnEditor } from "@/components/teacher/TurnEditor";
 import { HoverButton } from "@/components/ui/HoverButton";
@@ -60,8 +62,13 @@ export function MissionForm({
   const [scenePremise, setScenePremise] = useState(
     mission?.scenePremise ?? "",
   );
+  const [opener, setOpener] = useState(
+    mission?.conversationMode ? mission.turns[0]?.prompt ?? "" : "",
+  );
   const [generatingPremise, setGeneratingPremise] = useState(false);
   const [premiseError, setPremiseError] = useState<string | null>(null);
+  const [generatingOpener, setGeneratingOpener] = useState(false);
+  const [openerError, setOpenerError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -75,6 +82,18 @@ export function MissionForm({
       setScenePremise(result.scenePremise);
     } else {
       setPremiseError(result.error);
+    }
+  }
+
+  async function handleGenerateOpener() {
+    setOpenerError(null);
+    setGeneratingOpener(true);
+    const result = await generateOpenerAction({ scenePremise, targetPattern });
+    setGeneratingOpener(false);
+    if (result.ok) {
+      setOpener(result.opener);
+    } else {
+      setOpenerError(result.error);
     }
   }
 
@@ -95,7 +114,17 @@ export function MissionForm({
       "requiredTurns",
       String(conversationMode ? requiredTurns : turns.length),
     );
-    formData.set("turns", JSON.stringify(conversationMode ? [] : turns));
+    formData.set(
+      "turns",
+      JSON.stringify(
+        serializeMissionTurns({
+          conversationMode,
+          opener,
+          targetPattern,
+          turns,
+        }),
+      ),
+    );
     formData.set("conversationMode", conversationMode ? "true" : "false");
     formData.set("scenePremise", scenePremise);
 
@@ -275,6 +304,50 @@ export function MissionForm({
                 Choose between 3 and 8 turns.
               </p>
             ) : null}
+
+            <div style={{ marginTop: 24, maxWidth: 560 }}>
+              <label htmlFor="coco-opening-line" style={labelStyle}>
+                Coco's opening line
+              </label>
+              <p id="coco-opening-line-help" style={helpTextStyle}>
+                Coco's first question for every student in this mission.
+                Generate a draft, then edit it before saving.
+              </p>
+              <textarea
+                id="coco-opening-line"
+                name="opener"
+                value={opener}
+                onChange={(event) => setOpener(event.target.value)}
+                aria-describedby="coco-opening-line-help"
+                rows={3}
+                style={{ ...inputStyle, resize: "vertical" }}
+              />
+              <div style={{ marginTop: 8 }}>
+                <HoverButton
+                  type="button"
+                  onClick={handleGenerateOpener}
+                  disabled={generatingOpener}
+                  style={secondaryButtonStyle}
+                  hoverStyle={secondaryHover}
+                >
+                  {generatingOpener ? (
+                    <span
+                      style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+                    >
+                      <span className="spinner" aria-hidden="true" />
+                      Generating…
+                    </span>
+                  ) : (
+                    "Generate opener"
+                  )}
+                </HoverButton>
+              </div>
+              {openerError ? (
+                <p role="alert" style={fieldErrorStyle}>
+                  {openerError}
+                </p>
+              ) : null}
+            </div>
           </div>
         ) : null}
       </section>

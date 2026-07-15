@@ -56,7 +56,7 @@ describe("manual teacher mission creation", () => {
     expect(form).toContain("Coco's opening line");
     expect(form).toContain("Generate opener");
     expect(form).toMatch(
-      /formData\.set\(\s*"turns",\s*JSON\.stringify\(\s*serializeMissionTurns/s,
+      /formData\.set\(\s*"turns",\s*JSON\.stringify\(\s*serializeMissionTurns[\s\S]*/,
     );
   });
 });
