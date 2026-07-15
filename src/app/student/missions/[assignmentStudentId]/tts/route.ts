@@ -41,7 +41,6 @@ function resolveLineText(
   lineKind: VoiceEligibleLineKind,
   characterId: string,
   turn: ResolvedSnapshotTurn | null,
-  turnCount: number,
   feedbackVariant?: string,
 ): string | null {
   const profile = getCharacterProfile(characterId);
@@ -57,7 +56,7 @@ function resolveLineText(
     case "coco_feedback":
       return resolveFeedbackLineText(feedbackVariant) ?? profile.improvedSentenceIntro;
     case "completion_celebration":
-      return `${profile.completionHeading} ${profile.completionBody(turnCount)}`;
+      return profile.completionHeading;
     case "coco_dynamic_line":
       // Phase 11 CHAT-02 — Coco's dynamically-generated reply. Already
       // moderated + persisted server-side (11-03); resolved here from
@@ -152,8 +151,6 @@ export async function POST(request: Request, context: RouteContext) {
   const snapshot = snapshotResult.success ? snapshotResult.data : null;
 
   const characterId = parsed.data.characterId ?? snapshot?.characterId ?? "default-buddy";
-  const turnCount = snapshot?.turns.length ?? snapshot?.requiredTurns ?? 0;
-
   // A restarted/retried mission produces additional attempts whose
   // attempt_turns reuse the same turn_order values, so the per-turn lookups
   // below must pin to the current attempt — an assignment-wide join returns
@@ -210,7 +207,6 @@ export async function POST(request: Request, context: RouteContext) {
     parsed.data.lineKind,
     characterId,
     resolvedTurn,
-    turnCount,
     parsed.data.feedbackVariant,
   );
 

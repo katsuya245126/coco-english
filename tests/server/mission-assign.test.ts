@@ -168,9 +168,13 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
           "What food do you like?",
           "Good job! Ready for the next one?",
           "Nice! Here is a better way to say it:",
-          "Mission complete! Great work! You finished all 1 turns. Your teacher will see your answers.",
+          "Mission complete!",
         ]),
       }),
+    );
+    const warmedTexts = mockWarmTtsAudioCache.mock.calls[0]?.[0].texts ?? [];
+    expect(warmedTexts).not.toContain(
+      "Mission complete! Great work! You finished all 1 turns. Your teacher will see your answers.",
     );
   });
 

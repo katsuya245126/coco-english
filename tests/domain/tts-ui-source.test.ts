@@ -73,6 +73,18 @@ describe("CocoSpeechAudio replay UI source contract (VOICE-02, D-12, D-13)", () 
 });
 
 describe("Coco voice line integration in mission step cards (D-06..D-11)", () => {
+  it("speaks only the short completion heading", () => {
+    const routeSource = readSource(
+      "src/app/student/missions/[assignmentStudentId]/tts/route.ts",
+    );
+
+    expect(routeSource).toContain('case "completion_celebration"');
+    expect(routeSource).toContain("return profile.completionHeading;");
+    expect(routeSource).not.toContain(
+      "`${profile.completionHeading} ${profile.completionBody(turnCount)}`",
+    );
+  });
+
   it("uses matched Coco, Hint, and TTS tabs while preserving the mascot stage", () => {
     const stageSource = readSource("src/components/student/MascotStage.tsx");
     const dialogueSource = readSource(

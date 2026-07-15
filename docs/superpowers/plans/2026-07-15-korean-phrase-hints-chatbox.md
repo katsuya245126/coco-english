@@ -1315,7 +1315,7 @@ git commit -m "feat(11): use translation-only hints in dynamic chat"
 - Consumes: the existing `completion_celebration` TTS descriptor and `CharacterProfile.completionHeading`.
 - Produces: on-demand and prewarmed completion audio whose exact text is `Mission complete!`; visible `StepMissionComplete` body copy is unchanged.
 
-- [ ] **Step 1: Write failing completion narration regressions**
+- [x] **Step 1: Write failing completion narration regressions**
 
 Add this source contract to `tests/domain/tts-ui-source.test.ts`:
 
@@ -1342,7 +1342,7 @@ expect(warmedTexts).not.toContain(
 );
 ```
 
-- [ ] **Step 2: Run completion tests and verify RED**
+- [x] **Step 2: Run completion tests and verify RED**
 
 Run:
 
@@ -1352,7 +1352,7 @@ npx vitest run tests/domain/tts-ui-source.test.ts tests/server/mission-assign.te
 
 Expected: both new assertions FAIL because the TTS route and assignment warmer still concatenate `completionBody`.
 
-- [ ] **Step 3: Resolve and warm only the heading**
+- [x] **Step 3: Resolve and warm only the heading**
 
 In `resolveLineText` inside `src/app/student/missions/[assignmentStudentId]/tts/route.ts`, replace the completion branch with:
 
@@ -1371,7 +1371,7 @@ profile.completionHeading,
 
 Do not change `completionBody`, `StepMissionComplete`, or the visible completion props.
 
-- [ ] **Step 4: Run completion tests and verify GREEN**
+- [x] **Step 4: Run completion tests and verify GREEN**
 
 Run:
 
@@ -1381,7 +1381,7 @@ npx vitest run tests/domain/tts-ui-source.test.ts tests/server/mission-assign.te
 
 Expected: all three files PASS; profile tests still prove the full visible body contains the turn count and teacher-review message.
 
-- [ ] **Step 5: Commit short completion narration**
+- [x] **Step 5: Commit short completion narration**
 
 ```bash
 git add src/app/student/missions/'[assignmentStudentId]'/tts/route.ts src/server/mission/assign-service.ts tests/domain/tts-ui-source.test.ts tests/server/mission-assign.test.ts
