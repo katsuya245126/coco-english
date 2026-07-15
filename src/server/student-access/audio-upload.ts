@@ -559,10 +559,41 @@ export async function uploadAttemptAudioClip(
     const snapshotTurn = snapshot?.turns.find(
       (missionTurn) => missionTurn.turnOrder === input.turnOrder,
     );
-    if (!snapshot || !snapshotTurn) {
+    if (!snapshot) {
       logTiming("failed", { error: "invalid_audio", step: "mission_snapshot" });
       return { ok: false, error: "invalid_audio", retryable: false };
     }
+
+    const isDynamicChatTurn =
+      snapshot.conversationMode === true &&
+      !snapshotTurn &&
+      canGenerateNextDynamicTurn(input.turnOrder);
+    if (!snapshotTurn && !isDynamicChatTurn) {
+      logTiming("failed", { error: "invalid_audio", step: "mission_snapshot" });
+      return { ok: false, error: "invalid_audio", retryable: false };
+    }
+
+    const previousCocoLine =
+      input.turnOrder > 1 &&
+      (isDynamicChatTurn || input.clipKind === "original_answer")
+        ? await timeStage("previousCocoLineLookup", async () => {
+            const { data: previousTurn } = await supabase
+              .from("attempt_turns")
+              .select("coco_line")
+              .eq("attempt_id", input.attemptId)
+              .eq("turn_order", input.turnOrder - 1)
+              .maybeSingle();
+            return previousTurn?.coco_line ?? null;
+          })
+        : null;
+
+    if (isDynamicChatTurn && previousCocoLine === null) {
+      logTiming("failed", { error: "invalid_audio", step: "previous_coco_line" });
+      return { ok: false, error: "invalid_audio", retryable: false };
+    }
+
+    const missionQuestion = snapshotTurn?.prompt ?? previousCocoLine;
+    const targetExample = snapshotTurn?.targetExample ?? null;
 
     const audioBytes = await timeStage("readAudio", () => input.file.arrayBuffer());
     const createAudioBlob = () => new Blob([audioBytes], { type: input.mimeType });
@@ -584,6 +615,12 @@ export async function uploadAttemptAudioClip(
     if (turnError || !turn) {
       logTiming("failed", { error: "db_error", step: "turn_init" });
       return { ok: false, error: "db_error", retryable: true };
+    }
+
+    const repeatTarget = turn.improved_sentence ?? targetExample;
+    if (input.clipKind === "repeat_attempt" && repeatTarget === null) {
+      logTiming("failed", { error: "invalid_audio", step: "repeat_target" });
+      return { ok: false, error: "invalid_audio", retryable: false };
     }
 
     const { data: audioClip, error: clipError } = await timeStage(
@@ -730,7 +767,7 @@ export async function uploadAttemptAudioClip(
     const pronunciationReferenceText =
       input.clipKind === "original_answer"
         ? transcript
-        : turn.improved_sentence ?? snapshotTurn.targetExample;
+        : repeatTarget;
 
     const score = deps.scorePronunciation ?? scorePronunciation;
     const scoringStartedAt = Date.now();
@@ -751,10 +788,9 @@ export async function uploadAttemptAudioClip(
             // fine") and removes ~1.3-3.3s of evaluation latency for them.
             // Open-ended answers still need semantic evaluation against the
             // mission question; grammar shape alone cannot establish relevance.
-            const fastPathMatched = isExactTargetMatch(
-              transcript,
-              snapshotTurn.targetExample,
-            );
+            const fastPathMatched =
+              targetExample !== null &&
+              isExactTargetMatch(transcript, targetExample);
             timings.evaluationFastPath = fastPathMatched ? 1 : 0;
             const evaluationResult: OriginalTurnEvaluationResult = fastPathMatched
               ? {
@@ -774,9 +810,9 @@ export async function uploadAttemptAudioClip(
               : await timeStage("evaluation", () => {
                   const evaluate = deps.evaluateOriginalTurn ?? evaluateOriginalTurn;
                   return evaluate({
-                    missionQuestion: snapshotTurn.prompt,
+                    missionQuestion: missionQuestion ?? undefined,
                     targetPattern: snapshot.targetPattern,
-                    targetExample: snapshotTurn.targetExample,
+                    targetExample,
                     level: snapshot.level,
                     turnOrder: input.turnOrder,
                     transcript,
@@ -825,8 +861,6 @@ export async function uploadAttemptAudioClip(
             // path above. Without this, a verbatim repeat still depends on a
             // non-deterministic LLM judgment call, which can (and did) reject
             // an exact match.
-            const repeatTarget =
-              turn.improved_sentence ?? snapshotTurn.targetExample;
             const fastPathMatched = isExactTargetMatch(transcript, repeatTarget);
             timings.evaluationFastPath = fastPathMatched ? 1 : 0;
             const evaluationResult: RepeatTurnEvaluationResult = fastPathMatched
@@ -919,22 +953,6 @@ export async function uploadAttemptAudioClip(
     let cocoLineModerationEvent: CocoLineModerationEvent | null = null;
 
     if (snapshot.conversationMode === true && input.clipKind === "original_answer") {
-      // Look up the immediately-preceding turn's Coco line for stateless
-      // re-grounding (CHAT-04) — passed explicitly as data, never relied on
-      // via provider-side chaining.
-      const previousCocoLine =
-        input.turnOrder > 1
-          ? await timeStage("previousCocoLineLookup", async () => {
-              const { data: previousTurn } = await supabase
-                .from("attempt_turns")
-                .select("coco_line")
-                .eq("attempt_id", input.attemptId)
-                .eq("turn_order", input.turnOrder - 1)
-                .maybeSingle();
-              return previousTurn?.coco_line ?? null;
-            })
-          : null;
-
       const conversationOutcome = await timeStage("conversationTurn", () =>
         runConversationTurn(
           {

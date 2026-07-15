@@ -889,7 +889,10 @@ describe("uploadAttemptAudioClip", () => {
       "@/server/student-access/audio-upload"
     );
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 999 }));
+    const evaluateOriginal = successfulOriginalEvaluator();
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 999 }), {
+      evaluateOriginalTurn: evaluateOriginal,
+    });
 
     expect(result).toEqual({
       ok: false,
@@ -897,6 +900,7 @@ describe("uploadAttemptAudioClip", () => {
       retryable: false,
     });
     expect(mockSupabase.upload).not.toHaveBeenCalled();
+    expect(evaluateOriginal).not.toHaveBeenCalled();
     expect(
       mockSupabase.operations.some(
         (operation) =>
