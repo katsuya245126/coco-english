@@ -12,6 +12,7 @@ import {
 import { pageStyle, panelStyle } from "@/components/student/styles";
 import { MissionFlowShell } from "@/components/student/MissionFlowShell";
 import { warmEvaluators } from "@/server/ai/evaluator-warmup";
+import { deriveResumedDynamicPrompt } from "@/domain/mission/student-question-state";
 
 // Student mission-flow route (FLOW-01, D-12, PILOT-01).
 //
@@ -104,6 +105,7 @@ export default async function MissionPage({ params }: MissionPageProps) {
   let startingTurnIndex = 0; // 0-based index for the shell
   let attemptId: string | null = null;
   let initialReview: InitialReview | null = null;
+  let attemptTurns: Array<{ turnOrder: number; cocoLine: string | null }> = [];
 
   if (asRow.latest_attempt_id) {
     const { data: attempt } = await supabase
@@ -118,7 +120,7 @@ export default async function MissionPage({ params }: MissionPageProps) {
 
       const { data: turns } = await supabase
         .from("attempt_turns")
-        .select("id, turn_order, original_transcript, improved_sentence, repeat_transcript, repeat_accepted, evaluation")
+        .select("id, turn_order, original_transcript, improved_sentence, repeat_transcript, repeat_accepted, evaluation, coco_line")
         .eq("attempt_id", attempt.id);
 
       const resumeOrder = nextUnfinishedTurnOrder(
@@ -132,6 +134,11 @@ export default async function MissionPage({ params }: MissionPageProps) {
           evaluation: t.evaluation,
         })),
       );
+
+      attemptTurns = (turns ?? []).map((turn) => ({
+        turnOrder: turn.turn_order,
+        cocoLine: turn.coco_line,
+      }));
 
       // Convert 1-based turn_order to 0-based index for the shell.
       // If resumeOrder > requiredTurns (all done sentinel), stay at last turn.
@@ -181,6 +188,12 @@ export default async function MissionPage({ params }: MissionPageProps) {
   const sortedTurns = [...snapshot.turns].sort(
     (a, b) => a.turnOrder - b.turnOrder,
   );
+  const initialDynamicPrompt = deriveResumedDynamicPrompt({
+    conversationMode: snapshot.conversationMode,
+    startingTurnIndex,
+    snapshotTurnCount: sortedTurns.length,
+    attemptTurns,
+  });
 
   // Warms the OpenAI structured-output schema cache in the background so the
   // student's first recording doesn't pay the compile cost. Runs via
@@ -211,6 +224,7 @@ export default async function MissionPage({ params }: MissionPageProps) {
             resumeNotice: characterProfile.resumeNotice,
           }}
           startingTurnIndex={startingTurnIndex}
+          initialDynamicPrompt={initialDynamicPrompt}
           isResume={attemptId !== null}
           initialReview={initialReview}
         />

@@ -1,0 +1,107 @@
+import { describe, expect, it } from "vitest";
+import type { MissionSnapshotTurn } from "@/domain/mission/schemas";
+import {
+  advanceConversationQuestion,
+  deriveActiveStudentQuestion,
+  deriveResumedDynamicPrompt,
+} from "@/domain/mission/student-question-state";
+
+const opener: MissionSnapshotTurn = {
+  turnOrder: 1,
+  prompt: "What do you like to do after school?",
+  targetExample: "I like to play soccer after school.",
+  hintLadder: {
+    tier1: "Use I like to...",
+    tier2: "play soccer",
+    tier3: "I like to play soccer after school.",
+  },
+};
+
+describe("student question state", () => {
+  it("keeps the authored opener authoritative when dynamic state exists", () => {
+    const question = deriveActiveStudentQuestion({
+      conversationMode: true,
+      turnIndex: 0,
+      turns: [opener],
+      dynamicPrompt: "Tell me more about soccer.",
+    });
+
+    expect(question).toEqual({
+      kind: "authored",
+      prompt: opener.prompt,
+      activeTurnOrder: 1,
+      hintLadder: opener.hintLadder,
+      targetExample: opener.targetExample,
+      recordingEnabled: true,
+      line: { lineKind: "mission_prompt", turnOrder: 1 },
+    });
+  });
+
+  it("carries a returned Coco line through correction-loop advance into the next question", () => {
+    const advanced = advanceConversationQuestion({
+      turnIndex: 0,
+      pendingCocoLine: " Tell me more about soccer. ",
+    });
+    const question = deriveActiveStudentQuestion({
+      conversationMode: true,
+      turns: [opener],
+      ...advanced,
+    });
+
+    expect(advanced).toEqual({
+      turnIndex: 1,
+      dynamicPrompt: "Tell me more about soccer.",
+    });
+    expect(question).toEqual({
+      kind: "dynamic",
+      prompt: "Tell me more about soccer.",
+      activeTurnOrder: 2,
+      singleHint: "Try using: I like to play soccer after school.",
+      recordingEnabled: true,
+      line: { lineKind: "coco_dynamic_line", turnOrder: 1 },
+    });
+  });
+
+  it("restores the exact owned previous Coco line for a resumed dynamic question", () => {
+    const dynamicPrompt = deriveResumedDynamicPrompt({
+      conversationMode: true,
+      startingTurnIndex: 1,
+      snapshotTurnCount: 1,
+      attemptTurns: [
+        { turnOrder: 1, cocoLine: "Tell me more about soccer." },
+        { turnOrder: 2, cocoLine: "A later line must not be used." },
+      ],
+    });
+
+    expect(dynamicPrompt).toBe("Tell me more about soccer.");
+    expect(
+      deriveActiveStudentQuestion({
+        conversationMode: true,
+        turnIndex: 1,
+        turns: [opener],
+        dynamicPrompt,
+      }),
+    ).toMatchObject({
+      kind: "dynamic",
+      prompt: "Tell me more about soccer.",
+      line: { lineKind: "coco_dynamic_line", turnOrder: 1 },
+    });
+  });
+
+  it("fails closed when a dynamic prompt is missing or blank", () => {
+    for (const dynamicPrompt of [null, "   "]) {
+      expect(
+        deriveActiveStudentQuestion({
+          conversationMode: true,
+          turnIndex: 1,
+          turns: [opener],
+          dynamicPrompt,
+        }),
+      ).toEqual({
+        kind: "unavailable",
+        reason: "missing_dynamic_prompt",
+        recordingEnabled: false,
+      });
+    }
+  });
+});

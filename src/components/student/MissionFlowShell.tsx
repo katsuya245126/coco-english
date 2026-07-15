@@ -45,6 +45,11 @@ import type { RecordedVoiceClip } from "@/components/student/StepBuddyQuestion";
 import type { RepeatVoiceClip } from "@/components/student/StepImprovedRepeat";
 import type { RecorderState } from "@/components/student/VoiceRecorderControl";
 import type { PendingTurnReview } from "@/domain/flow/completion";
+import {
+  advanceConversationQuestion,
+  deriveActiveStudentQuestion,
+  type ActiveStudentQuestion,
+} from "@/domain/mission/student-question-state";
 
 // ─── Types ───
 
@@ -124,6 +129,8 @@ type FlowState = {
   // turn's original answer (CHAT-02); null for preset missions and null
   // until the round-trip resolves.
   cocoLine: string | null;
+  // The real persisted/returned Coco line that prompts the next dynamic turn.
+  dynamicPrompt: string | null;
 };
 
 export type CharacterProfileLines = {
@@ -146,6 +153,7 @@ export type MissionFlowShellProps = {
   conversationMode: boolean;
   characterProfile: CharacterProfileLines;
   startingTurnIndex: number;
+  initialDynamicPrompt: string | null;
   isResume: boolean;
   initialReview: (PendingTurnReview & { audioUrl?: string }) | null;
 };
@@ -159,6 +167,7 @@ function clearAudioUrl(ref: { current: string | null }) {
 
 function initialFlowState(
   startingTurnIndex: number,
+  initialDynamicPrompt: string | null,
   initialReview: MissionFlowShellProps["initialReview"],
 ): FlowState {
   const emptyState: FlowState = {
@@ -172,6 +181,7 @@ function initialFlowState(
     repeatFeedback: null,
     hasRetriedThisTurn: false,
     cocoLine: null,
+    dynamicPrompt: initialDynamicPrompt,
   };
 
   if (!initialReview) return emptyState;
@@ -228,12 +238,13 @@ export function MissionFlowShell({
   conversationMode,
   characterProfile,
   startingTurnIndex,
+  initialDynamicPrompt,
   isResume,
   initialReview,
 }: MissionFlowShellProps) {
   const router = useRouter();
   const [flow, setFlow] = useState<FlowState>(() =>
-    initialFlowState(startingTurnIndex, initialReview),
+    initialFlowState(startingTurnIndex, initialDynamicPrompt, initialReview),
   );
 
   const [attemptId, setAttemptId] = useState<string | null>(initialAttemptId);
@@ -279,13 +290,18 @@ export function MissionFlowShell({
     return () => clearTimeout(timer);
   }, [showResumeNotice]);
 
-  const currentTurn = turns[flow.turnIndex];
+  const activeQuestion = deriveActiveStudentQuestion({
+    conversationMode,
+    turnIndex: flow.turnIndex,
+    turns,
+    dynamicPrompt: flow.dynamicPrompt,
+  });
   // 1-based turn number for display
   const currentTurnNumber = flow.turnIndex + 1;
 
   const mascotDialogue = getMascotDialogue({
     flow,
-    currentTurn,
+    activeQuestion,
     actionError,
     turnTransition: characterProfile.turnTransition,
     completionHeading: characterProfile.completionHeading,
@@ -324,10 +340,14 @@ export function MissionFlowShell({
     aid: string;
     clipKind: "original_answer" | "repeat_attempt";
   }): Promise<UploadVoiceClipPayload> {
+    if (!activeQuestion.recordingEnabled) {
+      throw new Error("dynamic_prompt_unavailable");
+    }
+
     const formData = new FormData();
     formData.set("file", input.recording.blob, `${input.clipKind}.webm`);
     formData.set("attemptId", input.aid);
-    formData.set("turnOrder", String(currentTurn.turnOrder));
+    formData.set("turnOrder", String(activeQuestion.activeTurnOrder));
     formData.set("clipKind", input.clipKind);
     formData.set("durationMs", String(input.recording.durationMs));
     formData.set("mimeType", input.recording.mimeType);
@@ -418,6 +438,11 @@ export function MissionFlowShell({
   }
 
   async function handleSubmitOriginalVoice(recording: RecordedVoiceClip) {
+    if (!activeQuestion.recordingEnabled) {
+      setActionError("Coco’s next question isn’t available yet. Please return to your missions and try again.");
+      return;
+    }
+
     setActionError(null);
     // Dismiss resume notice on first submit (D-04)
     setShowResumeNotice(false);
@@ -479,6 +504,11 @@ export function MissionFlowShell({
   }
 
   async function handleSubmitRepeatVoice(recording: RepeatVoiceClip) {
+    if (!activeQuestion.recordingEnabled) {
+      setActionError("Coco’s next question isn’t available yet. Please return to your missions and try again.");
+      return;
+    }
+
     setActionError(null);
 
     const token = ++submissionTokenRef.current;
@@ -633,11 +663,11 @@ export function MissionFlowShell({
 
   function handleRevealHint(nextLevel: number) {
     // Record-only — never blocks the flow (D-08).
-    if (attemptId) {
+    if (attemptId && activeQuestion.recordingEnabled) {
       revealHintAction({
         assignmentStudentId,
         attemptId,
-        turnOrder: currentTurn.turnOrder,
+        turnOrder: activeQuestion.activeTurnOrder,
         hintLevel: nextLevel,
       });
     }
@@ -650,10 +680,15 @@ export function MissionFlowShell({
 
   function handleNextTurn() {
     revokeAudioUrls();
-    const nextIndex = flow.turnIndex + 1;
-    if (nextIndex < requiredTurns) {
-      setFlow({
-        turnIndex: nextIndex,
+    setFlow((previous) => {
+      const nextQuestion = advanceConversationQuestion({
+        turnIndex: previous.turnIndex,
+        pendingCocoLine: previous.cocoLine,
+      });
+      if (nextQuestion.turnIndex >= requiredTurns) return previous;
+
+      return {
+        turnIndex: nextQuestion.turnIndex,
         step: "question",
         hintLevel: 0,
         originalTranscript: null,
@@ -663,8 +698,9 @@ export function MissionFlowShell({
         repeatFeedback: null,
         hasRetriedThisTurn: false,
         cocoLine: null,
-      });
-    }
+        dynamicPrompt: nextQuestion.dynamicPrompt,
+      };
+    });
   }
 
   // ─── Render ───
@@ -743,12 +779,12 @@ export function MissionFlowShell({
 
         {flow.step === "cocoThinking" && <StepCocoThinking />}
 
-        {flow.step === "question" && currentTurn && (
+        {flow.step === "question" && activeQuestion.kind === "authored" && (
           <StepBuddyQuestion
             assignmentStudentId={assignmentStudentId}
-            turnOrder={currentTurn.turnOrder}
-            prompt={currentTurn.prompt}
-            hintLadder={currentTurn.hintLadder}
+            turnOrder={activeQuestion.activeTurnOrder}
+            prompt={activeQuestion.prompt}
+            hintLadder={activeQuestion.hintLadder}
             hintLevel={flow.hintLevel}
             onAmplitudeFrame={handleMascotAmplitudeFrame}
             onPlayingChange={handleMascotPlayingChange}
@@ -758,6 +794,38 @@ export function MissionFlowShell({
             onVoiceRecorded={handleSubmitOriginalVoice}
             isSubmitting={isSubmittingVoice}
           />
+        )}
+
+        {flow.step === "question" && activeQuestion.kind === "dynamic" && (
+          <StepBuddyQuestion
+            assignmentStudentId={assignmentStudentId}
+            turnOrder={activeQuestion.activeTurnOrder}
+            prompt={activeQuestion.prompt}
+            singleHint={activeQuestion.singleHint}
+            hintLevel={flow.hintLevel}
+            onAmplitudeFrame={handleMascotAmplitudeFrame}
+            onPlayingChange={handleMascotPlayingChange}
+            showCocoLine={false}
+            onRecorderStateChange={setOriginalRecorderState}
+            onRevealHint={handleRevealHint}
+            onVoiceRecorded={handleSubmitOriginalVoice}
+            isSubmitting={isSubmittingVoice}
+          />
+        )}
+
+        {flow.step === "question" && activeQuestion.kind === "unavailable" && (
+          <div style={stepCardStyle} role="alert">
+            <p style={{ fontSize: 16, color: "#4B5563", margin: 0, lineHeight: 1.5 }}>
+              Coco’s next question isn’t available yet. Please return to your missions and try again.
+            </p>
+            <button
+              type="button"
+              style={{ ...primaryButtonStyle, marginTop: 24 }}
+              onClick={() => router.push("/student/home")}
+            >
+              Back to missions
+            </button>
+          </div>
         )}
 
         {flow.step === "aiFeedback" && flow.originalFeedback && (
@@ -796,14 +864,20 @@ export function MissionFlowShell({
           />
         )}
 
-        {flow.step === "repeat" && currentTurn && (
+        {flow.step === "repeat" &&
+          activeQuestion.kind !== "unavailable" &&
+          (flow.improvedSentence ||
+            (activeQuestion.kind === "authored" ? activeQuestion.targetExample : null)) && (
           <StepImprovedRepeat
             assignmentStudentId={assignmentStudentId}
-            turnOrder={currentTurn.turnOrder}
+            turnOrder={activeQuestion.activeTurnOrder}
             // Terse card label on purpose — the fuller spoken phrasing
             // (characterProfile.improvedSentenceIntro) stays TTS-only.
             improvedSentenceLabel="Say"
-            targetExample={flow.improvedSentence ?? currentTurn.targetExample}
+            targetExample={
+              flow.improvedSentence ??
+              (activeQuestion.kind === "authored" ? activeQuestion.targetExample : "")
+            }
             onAmplitudeFrame={handleMascotAmplitudeFrame}
             onPlayingChange={handleMascotPlayingChange}
             showCocoLine={true}
@@ -888,13 +962,13 @@ export function MissionFlowShell({
 
 function getMascotDialogue({
   flow,
-  currentTurn,
+  activeQuestion,
   actionError,
   turnTransition,
   completionHeading,
 }: {
   flow: FlowState;
-  currentTurn?: MissionSnapshotTurn;
+  activeQuestion: ActiveStudentQuestion;
   actionError?: string | null;
   turnTransition: string;
   completionHeading: string;
@@ -909,10 +983,10 @@ function getMascotDialogue({
     return { text: null, line: null };
   }
 
-  if (flow.step === "question" && currentTurn) {
+  if (flow.step === "question" && activeQuestion.kind !== "unavailable") {
     return {
-      text: currentTurn.prompt,
-      line: { lineKind: "mission_prompt", turnOrder: currentTurn.turnOrder },
+      text: activeQuestion.prompt,
+      line: activeQuestion.line,
     };
   }
 
@@ -923,7 +997,7 @@ function getMascotDialogue({
   if (
     flow.step === "aiFeedback" &&
     flow.cocoLine &&
-    currentTurn &&
+    activeQuestion.kind !== "unavailable" &&
     (flow.originalFeedback?.kind === "acceptedOriginal" ||
       flow.originalFeedback?.kind === "needsCorrection")
   ) {
@@ -931,12 +1005,12 @@ function getMascotDialogue({
       text: flow.cocoLine,
       line: {
         lineKind: "coco_dynamic_line",
-        turnOrder: currentTurn.turnOrder,
+        turnOrder: activeQuestion.activeTurnOrder,
       },
     };
   }
 
-  if (flow.step === "repeat" && currentTurn) {
+  if (flow.step === "repeat" && activeQuestion.kind !== "unavailable") {
     // The target sentence + its own replay button now live in the
     // StepImprovedRepeat "Say" card (showCocoLine={true}). Keep Coco's
     // bubble to a generic prompt so the sentence isn't spoken/shown twice.

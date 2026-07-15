@@ -256,4 +256,25 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(questionSource).toContain("HintContent");
     expect(questionSource).toContain("<HintRevealer");
   });
+
+  it("routes dynamic student questions through owned prompt state and safe UI branches", () => {
+    const shellSource = readFileSync(
+      "src/components/student/MissionFlowShell.tsx",
+      "utf8",
+    );
+    const pageSource = readFileSync(
+      "src/app/student/missions/[assignmentStudentId]/page.tsx",
+      "utf8",
+    );
+
+    expect(shellSource).toContain("deriveActiveStudentQuestion");
+    expect(shellSource).toContain("advanceConversationQuestion");
+    expect(shellSource).toContain("dynamicPrompt");
+    expect(shellSource).toContain('kind === "unavailable"');
+    expect(shellSource).toContain("recordingEnabled");
+    expect(shellSource).toContain("coco_dynamic_line");
+    expect(pageSource).toContain("coco_line");
+    expect(pageSource).toContain("deriveResumedDynamicPrompt");
+    expect(pageSource).toContain("initialDynamicPrompt");
+  });
 });
