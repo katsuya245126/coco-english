@@ -82,6 +82,70 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
     );
   });
 
+  it("grounds a dynamic turn on its real Coco line without fabricating an example", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    const result = await evaluateOriginalTurn(
+      {
+        missionQuestion: "That sounds fun! What will you do next?",
+        transcript: "I will play soccer with my friends.",
+        targetPattern: "I will _____.",
+        targetExample: null,
+        level: "elementary",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      evaluation: correctOriginalProviderResult,
+    });
+    const request = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const userMessage = request?.input.find((message) => message.role === "user");
+    const prompt = JSON.parse(userMessage?.content ?? "{}") as {
+      missionQuestion?: string | null;
+      targetExample?: string | null;
+      targetPattern?: string;
+      instructions?: string[];
+    };
+
+    expect(prompt).toMatchObject({
+      missionQuestion: "That sounds fun! What will you do next?",
+      targetExample: null,
+      targetPattern: "I will _____.",
+    });
+    expect(prompt.instructions).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("missionQuestion plus targetPattern"),
+        expect.stringContaining("concrete improvedSentence"),
+      ]),
+    );
+  });
+
+  it("rejects a dynamic turn without a real Coco line before provider invocation", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    const result = await evaluateOriginalTurn(
+      {
+        missionQuestion: " ",
+        transcript: "I will play soccer with my friends.",
+        targetPattern: "I will _____.",
+        targetExample: null,
+        level: "elementary",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toEqual({ ok: false, error: "schema_failed" });
+    expect(client.responses.parse).not.toHaveBeenCalled();
+  });
+
   it("maps missing API key before creating a provider request", async () => {
     const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
     const client = createFakeClient({

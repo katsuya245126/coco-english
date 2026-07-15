@@ -49,7 +49,7 @@ export type TurnEvaluationResponsesClient = {
 export type EvaluateOriginalTurnInput = {
   missionQuestion?: string;
   targetPattern: string;
-  targetExample: string;
+  targetExample: string | null;
   level: MissionLevel;
   turnOrder?: number;
   transcript: string;
@@ -89,6 +89,22 @@ function createClient(apiKey: string): TurnEvaluationResponsesClient {
 }
 
 function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
+  const targetExampleInstructions =
+    input.targetExample === null
+      ? [
+          "This is a dynamic chat turn with no authored target example. Ground relevance and correction on the real missionQuestion plus targetPattern.",
+          "If correction is needed, produce a concrete improvedSentence that answers the missionQuestion while using the targetPattern; do not invent or refer to a target example.",
+          "Use needs_correction only when the target pattern is missing or the sentence is unclear, not when the student adds extra correct English.",
+        ]
+      : [
+          "The targetExample is only one possible answer, not required content. For an open-ended question, accept any relevant answer that fills the target grammatical frame; the student's nouns, verbs, or details may differ from the example.",
+          "Example: for 'What are you going to do after school?' with target pattern 'I'm going to _____', 'I am going to play games' is correct even if the targetExample says 'I'm going to do my homework.' Never replace a correct slot answer merely because its slot content differs.",
+          "Use needs_correction only when the target pattern is missing or the sentence is unclear, not when the student adds extra correct English.",
+          "If the transcript only repeats or echoes the missionQuestion back instead of answering it, that is NOT correct — use needs_correction with the assigned targetExample as the improvedSentence. This applies only when the target pattern itself is absent; a correct answer that also asks a question back (e.g. 'I'm fine, and you?' when the target is 'I'm fine.') still contains the target and must be marked correct, not treated as an echo.",
+          "A clear off-topic English answer, wrong answer, or answer to a different question is NOT teacher_review; use needs_correction and provide the assigned targetExample as the improvedSentence.",
+          "Short target examples such as 'Wow!' are valid complete answers; if the transcript is clear English but does not say the short target, use needs_correction with that short targetExample.",
+        ];
+
   return {
     missionQuestion: input.missionQuestion ?? null,
     targetPattern: input.targetPattern,
@@ -101,12 +117,7 @@ function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
       "Treat non-English transcripts as non_english and not successful practice.",
       "Mark as correct (outcome: 'correct') if the target pattern appears anywhere in the answer — extra words, greetings, or extensions are fine and should not cause needs_correction.",
       "Common English phrasing variants (contractions like 'I am' vs 'I'm', minor word-order or article differences that preserve the same meaning) are equivalent and should not cause needs_correction.",
-      "The targetExample is only one possible answer, not required content. For an open-ended question, accept any relevant answer that fills the target grammatical frame; the student's nouns, verbs, or details may differ from the example.",
-      "Example: for 'What are you going to do after school?' with target pattern 'I'm going to _____', 'I am going to play games' is correct even if the targetExample says 'I'm going to do my homework.' Never replace a correct slot answer merely because its slot content differs.",
-      "Use needs_correction only when the target pattern is missing or the sentence is unclear, not when the student adds extra correct English.",
-      "If the transcript only repeats or echoes the missionQuestion back instead of answering it, that is NOT correct — use needs_correction with the assigned targetExample as the improvedSentence. This applies only when the target pattern itself is absent; a correct answer that also asks a question back (e.g. 'I'm fine, and you?' when the target is 'I'm fine.') still contains the target and must be marked correct, not treated as an echo.",
-      "A clear off-topic English answer, wrong answer, or answer to a different question is NOT teacher_review; use needs_correction and provide the assigned targetExample as the improvedSentence.",
-      "Short target examples such as 'Wow!' are valid complete answers; if the transcript is clear English but does not say the short target, use needs_correction with that short targetExample.",
+      ...targetExampleInstructions,
       "Use teacher_review for ambiguity, low confidence, or unsafe uncertainty.",
       "Do not include student names, PINs, audio keys, or private class data.",
     ],
@@ -133,10 +144,15 @@ function buildRepeatPrompt(input: EvaluateRepeatTurnInput) {
 }
 
 function validOriginalInput(input: EvaluateOriginalTurnInput) {
+  const hasValidTargetExample =
+    input.targetExample === null
+      ? (input.missionQuestion?.trim().length ?? 0) > 0
+      : input.targetExample.trim().length > 0;
+
   return (
     missionLevelSchema.safeParse(input.level).success &&
     input.targetPattern.trim().length > 0 &&
-    input.targetExample.trim().length > 0 &&
+    hasValidTargetExample &&
     input.transcript.trim().length > 0
   );
 }
