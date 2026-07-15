@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Give every recordable Coco prompt on-demand Korean meanings for zero to three useful semantic phrases, presented inside the existing VN mascot dialogue with matched Coco, Hint, and TTS folder tabs.
+**Goal:** Give every recordable Coco prompt on-demand Korean meanings for zero to three useful semantic phrases, remove stale dynamic pattern hints, and make completion narration say only `Mission complete!`.
 
 **Architecture:** The browser sends only a bounded line descriptor. A student-gated server resolver loads the exact prompt from the assignment snapshot or persisted `attempt_turns.coco_line`, then a cache-first adapter selects and translates validated phrase spans. A focused client dialogue component preserves the original inline English, turns only returned spans into controls, and anchors a Korean-only bubble to the active phrase; `MascotStage` keeps its existing sprite, expression, crop, and speaking-pulse ownership.
 
@@ -17,6 +17,7 @@
 - No fixed translation panel, full-sentence translation, word-bank chip layout, press-and-hold requirement, heart/token economy, grade, or completion gate.
 - Translation failure is retryable and never blocks English text, TTS, recording, or completion.
 - Preset missions retain their pattern → word bank → full example ladder and gain translation. Conversation mode removes the pattern-derived single hint and uses translation only.
+- The full completion explanation remains visible, but completion TTS and assignment-time cache warming use only `Mission complete!`.
 - Keep the current mascot sprites, backdrop, crop, expression changes, pulse animation, TTS state machine, 44×44 TTS target, and `Play Coco` accessible label unchanged.
 - Use `#2563EB`, existing pale-blue surfaces, 6–8px radii, 14–16px tab labels, visible focus, and current mobile width constraints.
 - Automated tests inject fake provider clients and make no paid OpenAI calls.
@@ -50,6 +51,9 @@
 - Modify `src/components/student/StepBuddyQuestion.tsx`: render answer-help ladder only when supplied.
 - Modify `tests/server/student-mission-flow.test.ts`: preset ladder remains; dynamic pattern hint is gone.
 - Modify `tests/domain/tts-ui-source.test.ts`: tab placement, sprite preservation, and TTS-regression source contracts.
+- Modify `src/app/student/missions/[assignmentStudentId]/tts/route.ts`: resolve completion narration to the profile heading only.
+- Modify `src/server/mission/assign-service.ts`: warm only the short completion heading.
+- Modify `tests/server/mission-assign.test.ts`: assert the short completion cache entry and reject the administrative body.
 
 ### Task 1: Translation Hint Domain Contract and Exact-Span Validation
 
@@ -1299,10 +1303,95 @@ git add src/domain/mission/student-question-state.ts src/domain/mission/student-
 git commit -m "feat(11): use translation-only hints in dynamic chat"
 ```
 
-### Task 7: Full Verification, Migration Checkpoint, and Phone-Width UAT
+### Task 7: Short Completion Narration
 
 **Files:**
-- Verify production changes from Tasks 1-6.
+- Modify: `src/app/student/missions/[assignmentStudentId]/tts/route.ts`
+- Modify: `src/server/mission/assign-service.ts`
+- Modify: `tests/domain/tts-ui-source.test.ts`
+- Modify: `tests/server/mission-assign.test.ts`
+
+**Interfaces:**
+- Consumes: the existing `completion_celebration` TTS descriptor and `CharacterProfile.completionHeading`.
+- Produces: on-demand and prewarmed completion audio whose exact text is `Mission complete!`; visible `StepMissionComplete` body copy is unchanged.
+
+- [ ] **Step 1: Write failing completion narration regressions**
+
+Add this source contract to `tests/domain/tts-ui-source.test.ts`:
+
+```ts
+it("speaks only the short completion heading", () => {
+  const routeSource = readSource(
+    "src/app/student/missions/[assignmentStudentId]/tts/route.ts",
+  );
+
+  expect(routeSource).toContain('case "completion_celebration"');
+  expect(routeSource).toContain("return profile.completionHeading;");
+  expect(routeSource).not.toContain(
+    "`${profile.completionHeading} ${profile.completionBody(turnCount)}`",
+  );
+});
+```
+
+In the existing assignment cache-warming test in `tests/server/mission-assign.test.ts`, replace the long completion string with `"Mission complete!"`, then add:
+
+```ts
+const warmedTexts = mockWarmTtsAudioCache.mock.calls[0]?.[0].texts ?? [];
+expect(warmedTexts).not.toContain(
+  "Mission complete! Great work! You finished all 1 turns. Your teacher will see your answers.",
+);
+```
+
+- [ ] **Step 2: Run completion tests and verify RED**
+
+Run:
+
+```bash
+npx vitest run tests/domain/tts-ui-source.test.ts tests/server/mission-assign.test.ts
+```
+
+Expected: both new assertions FAIL because the TTS route and assignment warmer still concatenate `completionBody`.
+
+- [ ] **Step 3: Resolve and warm only the heading**
+
+In `resolveLineText` inside `src/app/student/missions/[assignmentStudentId]/tts/route.ts`, replace the completion branch with:
+
+```ts
+case "completion_celebration":
+  return profile.completionHeading;
+```
+
+Remove the now-unused `turnCount` argument from `resolveLineText` and its call site if TypeScript proves it is no longer needed elsewhere in that function.
+
+In `buildAssignmentTtsWarmTexts` inside `src/server/mission/assign-service.ts`, replace the combined completion entry with:
+
+```ts
+profile.completionHeading,
+```
+
+Do not change `completionBody`, `StepMissionComplete`, or the visible completion props.
+
+- [ ] **Step 4: Run completion tests and verify GREEN**
+
+Run:
+
+```bash
+npx vitest run tests/domain/tts-ui-source.test.ts tests/server/mission-assign.test.ts tests/domain/character-profile.test.ts
+```
+
+Expected: all three files PASS; profile tests still prove the full visible body contains the turn count and teacher-review message.
+
+- [ ] **Step 5: Commit short completion narration**
+
+```bash
+git add src/app/student/missions/'[assignmentStudentId]'/tts/route.ts src/server/mission/assign-service.ts tests/domain/tts-ui-source.test.ts tests/server/mission-assign.test.ts
+git commit -m "fix(11): keep completion narration concise"
+```
+
+### Task 8: Full Verification, Migration Checkpoint, and Phone-Width UAT
+
+**Files:**
+- Verify production changes from Tasks 1-7.
 - Modify: `.planning/STATE.md` only after real verification results are known.
 
 **Interfaces:**
@@ -1312,7 +1401,7 @@ git commit -m "feat(11): use translation-only hints in dynamic chat"
 - [ ] **Step 1: Run focused translation/chatbox tests**
 
 ```bash
-npx vitest run tests/domain/translation-hint.test.ts tests/server/translation-hint-generator.test.ts tests/server/translation-hint-cache.test.ts tests/server/translation-source.test.ts tests/server/translation-hint-route-source.test.ts tests/schema/translation-hint-cache-schema.test.ts src/domain/mission/student-question-state.test.ts tests/server/student-mission-flow.test.ts tests/domain/tts-ui-source.test.ts
+npx vitest run tests/domain/translation-hint.test.ts tests/server/translation-hint-generator.test.ts tests/server/translation-hint-cache.test.ts tests/server/translation-source.test.ts tests/server/translation-hint-route-source.test.ts tests/schema/translation-hint-cache-schema.test.ts src/domain/mission/student-question-state.test.ts tests/server/student-mission-flow.test.ts tests/domain/tts-ui-source.test.ts tests/server/mission-assign.test.ts tests/domain/character-profile.test.ts
 ```
 
 Expected: all listed files PASS; fake clients are the only provider clients used.
@@ -1367,8 +1456,9 @@ At 375px and 420px viewport widths, and once at desktop width, verify:
 10. Simulated route failure shows `Translation unavailable` plus retry while English, TTS, and recording stay usable.
 11. Conversation opener and later dynamic prompt have translation but no pattern-answer hint.
 12. Preset prompt has both translation and the existing three-tier answer-help ladder.
+13. Completion keeps the full explanatory text visible while Coco says only `Mission complete!`.
 
-Expected: all twelve checks pass.
+Expected: all thirteen checks pass.
 
 - [ ] **Step 6: Record truthful GSD completion state**
 
