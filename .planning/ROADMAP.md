@@ -201,6 +201,17 @@ Archive:
 
 **Research flag**: Highest-risk release in the milestone — needs the deepest phase-specific research/spike on (a) per-turn re-grounding prompt design to prevent drift, (b) moderation-endpoint integration pattern, (c) UI pattern for target-pattern transcript markup, and a concrete UAT/manual-review deliverable confirming drift/safety guardrails hold in practice. Research + UI-SPEC complete; the manual-review deliverable is planned as 11-07.
 
+### Phase 11.1: Coco Chat Opening Line & Dynamic-Turn Runnability (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 11
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 11.1 to break down)
+
 ### Phase 12: UI Overhaul
 
 **Goal**: The app receives one cohesive visual pass that unifies voice, mascot, and conversation into a scene-like experience, without regressing the working v1 homework loop.
