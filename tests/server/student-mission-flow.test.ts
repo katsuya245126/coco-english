@@ -268,7 +268,6 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     );
 
     expect(shellSource).toContain("deriveActiveStudentQuestion");
-    expect(shellSource).toContain("advanceConversationQuestion");
     expect(shellSource).toContain("dynamicPrompt");
     expect(shellSource).toContain('kind === "unavailable"');
     expect(shellSource).toContain("recordingEnabled");
@@ -276,5 +275,26 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(pageSource).toContain("coco_line");
     expect(pageSource).toContain("deriveResumedDynamicPrompt");
     expect(pageSource).toContain("initialDynamicPrompt");
+  });
+
+  it("advances accepted chat originals and repeats without preset success or transition steps", () => {
+    const shellSource = readFileSync(
+      "src/components/student/MissionFlowShell.tsx",
+      "utf8",
+    );
+
+    expect(shellSource).toContain("resolveAcceptedConversationTurn");
+    expect(shellSource).toContain("continueAcceptedConversationTurn");
+    expect(shellSource).toMatch(
+      /conversationMode[\s\S]*originalFeedback\.kind === "acceptedOriginal"[\s\S]*continueAcceptedConversationTurn/,
+    );
+    expect(shellSource).toMatch(
+      /conversationMode[\s\S]*repeatFeedback\.kind === "repeatAccepted"[\s\S]*continueAcceptedConversationTurn/,
+    );
+    expect(shellSource).toContain('resolution.kind === "unavailable"');
+    expect(shellSource).toContain("Coco’s next question isn’t available yet");
+    expect(shellSource).toContain("StepTurnTransition");
+    expect(shellSource).toContain("finishAcceptedOriginal");
+    expect(shellSource).toContain("finishRepeatFeedback");
   });
 });
