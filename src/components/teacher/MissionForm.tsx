@@ -307,10 +307,10 @@ export function MissionForm({
 
             <div style={{ marginTop: 24, maxWidth: 560 }}>
               <label htmlFor="coco-opening-line" style={labelStyle}>
-                Coco's opening line
+                {"Coco's opening line"}
               </label>
               <p id="coco-opening-line-help" style={helpTextStyle}>
-                Coco's first question for every student in this mission.
+                {"Coco's first question for every student in this mission."}
                 Generate a draft, then edit it before saving.
               </p>
               <textarea

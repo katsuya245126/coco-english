@@ -6,9 +6,9 @@ current_phase: 11
 current_phase_name: coco-chat-dynamic-turns-scene-framing
 status: executing
 stopped_at: 11.1-04 complete — dynamic student turn branch, owned prompt resume, and safe unavailable state implemented
-last_updated: "2026-07-15T08:02:21Z"
+last_updated: "2026-07-15T08:10:21Z"
 last_activity: 2026-07-15
-last_activity_desc: Completed 11.1-04 dynamic student turn runnability and closed Phase 11.1
+last_activity_desc: Verified Phase 11.1 at current HEAD and corrected its JSX lint regression
 progress:
   total_phases: 8
   completed_phases: 5
@@ -38,7 +38,7 @@ The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on de
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
 The `mission-create-retry-cleanup` follow-up found mission creation itself was healthy: an active dev server had been corrupted when production builds rewrote its `.next` chunks, leaving the form unhydrated and causing native GET submission. A clean restart restored two verified real saves. The retry route now honors `needs_retry` past the original deadline, and the teacher AI mission-draft feature was removed end-to-end. Phase 11's roadmap now requires standalone scene-premise generation rather than restoring full mission drafting.
 
-Last activity: 2026-07-15 — Completed 11.1-04 dynamic student turn runnability and closed Phase 11.1
+Last activity: 2026-07-15 — Verified Phase 11.1 at current HEAD and corrected its JSX lint regression
 
 Progress: [█████████░] 89%
 
