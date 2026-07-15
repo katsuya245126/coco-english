@@ -12,6 +12,7 @@ export type CompletionTurn = {
   repeat_transcript: string | null;
   repeat_accepted: boolean | null;
   evaluation?: unknown;
+  coco_line?: string | null;
 };
 
 export type PendingTurnReview =
@@ -21,6 +22,7 @@ export type PendingTurnReview =
       transcript: string;
       improvedSentence: string | null;
       clipKind: "original_answer";
+      cocoLine: string | null;
     }
   | {
       step: "repeatFeedback";
@@ -29,6 +31,7 @@ export type PendingTurnReview =
       originalTranscript: string;
       improvedSentence: string | null;
       clipKind: "repeat_attempt";
+      cocoLine: string | null;
     };
 
 function evaluationOutcome(turn: CompletionTurn): string | null {
@@ -104,6 +107,7 @@ export function getPendingTurnReview(
       originalTranscript,
       improvedSentence: turn.improved_sentence ?? null,
       clipKind: "repeat_attempt",
+      cocoLine: turn.coco_line?.trim() || null,
     };
   }
 
@@ -123,6 +127,7 @@ export function getPendingTurnReview(
     transcript: originalTranscript,
     improvedSentence: turn.improved_sentence ?? null,
     clipKind: "original_answer",
+    cocoLine: turn.coco_line?.trim() || null,
   };
 }
 

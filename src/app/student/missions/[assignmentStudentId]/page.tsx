@@ -132,6 +132,7 @@ export default async function MissionPage({ params }: MissionPageProps) {
           repeat_transcript: t.repeat_transcript,
           repeat_accepted: t.repeat_accepted,
           evaluation: t.evaluation,
+          coco_line: t.coco_line,
         })),
       );
 

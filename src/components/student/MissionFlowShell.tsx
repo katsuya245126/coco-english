@@ -212,6 +212,7 @@ function initialFlowState(
       originalTranscript: initialReview.transcript,
       improvedSentence: initialReview.improvedSentence,
       originalFeedback,
+      cocoLine: initialReview.cocoLine,
     };
   }
 
@@ -225,6 +226,7 @@ function initialFlowState(
       kind: initialReview.outcome,
       transcript: initialReview.transcript,
     },
+    cocoLine: initialReview.cocoLine,
   };
 }
 

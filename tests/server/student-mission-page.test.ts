@@ -29,4 +29,9 @@ describe("student mission resume state", () => {
     expect(pageSource).toContain('asRow.status !== "needs_retry"');
     expect(pageSource).toContain("assignment.due_at");
   });
+
+  it("restores the pending Coco line for a resumed correction or repeat review (D-11.1)", () => {
+    expect(pageSource).toContain("coco_line: t.coco_line");
+    expect(shellSource).toContain("cocoLine: initialReview.cocoLine");
+  });
 });
