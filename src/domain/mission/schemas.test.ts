@@ -74,7 +74,7 @@ describe("missionFormSchema", () => {
     }
   });
 
-  it("passes with zero authored turns when conversationMode is true", () => {
+  it("requires a Coco opening line when conversationMode is true", () => {
     const result = missionFormSchema.safeParse({
       ...baseFormFields,
       requiredTurns: 5,
@@ -82,7 +82,13 @@ describe("missionFormSchema", () => {
       turns: [],
     });
 
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find((entry) =>
+        entry.path.includes("turns"),
+      );
+      expect(issue?.message).toBe("Coco opening line is required.");
+    }
   });
 
   it("enforces a 3-8 requiredTurns range when conversationMode is true", () => {
@@ -90,7 +96,7 @@ describe("missionFormSchema", () => {
       ...baseFormFields,
       requiredTurns: 2,
       conversationMode: true,
-      turns: [],
+      turns: makeTurns(1),
     });
     expect(tooLow.success).toBe(false);
     if (!tooLow.success) {
@@ -104,7 +110,7 @@ describe("missionFormSchema", () => {
       ...baseFormFields,
       requiredTurns: 3,
       conversationMode: true,
-      turns: [],
+      turns: makeTurns(1),
     });
     expect(low.success).toBe(true);
 
@@ -112,7 +118,7 @@ describe("missionFormSchema", () => {
       ...baseFormFields,
       requiredTurns: 5,
       conversationMode: true,
-      turns: [],
+      turns: makeTurns(1),
     });
     expect(mid.success).toBe(true);
 
@@ -120,7 +126,7 @@ describe("missionFormSchema", () => {
       ...baseFormFields,
       requiredTurns: 8,
       conversationMode: true,
-      turns: [],
+      turns: makeTurns(1),
     });
     expect(high.success).toBe(true);
 
@@ -128,7 +134,7 @@ describe("missionFormSchema", () => {
       ...baseFormFields,
       requiredTurns: 9,
       conversationMode: true,
-      turns: [],
+      turns: makeTurns(1),
     });
     expect(tooHigh.success).toBe(false);
     if (!tooHigh.success) {
@@ -152,7 +158,7 @@ describe("missionFormSchema", () => {
 });
 
 describe("missionSnapshotSchema", () => {
-  it("validates a conversation-mode snapshot with zero turns and a scenePremise", () => {
+  it("requires a Coco opening line in a conversation-mode snapshot", () => {
     const result = missionSnapshotSchema.safeParse({
       ...baseSnapshotFields,
       requiredTurns: 5,
@@ -161,12 +167,14 @@ describe("missionSnapshotSchema", () => {
       turns: [],
     });
 
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.scenePremise).toBe(
-        "You and Coco are exploring a busy market.",
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find((entry) =>
+        entry.path.includes("turns"),
       );
-      expect(result.data.conversationMode).toBe(true);
+      expect(issue?.message).toBe(
+        "Snapshot Coco opening line is required.",
+      );
     }
   });
 
@@ -175,7 +183,7 @@ describe("missionSnapshotSchema", () => {
       ...baseSnapshotFields,
       requiredTurns: 5,
       conversationMode: true,
-      turns: [],
+      turns: makeSnapshotTurns(1),
     });
 
     expect(result.success).toBe(true);
