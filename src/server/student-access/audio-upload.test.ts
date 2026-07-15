@@ -94,6 +94,19 @@ const conversationMissionSnapshotFixture = {
   ],
 };
 
+const soccerConversationSnapshot = {
+  ...conversationMissionSnapshotFixture,
+  targetPattern: "How often do you _____?",
+  turns: [
+    {
+      ...conversationMissionSnapshotFixture.turns[0],
+      turnOrder: 1,
+      prompt: "How often do you play soccer?",
+      targetExample: "How often do you play soccer?",
+    },
+  ],
+};
+
 function createMockSupabase(options: {
   assignmentFound?: boolean;
   attemptFound?: boolean;
@@ -313,6 +326,91 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     }
   });
 
+  it("accepts a relevant free-talk opener without requiring the target pattern", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: soccerConversationSnapshot as unknown as typeof conversationMissionSnapshotFixture,
+    });
+
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const evaluateOriginal = successfulOriginalEvaluator();
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "Oh, what do you like to do instead?" },
+    }));
+    const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      transcribeAudioFile: successfulTranscriber("I don't play soccer."),
+      evaluateOriginalTurn: evaluateOriginal,
+      generateCocoReply: generate,
+      isContentSafe: moderate,
+    });
+
+    expect(evaluateOriginal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        evaluationMode: "conversation",
+        missionQuestion: "How often do you play soccer?",
+        targetPattern: "How often do you _____?",
+        targetExample: null,
+        transcript: "I don't play soccer.",
+      }),
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: { outcome: "accepted_original" },
+      cocoLine: "Oh, what do you like to do instead?",
+    });
+  });
+
+  it("routes an incorrect free-talk opener through conversation-mode correction while still returning the next Coco line", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: soccerConversationSnapshot as unknown as typeof conversationMissionSnapshotFixture,
+    });
+
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const evaluateOriginal = successfulOriginalEvaluator({
+      outcome: "needs_correction",
+      correctionNeeded: true,
+      improvedSentence: "I don't play soccer.",
+    });
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "Oh, what do you like to do instead?" },
+    }));
+    const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      transcribeAudioFile: successfulTranscriber("I no play soccer."),
+      evaluateOriginalTurn: evaluateOriginal,
+      generateCocoReply: generate,
+      isContentSafe: moderate,
+    });
+
+    expect(evaluateOriginal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        evaluationMode: "conversation",
+        missionQuestion: "How often do you play soccer?",
+        targetExample: null,
+        transcript: "I no play soccer.",
+      }),
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "needs_correction",
+        improvedSentence: "I don't play soccer.",
+        requireRepeat: true,
+      },
+      cocoLine: "Oh, what do you like to do instead?",
+    });
+  });
+
   it("flagged student input: no generateCocoReply call; canned redirect persisted with flagged_student_input event", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
@@ -399,6 +497,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     expect(result.ok).toBe(true);
     expect(evaluateOriginal).toHaveBeenCalledWith(
       expect.objectContaining({
+        evaluationMode: "conversation",
         missionQuestion: "That sounds fun! What will you do next?",
         targetExample: null,
       }),

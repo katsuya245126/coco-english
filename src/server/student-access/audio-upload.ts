@@ -593,7 +593,10 @@ export async function uploadAttemptAudioClip(
     }
 
     const missionQuestion = snapshotTurn?.prompt ?? previousCocoLine;
-    const targetExample = snapshotTurn?.targetExample ?? null;
+    const targetExample =
+      snapshot.conversationMode === true
+        ? null
+        : snapshotTurn?.targetExample ?? null;
 
     const audioBytes = await timeStage("readAudio", () => input.file.arrayBuffer());
     const createAudioBlob = () => new Blob([audioBytes], { type: input.mimeType });
@@ -810,6 +813,10 @@ export async function uploadAttemptAudioClip(
               : await timeStage("evaluation", () => {
                   const evaluate = deps.evaluateOriginalTurn ?? evaluateOriginalTurn;
                   return evaluate({
+                    evaluationMode:
+                      snapshot.conversationMode === true
+                        ? "conversation"
+                        : "preset",
                     missionQuestion: missionQuestion ?? undefined,
                     targetPattern: snapshot.targetPattern,
                     targetExample,
