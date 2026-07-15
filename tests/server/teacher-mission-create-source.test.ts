@@ -47,4 +47,16 @@ describe("manual teacher mission creation", () => {
     expect(openerAction).not.toContain("revalidatePath");
     expect(openerAction).not.toContain("selectFallbackLine");
   });
+
+  it("wires the reviewed Coco opener through the tested turn serializer", () => {
+    const form = readSource("src/components/teacher/MissionForm.tsx");
+
+    expect(form).toContain("generateOpenerAction");
+    expect(form).toContain("serializeMissionTurns");
+    expect(form).toContain("Coco's opening line");
+    expect(form).toContain("Generate opener");
+    expect(form).toMatch(
+      /formData\.set\(\s*"turns",\s*JSON\.stringify\(\s*serializeMissionTurns/s,
+    );
+  });
 });
