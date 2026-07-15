@@ -894,7 +894,7 @@ git commit -m "feat(11): serve hints from owned Coco prompt text"
 - Consumes: `TranslatableCocoLine`, `TranslationPhrase`, `buildTranslationSegments`, existing `voiceControl`, and existing dialogue text.
 - Produces: a reusable dialogue box that owns Hint state and renders matched Coco/Hint/TTS tabs plus inline English/Korean phrase interaction.
 
-- [ ] **Step 1: Add failing VN/chatbox source tests**
+- [x] **Step 1: Add failing VN/chatbox source tests**
 
 Extend `tests/domain/tts-ui-source.test.ts`:
 
@@ -947,7 +947,7 @@ it("keeps translation failure retryable and recording-independent", () => {
 });
 ```
 
-- [ ] **Step 2: Run source tests and verify RED**
+- [x] **Step 2: Run source tests and verify RED**
 
 Run:
 
@@ -957,7 +957,7 @@ npx vitest run tests/domain/tts-ui-source.test.ts
 
 Expected: FAIL because `CocoDialogueBox.tsx` and the tab styles do not exist.
 
-- [ ] **Step 3: Implement `CocoDialogueBox` state and fetch contract**
+- [x] **Step 3: Implement `CocoDialogueBox` state and fetch contract**
 
 Create props:
 
@@ -1009,7 +1009,7 @@ JSON.stringify({
 
 On non-OK/malformed response, set `error`; on success, validate again with `parseTranslationHint(dialogueText, { phrases: payload.phrases })` before setting `ready`. The client-side revalidation is defense-in-depth and rendering safety, not source-text authorization.
 
-- [ ] **Step 4: Render the matched controls and inline sentence**
+- [x] **Step 4: Render the matched controls and inline sentence**
 
 Inside the existing white dialogue box, render one absolute top tab row:
 
@@ -1035,7 +1035,7 @@ When inactive/loading/error, render the unchanged `dialogueText` as one React te
 
 For error, keep the full English sentence visible and expose a compact button with accessible label/title `Retry translation` and visible copy `Translation unavailable`.
 
-- [ ] **Step 5: Add folder-tab and anchored-bubble styles**
+- [x] **Step 5: Add folder-tab and anchored-bubble styles**
 
 In `src/components/student/styles.ts`:
 
@@ -1048,7 +1048,7 @@ In `src/components/student/styles.ts`:
 - Style phrase buttons with visible boundaries, inherited 18px dialogue typography, keyboard focus, and a minimum 44px hit area using inline-block padding/negative block margin so the sentence remains inline.
 - Position the Korean bubble `absolute` above or below its phrase wrapper with a higher z-index, max width that fits the 16px phone insets, and no effect on surrounding sentence layout.
 
-- [ ] **Step 6: Delegate only dialogue rendering from `MascotStage`**
+- [x] **Step 6: Delegate only dialogue rendering from `MascotStage`**
 
 Add `assignmentStudentId` and `translationLine` props to `MascotStage`, import `CocoDialogueBox`, and replace only the existing inner `mascotDialogueBoxStyle` JSX with:
 
@@ -1064,7 +1064,7 @@ Add `assignmentStudentId` and `translationLine` props to `MascotStage`, import `
 
 Do not change `SPRITE_BY_EXPRESSION`, Image props, stage geometry, animation effects, amplitude handling, or `deriveExpression`.
 
-- [ ] **Step 7: Run TTS/VN source tests**
+- [x] **Step 7: Run TTS/VN source tests**
 
 Run:
 
@@ -1074,7 +1074,7 @@ npx vitest run tests/domain/tts-ui-source.test.ts tests/domain/translation-hint.
 
 Expected: PASS. Existing `Play Coco`, native `<audio>`, no-Web-Audio, sprite, crop, and pulse assertions remain green.
 
-- [ ] **Step 8: Commit VN tabs and inline phrase UI**
+- [x] **Step 8: Commit VN tabs and inline phrase UI**
 
 ```bash
 git add src/components/student/CocoDialogueBox.tsx src/components/student/MascotStage.tsx src/components/student/styles.ts tests/domain/tts-ui-source.test.ts

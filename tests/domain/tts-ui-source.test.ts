@@ -73,6 +73,52 @@ describe("CocoSpeechAudio replay UI source contract (VOICE-02, D-12, D-13)", () 
 });
 
 describe("Coco voice line integration in mission step cards (D-06..D-11)", () => {
+  it("uses matched Coco, Hint, and TTS tabs while preserving the mascot stage", () => {
+    const stageSource = readSource("src/components/student/MascotStage.tsx");
+    const dialogueSource = readSource(
+      "src/components/student/CocoDialogueBox.tsx",
+    );
+    const stylesSource = readSource("src/components/student/styles.ts");
+
+    expect(stageSource).toContain("<CocoDialogueBox");
+    expect(stageSource).toContain("SPRITE_BY_EXPRESSION");
+    expect(stageSource).toContain("updateSpeakingVisual");
+    expect(dialogueSource).toContain("displayName");
+    expect(dialogueSource).toMatch(/>\s*Hint\s*</);
+    expect(dialogueSource).toContain("voiceControl");
+    expect(stylesSource).toContain('color: "#2563EB"');
+    expect(stylesSource).toContain("minHeight: 44");
+  });
+
+  it("keeps English inline and shows Korean only in an anchored phrase bubble", () => {
+    const dialogueSource = readSource(
+      "src/components/student/CocoDialogueBox.tsx",
+    );
+
+    expect(dialogueSource).toContain("buildTranslationSegments");
+    expect(dialogueSource).toContain("aria-expanded={isExpanded}");
+    expect(dialogueSource).toContain("phrase.translation");
+    expect(dialogueSource).not.toContain("dangerouslySetInnerHTML");
+    expect(dialogueSource).not.toContain("onPointerDown");
+    expect(dialogueSource).not.toContain("onTouchStart");
+  });
+
+  it("keeps translation failure retryable and recording-independent", () => {
+    const dialogueSource = readSource(
+      "src/components/student/CocoDialogueBox.tsx",
+    );
+    const shellSource = readSource(
+      "src/components/student/MissionFlowShell.tsx",
+    );
+
+    expect(dialogueSource).toContain("Translation unavailable");
+    expect(dialogueSource).toContain("loadTranslationHint");
+    expect(dialogueSource).toContain("Retry translation");
+    expect(shellSource).not.toMatch(
+      /VoiceRecorderControl[\s\S]*disabled=\{.*translation/,
+    );
+  });
+
   it("wires CocoSpeechAudio into the buddy question, improved repeat, transition, and completion steps", () => {
     const questionSource = readSource(
       "src/components/student/StepBuddyQuestion.tsx",

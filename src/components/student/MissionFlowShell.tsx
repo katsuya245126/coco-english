@@ -813,8 +813,10 @@ export function MissionFlowShell({
       )}
 
       <MascotStage
+        assignmentStudentId={assignmentStudentId}
         displayName={characterProfile.displayName}
         dialogueText={mascotDialogue.text}
+        translationLine={null}
         voiceControl={
           mascotDialogue.line ? (
             <CocoSpeechAudio

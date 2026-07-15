@@ -323,9 +323,92 @@ export const mascotDialogueBoxStyle: CSSProperties = {
   background: "#FFFFFF",
   borderTop: "3px solid #2563EB",
   borderRadius: 8,
-  padding: 16,
+  padding: "22px 16px 12px",
   boxSizing: "border-box",
   overflowY: "auto",
+};
+
+export const mascotDialogueTabsStyle: CSSProperties = {
+  position: "absolute",
+  left: 8,
+  right: 8,
+  top: -3,
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 4,
+  pointerEvents: "none",
+};
+
+const mascotTabBaseStyle: CSSProperties = {
+  minHeight: 44,
+  padding: "6px 12px",
+  borderRadius: "8px 8px 0 0",
+  fontSize: 14,
+  fontWeight: 700,
+  lineHeight: 1.2,
+  boxSizing: "border-box",
+  pointerEvents: "auto",
+};
+
+export const mascotNameTabStyle: CSSProperties = {
+  ...mascotTabBaseStyle,
+  background: "#2563EB",
+  color: "#FFFFFF",
+  display: "inline-flex",
+  alignItems: "center",
+};
+
+export const mascotHintTabStyle: CSSProperties = {
+  ...mascotTabBaseStyle,
+  background: "#EFF6FF",
+  color: "#2563EB",
+  border: "1px solid #93C5FD",
+  cursor: "pointer",
+};
+
+export const mascotVoiceTabStyle: CSSProperties = {
+  ...mascotTabBaseStyle,
+  marginLeft: "auto",
+  background: "#EFF6FF",
+  color: "#2563EB",
+  padding: 0,
+};
+
+export const mascotDialogueTextStyle: CSSProperties = {
+  fontSize: 18,
+  fontWeight: 600,
+  lineHeight: 1.3,
+  color: "#111827",
+  margin: 0,
+};
+
+export const mascotPhraseButtonStyle: CSSProperties = {
+  minHeight: 44,
+  padding: "8px 3px",
+  margin: "-8px 0",
+  border: "1px solid #93C5FD",
+  borderRadius: 6,
+  background: "#EFF6FF",
+  color: "inherit",
+  font: "inherit",
+  cursor: "pointer",
+};
+
+export const mascotTranslationBubbleStyle: CSSProperties = {
+  position: "absolute",
+  left: "50%",
+  top: "calc(100% + 6px)",
+  transform: "translateX(-50%)",
+  zIndex: 5,
+  maxWidth: "calc(100vw - 32px)",
+  padding: "6px 10px",
+  borderRadius: 8,
+  background: "#1E3A8A",
+  color: "#FFFFFF",
+  fontSize: 15,
+  fontWeight: 600,
+  lineHeight: 1.3,
+  whiteSpace: "nowrap",
 };
 
 export const mascotSpeakerLabelStyle: CSSProperties = {
