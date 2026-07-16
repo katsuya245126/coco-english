@@ -134,6 +134,35 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     );
   });
 
+  it("opens the first Korean phrase immediately and toggles without refetching", () => {
+    const dialogueSource = readSource(
+      "src/components/student/CocoDialogueBox.tsx",
+    );
+
+    expect(dialogueSource).toContain(
+      "getFirstTranslationPhraseSegmentIndex",
+    );
+    expect(dialogueSource).toContain("toggleTranslationBubble");
+    expect(dialogueSource).toMatch(
+      /translationState\.kind === "ready"[\s\S]*setExpandedPhraseIndex[\s\S]*return/,
+    );
+    expect(dialogueSource).toMatch(
+      /setTranslationState\(\{ kind: "ready"[\s\S]*setExpandedPhraseIndex\(firstPhraseIndex\)/,
+    );
+    expect(dialogueSource).toMatch(
+      /firstPhraseIndex === null[\s\S]*setTranslationState\(\{ kind: "error" \}\)/,
+    );
+    const readyBranchIndex = dialogueSource.indexOf(
+      'if (translationState.kind === "ready")',
+    );
+    const fetchIndex = dialogueSource.indexOf("await fetch(");
+    expect(readyBranchIndex).toBeGreaterThan(-1);
+    expect(fetchIndex).toBeGreaterThan(readyBranchIndex);
+    expect(dialogueSource).toContain(
+      "aria-pressed={expandedPhraseIndex !== null}",
+    );
+  });
+
   it("uses an icon-only dialogue-tab replay without changing standalone TTS", () => {
     const audioSource = readSource("src/components/student/CocoSpeechAudio.tsx");
     const shellSource = readSource("src/components/student/MissionFlowShell.tsx");

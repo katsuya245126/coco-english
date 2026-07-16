@@ -4,7 +4,9 @@ import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import {
   buildTranslationSegments,
+  getFirstTranslationPhraseSegmentIndex,
   parseTranslationHint,
+  toggleTranslationBubble,
   type TranslatableCocoLine,
   type TranslationPhrase,
 } from "@/domain/ai/translation-hint";
@@ -69,6 +71,16 @@ export function CocoDialogueBox({
 
   async function loadTranslationHint() {
     if (!translationLine || !dialogueText) return;
+    if (translationState.kind === "ready") {
+      const firstPhraseIndex = getFirstTranslationPhraseSegmentIndex(
+        dialogueText,
+        translationState.phrases,
+      );
+      setExpandedPhraseIndex((currentIndex) =>
+        toggleTranslationBubble(currentIndex, firstPhraseIndex),
+      );
+      return;
+    }
     activeRequestRef.current?.abort();
     const controller = new AbortController();
     activeRequestRef.current = controller;
@@ -112,7 +124,16 @@ export function CocoDialogueBox({
         setTranslationState({ kind: "error" });
         return;
       }
+      const firstPhraseIndex = getFirstTranslationPhraseSegmentIndex(
+        dialogueText,
+        parsed.hint.phrases,
+      );
+      if (firstPhraseIndex === null) {
+        setTranslationState({ kind: "error" });
+        return;
+      }
       setTranslationState({ kind: "ready", phrases: parsed.hint.phrases });
+      setExpandedPhraseIndex(firstPhraseIndex);
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") return;
       if (requestTokenRef.current !== requestToken) return;
@@ -141,7 +162,7 @@ export function CocoDialogueBox({
               type="button"
               aria-label={hintLabel}
               title={hintLabel}
-              aria-pressed={translationState.kind === "ready"}
+              aria-pressed={expandedPhraseIndex !== null}
               aria-busy={translationState.kind === "loading"}
               onClick={loadTranslationHint}
               style={{
