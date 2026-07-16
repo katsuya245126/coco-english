@@ -318,6 +318,7 @@ describe("uploadAttemptAudioClip", () => {
     });
     expect(evaluateOriginal).toHaveBeenCalledWith(
       expect.objectContaining({
+        evaluationMode: "preset",
         transcript: "I like apples.",
         targetPattern: "I like ___ing.",
         targetExample: "I like playing soccer after school.",

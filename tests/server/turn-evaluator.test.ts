@@ -32,6 +32,7 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
 
     const result = await evaluateOriginalTurn(
       {
+        evaluationMode: "preset",
         transcript: "I like playing soccer after school.",
         targetPattern: "I like ___ing.",
         targetExample: "I like playing soccer after school.",
@@ -57,6 +58,7 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
 
     const result = await evaluateOriginalTurn(
       {
+        evaluationMode: "preset",
         missionQuestion: "What are you going to do after school?",
         transcript: "I am going to play games.",
         targetPattern: "I'm going to _____.",
@@ -90,6 +92,7 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
 
     const result = await evaluateOriginalTurn(
       {
+        evaluationMode: "conversation",
         missionQuestion: "That sounds fun! What will you do next?",
         transcript: "I will play soccer with my friends.",
         targetPattern: "I will _____.",
@@ -119,8 +122,11 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
     });
     expect(prompt.instructions).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("missionQuestion plus targetPattern"),
-        expect.stringContaining("concrete improvedSentence"),
+        expect.stringContaining("relevant response to missionQuestion"),
+        expect.stringContaining("preserve the student's intended meaning"),
+        // Fragments like "I don't" must be expanded into a full-sentence
+        // answer, never "corrected" to the question itself (UAT 2026-07-16).
+        expect.stringContaining("incomplete fragment"),
       ]),
     );
   });
@@ -133,6 +139,7 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
 
     const result = await evaluateOriginalTurn(
       {
+        evaluationMode: "conversation",
         missionQuestion: " ",
         transcript: "I will play soccer with my friends.",
         targetPattern: "I will _____.",
@@ -154,6 +161,7 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
 
     const result = await evaluateOriginalTurn(
       {
+        evaluationMode: "preset",
         transcript: "I like soccer.",
         targetPattern: "I like ___ing.",
         targetExample: "I like playing soccer.",
@@ -178,6 +186,7 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
 
     const result = await evaluateOriginalTurn(
       {
+        evaluationMode: "preset",
         transcript: "I like soccer.",
         targetPattern: "I like ___ing.",
         targetExample: "I like playing soccer.",
@@ -200,6 +209,7 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
 
     const result = await evaluateOriginalTurn(
       {
+        evaluationMode: "preset",
         transcript: "サッカーが好きです。",
         targetPattern: "I like ___ing.",
         targetExample: "I like playing soccer.",
@@ -226,6 +236,7 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
 
     const result = await evaluateOriginalTurn(
       {
+        evaluationMode: "preset",
         missionQuestion: "Say wow.",
         transcript: "There was once a man.",
         targetPattern: "wow",
@@ -247,6 +258,101 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
         expect.stringContaining("clear off-topic English"),
         expect.stringContaining("NOT teacher_review"),
         expect.stringContaining("Short target examples"),
+      ]),
+    );
+  });
+
+  it("accepts a premise-disagreeing free-talk answer without requiring the target pattern", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    const result = await evaluateOriginalTurn(
+      {
+        evaluationMode: "conversation",
+        missionQuestion: "How often do you play soccer?",
+        transcript: "I don't play soccer.",
+        targetPattern: "How often do you _____?",
+        targetExample: null,
+        level: "elementary",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      evaluation: correctOriginalProviderResult,
+    });
+
+    const request = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const userMessage = request?.input.find((message) => message.role === "user");
+    const prompt = JSON.parse(userMessage?.content ?? "{}") as {
+      evaluationMode?: string;
+      targetExample?: string | null;
+      instructions?: string[];
+    };
+
+    expect(prompt).toMatchObject({
+      evaluationMode: "conversation",
+      targetExample: null,
+    });
+    expect(prompt.instructions).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("relevant and grammatically valid English"),
+        expect.stringContaining("does not use the targetPattern"),
+        expect.stringContaining("disagrees with the question's premise"),
+        expect.stringContaining("I don't play soccer"),
+      ]),
+    );
+    expect(prompt.instructions?.join(" ")).not.toContain(
+      "target pattern appears anywhere",
+    );
+  });
+
+  it("instructs conversation correction to preserve meaning instead of parroting Coco's question", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: {
+        ...correctOriginalProviderResult,
+        outcome: "needs_correction",
+        targetPatternAttempted: false,
+        correctionNeeded: true,
+        improvedSentence: "I don't play soccer.",
+      },
+    });
+
+    const result = await evaluateOriginalTurn(
+      {
+        evaluationMode: "conversation",
+        missionQuestion: "How often do you play soccer?",
+        transcript: "I no play soccer.",
+        targetPattern: "How often do you _____?",
+        targetExample: null,
+        level: "elementary",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "needs_correction",
+        improvedSentence: "I don't play soccer.",
+      },
+    });
+
+    const request = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const userMessage = request?.input.find((message) => message.role === "user");
+    const prompt = JSON.parse(userMessage?.content ?? "{}") as {
+      instructions?: string[];
+    };
+    expect(prompt.instructions).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("preserve the student's intended meaning"),
+        expect.stringContaining("Never use the missionQuestion as improvedSentence"),
+        expect.stringContaining("I no play soccer"),
+        expect.stringContaining("I don't play soccer"),
       ]),
     );
   });

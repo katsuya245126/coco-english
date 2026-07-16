@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Give every recordable Coco prompt on-demand Korean meanings for zero to three useful semantic phrases, presented inside the existing VN mascot dialogue with matched Coco, Hint, and TTS folder tabs.
+**Goal:** Give every recordable Coco prompt on-demand Korean meanings for zero to three useful semantic phrases, remove stale dynamic pattern hints, and make completion narration say only `Mission complete!`.
 
 **Architecture:** The browser sends only a bounded line descriptor. A student-gated server resolver loads the exact prompt from the assignment snapshot or persisted `attempt_turns.coco_line`, then a cache-first adapter selects and translates validated phrase spans. A focused client dialogue component preserves the original inline English, turns only returned spans into controls, and anchors a Korean-only bubble to the active phrase; `MascotStage` keeps its existing sprite, expression, crop, and speaking-pulse ownership.
 
@@ -17,6 +17,7 @@
 - No fixed translation panel, full-sentence translation, word-bank chip layout, press-and-hold requirement, heart/token economy, grade, or completion gate.
 - Translation failure is retryable and never blocks English text, TTS, recording, or completion.
 - Preset missions retain their pattern → word bank → full example ladder and gain translation. Conversation mode removes the pattern-derived single hint and uses translation only.
+- The full completion explanation remains visible, but completion TTS and assignment-time cache warming use only `Mission complete!`.
 - Keep the current mascot sprites, backdrop, crop, expression changes, pulse animation, TTS state machine, 44×44 TTS target, and `Play Coco` accessible label unchanged.
 - Use `#2563EB`, existing pale-blue surfaces, 6–8px radii, 14–16px tab labels, visible focus, and current mobile width constraints.
 - Automated tests inject fake provider clients and make no paid OpenAI calls.
@@ -50,6 +51,9 @@
 - Modify `src/components/student/StepBuddyQuestion.tsx`: render answer-help ladder only when supplied.
 - Modify `tests/server/student-mission-flow.test.ts`: preset ladder remains; dynamic pattern hint is gone.
 - Modify `tests/domain/tts-ui-source.test.ts`: tab placement, sprite preservation, and TTS-regression source contracts.
+- Modify `src/app/student/missions/[assignmentStudentId]/tts/route.ts`: resolve completion narration to the profile heading only.
+- Modify `src/server/mission/assign-service.ts`: warm only the short completion heading.
+- Modify `tests/server/mission-assign.test.ts`: assert the short completion cache entry and reject the administrative body.
 
 ### Task 1: Translation Hint Domain Contract and Exact-Span Validation
 
@@ -61,7 +65,7 @@
 - Consumes: `MissionLevel` from `src/domain/mission/schemas.ts`.
 - Produces: `TranslationPhrase`, `TranslationHint`, `TranslatableCocoLine`, `translationHintSchema`, `translationHintRequestSchema`, `parseTranslationHint(sourceText, value)`, and `buildTranslationSegments(sourceText, phrases)`.
 
-- [ ] **Step 1: Write failing pure-domain tests**
+- [x] **Step 1: Write failing pure-domain tests**
 
 Create `tests/domain/translation-hint.test.ts`:
 
@@ -227,7 +231,7 @@ describe("translation hint domain contract", () => {
 });
 ```
 
-- [ ] **Step 2: Run the domain test and verify RED**
+- [x] **Step 2: Run the domain test and verify RED**
 
 Run:
 
@@ -237,7 +241,7 @@ npx vitest run tests/domain/translation-hint.test.ts
 
 Expected: FAIL because `src/domain/ai/translation-hint.ts` does not exist.
 
-- [ ] **Step 3: Implement the pure contract**
+- [x] **Step 3: Implement the pure contract**
 
 Create `src/domain/ai/translation-hint.ts` with these public types:
 
@@ -320,7 +324,7 @@ export type ParseTranslationHintResult =
 
 `buildTranslationSegments` must append untouched gaps, phrase segments, and the final untouched tail. It accepts only already validated phrases and never uses HTML.
 
-- [ ] **Step 4: Run the domain test and verify GREEN**
+- [x] **Step 4: Run the domain test and verify GREEN**
 
 Run:
 
@@ -330,7 +334,7 @@ npx vitest run tests/domain/translation-hint.test.ts
 
 Expected: all translation-domain tests PASS.
 
-- [ ] **Step 5: Commit the domain contract**
+- [x] **Step 5: Commit the domain contract**
 
 ```bash
 git add src/domain/ai/translation-hint.ts tests/domain/translation-hint.test.ts
@@ -347,7 +351,7 @@ git commit -m "feat(11): validate semantic translation phrase spans"
 - Consumes: `parseTranslationHint`, `TranslationHint`, and `MissionLevel`.
 - Produces: `generateTranslationHint({ sourceText, studentLevel, targetLocale }, deps)` and `GenerateTranslationHintResult`.
 
-- [ ] **Step 1: Write failing adapter tests**
+- [x] **Step 1: Write failing adapter tests**
 
 Create tests that use an injected client matching the existing `responses.parse` adapter convention:
 
@@ -477,7 +481,7 @@ describe("generateTranslationHint", () => {
 });
 ```
 
-- [ ] **Step 2: Run adapter tests and verify RED**
+- [x] **Step 2: Run adapter tests and verify RED**
 
 Run:
 
@@ -487,7 +491,7 @@ npx vitest run tests/server/translation-hint-generator.test.ts
 
 Expected: FAIL because the adapter does not exist.
 
-- [ ] **Step 3: Implement the adapter**
+- [x] **Step 3: Implement the adapter**
 
 Follow `turn-evaluator.ts`'s injected-client shape. Export:
 
@@ -540,7 +544,7 @@ instructions: [
 
 Use `zodTextFormat` with the base structured schema, then call `parseTranslationHint(input.sourceText, response.output_parsed)` before returning success. Log only provider/model/error metadata; do not log source text.
 
-- [ ] **Step 4: Run adapter and domain tests**
+- [x] **Step 4: Run adapter and domain tests**
 
 Run:
 
@@ -550,7 +554,7 @@ npx vitest run tests/server/translation-hint-generator.test.ts tests/domain/tran
 
 Expected: both files PASS with fake clients only.
 
-- [ ] **Step 5: Commit the provider adapter**
+- [x] **Step 5: Commit the provider adapter**
 
 ```bash
 git add src/server/ai/translation-hint-generator.ts tests/server/translation-hint-generator.test.ts
@@ -570,7 +574,7 @@ git commit -m "feat(11): generate Korean semantic phrase hints"
 - Consumes: `generateTranslationHint` from Task 2 and validated `TranslationHint` data.
 - Produces: `DEFAULT_TRANSLATION_LOCALE = "ko"`, `computeTranslationSourceDigest(sourceText)`, and `getOrCreateTranslationHint(input, deps)` returning `cacheStatus: "hit" | "miss"`.
 
-- [ ] **Step 1: Write failing migration tests**
+- [x] **Step 1: Write failing migration tests**
 
 Create `tests/schema/translation-hint-cache-schema.test.ts` and assert the migration contains:
 
@@ -592,7 +596,7 @@ expect(migration).toContain(
 expect(migration).not.toContain("create policy");
 ```
 
-- [ ] **Step 2: Run migration tests and verify RED**
+- [x] **Step 2: Run migration tests and verify RED**
 
 Run:
 
@@ -602,7 +606,7 @@ npx vitest run tests/schema/translation-hint-cache-schema.test.ts
 
 Expected: FAIL because the migration file does not exist.
 
-- [ ] **Step 3: Add the service-role-only cache table and DB types**
+- [x] **Step 3: Add the service-role-only cache table and DB types**
 
 Create an additive migration with this table shape:
 
@@ -628,7 +632,7 @@ grant select, insert, update, delete
 
 Do not store `sourceText`, assignment IDs, student IDs, or transcripts in this cache. Add the corresponding `Row`, `Insert`, `Update`, and empty `Relationships` entry to `src/lib/db/types.ts`.
 
-- [ ] **Step 4: Run migration tests and verify GREEN**
+- [x] **Step 4: Run migration tests and verify GREEN**
 
 Run:
 
@@ -638,7 +642,7 @@ npx vitest run tests/schema/translation-hint-cache-schema.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 5: Write failing cache-service tests**
+- [x] **Step 5: Write failing cache-service tests**
 
 Create a Supabase mock following `tests/server/tts-cache.test.ts`, then test:
 
@@ -680,7 +684,7 @@ it("generates once and hits cache for the same source, level, and locale", async
 
 Also test that changing `studentLevel` or `targetLocale` changes query filters, a select/upsert error returns `{ ok: false, error: "cache_failed" }`, provider failure returns `{ ok: false, error: "generation_failed" }`, and an invalid cached span is never returned to the client.
 
-- [ ] **Step 6: Run cache tests and verify RED**
+- [x] **Step 6: Run cache tests and verify RED**
 
 Run:
 
@@ -690,7 +694,7 @@ npx vitest run tests/server/translation-hint-cache.test.ts
 
 Expected: FAIL because the cache service does not exist.
 
-- [ ] **Step 7: Implement exact-text digest and cache-first lookup**
+- [x] **Step 7: Implement exact-text digest and cache-first lookup**
 
 Create `src/server/ai/translation-hint-cache.ts`. Export:
 
@@ -724,7 +728,7 @@ export type GetOrCreateTranslationHintDeps = {
 
 Query `translation_hint_cache` by `source_digest`, `student_level`, and `target_locale`. Revalidate cached `phrases` with `parseTranslationHint(sourceText, { phrases })`; return a hit only when valid. On a miss, call the injected `generate` or `generateTranslationHint`, then upsert with `onConflict: "source_digest,student_level,target_locale"`. Treat select/upsert errors as retryable cache failures and never return unvalidated cache/provider JSON.
 
-- [ ] **Step 8: Run cache, adapter, domain, and schema tests**
+- [x] **Step 8: Run cache, adapter, domain, and schema tests**
 
 Run:
 
@@ -734,7 +738,7 @@ npx vitest run tests/server/translation-hint-cache.test.ts tests/server/translat
 
 Expected: all four files PASS.
 
-- [ ] **Step 9: Commit persistent caching**
+- [x] **Step 9: Commit persistent caching**
 
 ```bash
 git add supabase/migrations/202607150001_translation_hint_cache.sql src/lib/db/types.ts tests/schema/translation-hint-cache-schema.test.ts src/server/ai/translation-hint-cache.ts tests/server/translation-hint-cache.test.ts
@@ -753,7 +757,7 @@ git commit -m "feat(11): cache locale-aware phrase translations"
 - Consumes: student ID from `readStudentUnlock`, assignment-student ID from route params, `TranslatableCocoLine`, mission snapshot schema, and Task 3 cache service.
 - Produces: `resolveOwnedTranslationSource(input)` returning `{ sourceText, studentLevel }` or `not_found`; POST route returning validated phrases or retryable unavailability.
 
-- [ ] **Step 1: Write failing provenance tests**
+- [x] **Step 1: Write failing provenance tests**
 
 Create resolver tests with a mocked service-role Supabase client. Cover these exact results:
 
@@ -773,9 +777,9 @@ expect(
 });
 ```
 
-For `coco_dynamic_line`, assert the result uses `attempt_turns.coco_line` for the owned assignment and requested turn order, not `mission_snapshot.turns[].prompt`. Add failures for wrong student ownership, canceled assignment, missing snapshot turn, and missing dynamic row. Assert the resolver queries `attempts.assignment_student_id = assignmentStudentId` before returning dynamic text.
+For `coco_dynamic_line`, assert the result uses `attempt_turns.coco_line` from `assignment_students.latest_attempt_id` and the requested turn order, not `mission_snapshot.turns[].prompt`. Add failures for wrong student ownership, canceled assignment, missing snapshot turn, and missing dynamic row. Assert the resolver filters `attempt_turns.attempt_id` to the latest attempt so restarted missions cannot create duplicate turn-order matches.
 
-- [ ] **Step 2: Run resolver tests and verify RED**
+- [x] **Step 2: Run resolver tests and verify RED**
 
 Run:
 
@@ -785,7 +789,7 @@ npx vitest run tests/server/translation-source.test.ts
 
 Expected: FAIL because the resolver does not exist.
 
-- [ ] **Step 3: Implement the owned resolver**
+- [x] **Step 3: Implement the owned resolver**
 
 Export:
 
@@ -801,19 +805,19 @@ export type ResolveOwnedTranslationSourceResult =
   | { ok: false; error: "not_found" | "db_error" };
 ```
 
-Perform the same app-level ownership query as TTS:
+Perform the same app-level ownership query as TTS, including the current attempt pointer:
 
 ```ts
 .from("assignment_students")
-.select("id, student_id, assignments(mission_snapshot, canceled_at)")
+.select("id, student_id, latest_attempt_id, assignments(mission_snapshot, canceled_at)")
 .eq("id", assignmentStudentId)
 .eq("student_id", studentId)
 .maybeSingle();
 ```
 
-Parse `mission_snapshot` before reading level or turns. Resolve `mission_prompt` only from the matching immutable snapshot turn. Resolve `coco_dynamic_line` only from `attempt_turns.coco_line` joined through `attempts!inner(assignment_student_id)` and filtered to the owned assignment plus requested `turn_order`. Trim only to test non-emptiness; return the persisted/source string itself so indices match exact rendered text.
+Parse `mission_snapshot` before reading level or turns. Resolve `mission_prompt` only from the matching immutable snapshot turn. Resolve `coco_dynamic_line` only from `attempt_turns.coco_line` filtered by `latest_attempt_id` plus requested `turn_order`. Trim only to test non-emptiness; return the persisted/source string itself so indices match exact rendered text.
 
-- [ ] **Step 4: Run resolver tests and verify GREEN**
+- [x] **Step 4: Run resolver tests and verify GREEN**
 
 Run:
 
@@ -823,7 +827,7 @@ npx vitest run tests/server/translation-source.test.ts
 
 Expected: all provenance/ownership tests PASS.
 
-- [ ] **Step 5: Write failing route boundary tests**
+- [x] **Step 5: Write failing route boundary tests**
 
 Create a source-contract test that asserts the route:
 
@@ -837,7 +841,7 @@ expect(routeSource).not.toMatch(/body\.(sourceText|text|contentHash|sourceDigest
 expect(routeSource).toContain('error: "translation_unavailable_retryable"');
 ```
 
-- [ ] **Step 6: Run route boundary tests and verify RED**
+- [x] **Step 6: Run route boundary tests and verify RED**
 
 Run:
 
@@ -847,7 +851,7 @@ npx vitest run tests/server/translation-hint-route-source.test.ts
 
 Expected: FAIL because the route does not exist.
 
-- [ ] **Step 7: Implement the student-gated route**
+- [x] **Step 7: Implement the student-gated route**
 
 The POST route must:
 
@@ -861,7 +865,7 @@ The POST route must:
 
 The response must not return source text, a digest, provider metadata, or cache rows.
 
-- [ ] **Step 8: Run all server translation tests**
+- [x] **Step 8: Run all server translation tests**
 
 Run:
 
@@ -871,7 +875,7 @@ npx vitest run tests/server/translation-source.test.ts tests/server/translation-
 
 Expected: all server translation tests PASS.
 
-- [ ] **Step 9: Commit server-owned resolution and route**
+- [x] **Step 9: Commit server-owned resolution and route**
 
 ```bash
 git add src/server/student-access/translation-source.ts tests/server/translation-source.test.ts src/app/student/missions/'[assignmentStudentId]'/translation-hint/route.ts tests/server/translation-hint-route-source.test.ts
@@ -890,7 +894,7 @@ git commit -m "feat(11): serve hints from owned Coco prompt text"
 - Consumes: `TranslatableCocoLine`, `TranslationPhrase`, `buildTranslationSegments`, existing `voiceControl`, and existing dialogue text.
 - Produces: a reusable dialogue box that owns Hint state and renders matched Coco/Hint/TTS tabs plus inline English/Korean phrase interaction.
 
-- [ ] **Step 1: Add failing VN/chatbox source tests**
+- [x] **Step 1: Add failing VN/chatbox source tests**
 
 Extend `tests/domain/tts-ui-source.test.ts`:
 
@@ -943,7 +947,7 @@ it("keeps translation failure retryable and recording-independent", () => {
 });
 ```
 
-- [ ] **Step 2: Run source tests and verify RED**
+- [x] **Step 2: Run source tests and verify RED**
 
 Run:
 
@@ -953,7 +957,7 @@ npx vitest run tests/domain/tts-ui-source.test.ts
 
 Expected: FAIL because `CocoDialogueBox.tsx` and the tab styles do not exist.
 
-- [ ] **Step 3: Implement `CocoDialogueBox` state and fetch contract**
+- [x] **Step 3: Implement `CocoDialogueBox` state and fetch contract**
 
 Create props:
 
@@ -1005,7 +1009,7 @@ JSON.stringify({
 
 On non-OK/malformed response, set `error`; on success, validate again with `parseTranslationHint(dialogueText, { phrases: payload.phrases })` before setting `ready`. The client-side revalidation is defense-in-depth and rendering safety, not source-text authorization.
 
-- [ ] **Step 4: Render the matched controls and inline sentence**
+- [x] **Step 4: Render the matched controls and inline sentence**
 
 Inside the existing white dialogue box, render one absolute top tab row:
 
@@ -1031,7 +1035,7 @@ When inactive/loading/error, render the unchanged `dialogueText` as one React te
 
 For error, keep the full English sentence visible and expose a compact button with accessible label/title `Retry translation` and visible copy `Translation unavailable`.
 
-- [ ] **Step 5: Add folder-tab and anchored-bubble styles**
+- [x] **Step 5: Add folder-tab and anchored-bubble styles**
 
 In `src/components/student/styles.ts`:
 
@@ -1044,7 +1048,7 @@ In `src/components/student/styles.ts`:
 - Style phrase buttons with visible boundaries, inherited 18px dialogue typography, keyboard focus, and a minimum 44px hit area using inline-block padding/negative block margin so the sentence remains inline.
 - Position the Korean bubble `absolute` above or below its phrase wrapper with a higher z-index, max width that fits the 16px phone insets, and no effect on surrounding sentence layout.
 
-- [ ] **Step 6: Delegate only dialogue rendering from `MascotStage`**
+- [x] **Step 6: Delegate only dialogue rendering from `MascotStage`**
 
 Add `assignmentStudentId` and `translationLine` props to `MascotStage`, import `CocoDialogueBox`, and replace only the existing inner `mascotDialogueBoxStyle` JSX with:
 
@@ -1060,7 +1064,7 @@ Add `assignmentStudentId` and `translationLine` props to `MascotStage`, import `
 
 Do not change `SPRITE_BY_EXPRESSION`, Image props, stage geometry, animation effects, amplitude handling, or `deriveExpression`.
 
-- [ ] **Step 7: Run TTS/VN source tests**
+- [x] **Step 7: Run TTS/VN source tests**
 
 Run:
 
@@ -1070,7 +1074,7 @@ npx vitest run tests/domain/tts-ui-source.test.ts tests/domain/translation-hint.
 
 Expected: PASS. Existing `Play Coco`, native `<audio>`, no-Web-Audio, sprite, crop, and pulse assertions remain green.
 
-- [ ] **Step 8: Commit VN tabs and inline phrase UI**
+- [x] **Step 8: Commit VN tabs and inline phrase UI**
 
 ```bash
 git add src/components/student/CocoDialogueBox.tsx src/components/student/MascotStage.tsx src/components/student/styles.ts tests/domain/tts-ui-source.test.ts
@@ -1091,7 +1095,7 @@ git commit -m "feat(11): add VN phrase-hint dialogue tabs"
 - Consumes: `translationLine` prop from Task 5 and the existing active question line descriptor.
 - Produces: preset questions with answer-help ladder plus translation; conversation opener/dynamic questions with translation only.
 
-- [ ] **Step 1: Write failing question-state tests**
+- [x] **Step 1: Write failing question-state tests**
 
 Replace authored/dynamic expectations with mode-specific kinds:
 
@@ -1151,7 +1155,7 @@ it("uses translation-only question state for persisted dynamic prompts", () => {
 });
 ```
 
-- [ ] **Step 2: Run question-state tests and verify RED**
+- [x] **Step 2: Run question-state tests and verify RED**
 
 Run:
 
@@ -1161,7 +1165,7 @@ npx vitest run src/domain/mission/student-question-state.test.ts
 
 Expected: FAIL because the current model returns `authored`/`dynamic` and adds `singleHint`.
 
-- [ ] **Step 3: Split preset and conversation question types**
+- [x] **Step 3: Split preset and conversation question types**
 
 Replace `AuthoredStudentQuestion` and `DynamicStudentQuestion` with:
 
@@ -1187,7 +1191,7 @@ type ConversationStudentQuestion = {
 
 When `snapshotTurn` exists, return `conversation` without ladder/example if `conversationMode` is true; otherwise return `preset` with the existing ladder/example. For later conversation turns, require only a nonblank dynamic prompt and return `conversation`; remove the `patternExample` gate and `singleHint` construction. Keep the existing unavailable fail-closed branch.
 
-- [ ] **Step 4: Run question-state tests and verify GREEN**
+- [x] **Step 4: Run question-state tests and verify GREEN**
 
 Run:
 
@@ -1197,7 +1201,7 @@ npx vitest run src/domain/mission/student-question-state.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 5: Make `HintRevealer` preset-ladder-only**
+- [x] **Step 5: Make `HintRevealer` preset-ladder-only**
 
 Replace the union with:
 
@@ -1229,7 +1233,7 @@ type AnswerHelpProps =
 
 Render `<HintRevealer>` only when `hintLadder` exists. Keep the recorder spacing at 16px whether or not the answer-help ladder exists.
 
-- [ ] **Step 6: Wire the descriptor into `MascotStage` and update question branches**
+- [x] **Step 6: Wire the descriptor into `MascotStage` and update question branches**
 
 Pass:
 
@@ -1266,7 +1270,7 @@ Retain the existing expression override in the real JSX. Render `StepBuddyQuesti
 
 Do not pass translation descriptors for feedback, correction encouragement, repeat instructions, transitions, errors, or completion because those are not recordable prompts in this scope.
 
-- [ ] **Step 7: Update flow source contracts**
+- [x] **Step 7: Update flow source contracts**
 
 Replace the old `singleHint` assertions in `tests/server/student-mission-flow.test.ts` with:
 
@@ -1282,7 +1286,7 @@ expect(shellSource).not.toContain("activeQuestion.singleHint");
 
 Keep assertions that preset `HintRevealer`, dynamic prompt provenance, recording availability, and server-owned line descriptors remain present.
 
-- [ ] **Step 8: Run state, flow, and TTS tests**
+- [x] **Step 8: Run state, flow, and TTS tests**
 
 Run:
 
@@ -1292,32 +1296,117 @@ npx vitest run src/domain/mission/student-question-state.test.ts tests/server/st
 
 Expected: all files PASS. Preset ladder remains three levels; conversation has no answer-pattern hint.
 
-- [ ] **Step 9: Commit mode-specific hint wiring**
+- [x] **Step 9: Commit mode-specific hint wiring**
 
 ```bash
 git add src/domain/mission/student-question-state.ts src/domain/mission/student-question-state.test.ts src/components/student/HintRevealer.tsx src/components/student/StepBuddyQuestion.tsx src/components/student/MissionFlowShell.tsx tests/server/student-mission-flow.test.ts
 git commit -m "feat(11): use translation-only hints in dynamic chat"
 ```
 
-### Task 7: Full Verification, Migration Checkpoint, and Phone-Width UAT
+### Task 7: Short Completion Narration
 
 **Files:**
-- Verify production changes from Tasks 1-6.
+- Modify: `src/app/student/missions/[assignmentStudentId]/tts/route.ts`
+- Modify: `src/server/mission/assign-service.ts`
+- Modify: `tests/domain/tts-ui-source.test.ts`
+- Modify: `tests/server/mission-assign.test.ts`
+
+**Interfaces:**
+- Consumes: the existing `completion_celebration` TTS descriptor and `CharacterProfile.completionHeading`.
+- Produces: on-demand and prewarmed completion audio whose exact text is `Mission complete!`; visible `StepMissionComplete` body copy is unchanged.
+
+- [x] **Step 1: Write failing completion narration regressions**
+
+Add this source contract to `tests/domain/tts-ui-source.test.ts`:
+
+```ts
+it("speaks only the short completion heading", () => {
+  const routeSource = readSource(
+    "src/app/student/missions/[assignmentStudentId]/tts/route.ts",
+  );
+
+  expect(routeSource).toContain('case "completion_celebration"');
+  expect(routeSource).toContain("return profile.completionHeading;");
+  expect(routeSource).not.toContain(
+    "`${profile.completionHeading} ${profile.completionBody(turnCount)}`",
+  );
+});
+```
+
+In the existing assignment cache-warming test in `tests/server/mission-assign.test.ts`, replace the long completion string with `"Mission complete!"`, then add:
+
+```ts
+const warmedTexts = mockWarmTtsAudioCache.mock.calls[0]?.[0].texts ?? [];
+expect(warmedTexts).not.toContain(
+  "Mission complete! Great work! You finished all 1 turns. Your teacher will see your answers.",
+);
+```
+
+- [x] **Step 2: Run completion tests and verify RED**
+
+Run:
+
+```bash
+npx vitest run tests/domain/tts-ui-source.test.ts tests/server/mission-assign.test.ts
+```
+
+Expected: both new assertions FAIL because the TTS route and assignment warmer still concatenate `completionBody`.
+
+- [x] **Step 3: Resolve and warm only the heading**
+
+In `resolveLineText` inside `src/app/student/missions/[assignmentStudentId]/tts/route.ts`, replace the completion branch with:
+
+```ts
+case "completion_celebration":
+  return profile.completionHeading;
+```
+
+Remove the now-unused `turnCount` argument from `resolveLineText` and its call site if TypeScript proves it is no longer needed elsewhere in that function.
+
+In `buildAssignmentTtsWarmTexts` inside `src/server/mission/assign-service.ts`, replace the combined completion entry with:
+
+```ts
+profile.completionHeading,
+```
+
+Do not change `completionBody`, `StepMissionComplete`, or the visible completion props.
+
+- [x] **Step 4: Run completion tests and verify GREEN**
+
+Run:
+
+```bash
+npx vitest run tests/domain/tts-ui-source.test.ts tests/server/mission-assign.test.ts tests/domain/character-profile.test.ts
+```
+
+Expected: all three files PASS; profile tests still prove the full visible body contains the turn count and teacher-review message.
+
+- [x] **Step 5: Commit short completion narration**
+
+```bash
+git add src/app/student/missions/'[assignmentStudentId]'/tts/route.ts src/server/mission/assign-service.ts tests/domain/tts-ui-source.test.ts tests/server/mission-assign.test.ts
+git commit -m "fix(11): keep completion narration concise"
+```
+
+### Task 8: Full Verification, Migration Checkpoint, and Phone-Width UAT
+
+**Files:**
+- Verify production changes from Tasks 1-7.
 - Modify: `.planning/STATE.md` only after real verification results are known.
 
 **Interfaces:**
 - Consumes: all tasks in this plan and the completed dynamic-conversation repair plan.
 - Produces: verified cache schema, server boundary, accessible prompt interaction, and regression evidence.
 
-- [ ] **Step 1: Run focused translation/chatbox tests**
+- [x] **Step 1: Run focused translation/chatbox tests**
 
 ```bash
-npx vitest run tests/domain/translation-hint.test.ts tests/server/translation-hint-generator.test.ts tests/server/translation-hint-cache.test.ts tests/server/translation-source.test.ts tests/server/translation-hint-route-source.test.ts tests/schema/translation-hint-cache-schema.test.ts src/domain/mission/student-question-state.test.ts tests/server/student-mission-flow.test.ts tests/domain/tts-ui-source.test.ts
+npx vitest run tests/domain/translation-hint.test.ts tests/server/translation-hint-generator.test.ts tests/server/translation-hint-cache.test.ts tests/server/translation-source.test.ts tests/server/translation-hint-route-source.test.ts tests/schema/translation-hint-cache-schema.test.ts src/domain/mission/student-question-state.test.ts tests/server/student-mission-flow.test.ts tests/domain/tts-ui-source.test.ts tests/server/mission-assign.test.ts tests/domain/character-profile.test.ts
 ```
 
 Expected: all listed files PASS; fake clients are the only provider clients used.
 
-- [ ] **Step 2: Run repository quality gates**
+- [x] **Step 2: Run repository quality gates**
 
 ```bash
 npm run typecheck
@@ -1367,14 +1456,15 @@ At 375px and 420px viewport widths, and once at desktop width, verify:
 10. Simulated route failure shows `Translation unavailable` plus retry while English, TTS, and recording stay usable.
 11. Conversation opener and later dynamic prompt have translation but no pattern-answer hint.
 12. Preset prompt has both translation and the existing three-tier answer-help ladder.
+13. Completion keeps the full explanatory text visible while Coco says only `Mission complete!`.
 
-Expected: all twelve checks pass.
+Expected: all thirteen checks pass.
 
-- [ ] **Step 6: Record truthful GSD completion state**
+- [x] **Step 6: Record truthful GSD completion state**
 
 Update `.planning/STATE.md` YAML and prose together with the actual test results, migration state, and UI UAT result. Keep the optional three-heart/token policy in `Deferred Items`; do not mark Phase 11 complete unless every other Phase 11 requirement is complete.
 
-- [ ] **Step 7: Commit verification state**
+- [x] **Step 7: Commit verification state**
 
 ```bash
 git add .planning/STATE.md

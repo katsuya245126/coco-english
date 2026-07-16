@@ -10,16 +10,49 @@ import { z } from "zod";
 
 export const HARD_TURN_CAP = 8 as const;
 
-export const conversationTurnInputSchema = z.object({
-  scenePremise: z.string().trim().min(1),
-  targetPattern: z.string().trim().min(1),
-  turnOrder: z.number().int().min(1),
-  requiredTurns: z.number().int().min(3).max(8),
-  hardCap: z.literal(HARD_TURN_CAP),
-  windDown: z.boolean(),
-  studentTranscript: z.string().trim().min(1),
-  previousCocoLine: z.string().trim().min(1).nullable(),
+export const conversationExchangeSchema = z.object({
+  turnOrder: z.number().int().min(1).max(HARD_TURN_CAP),
+  cocoLine: z.string().trim().min(1),
+  studentResponse: z.string().trim().min(1),
 });
+
+export type ConversationExchange = z.infer<typeof conversationExchangeSchema>;
+
+export const conversationHistorySchema = z
+  .array(conversationExchangeSchema)
+  .min(1)
+  .max(HARD_TURN_CAP)
+  .superRefine((history, context) => {
+    history.forEach((exchange, index) => {
+      if (exchange.turnOrder !== index + 1) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, "turnOrder"],
+          message: "conversation history must be contiguous and ordered",
+        });
+      }
+    });
+  });
+
+export const conversationTurnInputSchema = z
+  .object({
+    scenePremise: z.string().trim().min(1),
+    targetPattern: z.string().trim().min(1),
+    turnOrder: z.number().int().min(1).max(HARD_TURN_CAP),
+    requiredTurns: z.number().int().min(3).max(8),
+    hardCap: z.literal(HARD_TURN_CAP),
+    windDown: z.boolean(),
+    conversationHistory: conversationHistorySchema,
+  })
+  .superRefine((input, context) => {
+    if (input.conversationHistory.at(-1)?.turnOrder !== input.turnOrder) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["conversationHistory"],
+        message: "history must end at turnOrder",
+      });
+    }
+  });
 
 export type GenerateCocoReplyInput = z.infer<typeof conversationTurnInputSchema>;
 
@@ -61,11 +94,19 @@ export function buildConversationPrompt(input: GenerateCocoReplyInput) {
     hardCap: HARD_TURN_CAP,
     turnsRemaining: HARD_TURN_CAP - input.turnOrder,
     windDown: input.windDown,
-    lastStudentTranscript: input.studentTranscript,
-    lastCocoLine: input.previousCocoLine ?? null,
+    conversationHistory: input.conversationHistory,
     instructions: [
-      "Stay anchored to the target grammar pattern every turn; do not drift into open-ended topics.",
-      "Respond naturally to what the student said, but steer the reply back toward practicing the target pattern.",
+      "Speak to a young ESL learner: short, simple sentences with easy everyday words.",
+      "Keep the whole line under 12 words and ask exactly one question.",
+      "Treat every detail in conversationHistory as already known.",
+      "Acknowledge the latest studentResponse, then ask exactly one question for new information whose answer is not present or directly implied anywhere in conversationHistory.",
+      "Treat vague replies such as 'anything', 'something', or 'stuff' as minimally informative; do not echo the vague word as if it were a meaningful detail.",
+      "Acknowledge lightly, then ask one short scene-relevant narrowing question; prefer two concrete child-friendly choices when helpful.",
+      "Do not shame the learner or demand a more specific answer.",
+      "Do not mechanically rotate through who, what, where, when, why, or how when that repeats a known person, place, activity, preference, or fact.",
+      "If the current subject has no natural unanswered detail, transition gently to a nearby part of the scene.",
+      "Treat targetPattern as soft lesson context only, never as a next-line template — do not steer the student back into the targetPattern format.",
+      "Reject a follow-up that merely swaps in a new noun or activity to repeat targetPattern; the follow-up must connect to the student's actual answer.",
       "If windDown is true, begin gently wrapping up the scene toward a natural close.",
       "If turnOrder === hardCap, deliver a closing line — this is the last turn.",
       "Elementary ESL classroom-safe. No student names, PINs, audio keys, or private data.",

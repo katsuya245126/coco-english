@@ -16,11 +16,8 @@
 import type { HintLadder } from "@/domain/mission/schemas";
 import { hintCardStyle } from "@/components/student/styles";
 
-export type HintContent =
-  | { hintLadder: HintLadder; singleHint?: never }
-  | { singleHint: string; hintLadder?: never };
-
-type HintRevealerProps = HintContent & {
+type HintRevealerProps = {
+  hintLadder: HintLadder;
   hintLevel: number;
   onReveal: (nextLevel: number) => void;
 };
@@ -32,19 +29,16 @@ const TIER_LABELS = [
 ];
 
 export function HintRevealer({
+  hintLadder,
   hintLevel,
   onReveal,
-  ...hintContent
 }: HintRevealerProps) {
-  const isSingleHint = "singleHint" in hintContent;
-  const maxLevel = isSingleHint ? 1 : 3;
+  const maxLevel = 3;
   const allRevealed = hintLevel >= maxLevel;
-  const hints = isSingleHint
-    ? [{ key: "single", label: "Hint: Pattern", content: hintContent.singleHint }]
-    : TIER_LABELS.map((tier) => ({
-        ...tier,
-        content: hintContent.hintLadder[tier.key],
-      }));
+  const hints = TIER_LABELS.map((tier) => ({
+    ...tier,
+    content: hintLadder[tier.key],
+  }));
 
   function handleReveal() {
     if (!allRevealed) {

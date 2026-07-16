@@ -13,6 +13,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { MissionSnapshotTurn } from "@/domain/mission/schemas";
+import { describeConversationSubmissionFailure } from "@/domain/mission/conversation-submission-recovery";
 import type {
   PronunciationStarBand,
   WordHighlight,
@@ -46,8 +47,8 @@ import type { RepeatVoiceClip } from "@/components/student/StepImprovedRepeat";
 import type { RecorderState } from "@/components/student/VoiceRecorderControl";
 import type { PendingTurnReview } from "@/domain/flow/completion";
 import {
-  advanceConversationQuestion,
   deriveActiveStudentQuestion,
+  resolveAcceptedConversationTurn,
   type ActiveStudentQuestion,
 } from "@/domain/mission/student-question-state";
 
@@ -212,6 +213,7 @@ function initialFlowState(
       originalTranscript: initialReview.transcript,
       improvedSentence: initialReview.improvedSentence,
       originalFeedback,
+      cocoLine: initialReview.cocoLine,
     };
   }
 
@@ -225,6 +227,7 @@ function initialFlowState(
       kind: initialReview.outcome,
       transcript: initialReview.transcript,
     },
+    cocoLine: initialReview.cocoLine,
   };
 }
 
@@ -437,6 +440,61 @@ export function MissionFlowShell({
     clearAudioUrl(repeatAudioUrlRef);
   }
 
+  async function continueAcceptedConversationTurn(
+    aid: string,
+    pendingCocoLine: string | null,
+  ) {
+    const resolution = resolveAcceptedConversationTurn({
+      turnIndex: flow.turnIndex,
+      requiredTurns,
+      pendingCocoLine,
+    });
+
+    if (resolution.kind === "unavailable") {
+      setActionError(
+        "Coco’s next question isn’t available yet. Please return to your missions and try again.",
+      );
+      setFlow((prev) => ({
+        ...prev,
+        turnIndex: prev.turnIndex + 1,
+        step: "question",
+        cocoLine: null,
+        dynamicPrompt: null,
+      }));
+      return;
+    }
+
+    if (resolution.kind === "complete") {
+      const result = await completeMissionAction({
+        assignmentStudentId,
+        attemptId: aid,
+      });
+      if (!result.ok) {
+        setActionError(
+          "Something went wrong. Try again, or ask your teacher for help.",
+        );
+        throw new Error("mission_complete_failed");
+      }
+      setFlow((prev) => ({ ...prev, step: "complete" }));
+      return;
+    }
+
+    revokeAudioUrls();
+    setFlow({
+      turnIndex: resolution.turnIndex,
+      step: "question",
+      hintLevel: 0,
+      originalTranscript: null,
+      repeatTranscript: null,
+      improvedSentence: null,
+      originalFeedback: null,
+      repeatFeedback: null,
+      hasRetriedThisTurn: false,
+      cocoLine: null,
+      dynamicPrompt: resolution.dynamicPrompt,
+    });
+  }
+
   async function handleSubmitOriginalVoice(recording: RecordedVoiceClip) {
     if (!activeQuestion.recordingEnabled) {
       setActionError("Coco’s next question isn’t available yet. Please return to your missions and try again.");
@@ -485,6 +543,14 @@ export function MissionFlowShell({
         upload.wordsToPractice,
       );
 
+      if (
+        conversationMode &&
+        originalFeedback.kind === "acceptedOriginal"
+      ) {
+        await continueAcceptedConversationTurn(aid, upload.cocoLine ?? null);
+        return;
+      }
+
       setFlow((prev) => ({
         ...prev,
         step: "aiFeedback",
@@ -498,6 +564,16 @@ export function MissionFlowShell({
         repeatFeedback: null,
         cocoLine: upload.cocoLine ?? null,
       }));
+    } catch (error) {
+      // In conversation mode the step is already on cocoThinking, so the
+      // recorder that would normally display this failure has unmounted —
+      // recover here or the student is stuck on the thinking screen.
+      if (!conversationMode) throw error;
+      if (token !== submissionTokenRef.current) return;
+      setActionError(describeConversationSubmissionFailure(error));
+      setFlow((prev) =>
+        prev.step === "cocoThinking" ? { ...prev, step: "question" } : prev,
+      );
     } finally {
       if (token === submissionTokenRef.current) setIsSubmittingVoice(false);
     }
@@ -540,6 +616,14 @@ export function MissionFlowShell({
         upload.starBand,
         upload.wordsToPractice,
       );
+
+      if (
+        conversationMode &&
+        repeatFeedback.kind === "repeatAccepted"
+      ) {
+        await continueAcceptedConversationTurn(aid, flow.cocoLine);
+        return;
+      }
 
       setFlow((prev) => ({
         ...prev,
@@ -678,17 +762,16 @@ export function MissionFlowShell({
     }));
   }
 
+  // Preset missions only — chat missions advance directly through
+  // continueAcceptedConversationTurn and never reach the transition step.
   function handleNextTurn() {
     revokeAudioUrls();
     setFlow((previous) => {
-      const nextQuestion = advanceConversationQuestion({
-        turnIndex: previous.turnIndex,
-        pendingCocoLine: previous.cocoLine,
-      });
-      if (nextQuestion.turnIndex >= requiredTurns) return previous;
+      const nextTurnIndex = previous.turnIndex + 1;
+      if (nextTurnIndex >= requiredTurns) return previous;
 
       return {
-        turnIndex: nextQuestion.turnIndex,
+        turnIndex: nextTurnIndex,
         step: "question",
         hintLevel: 0,
         originalTranscript: null,
@@ -698,7 +781,7 @@ export function MissionFlowShell({
         repeatFeedback: null,
         hasRetriedThisTurn: false,
         cocoLine: null,
-        dynamicPrompt: nextQuestion.dynamicPrompt,
+        dynamicPrompt: null,
       };
     });
   }
@@ -741,13 +824,22 @@ export function MissionFlowShell({
       )}
 
       <MascotStage
+        assignmentStudentId={assignmentStudentId}
         displayName={characterProfile.displayName}
         dialogueText={mascotDialogue.text}
+        translationLine={
+          !actionError &&
+          flow.step === "question" &&
+          activeQuestion.kind !== "unavailable"
+            ? activeQuestion.line
+            : null
+        }
         voiceControl={
           mascotDialogue.line ? (
             <CocoSpeechAudio
               assignmentStudentId={assignmentStudentId}
               line={mascotDialogue.line}
+              presentation="dialogue-tab"
               onAmplitudeFrame={handleMascotAmplitudeFrame}
               onPlayingChange={handleMascotPlayingChange}
             />
@@ -779,7 +871,7 @@ export function MissionFlowShell({
 
         {flow.step === "cocoThinking" && <StepCocoThinking />}
 
-        {flow.step === "question" && activeQuestion.kind === "authored" && (
+        {flow.step === "question" && activeQuestion.kind === "preset" && (
           <StepBuddyQuestion
             assignmentStudentId={assignmentStudentId}
             turnOrder={activeQuestion.activeTurnOrder}
@@ -796,18 +888,15 @@ export function MissionFlowShell({
           />
         )}
 
-        {flow.step === "question" && activeQuestion.kind === "dynamic" && (
+        {flow.step === "question" && activeQuestion.kind === "conversation" && (
           <StepBuddyQuestion
             assignmentStudentId={assignmentStudentId}
             turnOrder={activeQuestion.activeTurnOrder}
             prompt={activeQuestion.prompt}
-            singleHint={activeQuestion.singleHint}
-            hintLevel={flow.hintLevel}
             onAmplitudeFrame={handleMascotAmplitudeFrame}
             onPlayingChange={handleMascotPlayingChange}
             showCocoLine={false}
             onRecorderStateChange={setOriginalRecorderState}
-            onRevealHint={handleRevealHint}
             onVoiceRecorded={handleSubmitOriginalVoice}
             isSubmitting={isSubmittingVoice}
           />
@@ -867,7 +956,7 @@ export function MissionFlowShell({
         {flow.step === "repeat" &&
           activeQuestion.kind !== "unavailable" &&
           (flow.improvedSentence ||
-            (activeQuestion.kind === "authored" ? activeQuestion.targetExample : null)) && (
+            (activeQuestion.kind === "preset" ? activeQuestion.targetExample : null)) && (
           <StepImprovedRepeat
             assignmentStudentId={assignmentStudentId}
             turnOrder={activeQuestion.activeTurnOrder}
@@ -876,7 +965,7 @@ export function MissionFlowShell({
             improvedSentenceLabel="Say"
             targetExample={
               flow.improvedSentence ??
-              (activeQuestion.kind === "authored" ? activeQuestion.targetExample : "")
+              (activeQuestion.kind === "preset" ? activeQuestion.targetExample : "")
             }
             onAmplitudeFrame={handleMascotAmplitudeFrame}
             onPlayingChange={handleMascotPlayingChange}
@@ -984,29 +1073,12 @@ function getMascotDialogue({
   }
 
   if (flow.step === "question" && activeQuestion.kind !== "unavailable") {
+    // activeQuestion.line carries lineKind "mission_prompt" or
+    // "coco_dynamic_line" (see student-question-state.ts) so dynamic Coco
+    // follow-ups speak through the same CocoSpeechAudio contract as authored prompts.
     return {
       text: activeQuestion.prompt,
       line: activeQuestion.line,
-    };
-  }
-
-  // Conversation-mode dynamic reply takes over Coco's spoken line on the
-  // feedback step that follows the round-trip, in place of the static
-  // acceptedOriginal/needsCorrection copy — same CocoSpeechAudio prop
-  // contract, just a different lineKind (CHAT-02, 11-PATTERNS.md).
-  if (
-    flow.step === "aiFeedback" &&
-    flow.cocoLine &&
-    activeQuestion.kind !== "unavailable" &&
-    (flow.originalFeedback?.kind === "acceptedOriginal" ||
-      flow.originalFeedback?.kind === "needsCorrection")
-  ) {
-    return {
-      text: flow.cocoLine,
-      line: {
-        lineKind: "coco_dynamic_line",
-        turnOrder: activeQuestion.activeTurnOrder,
-      },
     };
   }
 

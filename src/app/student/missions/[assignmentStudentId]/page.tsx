@@ -9,7 +9,10 @@ import {
   nextUnfinishedTurnOrder,
   type PendingTurnReview,
 } from "@/domain/flow/completion";
-import { pageStyle, panelStyle } from "@/components/student/styles";
+import {
+  missionContentStyle,
+  missionPageStyle,
+} from "@/components/student/styles";
 import { MissionFlowShell } from "@/components/student/MissionFlowShell";
 import { warmEvaluators } from "@/server/ai/evaluator-warmup";
 import { deriveResumedDynamicPrompt } from "@/domain/mission/student-question-state";
@@ -132,6 +135,7 @@ export default async function MissionPage({ params }: MissionPageProps) {
           repeat_transcript: t.repeat_transcript,
           repeat_accepted: t.repeat_accepted,
           evaluation: t.evaluation,
+          coco_line: t.coco_line,
         })),
       );
 
@@ -191,7 +195,6 @@ export default async function MissionPage({ params }: MissionPageProps) {
   const initialDynamicPrompt = deriveResumedDynamicPrompt({
     conversationMode: snapshot.conversationMode,
     startingTurnIndex,
-    snapshotTurnCount: sortedTurns.length,
     attemptTurns,
   });
 
@@ -204,8 +207,8 @@ export default async function MissionPage({ params }: MissionPageProps) {
   after(() => warmEvaluators(snapshot.level));
 
   return (
-    <main style={pageStyle}>
-      <div style={panelStyle}>
+    <main style={missionPageStyle}>
+      <div style={missionContentStyle}>
         <MissionFlowShell
           assignmentStudentId={assignmentStudentId}
           attemptId={attemptId}

@@ -30,6 +30,7 @@ export function deriveExpression(input: {
   repeatFeedbackKind?: RepeatFeedbackKind | null;
 }): MascotExpression {
   if (input.step === "complete") return "celebrate";
+  if (input.step === "cocoThinking") return "thinking";
   // Retry recorder screen: the student is re-recording the corrected sentence.
   // Coco cheers them on here (encouraging), distinct from the wrong-answer
   // result screen above it, which stays "thinking" (needsCorrection below).

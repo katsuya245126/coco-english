@@ -162,6 +162,7 @@ describe("completion helpers: persisted feedback resume", () => {
       transcript: "I am going to play games.",
       improvedSentence: null,
       clipKind: "original_answer",
+      cocoLine: null,
     });
   });
 
@@ -183,6 +184,30 @@ describe("completion helpers: persisted feedback resume", () => {
       originalTranscript: "I like apples",
       improvedSentence: "I like apples very much.",
       clipKind: "repeat_attempt",
+      cocoLine: null,
+    });
+  });
+
+  it("restores a correction review with the pending Coco line (D-11.1)", () => {
+    const review = getPendingTurnReview({
+      ...makeTurn(1, {
+        original_transcript: "I no play soccer.",
+        repeat_transcript: null,
+        repeat_accepted: null,
+      }),
+      improved_sentence: "I don't play soccer.",
+      coco_line: "Oh, what do you like to do instead?",
+      evaluation: {
+        version: "ai-eval-v1",
+        outcome: "needs_correction",
+        requireRepeat: true,
+      },
+    });
+
+    expect(review).toMatchObject({
+      step: "aiFeedback",
+      outcome: "needsCorrection",
+      cocoLine: "Oh, what do you like to do instead?",
     });
   });
 

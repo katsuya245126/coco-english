@@ -26,18 +26,20 @@ import {
 } from "@/domain/character/mascot-perf-degrade";
 import {
   mascotBackdropStyle,
-  mascotDialogueBoxStyle,
-  mascotSpeakerLabelStyle,
   mascotSpriteWrapStyle,
   mascotStageStyle,
 } from "@/components/student/styles";
+import type { TranslatableCocoLine } from "@/domain/ai/translation-hint";
+import { CocoDialogueBox } from "@/components/student/CocoDialogueBox";
 
 type ExpressionInput = Parameters<typeof deriveExpression>[0];
 
 type MascotStageProps = ExpressionInput & {
+  assignmentStudentId: string;
   displayName: string;
   dialogueText?: string | null;
   voiceControl?: ReactNode;
+  translationLine?: TranslatableCocoLine | null;
   playing: boolean;
   /** Ref updated by MissionFlowShell from CocoSpeechAudio.onAmplitudeFrame. */
   amplitudeRef: RefObject<number>;
@@ -59,9 +61,11 @@ const INITIAL_SPEAKING_STATE: SpeakingHysteresisState = {
 };
 
 export function MascotStage({
+  assignmentStudentId,
   displayName,
   dialogueText,
   voiceControl,
+  translationLine,
   playing,
   amplitudeRef,
   expression,
@@ -163,32 +167,13 @@ export function MascotStage({
           style={{ objectFit: "cover", objectPosition: "center 12%" }}
         />
       </div>
-      <div style={mascotDialogueBoxStyle}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-          }}
-        >
-          <span style={mascotSpeakerLabelStyle}>{displayName}</span>
-          {voiceControl}
-        </div>
-        {dialogueText ? (
-          <p
-            style={{
-              fontSize: 18,
-              fontWeight: 600,
-              lineHeight: 1.3,
-              color: "#111827",
-              margin: 0,
-            }}
-          >
-            {dialogueText}
-          </p>
-        ) : null}
-      </div>
+      <CocoDialogueBox
+        assignmentStudentId={assignmentStudentId}
+        displayName={displayName}
+        dialogueText={dialogueText}
+        voiceControl={voiceControl}
+        translationLine={translationLine}
+      />
     </div>
   );
 }

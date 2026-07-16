@@ -46,6 +46,7 @@ type CocoSpeechAudioProps = {
   line: CocoSpeechLine;
   /** Accessible label for the icon-only replay control. */
   label?: string;
+  presentation?: "standalone" | "dialogue-tab";
   /**
    * MASCOT-02: fired each animation frame while playing with a synthetic
    * speech-like level (0..1); omit to opt out.
@@ -79,6 +80,7 @@ export function CocoSpeechAudio({
   assignmentStudentId,
   line,
   label = "Play Coco",
+  presentation = "standalone",
   onAmplitudeFrame,
   onPlayingChange,
 }: CocoSpeechAudioProps) {
@@ -226,6 +228,9 @@ export function CocoSpeechAudio({
         aria-busy={isLoading}
         style={{
           ...buttonStyle,
+          ...(presentation === "dialogue-tab"
+            ? dialogueTabButtonStyle
+            : null),
           ...(isError ? errorButtonStyle : null),
           ...(isPlaying ? playingButtonStyle : null),
         }}
@@ -233,7 +238,7 @@ export function CocoSpeechAudio({
         <SpeakerIcon state={state} />
       </button>
 
-      {isError ? (
+      {isError && presentation !== "dialogue-tab" ? (
         <span role="status" style={errorTextStyle}>
           Voice unavailable
         </span>
@@ -357,6 +362,14 @@ const buttonStyle: React.CSSProperties = {
   color: "#2563EB",
   lineHeight: 1,
   cursor: "pointer",
+};
+
+const dialogueTabButtonStyle: React.CSSProperties = {
+  minWidth: 44,
+  minHeight: 44,
+  border: 0,
+  borderRadius: 0,
+  background: "transparent",
 };
 
 const playingButtonStyle: React.CSSProperties = {

@@ -4,6 +4,7 @@ import {
   advanceConversationQuestion,
   deriveActiveStudentQuestion,
   deriveResumedDynamicPrompt,
+  resolveAcceptedConversationTurn,
 } from "@/domain/mission/student-question-state";
 
 const opener: MissionSnapshotTurn = {
@@ -18,7 +19,7 @@ const opener: MissionSnapshotTurn = {
 };
 
 describe("student question state", () => {
-  it("keeps the authored opener authoritative when dynamic state exists", () => {
+  it("uses translation-only question state for a conversation opener", () => {
     const question = deriveActiveStudentQuestion({
       conversationMode: true,
       turnIndex: 0,
@@ -27,11 +28,9 @@ describe("student question state", () => {
     });
 
     expect(question).toEqual({
-      kind: "authored",
+      kind: "conversation",
       prompt: opener.prompt,
       activeTurnOrder: 1,
-      hintLadder: opener.hintLadder,
-      targetExample: opener.targetExample,
       recordingEnabled: true,
       line: { lineKind: "mission_prompt", turnOrder: 1 },
     });
@@ -53,10 +52,32 @@ describe("student question state", () => {
       dynamicPrompt: "Tell me more about soccer.",
     });
     expect(question).toEqual({
-      kind: "dynamic",
+      kind: "conversation",
       prompt: "Tell me more about soccer.",
       activeTurnOrder: 2,
-      singleHint: "Try using: I like to play soccer after school.",
+      recordingEnabled: true,
+      line: { lineKind: "coco_dynamic_line", turnOrder: 1 },
+    });
+  });
+
+  it("ignores a legacy authored tail when a generated conversation prompt owns turn two", () => {
+    const legacyTail: MissionSnapshotTurn = {
+      ...opener,
+      turnOrder: 2,
+      prompt: "What food do you like?",
+    };
+
+    expect(
+      deriveActiveStudentQuestion({
+        conversationMode: true,
+        turnIndex: 1,
+        turns: [opener, legacyTail],
+        dynamicPrompt: "Tell me more about soccer.",
+      }),
+    ).toEqual({
+      kind: "conversation",
+      prompt: "Tell me more about soccer.",
+      activeTurnOrder: 2,
       recordingEnabled: true,
       line: { lineKind: "coco_dynamic_line", turnOrder: 1 },
     });
@@ -66,7 +87,6 @@ describe("student question state", () => {
     const dynamicPrompt = deriveResumedDynamicPrompt({
       conversationMode: true,
       startingTurnIndex: 1,
-      snapshotTurnCount: 1,
       attemptTurns: [
         { turnOrder: 1, cocoLine: "Tell me more about soccer." },
         { turnOrder: 2, cocoLine: "A later line must not be used." },
@@ -78,13 +98,32 @@ describe("student question state", () => {
       deriveActiveStudentQuestion({
         conversationMode: true,
         turnIndex: 1,
-        turns: [opener],
+        turns: [{ ...opener }, { ...opener, turnOrder: 2 }],
         dynamicPrompt,
       }),
     ).toMatchObject({
-      kind: "dynamic",
+      kind: "conversation",
       prompt: "Tell me more about soccer.",
       line: { lineKind: "coco_dynamic_line", turnOrder: 1 },
+    });
+  });
+
+  it("keeps the answer-help ladder for preset missions", () => {
+    expect(
+      deriveActiveStudentQuestion({
+        conversationMode: false,
+        turnIndex: 0,
+        turns: [opener],
+        dynamicPrompt: null,
+      }),
+    ).toEqual({
+      kind: "preset",
+      prompt: opener.prompt,
+      activeTurnOrder: 1,
+      hintLadder: opener.hintLadder,
+      targetExample: opener.targetExample,
+      recordingEnabled: true,
+      line: { lineKind: "mission_prompt", turnOrder: 1 },
     });
   });
 
@@ -103,5 +142,39 @@ describe("student question state", () => {
         recordingEnabled: false,
       });
     }
+  });
+
+  it("advances an accepted chat turn directly to the pending Coco line", () => {
+    expect(
+      resolveAcceptedConversationTurn({
+        turnIndex: 0,
+        requiredTurns: 4,
+        pendingCocoLine: " Oh, what do you like to do instead? ",
+      }),
+    ).toEqual({
+      kind: "next",
+      turnIndex: 1,
+      dynamicPrompt: "Oh, what do you like to do instead?",
+    });
+  });
+
+  it("completes the final accepted chat turn without requiring another Coco line", () => {
+    expect(
+      resolveAcceptedConversationTurn({
+        turnIndex: 3,
+        requiredTurns: 4,
+        pendingCocoLine: null,
+      }),
+    ).toEqual({ kind: "complete" });
+  });
+
+  it("fails closed when a non-final accepted chat turn has no pending Coco line", () => {
+    expect(
+      resolveAcceptedConversationTurn({
+        turnIndex: 1,
+        requiredTurns: 4,
+        pendingCocoLine: "   ",
+      }),
+    ).toEqual({ kind: "unavailable" });
   });
 });

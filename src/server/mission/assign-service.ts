@@ -76,7 +76,7 @@ function collectAssignmentWarmupLines(snapshot: MissionSnapshot): string[] {
     ...snapshot.turns.map((turn) => turn.prompt),
     profile.turnTransition,
     profile.improvedSentenceIntro,
-    `${profile.completionHeading} ${profile.completionBody(snapshot.requiredTurns)}`,
+    profile.completionHeading,
   ];
 }
 

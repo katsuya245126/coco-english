@@ -73,6 +73,182 @@ describe("CocoSpeechAudio replay UI source contract (VOICE-02, D-12, D-13)", () 
 });
 
 describe("Coco voice line integration in mission step cards (D-06..D-11)", () => {
+  it("speaks only the short completion heading", () => {
+    const routeSource = readSource(
+      "src/app/student/missions/[assignmentStudentId]/tts/route.ts",
+    );
+
+    expect(routeSource).toContain('case "completion_celebration"');
+    expect(routeSource).toContain("return profile.completionHeading;");
+    expect(routeSource).not.toContain(
+      "`${profile.completionHeading} ${profile.completionBody(turnCount)}`",
+    );
+  });
+
+  it("uses matched Coco, Hint, and TTS tabs while preserving the mascot stage", () => {
+    const stageSource = readSource("src/components/student/MascotStage.tsx");
+    const dialogueSource = readSource(
+      "src/components/student/CocoDialogueBox.tsx",
+    );
+    const stylesSource = readSource("src/components/student/styles.ts");
+
+    expect(stageSource).toContain("<CocoDialogueBox");
+    expect(stageSource).toContain("SPRITE_BY_EXPRESSION");
+    expect(stageSource).toContain("updateSpeakingVisual");
+    expect(dialogueSource).toContain("displayName");
+    expect(dialogueSource).toContain(">{hintLabel}</button>");
+    expect(dialogueSource).toContain("voiceControl");
+    expect(stylesSource).toContain('color: "#2563EB"');
+    expect(stylesSource).toContain("minHeight: 44");
+  });
+
+  it("keeps English inline and shows Korean only in an anchored phrase bubble", () => {
+    const dialogueSource = readSource(
+      "src/components/student/CocoDialogueBox.tsx",
+    );
+
+    expect(dialogueSource).toContain("buildTranslationSegments");
+    expect(dialogueSource).toContain("aria-expanded={isExpanded}");
+    expect(dialogueSource).toContain("phrase.translation");
+    expect(dialogueSource).not.toContain("dangerouslySetInnerHTML");
+    expect(dialogueSource).not.toContain("onPointerDown");
+    expect(dialogueSource).not.toContain("onTouchStart");
+  });
+
+  it("wraps only the anchored Korean translation bubble within a phone-safe width", () => {
+    const stylesSource = readSource("src/components/student/styles.ts");
+
+    expect(stylesSource).toMatch(
+      /export const mascotTranslationBubbleStyle: CSSProperties = \{[^}]*maxWidth: "calc\(100vw - 32px\)"[^}]*whiteSpace: "normal"[^}]*overflowWrap: "anywhere"[^}]*\};/,
+    );
+  });
+
+  it("retries translation through the same visible Hint action", () => {
+    const dialogueSource = readSource(
+      "src/components/student/CocoDialogueBox.tsx",
+    );
+    const shellSource = readSource(
+      "src/components/student/MissionFlowShell.tsx",
+    );
+
+    expect(dialogueSource).toContain("const hintLabel =");
+    expect(dialogueSource).toContain('translationState.kind === "error"');
+    expect(dialogueSource).toContain('"Retry hint"');
+    expect(dialogueSource).toContain('translationState.kind === "loading"');
+    expect(dialogueSource).toContain('"Hint…"');
+    expect(dialogueSource).toContain("aria-label={hintLabel}");
+    // The visible label must change with state, not just aria attributes.
+    expect(dialogueSource).toContain(">{hintLabel}</button>");
+    expect(dialogueSource).not.toMatch(/>\s*Hint\s*</);
+    expect(dialogueSource).not.toContain("Translation unavailable");
+    expect(shellSource).not.toMatch(
+      /VoiceRecorderControl[\s\S]*disabled=\{.*translation/,
+    );
+  });
+
+  it("opens the first Korean phrase immediately and toggles without refetching", () => {
+    const dialogueSource = readSource(
+      "src/components/student/CocoDialogueBox.tsx",
+    );
+
+    expect(dialogueSource).toContain(
+      "getFirstTranslationPhraseSegmentIndex",
+    );
+    expect(dialogueSource).toContain("toggleTranslationBubble");
+    expect(dialogueSource).toMatch(
+      /translationState\.kind === "ready"[\s\S]*setExpandedPhraseIndex[\s\S]*return/,
+    );
+    expect(dialogueSource).toMatch(
+      /setTranslationState\(\{ kind: "ready"[\s\S]*setExpandedPhraseIndex\(firstPhraseIndex\)/,
+    );
+    expect(dialogueSource).toMatch(
+      /firstPhraseIndex === null[\s\S]*setTranslationState\(\{ kind: "error" \}\)/,
+    );
+    const readyBranchIndex = dialogueSource.indexOf(
+      'if (translationState.kind === "ready")',
+    );
+    const fetchIndex = dialogueSource.indexOf("await fetch(");
+    expect(readyBranchIndex).toBeGreaterThan(-1);
+    expect(fetchIndex).toBeGreaterThan(readyBranchIndex);
+    expect(dialogueSource).toContain(
+      "aria-pressed={expandedPhraseIndex !== null}",
+    );
+  });
+
+  it("uses an icon-only dialogue-tab replay without changing standalone TTS", () => {
+    const audioSource = readSource("src/components/student/CocoSpeechAudio.tsx");
+    const shellSource = readSource("src/components/student/MissionFlowShell.tsx");
+
+    expect(audioSource).toContain('presentation?: "standalone" | "dialogue-tab"');
+    expect(audioSource).toContain('presentation = "standalone"');
+    expect(audioSource).toContain('presentation !== "dialogue-tab"');
+    expect(shellSource).toContain('presentation="dialogue-tab"');
+  });
+
+  it("cancels stale translation requests when the active prompt changes", () => {
+    const dialogueSource = readSource(
+      "src/components/student/CocoDialogueBox.tsx",
+    );
+
+    expect(dialogueSource).toContain("new AbortController()");
+    expect(dialogueSource).toContain("activeRequestRef.current?.abort()");
+    expect(dialogueSource).toContain("signal: controller.signal");
+    expect(dialogueSource).toContain("AbortError");
+  });
+
+  it("attaches Coco and grouped actions to one shared chatbox border", () => {
+    const dialogueSource = readSource(
+      "src/components/student/CocoDialogueBox.tsx",
+    );
+    const stylesSource = readSource("src/components/student/styles.ts");
+
+    expect(dialogueSource).toContain("mascotDialogueShellStyle");
+    expect(dialogueSource).toContain("mascotDialogueActionsStyle");
+    expect(stylesSource).toContain("top: -46");
+    expect(stylesSource).toContain("height: 48");
+    expect(stylesSource).toContain('border: "2px solid #2563EB"');
+    expect(stylesSource).toContain('borderBottomColor: "transparent"');
+    expect(stylesSource).toContain('backgroundClip: "padding-box"');
+    expect(stylesSource).not.toContain('padding: "52px 16px 8px"');
+  });
+
+  it("keeps a compact nameplate beside full-size Hint and replay actions", () => {
+    const stylesSource = readSource("src/components/student/styles.ts");
+
+    expect(stylesSource).toMatch(
+      /mascotDialogueTabsStyle[\s\S]*alignItems: "flex-end"/,
+    );
+    expect(stylesSource).toMatch(
+      /mascotNameTabStyle[\s\S]*height: 38[\s\S]*minWidth: 76[\s\S]*padding: "0 12px"[\s\S]*fontSize: 14[\s\S]*fontWeight: 700/,
+    );
+    expect(stylesSource).toMatch(
+      /mascotAttachedTabStyle[\s\S]*height: 48/,
+    );
+    expect(stylesSource).toMatch(
+      /mascotDialogueActionsStyle[\s\S]*\.\.\.mascotAttachedTabStyle/,
+    );
+    expect(stylesSource).toMatch(
+      /export const mascotHintTabStyle: CSSProperties = \{[^}]*minHeight: 44/,
+    );
+    expect(stylesSource).toMatch(
+      /export const mascotVoiceTabStyle: CSSProperties = \{[^}]*minHeight: 44/,
+    );
+  });
+
+  it("preserves Coco's crop while giving the chatbox face clearance", () => {
+    const stageSource = readSource("src/components/student/MascotStage.tsx");
+    const stylesSource = readSource("src/components/student/styles.ts");
+
+    expect(stageSource).toContain("SPRITE_BY_EXPRESSION");
+    expect(stageSource).toContain("mascotSpriteWrapStyle");
+    expect(stylesSource).toContain("height: 360");
+    expect(stylesSource).toContain("bottom: 180");
+    expect(stylesSource).toContain("height: 180");
+    expect(stylesSource).toContain(
+      'left: "clamp(24px, calc((100% - 226px) / 2), 72px)"',
+    );
+  });
+
   it("wires CocoSpeechAudio into the buddy question, improved repeat, transition, and completion steps", () => {
     const questionSource = readSource(
       "src/components/student/StepBuddyQuestion.tsx",
@@ -167,6 +343,20 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(routeSource).toContain('return "Try again!"');
   });
 
+  it("resolves improved/dynamic line lookups from the latest attempt only (multi-attempt voice regression)", () => {
+    const routeSource = readSource(
+      "src/app/student/missions/[assignmentStudentId]/tts/route.ts",
+    );
+
+    // A restarted/retried mission produces a second attempt whose attempt_turns
+    // reuse the same turn_order values. Filtering only on the assignment-level
+    // join makes .maybeSingle() error on the duplicate rows, resolving the line
+    // to null → 404 → "Voice unavailable". The lookups must pin to the current
+    // attempt via assignment_students.latest_attempt_id.
+    expect(routeSource).toContain("latest_attempt_id");
+    expect(routeSource).toMatch(/\.eq\("attempt_id", latestAttemptId\)/);
+  });
+
   it("keeps the target sentence in the step card, not embedded in Coco's dialogue text", () => {
     const shellSource = readSource(
       "src/components/student/MissionFlowShell.tsx",
@@ -223,9 +413,10 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(stylesSource).toContain(
       'right: "clamp(24px, calc((100% - 226px) / 2), 72px)"',
     );
-    // Sprite box must clear the dialogue box (top at y=172 of the 300-tall
-    // stage) so close-up sprites' faces aren't hidden behind it.
-    expect(stylesSource).toContain("bottom: 120");
+    // The sprite keeps its existing crop at the top of the taller stage while
+    // the attached controls move below the face.
+    expect(stylesSource).toContain("height: 360");
+    expect(stylesSource).toContain("bottom: 180");
     expect(stylesSource).toContain("height: 180");
   });
 

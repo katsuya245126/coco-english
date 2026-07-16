@@ -41,7 +41,6 @@ function resolveLineText(
   lineKind: VoiceEligibleLineKind,
   characterId: string,
   turn: ResolvedSnapshotTurn | null,
-  turnCount: number,
   feedbackVariant?: string,
 ): string | null {
   const profile = getCharacterProfile(characterId);
@@ -57,7 +56,7 @@ function resolveLineText(
     case "coco_feedback":
       return resolveFeedbackLineText(feedbackVariant) ?? profile.improvedSentenceIntro;
     case "completion_celebration":
-      return `${profile.completionHeading} ${profile.completionBody(turnCount)}`;
+      return profile.completionHeading;
     case "coco_dynamic_line":
       // Phase 11 CHAT-02 — Coco's dynamically-generated reply. Already
       // moderated + persisted server-side (11-03); resolved here from
@@ -122,7 +121,7 @@ export async function POST(request: Request, context: RouteContext) {
   // Load owned assignment + snapshot for line resolution and ownership.
   const { data: assignmentStudent, error: ownershipError } = await supabase
     .from("assignment_students")
-    .select("id, student_id, assignments(mission_snapshot, canceled_at)")
+    .select("id, student_id, latest_attempt_id, assignments(mission_snapshot, canceled_at)")
     .eq("id", assignmentStudentId)
     .eq("student_id", unlock.studentId)
     .maybeSingle();
@@ -152,7 +151,13 @@ export async function POST(request: Request, context: RouteContext) {
   const snapshot = snapshotResult.success ? snapshotResult.data : null;
 
   const characterId = parsed.data.characterId ?? snapshot?.characterId ?? "default-buddy";
-  const turnCount = snapshot?.turns.length ?? snapshot?.requiredTurns ?? 0;
+  // A restarted/retried mission produces additional attempts whose
+  // attempt_turns reuse the same turn_order values, so the per-turn lookups
+  // below must pin to the current attempt — an assignment-wide join returns
+  // duplicate rows and .maybeSingle() errors, surfacing as "Voice unavailable".
+  const latestAttemptId =
+    (assignmentStudent as { latest_attempt_id?: string | null })
+      .latest_attempt_id ?? null;
 
   let resolvedTurn: ResolvedSnapshotTurn | null = null;
   if (parsed.data.turnOrder && snapshot) {
@@ -166,11 +171,11 @@ export async function POST(request: Request, context: RouteContext) {
     let improvedSentence: string | null = null;
     let cocoLine: string | null = null;
 
-    if (parsed.data.lineKind === "improved_sentence") {
+    if (parsed.data.lineKind === "improved_sentence" && latestAttemptId) {
       const { data: turnRow } = await supabase
         .from("attempt_turns")
-        .select("improved_sentence, attempts!inner(assignment_student_id)")
-        .eq("attempts.assignment_student_id", assignmentStudentId)
+        .select("improved_sentence")
+        .eq("attempt_id", latestAttemptId)
         .eq("turn_order", parsed.data.turnOrder)
         .maybeSingle();
       improvedSentence =
@@ -178,11 +183,11 @@ export async function POST(request: Request, context: RouteContext) {
           ?.improved_sentence ?? null;
     }
 
-    if (parsed.data.lineKind === "coco_dynamic_line") {
+    if (parsed.data.lineKind === "coco_dynamic_line" && latestAttemptId) {
       const { data: turnRow } = await supabase
         .from("attempt_turns")
-        .select("coco_line, attempts!inner(assignment_student_id)")
-        .eq("attempts.assignment_student_id", assignmentStudentId)
+        .select("coco_line")
+        .eq("attempt_id", latestAttemptId)
         .eq("turn_order", parsed.data.turnOrder)
         .maybeSingle();
       cocoLine =
@@ -202,7 +207,6 @@ export async function POST(request: Request, context: RouteContext) {
     parsed.data.lineKind,
     characterId,
     resolvedTurn,
-    turnCount,
     parsed.data.feedbackVariant,
   );
 

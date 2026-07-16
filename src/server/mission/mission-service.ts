@@ -199,7 +199,12 @@ async function withMissionCounts(
 
   return rows.map((row) =>
     mapMission(row, {
-      turnCount: turnCounts.get(row.id) ?? row.required_turns,
+      // Conversation-mode missions store only the opener template, so the
+      // template count understates the mission length; the configured
+      // required_turns is the real turn count.
+      turnCount: row.conversation_mode
+        ? row.required_turns
+        : (turnCounts.get(row.id) ?? row.required_turns),
       assignmentCount: assignmentCounts.get(row.id) ?? 0,
       activeAssignmentCount: assignmentCounts.get(row.id) ?? 0,
     }),
@@ -393,7 +398,9 @@ export async function getMissionForTeacher(input: {
 
   return {
     ...mapMission(mission.data, {
-      turnCount: turns.data?.length ?? 0,
+      turnCount: mission.data.conversation_mode
+        ? mission.data.required_turns
+        : (turns.data?.length ?? 0),
       assignmentCount: activeAssignmentCount,
       activeAssignmentCount,
     }),

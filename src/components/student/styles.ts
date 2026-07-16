@@ -12,6 +12,19 @@ export const pageStyle: CSSProperties = {
   boxSizing: "border-box",
 };
 
+export const MISSION_CONTENT_MAX_WIDTH = 640;
+
+export const missionPageStyle: CSSProperties = {
+  ...pageStyle,
+  padding: "clamp(16px, 3vw, 32px)",
+};
+
+export const missionContentStyle: CSSProperties = {
+  width: "100%",
+  maxWidth: MISSION_CONTENT_MAX_WIDTH,
+  alignSelf: "flex-start",
+};
+
 export const panelStyle: CSSProperties = {
   width: "100%",
   maxWidth: 420,
@@ -281,8 +294,8 @@ export const badgeRetryStyle: CSSProperties = {
 
 export const mascotStageStyle: CSSProperties = {
   width: "100%",
-  maxWidth: panelStyle.maxWidth,
-  height: 300,
+  maxWidth: MISSION_CONTENT_MAX_WIDTH,
+  height: 360,
   position: "relative",
   marginTop: 16,
   marginLeft: "auto",
@@ -306,26 +319,138 @@ export const mascotSpriteWrapStyle: CSSProperties = {
   // on screens too narrow to retain a 24px safety inset.
   left: "clamp(24px, calc((100% - 226px) / 2), 72px)",
   right: "clamp(24px, calc((100% - 226px) / 2), 72px)",
-  // Sits behind the dialogue box (stage 300 tall, box top at y=164). The 16px
-  // box overlap closes the transparent edge gap on portrait sprites without
-  // moving Coco or clipping the ears during the speaking scale pulse.
-  bottom: 120,
+  // Keep Coco's existing crop at the top of the taller stage. The attached
+  // dialogue tabs now meet the bottom of the sprite instead of covering the
+  // lower half of Coco's face.
+  bottom: 180,
   height: 180,
   transformOrigin: "bottom center",
 };
 
-export const mascotDialogueBoxStyle: CSSProperties = {
+export const mascotDialogueShellStyle: CSSProperties = {
   position: "absolute",
   left: 16,
   right: 16,
   bottom: 32,
   height: 104,
+  overflow: "visible",
+};
+
+export const mascotDialogueBoxStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
   background: "#FFFFFF",
-  borderTop: "3px solid #2563EB",
+  border: "2px solid #2563EB",
   borderRadius: 8,
-  padding: 16,
+  padding: 22,
   boxSizing: "border-box",
   overflowY: "auto",
+};
+
+export const mascotDialogueTabsStyle: CSSProperties = {
+  position: "absolute",
+  left: 8,
+  right: 8,
+  top: -46,
+  height: 48,
+  zIndex: 2,
+  display: "flex",
+  alignItems: "flex-end",
+  pointerEvents: "none",
+};
+
+const mascotAttachedTabStyle: CSSProperties = {
+  height: 48,
+  boxSizing: "border-box",
+  border: "2px solid #2563EB",
+  borderBottomColor: "transparent",
+  borderRadius: "12px 12px 0 0",
+  backgroundClip: "padding-box",
+  pointerEvents: "auto",
+};
+
+export const mascotNameTabStyle: CSSProperties = {
+  ...mascotAttachedTabStyle,
+  height: 38,
+  minWidth: 76,
+  padding: "0 12px",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "#2563EB",
+  color: "#FFFFFF",
+  fontSize: 14,
+  fontWeight: 700,
+};
+
+export const mascotDialogueActionsStyle: CSSProperties = {
+  ...mascotAttachedTabStyle,
+  marginLeft: "auto",
+  display: "flex",
+  alignItems: "center",
+  overflow: "hidden",
+  background: "#FFFFFF",
+};
+
+export const mascotHintTabStyle: CSSProperties = {
+  minHeight: 44,
+  padding: "0 12px",
+  border: 0,
+  borderRight: "1px solid #BFDBFE",
+  borderRadius: 0,
+  background: "transparent",
+  color: "#2563EB",
+  fontSize: 14,
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+export const mascotVoiceTabStyle: CSSProperties = {
+  minHeight: 44,
+  minWidth: 44,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  pointerEvents: "auto",
+};
+
+export const mascotDialogueTextStyle: CSSProperties = {
+  fontSize: 18,
+  fontWeight: 600,
+  lineHeight: 1.3,
+  color: "#111827",
+  margin: 0,
+};
+
+export const mascotPhraseButtonStyle: CSSProperties = {
+  minHeight: 44,
+  padding: "8px 3px",
+  margin: "-8px 0",
+  border: "1px solid #93C5FD",
+  borderRadius: 6,
+  background: "#EFF6FF",
+  color: "inherit",
+  font: "inherit",
+  cursor: "pointer",
+};
+
+export const mascotTranslationBubbleStyle: CSSProperties = {
+  position: "absolute",
+  left: "50%",
+  top: "calc(100% + 6px)",
+  transform: "translateX(-50%)",
+  zIndex: 5,
+  maxWidth: "calc(100vw - 32px)",
+  boxSizing: "border-box",
+  padding: "6px 10px",
+  borderRadius: 8,
+  background: "#1E3A8A",
+  color: "#FFFFFF",
+  fontSize: 15,
+  fontWeight: 600,
+  lineHeight: 1.3,
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
 };
 
 export const mascotSpeakerLabelStyle: CSSProperties = {

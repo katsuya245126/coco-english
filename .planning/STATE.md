@@ -5,16 +5,16 @@ milestone_name: — Coco Comes Alive
 current_phase: 11
 current_phase_name: coco-chat-dynamic-turns-scene-framing
 status: executing
-stopped_at: Dynamic conversation repair and Korean phrase-hint/VN chatbox TDD plans ready; execution choice pending
-last_updated: "2026-07-15T14:29:31Z"
-last_activity: 2026-07-15
-last_activity_desc: Wrote two self-reviewed TDD implementation plans for the approved Phase 11 repair
+stopped_at: Phase 11 conversation and post-UAT repairs merged to main and automated-verified; credentialed hint/live-flow UAT pending
+last_updated: "2026-07-16T05:54:08Z"
+last_activity: 2026-07-16
+last_activity_desc: Merged Phase 11 conversation and post-UAT repairs to main; credentialed hint/live-flow UAT pending
 progress:
   total_phases: 8
   completed_phases: 5
-  total_plans: 38
+  total_plans: 40
   completed_plans: 34
-  percent: 89
+  percent: 85
 ---
 
 # Project State
@@ -31,16 +31,59 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 Phase: 11 (coco-chat-dynamic-turns-scene-framing) — EXECUTING
 Inserted repair: Phase 11.1 (coco-chat-opening-line-dynamic-turn-runnability) — COMPLETE
 Plan: 4 of 4 complete (11.1-01 through 11.1-04)
-Status: Phase 11.1 runnability is complete, but real UAT exposed a conversation-quality gap. The approved repair accepts relevant correct free-talk answers, requires spoken meaning-preserving corrections for incorrect English, advances directly through contextual Coco lines, and gives all Coco prompts AI-selected Korean phrase translations through matched Coco/Hint/TTS dialogue tabs. Two sequential TDD implementation plans are ready: dynamic conversation repair first, then Korean phrase hints and the VN chatbox. Only the optional hint-heart policy is deferred.
+Status: The fluid-mission implementation and post-UAT repairs are merged to `main` and automated-verified. Conversation prompts remain generated and history-grounded after turn 1; chat turn counts use `required_turns`; failed submissions return learners to the question with retry copy; translation hints no longer trust model-generated character offsets and expose visible loading/retry states; and the mascot stage gives attached controls face clearance without changing Coco's crop. Credentialed hint/live-flow UAT remains pending.
+
+**Post-UAT repair verification (2026-07-16):**
+
+- Mascot geometry TDD RED: attached tabs began at y=118 while the sprite ended at y=180, producing the reproduced 62px face overlap.
+- Mascot geometry GREEN: phone and desktop browser measurements place the tabs at sprite y=178, preserving only the intended 2px seam; rendered screenshots show Coco's full face above the controls.
+- Focused hint verification: 4/4 files, 53/53 tests passed.
+- Full `npx vitest run`: exit 0; 81/81 test files passed, 713 tests passed, 4 skipped.
+- `npm run typecheck`: exit 0 after removing the disposable `.next` route cache left by the temporary layout harness.
+- `npm run lint`: exit 0 with 0 errors and the one pre-existing unused-`label` warning at `scripts/check-student-feedback-states.mjs:435`.
+- `npm run build`: exit 0; compiled successfully and generated 9/9 static pages. The pre-existing multiple-lockfile/workspace-root warning remains.
+- Post-merge `main` verification: 81/81 test files passed (713 passed, 4 skipped), typecheck exited 0, and lint exited 0 with the same one warning. The main production build was not repeated because the user's port-3000 dev server was active; the identical feature commit passed the fresh build above.
+- Credentialed Hint and complete student-flow UAT: PENDING. The temporary `/dev-mascot` harness was removed after unauthenticated responsive layout verification.
+
+**Final whole-branch review fix verification (2026-07-16):**
+
+- RED evidence: the initial changed-module run exited 1 with 6 intended failures (serialization retained 3 turns; UI selected a legacy authored tail twice; audio evaluation selected the legacy tail and uploaded before missing-history rejection; translation bubble remained nowrap). A dedicated old-interface resume run exited 1 and returned null when `snapshotTurnCount` was 2. No production code was changed before these failures were observed.
+- Changed-module GREEN run: exit 0; 5/5 test files passed, 68/68 tests passed.
+- Exact focused regression matrix: exit 0; 8/8 test files passed, 87/87 tests passed. Vitest emitted the pre-existing Vite CJS Node API deprecation notice.
+- `npm run typecheck`: exit 0.
+- `npm run lint`: exit 0 with 0 errors and exactly 1 pre-existing warning: unused `label` at `scripts/check-student-feedback-states.mjs:435`.
+- Full `npx vitest run`: exit 0; 79/79 test files passed, 706 tests passed, 4 skipped (710 total). Vitest emitted the same pre-existing Vite CJS Node API deprecation notice; negative-path tests emitted their expected structured warning/error logs.
+- Safe production build precheck: exit 0; exact-worktree `next dev` found=false, so no process was stopped. `npm run build` exited 0, compiled successfully, and generated 9/9 static pages. The pre-existing Next.js multiple-lockfile/workspace-root inference warning remained.
+- Deterministic feedback-state screenshots: PENDING, not run. `FEEDBACK_STATE_CLASS_CODE_non_empty=false`, `FEEDBACK_STATE_STUDENT_NAME_non_empty=false`, `FEEDBACK_STATE_PIN_non_empty=false`, and `port_3000_listener=false`; this exact worktree was not served.
+- Responsive/live interaction UAT: PENDING, not simulated. In addition to the existing fluid-mission checklist, verify a long Korean phrase near both horizontal edges on phone widths. The bubble now wraps with a viewport-bounded maximum width and anywhere overflow, but a fully viewport-aware anchored shift would require live measurement state and remains a live-UAT risk.
+
+**Dynamic conversation repair (Plan 1 of 2) — code complete, automated-verified 2026-07-15, in worktree `phase11-dynamic-conversation-repair` (not yet merged to main):**
+
+All 6 code tasks implemented with TDD RED→GREEN→commit, each scoped-staged and committed individually:
+- Task 1 (`73fc7284`): explicit `evaluationMode: "preset" | "conversation"` policy in `turn-evaluator.ts` — conversation mode accepts relevant correct English and requires a meaning-preserving `improvedSentence` correction (never a repeat-the-question demand) when wrong.
+- Task 2 (`d46543b5`): `audio-upload.ts` routes conversation-mode turns through the new policy with `targetExample` forced null so the preset fast-path never fires for chat.
+- Task 3 (`334c93c2`): `conversation-generator.ts` follow-ups must acknowledge the student's actual answer and stay on-topic; `targetPattern` is soft context, never a mandatory template.
+- Task 4 (`95909654`): pure `resolveAcceptedConversationTurn` resolver in `student-question-state.ts` (next/complete/unavailable), replacing the old `advanceConversationQuestion` transition-screen path.
+- Task 5 (`6c8bcca3`): `MissionFlowShell.tsx` now calls `continueAcceptedConversationTurn` directly on any accepted chat original/repeat — no `Nice answer!`/`Good job! Ready for the next one?`/Next-turn screen for chat; preset missions are untouched and still use `StepTurnTransition`.
+- Task 6 (`524bb46f`): `attempt_turns.coco_line` now threads through `CompletionTurn`/`PendingTurnReview`/`initialFlowState`, so refreshing on a correction or repeat-review screen restores the exact same pending contextual Coco line instead of losing or regenerating it.
+
+Automated verification done (Task 7 Steps 1-2): the plan's 8 focused test files (103 tests) pass, `npm run typecheck` exits 0, `npm run lint` exits 0 (one pre-existing unrelated warning in `check-student-feedback-states.mjs`), and the full `vitest run` suite passes 634/638 (4 intentionally skipped).
+
+**Not yet run (Task 7 Steps 3-4 — require a live localhost:3000 app and real disposable class-code/student/PIN test-account values the assistant does not hold; user opted to run these separately):**
+- `npm run test:student-feedback-states` (deterministic feedback-state Playwright script) with `FEEDBACK_STATE_CLASS_CODE`/`FEEDBACK_STATE_STUDENT_NAME`/`FEEDBACK_STATE_PIN` exported only in the user's shell.
+- Manual 8-point soccer-mission UAT (accept a correct free-talk answer with no repeat-the-question or transition screen; correct `I no play soccer.` → `I don't play soccer.` with required spoken repeat; refresh on the correction/repeat screen and confirm the same pending Coco line persists; run one preset mission and confirm its evaluation/correction/retry/transition screens are unchanged).
+
+Plan 2 (Korean phrase hints + VN chatbox, `docs/superpowers/plans/2026-07-15-korean-phrase-hints-chatbox.md`) implementation is complete and automated-verified. Dynamic prompts use contextual Korean phrase translation without the old target-pattern fallback, action-error dialogue suppresses the translation descriptor, and completion audio says only `Mission complete!` while the full teacher-review explanation remains visible. Code review found no critical issues; all important findings were fixed by aborting/invalidating stale hint requests, reserving the full 44px tab row above dialogue text, and rejecting whitespace/punctuation-only phrase spans. Final fresh verification after the review fixes: 677 tests passed / 4 skipped; typecheck and production build exited 0; lint exited 0 with one pre-existing warning in `scripts/check-student-feedback-states.mjs`. Migration `202607150001_translation_hint_cache.sql` remains local because `supabase db push` failed with `LegacyProjectNotLinkedError` (no project ref in this worktree). Phone/desktop UI UAT and deterministic feedback-state coverage remain pending; the user's port-3000 server is running the main checkout rather than this worktree.
+The natural-conversation history, attached chatbox, and latest fluid-mission design in `docs/superpowers/specs/2026-07-16-fluid-mission-hints-thinking-replies-design.md` are implemented and automated-verified on this branch, and the final whole-branch review fixes are complete. Credentialed screenshots and responsive/live UAT remain pending.
 Active feature work: dismiss-incomplete and clickable no-attempt assignment evidence are implemented on `feature/dismiss-incomplete-assignment`; migrations `202607120003`, `202607120004`, and `202607120005` are live. Both by-ID and attempt-keyed dismiss/undo paths are state-sensitive. Phase 10.1 post-review fixes add compare-and-swap protection to the missed-status worker and reliable seeded-test cleanup. The cron regression passes 2/2, the live review-policy Playwright regression passes 5/5, typecheck passes, and the approved clean-cache production build succeeds.
 Quick task 260710-hbn completed the interrupted student retry/audio feedback work in commit `33779fa1`. The follow-up `retry-feedback-flow` debug session fixed final-turn review gating, repeat retry audio/actions, and transcript carryover. The subsequent code-review follow-up removed the unsafe grammar-only fill-in bypass, moved mission completion into a deployed atomic RPC, restored persisted feedback/audio on refresh, included evaluation in resume decisions, and fixed Coco playback teardown. Those follow-ups are complete and Phase 10 remains closed.
 The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on desktop but only 133px on a 375px phone. Responsive clamped insets now preserve the desktop framing at 226px on both standard phone and desktop widths without changing stage, dialogue, or recorder geometry.
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
 The `mission-create-retry-cleanup` follow-up found mission creation itself was healthy: an active dev server had been corrupted when production builds rewrote its `.next` chunks, leaving the form unhydrated and causing native GET submission. A clean restart restored two verified real saves. The retry route now honors `needs_retry` past the original deadline, and the teacher AI mission-draft feature was removed end-to-end. Phase 11's roadmap now requires standalone scene-premise generation rather than restoring full mission drafting.
 
-Last activity: 2026-07-15 — Wrote two self-reviewed TDD implementation plans for the approved Phase 11 repair
+Last activity: 2026-07-16 — Merged Phase 11 conversation and post-UAT repairs to main; credentialed hint/live-flow UAT pending
 
-Progress: [█████████░] 89%
+Progress: [████████░░] 85%
 
 **Codex handoff (merged to main 2026-07-05, branch feature/per-student-sound-profile deleted):**
 
@@ -225,6 +268,6 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 **Handoff docs:** `.planning/handoff/` holds two 2026-07-10 session handoffs (mascot-audio-copy, audio-reclick-still-broken), committed 2026-07-11 as historical records — every open item in them has since landed: the replay re-click silence was resolved in `33779fa1` by removing Web Audio entirely from `CocoSpeechAudio.tsx` (native `<audio>` playback + synthetic mouth pulse; never reintroduce `createMediaElementSource` — a source test bans it), the terse "Say this sentence:" repeat-card label and the sprite-framing/dialogue-box overlap fixes landed in the same commit and the mobile follow-ups `f87766f5`/`7a599097`. Audible replay confirmation remains user-ear-only (agent preview and driven-Chrome tabs can't produce sound) and is folded into the existing Task 3 checkpoint.
 
-Last session: 2026-07-15T08:02:21Z
-Stopped at: Completed 11.1-04-PLAN.md; Phase 11.1 is complete
+Last session: 2026-07-16T05:54:08Z
+Stopped at: Phase 11 conversation and post-UAT repairs merged to main and automated-verified; credentialed hint/live-flow UAT still pending
 Note: Branch `phase-10-mascot-wip` is fully merged and can still be deleted (not yet done — ask before deleting). `.planning/phases/11-coco-chat-dynamic-turns-scene-framing/` is active again now that Phase 10 is back to the mascot. Phase 13 (Pronunciation Remediation Videos, MEDIA-F1) is new — not yet planned, no phase directory exists yet. Two incidental fixes landed this session outside Plan 10-04's own scope: `d104f16d` (CocoSpeechAudio analyser-ordering bug, found uncommitted, directly tied to the MASCOT-02 wiring) and `58bcc921` (repeat-turn exact-match fast-path, committed independently by the user during the same session — unrelated to Phase 10, not reviewed here).

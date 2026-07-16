@@ -15,6 +15,7 @@ type RepeatFeedbackKind = "repeatAccepted" | "repeatRetry" | "repeatReview";
 
 const allSteps: FlowStep[] = [
   "question",
+  "cocoThinking",
   "aiFeedback",
   "repeat",
   "repeatFeedback",
@@ -128,9 +129,16 @@ describe("deriveExpression (MASCOT-03)", () => {
     ).toBe("encouraging");
   });
 
+  it("uses the thinking expression while Coco generates a reply", () => {
+    expect(deriveExpression({ step: "cocoThinking" })).toBe("thinking");
+  });
+
   it("maps neutral flow steps with no feedback to idle", () => {
     const neutralSteps = allSteps.filter(
-      (candidate) => candidate !== "complete" && candidate !== "repeat",
+      (candidate) =>
+        candidate !== "complete" &&
+        candidate !== "repeat" &&
+        candidate !== "cocoThinking",
     );
     for (const step of neutralSteps) {
       expect(deriveExpression({ step })).toBe("idle");
