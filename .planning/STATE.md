@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 11
 current_phase_name: coco-chat-dynamic-turns-scene-framing
 status: executing
-stopped_at: Approved shared-border chatbox layout code complete; full verification and visual UAT remain
-last_updated: "2026-07-16T01:11:39Z"
+stopped_at: Both natural-history and attached-chatbox plans automated-verified on worktree branch; live and visual UAT pending
+last_updated: "2026-07-16T01:13:44Z"
 last_activity: 2026-07-16
-last_activity_desc: Attached the Coco nameplate and grouped Hint/replay controls to the chatbox border
+last_activity_desc: Completed and automated-verified natural conversation history and attached chatbox controls
 progress:
   total_phases: 8
   completed_phases: 5
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 Phase: 11 (coco-chat-dynamic-turns-scene-framing) — EXECUTING
 Inserted repair: Phase 11.1 (coco-chat-opening-line-dynamic-turn-runnability) — COMPLETE
 Plan: 4 of 4 complete (11.1-01 through 11.1-04)
-Status: The natural-conversation-history plan is code-complete and automated-verified (focused 46/46; full suite 693 passed / 4 skipped; typecheck, lint, and production build exited 0, with one pre-existing lint warning). The attached-chatbox-controls plan is code-complete through Task 2: failed translations retry through the same visible Hint action, chatbox replay is icon-only, and the Coco nameplate plus grouped Hint/replay controls attach to one 2px shared border outside the scrollable message surface. Focused UI tests pass 26/26 and typecheck exits 0. Full verification, credentialed screenshots, phone/desktop visual comparison, and live conversation UAT remain.
+Status: Both requested plans are code-complete and automated-verified on branch `worktree-phase11-dynamic-conversation-repair`. Natural conversation generation is grounded in validated owned attempt history and prohibits redundant known-answer questions. The chatbox keeps failed Hint retries and replay in two stable actions, with the Coco nameplate and grouped controls attached to one 2px shared border outside the message surface. Final fresh evidence: chatbox matrix 52/52 passed; full Vitest suite 695 passed / 4 skipped; typecheck exited 0; lint exited 0 with the one pre-existing unused `label` warning in `scripts/check-student-feedback-states.mjs`; production build exited 0. Disposable credential variables were unavailable, so deterministic screenshots remain pending. Phone/desktop comparison against the approved v7 HTML and live Minju/classroom conversation UAT also remain pending. The branch and worktree are intentionally preserved and not merged to `main`.
 
 **Dynamic conversation repair (Plan 1 of 2) — code complete, automated-verified 2026-07-15, in worktree `phase11-dynamic-conversation-repair` (not yet merged to main):**
 
