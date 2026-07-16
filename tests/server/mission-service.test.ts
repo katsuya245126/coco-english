@@ -221,6 +221,62 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
     });
   });
 
+  it("reports required turns for conversation-mode missions that store only the opener template", async () => {
+    const missionRow = {
+      id: "mission-1",
+      title: "Test homework",
+      target_pattern: "I like ___.",
+      topic: "Hobbies",
+      level: "elementary",
+      required_turns: 5,
+      character_id: "default-buddy",
+      conversation_mode: true,
+      scene_premise: null,
+      archived_at: null,
+    };
+    mockSupabase = {
+      from: vi.fn((table: string) => {
+        if (table === "missions") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                is: vi.fn(() => ({
+                  order: vi.fn(async () => ({ data: [missionRow], error: null })),
+                })),
+              })),
+            })),
+          };
+        }
+        if (table === "mission_turn_templates") {
+          return {
+            select: vi.fn(() => ({
+              in: vi.fn(async () => ({
+                data: [{ mission_id: "mission-1" }],
+                error: null,
+              })),
+            })),
+          };
+        }
+        if (table === "assignments") {
+          return {
+            select: vi.fn(() => ({
+              in: vi.fn(() => ({
+                is: vi.fn(async () => ({ data: [], error: null })),
+              })),
+            })),
+          };
+        }
+        throw new Error(`Unexpected table ${table}`);
+      }),
+    };
+
+    const missions = await listMissionsForTeacher({ teacherId: "teacher-1" });
+
+    expect(missions).toHaveLength(1);
+    expect(missions[0].conversationMode).toBe(true);
+    expect(missions[0].turnCount).toBe(5);
+  });
+
   it("lists active and archived missions separately", async () => {
     const calls: Array<{ action: string; column: string; value?: unknown; operator?: string }> = [];
     mockSupabase = {
