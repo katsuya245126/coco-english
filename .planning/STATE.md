@@ -81,7 +81,7 @@ The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on de
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
 The `mission-create-retry-cleanup` follow-up found mission creation itself was healthy: an active dev server had been corrupted when production builds rewrote its `.next` chunks, leaving the form unhydrated and causing native GET submission. A clean restart restored two verified real saves. The retry route now honors `needs_retry` past the original deadline, and the teacher AI mission-draft feature was removed end-to-end. Phase 11's roadmap now requires standalone scene-premise generation rather than restoring full mission drafting.
 
-Last activity: 2026-07-16 — Merged Phase 11 conversation and post-UAT repairs to main; credentialed hint/live-flow UAT pending
+Last activity: 2026-07-16 — Completed quick task 260716-pzo: report-only unused-code audit (AUDIT.md); credentialed hint/live-flow UAT pending
 
 Progress: [████████░░] 85%
 
@@ -246,6 +246,7 @@ None currently pending.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260710-hbn | Finish interrupted retry feedback UI and verification | 2026-07-10 | 33779fa1 | [260710-hbn-finish-the-interrupted-retry-feedback-ui](./quick/260710-hbn-finish-the-interrupted-retry-feedback-ui/) |
+| 260716-pzo | Audit app for unused files, deps, exports, assets, duplicate code (report-only) | 2026-07-16 | pending | [260716-pzo-audit-the-app-for-unused-files-dependenc](./quick/260716-pzo-audit-the-app-for-unused-files-dependenc/) |
 
 ### Roadmap Evolution
 
