@@ -6,15 +6,15 @@ current_phase: 11
 current_phase_name: coco-chat-dynamic-turns-scene-framing
 status: executing
 stopped_at: Phase 11 conversation and post-UAT repairs merged to main and automated-verified; credentialed hint/live-flow UAT pending
-last_updated: "2026-07-16T05:54:08Z"
+last_updated: "2026-07-16T13:32:40.170Z"
 last_activity: 2026-07-16
-last_activity_desc: Merged Phase 11 conversation and post-UAT repairs to main; credentialed hint/live-flow UAT pending
+last_activity_desc: "Completed quick task 260716-pzo: report-only unused-code audit (AUDIT.md); credentialed hint/live-flow UAT pending"
 progress:
   total_phases: 8
   completed_phases: 5
-  total_plans: 40
+  total_plans: 38
   completed_plans: 34
-  percent: 85
+  percent: 63
 ---
 
 # Project State
@@ -60,6 +60,7 @@ Status: The fluid-mission implementation and post-UAT repairs are merged to `mai
 **Dynamic conversation repair (Plan 1 of 2) — code complete, automated-verified 2026-07-15, in worktree `phase11-dynamic-conversation-repair` (not yet merged to main):**
 
 All 6 code tasks implemented with TDD RED→GREEN→commit, each scoped-staged and committed individually:
+
 - Task 1 (`73fc7284`): explicit `evaluationMode: "preset" | "conversation"` policy in `turn-evaluator.ts` — conversation mode accepts relevant correct English and requires a meaning-preserving `improvedSentence` correction (never a repeat-the-question demand) when wrong.
 - Task 2 (`d46543b5`): `audio-upload.ts` routes conversation-mode turns through the new policy with `targetExample` forced null so the preset fast-path never fires for chat.
 - Task 3 (`334c93c2`): `conversation-generator.ts` follow-ups must acknowledge the student's actual answer and stay on-topic; `targetPattern` is soft context, never a mandatory template.
@@ -70,6 +71,7 @@ All 6 code tasks implemented with TDD RED→GREEN→commit, each scoped-staged a
 Automated verification done (Task 7 Steps 1-2): the plan's 8 focused test files (103 tests) pass, `npm run typecheck` exits 0, `npm run lint` exits 0 (one pre-existing unrelated warning in `check-student-feedback-states.mjs`), and the full `vitest run` suite passes 634/638 (4 intentionally skipped).
 
 **Not yet run (Task 7 Steps 3-4 — require a live localhost:3000 app and real disposable class-code/student/PIN test-account values the assistant does not hold; user opted to run these separately):**
+
 - `npm run test:student-feedback-states` (deterministic feedback-state Playwright script) with `FEEDBACK_STATE_CLASS_CODE`/`FEEDBACK_STATE_STUDENT_NAME`/`FEEDBACK_STATE_PIN` exported only in the user's shell.
 - Manual 8-point soccer-mission UAT (accept a correct free-talk answer with no repeat-the-question or transition screen; correct `I no play soccer.` → `I don't play soccer.` with required spoken repeat; refresh on the correction/repeat screen and confirm the same pending Coco line persists; run one preset mission and confirm its evaluation/correction/retry/transition screens are unchanged).
 
@@ -229,6 +231,7 @@ Recent decisions affecting current work:
 - [Phase 11]: Moderation checkpoint resolved as option-a: existing OpenAI data-use posture extends to omni-moderation-latest; written with Phase 9/Azure structural rigor (11-MODERATION-DATA-USE.md)
 - [Phase 11]: mission-generator.ts does not exist in this codebase despite RESEARCH.md references; turn-evaluator.ts used as the real adapter-shape precedent for conversation-generator.ts and content-moderation.ts
 - [Phase 11]: 11-03: Conversation orchestration lives entirely in audio-upload.ts (never mission-flow.ts), preserving the AI-06 boundary — mission-flow.ts stays persistence/gate-only; windDown computed as turnOrder >= 6 against the fixed HARD_TURN_CAP (8), never against mission.required_turns; moderation failure (after one regenerate-and-recheck retry) and provider/schema failure share the same canned-fallback degrade path; scene-premise-generator.ts is a standalone adapter targeting net-new files, independent of the deleted mission-draft feature
+- [Phase quick-260716-v07]: Deleted all AUDIT.md HIGH-confidence dead-code findings (10 assets, 5 deps, 15 exports, 3 duplicate functions, 5-file cluster); Needs Review items (117 types, 8 dep false positives) intentionally left untouched
 
 ### Pending Todos
 
@@ -247,6 +250,7 @@ None currently pending.
 |---|-------------|------|--------|-----------|
 | 260710-hbn | Finish interrupted retry feedback UI and verification | 2026-07-10 | 33779fa1 | [260710-hbn-finish-the-interrupted-retry-feedback-ui](./quick/260710-hbn-finish-the-interrupted-retry-feedback-ui/) |
 | 260716-pzo | Audit app for unused files, deps, exports, assets, duplicate code (report-only) | 2026-07-16 | a7457c28 | [260716-pzo-audit-the-app-for-unused-files-dependenc](./quick/260716-pzo-audit-the-app-for-unused-files-dependenc/) |
+| 260716-v07 | Delete AUDIT.md HIGH-confidence dead-code findings (assets, deps, exports, duplicate code, orphaned cluster) | 2026-07-16 | d3c3c1da | [260716-v07-delete-the-high-confidence-findings-from](./quick/260716-v07-delete-the-high-confidence-findings-from/) |
 
 ### Roadmap Evolution
 
@@ -269,6 +273,6 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 **Handoff docs:** `.planning/handoff/` holds two 2026-07-10 session handoffs (mascot-audio-copy, audio-reclick-still-broken), committed 2026-07-11 as historical records — every open item in them has since landed: the replay re-click silence was resolved in `33779fa1` by removing Web Audio entirely from `CocoSpeechAudio.tsx` (native `<audio>` playback + synthetic mouth pulse; never reintroduce `createMediaElementSource` — a source test bans it), the terse "Say this sentence:" repeat-card label and the sprite-framing/dialogue-box overlap fixes landed in the same commit and the mobile follow-ups `f87766f5`/`7a599097`. Audible replay confirmation remains user-ear-only (agent preview and driven-Chrome tabs can't produce sound) and is folded into the existing Task 3 checkpoint.
 
-Last session: 2026-07-16T05:54:08Z
+Last session: 2026-07-16T13:31:37.055Z
 Stopped at: Phase 11 conversation and post-UAT repairs merged to main and automated-verified; credentialed hint/live-flow UAT still pending
 Note: Branch `phase-10-mascot-wip` is fully merged and can still be deleted (not yet done — ask before deleting). `.planning/phases/11-coco-chat-dynamic-turns-scene-framing/` is active again now that Phase 10 is back to the mascot. Phase 13 (Pronunciation Remediation Videos, MEDIA-F1) is new — not yet planned, no phase directory exists yet. Two incidental fixes landed this session outside Plan 10-04's own scope: `d104f16d` (CocoSpeechAudio analyser-ordering bug, found uncommitted, directly tied to the MASCOT-02 wiring) and `58bcc921` (repeat-turn exact-match fast-path, committed independently by the user during the same session — unrelated to Phase 10, not reviewed here).
