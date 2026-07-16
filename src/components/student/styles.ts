@@ -355,7 +355,7 @@ export const mascotDialogueTabsStyle: CSSProperties = {
   height: 48,
   zIndex: 2,
   display: "flex",
-  alignItems: "stretch",
+  alignItems: "flex-end",
   pointerEvents: "none",
 };
 
@@ -371,8 +371,9 @@ const mascotAttachedTabStyle: CSSProperties = {
 
 export const mascotNameTabStyle: CSSProperties = {
   ...mascotAttachedTabStyle,
-  minWidth: 104,
-  padding: "0 16px",
+  height: 38,
+  minWidth: 76,
+  padding: "0 12px",
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",

@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 11
 current_phase_name: coco-chat-dynamic-turns-scene-framing
 status: executing
-stopped_at: Fluid mission shell complete; nameplate, Hint, expression, and conversation tasks remain
-last_updated: "2026-07-16T01:48:18Z"
+stopped_at: Fluid mission shell and compact nameplate complete; Hint, expression, conversation, and verification tasks remain
+last_updated: "2026-07-16T01:54:08Z"
 last_activity: 2026-07-16
-last_activity_desc: Completed the fluid 640px-capped mission shell repair
+last_activity_desc: Completed the fluid mission shell and compact attached Coco nameplate repairs
 progress:
   total_phases: 8
   completed_phases: 5
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 Phase: 11 (coco-chat-dynamic-turns-scene-framing) — EXECUTING
 Inserted repair: Phase 11.1 (coco-chat-opening-line-dynamic-turn-runnability) — COMPLETE
 Plan: 4 of 4 complete (11.1-01 through 11.1-04)
-Status: The fluid 640px-capped mission shell is complete and automated-verified on branch `worktree-phase11-dynamic-conversation-repair`. The compact nameplate, immediate/toggleable Hint reveal, thinking expression during provider waits, natural conversation narrowing for vague replies, and full verification/UAT tasks remain.
+Status: The fluid 640px-capped mission shell and compact bottom-aligned attached Coco nameplate are complete and automated-verified on branch `worktree-phase11-dynamic-conversation-repair`. Immediate/toggleable Hint reveal, thinking expression during provider waits, natural conversation narrowing for vague replies, and full verification/UAT tasks remain.
 
 **Dynamic conversation repair (Plan 1 of 2) — code complete, automated-verified 2026-07-15, in worktree `phase11-dynamic-conversation-repair` (not yet merged to main):**
 
@@ -57,7 +57,7 @@ The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on de
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
 The `mission-create-retry-cleanup` follow-up found mission creation itself was healthy: an active dev server had been corrupted when production builds rewrote its `.next` chunks, leaving the form unhydrated and causing native GET submission. A clean restart restored two verified real saves. The retry route now honors `needs_retry` past the original deadline, and the teacher AI mission-draft feature was removed end-to-end. Phase 11's roadmap now requires standalone scene-premise generation rather than restoring full mission drafting.
 
-Last activity: 2026-07-16 — Wrote the test-first fluid mission, immediate Hint, thinking sprite, and vague-reply implementation plan
+Last activity: 2026-07-16 — Completed the fluid mission shell and compact attached Coco nameplate repairs
 
 Progress: [████████░░] 85%
 

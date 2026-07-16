@@ -171,6 +171,29 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(stylesSource).not.toContain('padding: "52px 16px 8px"');
   });
 
+  it("keeps a compact nameplate beside full-size Hint and replay actions", () => {
+    const stylesSource = readSource("src/components/student/styles.ts");
+
+    expect(stylesSource).toMatch(
+      /mascotDialogueTabsStyle[\s\S]*alignItems: "flex-end"/,
+    );
+    expect(stylesSource).toMatch(
+      /mascotNameTabStyle[\s\S]*height: 38[\s\S]*minWidth: 76[\s\S]*padding: "0 12px"[\s\S]*fontSize: 14[\s\S]*fontWeight: 700/,
+    );
+    expect(stylesSource).toMatch(
+      /mascotAttachedTabStyle[\s\S]*height: 48/,
+    );
+    expect(stylesSource).toMatch(
+      /mascotDialogueActionsStyle[\s\S]*\.\.\.mascotAttachedTabStyle/,
+    );
+    expect(stylesSource).toMatch(
+      /export const mascotHintTabStyle: CSSProperties = \{[^}]*minHeight: 44/,
+    );
+    expect(stylesSource).toMatch(
+      /export const mascotVoiceTabStyle: CSSProperties = \{[^}]*minHeight: 44/,
+    );
+  });
+
   it("changes the chatbox without moving or resizing the mascot", () => {
     const stageSource = readSource("src/components/student/MascotStage.tsx");
     const stylesSource = readSource("src/components/student/styles.ts");
