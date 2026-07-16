@@ -314,16 +314,22 @@ export const mascotSpriteWrapStyle: CSSProperties = {
   transformOrigin: "bottom center",
 };
 
-export const mascotDialogueBoxStyle: CSSProperties = {
+export const mascotDialogueShellStyle: CSSProperties = {
   position: "absolute",
   left: 16,
   right: 16,
   bottom: 32,
   height: 104,
+  overflow: "visible",
+};
+
+export const mascotDialogueBoxStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
   background: "#FFFFFF",
-  borderTop: "3px solid #2563EB",
+  border: "2px solid #2563EB",
   borderRadius: 8,
-  padding: "52px 16px 8px",
+  padding: 22,
   boxSizing: "border-box",
   overflowY: "auto",
 };
@@ -332,46 +338,66 @@ export const mascotDialogueTabsStyle: CSSProperties = {
   position: "absolute",
   left: 8,
   right: 8,
-  top: 0,
+  top: -46,
+  height: 48,
+  zIndex: 2,
   display: "flex",
-  alignItems: "flex-start",
-  gap: 4,
+  alignItems: "stretch",
   pointerEvents: "none",
 };
 
-const mascotTabBaseStyle: CSSProperties = {
-  minHeight: 44,
-  padding: "6px 12px",
-  borderRadius: "8px 8px 0 0",
-  fontSize: 14,
-  fontWeight: 700,
-  lineHeight: 1.2,
+const mascotAttachedTabStyle: CSSProperties = {
+  height: 48,
   boxSizing: "border-box",
+  border: "2px solid #2563EB",
+  borderBottomColor: "transparent",
+  borderRadius: "12px 12px 0 0",
+  backgroundClip: "padding-box",
   pointerEvents: "auto",
 };
 
 export const mascotNameTabStyle: CSSProperties = {
-  ...mascotTabBaseStyle,
-  background: "#2563EB",
-  color: "#FFFFFF",
+  ...mascotAttachedTabStyle,
+  minWidth: 104,
+  padding: "0 16px",
   display: "inline-flex",
   alignItems: "center",
+  justifyContent: "center",
+  background: "#2563EB",
+  color: "#FFFFFF",
+  fontSize: 14,
+  fontWeight: 700,
+};
+
+export const mascotDialogueActionsStyle: CSSProperties = {
+  ...mascotAttachedTabStyle,
+  marginLeft: "auto",
+  display: "flex",
+  alignItems: "center",
+  overflow: "hidden",
+  background: "#FFFFFF",
 };
 
 export const mascotHintTabStyle: CSSProperties = {
-  ...mascotTabBaseStyle,
-  background: "#EFF6FF",
+  minHeight: 44,
+  padding: "0 12px",
+  border: 0,
+  borderRight: "1px solid #BFDBFE",
+  borderRadius: 0,
+  background: "transparent",
   color: "#2563EB",
-  border: "1px solid #93C5FD",
+  fontSize: 14,
+  fontWeight: 700,
   cursor: "pointer",
 };
 
 export const mascotVoiceTabStyle: CSSProperties = {
-  ...mascotTabBaseStyle,
-  marginLeft: "auto",
-  background: "#EFF6FF",
-  color: "#2563EB",
-  padding: 0,
+  minHeight: 44,
+  minWidth: 44,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  pointerEvents: "auto",
 };
 
 export const mascotDialogueTextStyle: CSSProperties = {

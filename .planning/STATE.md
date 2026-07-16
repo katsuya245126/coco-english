@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 11
 current_phase_name: coco-chat-dynamic-turns-scene-framing
 status: executing
-stopped_at: Compact Hint and chatbox replay states complete; shared-border layout remains
-last_updated: "2026-07-16T01:09:50Z"
+stopped_at: Approved shared-border chatbox layout code complete; full verification and visual UAT remain
+last_updated: "2026-07-16T01:11:39Z"
 last_activity: 2026-07-16
-last_activity_desc: Collapsed Hint retry and chatbox replay into stable compact actions
+last_activity_desc: Attached the Coco nameplate and grouped Hint/replay controls to the chatbox border
 progress:
   total_phases: 8
   completed_phases: 5
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 Phase: 11 (coco-chat-dynamic-turns-scene-framing) — EXECUTING
 Inserted repair: Phase 11.1 (coco-chat-opening-line-dynamic-turn-runnability) — COMPLETE
 Plan: 4 of 4 complete (11.1-01 through 11.1-04)
-Status: The natural-conversation-history plan is code-complete and automated-verified (focused 46/46; full suite 693 passed / 4 skipped; typecheck, lint, and production build exited 0, with one pre-existing lint warning). The attached-chatbox-controls plan is executing inline. Task 1 is complete: failed translations retry through the same visible Hint action with `Retry hint` accessibility copy, and the mascot chatbox uses an icon-only replay presentation without changing standalone TTS. The approved shared-border layout, full verification, and live UAT remain.
+Status: The natural-conversation-history plan is code-complete and automated-verified (focused 46/46; full suite 693 passed / 4 skipped; typecheck, lint, and production build exited 0, with one pre-existing lint warning). The attached-chatbox-controls plan is code-complete through Task 2: failed translations retry through the same visible Hint action, chatbox replay is icon-only, and the Coco nameplate plus grouped Hint/replay controls attach to one 2px shared border outside the scrollable message surface. Focused UI tests pass 26/26 and typecheck exits 0. Full verification, credentialed screenshots, phone/desktop visual comparison, and live conversation UAT remain.
 
 **Dynamic conversation repair (Plan 1 of 2) — code complete, automated-verified 2026-07-15, in worktree `phase11-dynamic-conversation-repair` (not yet merged to main):**
 

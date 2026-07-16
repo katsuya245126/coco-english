@@ -155,12 +155,33 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(dialogueSource).toContain("AbortError");
   });
 
-  it("reserves the full tab row above dialogue text", () => {
+  it("attaches Coco and grouped actions to one shared chatbox border", () => {
+    const dialogueSource = readSource(
+      "src/components/student/CocoDialogueBox.tsx",
+    );
     const stylesSource = readSource("src/components/student/styles.ts");
 
-    expect(stylesSource).toContain('padding: "52px 16px 8px"');
-    expect(stylesSource).toContain("top: 0");
-    expect(stylesSource).toContain("minHeight: 44");
+    expect(dialogueSource).toContain("mascotDialogueShellStyle");
+    expect(dialogueSource).toContain("mascotDialogueActionsStyle");
+    expect(stylesSource).toContain("top: -46");
+    expect(stylesSource).toContain("height: 48");
+    expect(stylesSource).toContain('border: "2px solid #2563EB"');
+    expect(stylesSource).toContain('borderBottomColor: "transparent"');
+    expect(stylesSource).toContain('backgroundClip: "padding-box"');
+    expect(stylesSource).not.toContain('padding: "52px 16px 8px"');
+  });
+
+  it("changes the chatbox without moving or resizing the mascot", () => {
+    const stageSource = readSource("src/components/student/MascotStage.tsx");
+    const stylesSource = readSource("src/components/student/styles.ts");
+
+    expect(stageSource).toContain("SPRITE_BY_EXPRESSION");
+    expect(stageSource).toContain("mascotSpriteWrapStyle");
+    expect(stylesSource).toContain("bottom: 120");
+    expect(stylesSource).toContain("height: 180");
+    expect(stylesSource).toContain(
+      'left: "clamp(24px, calc((100% - 226px) / 2), 72px)"',
+    );
   });
 
   it("wires CocoSpeechAudio into the buddy question, improved repeat, transition, and completion steps", () => {

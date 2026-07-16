@@ -9,7 +9,9 @@ import {
   type TranslationPhrase,
 } from "@/domain/ai/translation-hint";
 import {
+  mascotDialogueActionsStyle,
   mascotDialogueBoxStyle,
+  mascotDialogueShellStyle,
   mascotDialogueTextStyle,
   mascotDialogueTabsStyle,
   mascotHintTabStyle,
@@ -130,54 +132,70 @@ export function CocoDialogueBox({
     translationState.kind === "error" ? "Retry hint" : "Hint";
 
   return (
-    <div style={mascotDialogueBoxStyle}>
+    <div style={mascotDialogueShellStyle}>
       <div style={mascotDialogueTabsStyle}>
         <span style={mascotNameTabStyle}>{displayName}</span>
         {translationLine && dialogueText ? (
-          <button
-            type="button"
-            aria-label={hintLabel}
-            title={hintLabel}
-            aria-pressed={translationState.kind === "ready"}
-            aria-busy={translationState.kind === "loading"}
-            onClick={loadTranslationHint}
-            style={mascotHintTabStyle}
-          >
-            Hint
-          </button>
+          <div style={mascotDialogueActionsStyle}>
+            <button
+              type="button"
+              aria-label={hintLabel}
+              title={hintLabel}
+              aria-pressed={translationState.kind === "ready"}
+              aria-busy={translationState.kind === "loading"}
+              onClick={loadTranslationHint}
+              style={{
+                ...mascotHintTabStyle,
+                ...(voiceControl ? null : { borderRight: 0 }),
+              }}
+            >
+              Hint
+            </button>
+            {voiceControl ? (
+              <span style={mascotVoiceTabStyle}>{voiceControl}</span>
+            ) : null}
+          </div>
+        ) : voiceControl ? (
+          <div style={mascotDialogueActionsStyle}>
+            <span style={mascotVoiceTabStyle}>{voiceControl}</span>
+          </div>
         ) : null}
-        <span style={mascotVoiceTabStyle}>{voiceControl}</span>
       </div>
 
-      {dialogueText ? (
-        <p style={mascotDialogueTextStyle}>
-          {segments
-            ? segments.map((segment, index) => {
-                if (segment.kind === "text") return segment.text;
-                const isExpanded = expandedPhraseIndex === index;
-                return (
-                  <span key={`${segment.phrase.start}-${segment.phrase.end}`} style={{ position: "relative", display: "inline-block" }}>
-                    <button
-                      type="button"
-                      aria-expanded={isExpanded}
-                      onClick={() =>
-                        setExpandedPhraseIndex(isExpanded ? null : index)
-                      }
-                      style={mascotPhraseButtonStyle}
+      <div style={mascotDialogueBoxStyle}>
+        {dialogueText ? (
+          <p style={mascotDialogueTextStyle}>
+            {segments
+              ? segments.map((segment, index) => {
+                  if (segment.kind === "text") return segment.text;
+                  const isExpanded = expandedPhraseIndex === index;
+                  return (
+                    <span
+                      key={`${segment.phrase.start}-${segment.phrase.end}`}
+                      style={{ position: "relative", display: "inline-block" }}
                     >
-                      {segment.text}
-                    </button>
-                    {isExpanded ? (
-                      <span role="status" style={mascotTranslationBubbleStyle}>
-                        {segment.phrase.translation}
-                      </span>
-                    ) : null}
-                  </span>
-                );
-              })
-            : dialogueText}
-        </p>
-      ) : null}
+                      <button
+                        type="button"
+                        aria-expanded={isExpanded}
+                        onClick={() =>
+                          setExpandedPhraseIndex(isExpanded ? null : index)
+                        }
+                        style={mascotPhraseButtonStyle}
+                      >
+                        {segment.text}
+                      </button>
+                      {isExpanded ? (
+                        <span role="status" style={mascotTranslationBubbleStyle}>
+                          {segment.phrase.translation}
+                        </span>
+                      ) : null}
+                    </span>
+                  );
+                })
+              : dialogueText}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }
