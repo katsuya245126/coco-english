@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 11
 current_phase_name: coco-chat-dynamic-turns-scene-framing
 status: executing
-stopped_at: Natural conversation history automated verification complete; live UAT pending; attached chatbox controls next
-last_updated: "2026-07-16T01:08:31Z"
+stopped_at: Compact Hint and chatbox replay states complete; shared-border layout remains
+last_updated: "2026-07-16T01:09:50Z"
 last_activity: 2026-07-16
-last_activity_desc: Verified the natural conversation history repair across focused, full-suite, type, lint, and build gates
+last_activity_desc: Collapsed Hint retry and chatbox replay into stable compact actions
 progress:
   total_phases: 8
   completed_phases: 5
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 Phase: 11 (coco-chat-dynamic-turns-scene-framing) — EXECUTING
 Inserted repair: Phase 11.1 (coco-chat-opening-line-dynamic-turn-runnability) — COMPLETE
 Plan: 4 of 4 complete (11.1-01 through 11.1-04)
-Status: The natural-conversation-history plan is code-complete and automated-verified. Dynamic generation accepts a validated 1–8 exchange ordered history, prohibits redundant known-answer questions, and reconstructs each exchange from the immutable opener plus owned current-attempt rows, preferring corrected student sentences. The upload path fails closed on malformed history and returns retryable database errors for lookup failures. Fresh evidence: focused matrix 46/46 passed; full Vitest suite 693 passed / 4 skipped; typecheck exited 0; lint exited 0 with the one pre-existing unused `label` warning in `scripts/check-student-feedback-states.mjs`; production build exited 0. Live Minju/classroom UAT remains pending. The attached-chatbox-controls plan is next.
+Status: The natural-conversation-history plan is code-complete and automated-verified (focused 46/46; full suite 693 passed / 4 skipped; typecheck, lint, and production build exited 0, with one pre-existing lint warning). The attached-chatbox-controls plan is executing inline. Task 1 is complete: failed translations retry through the same visible Hint action with `Retry hint` accessibility copy, and the mascot chatbox uses an icon-only replay presentation without changing standalone TTS. The approved shared-border layout, full verification, and live UAT remain.
 
 **Dynamic conversation repair (Plan 1 of 2) — code complete, automated-verified 2026-07-15, in worktree `phase11-dynamic-conversation-repair` (not yet merged to main):**
 

@@ -115,7 +115,7 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(dialogueSource).not.toContain("onTouchStart");
   });
 
-  it("keeps translation failure retryable and recording-independent", () => {
+  it("retries translation through the same visible Hint action", () => {
     const dialogueSource = readSource(
       "src/components/student/CocoDialogueBox.tsx",
     );
@@ -123,12 +123,25 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
       "src/components/student/MissionFlowShell.tsx",
     );
 
-    expect(dialogueSource).toContain("Translation unavailable");
-    expect(dialogueSource).toContain("loadTranslationHint");
-    expect(dialogueSource).toContain("Retry translation");
+    expect(dialogueSource).toContain("const hintLabel =");
+    expect(dialogueSource).toContain('translationState.kind === "error"');
+    expect(dialogueSource).toContain('"Retry hint"');
+    expect(dialogueSource).toContain("aria-label={hintLabel}");
+    expect(dialogueSource).toMatch(/>\s*Hint\s*</);
+    expect(dialogueSource).not.toContain("Translation unavailable");
     expect(shellSource).not.toMatch(
       /VoiceRecorderControl[\s\S]*disabled=\{.*translation/,
     );
+  });
+
+  it("uses an icon-only dialogue-tab replay without changing standalone TTS", () => {
+    const audioSource = readSource("src/components/student/CocoSpeechAudio.tsx");
+    const shellSource = readSource("src/components/student/MissionFlowShell.tsx");
+
+    expect(audioSource).toContain('presentation?: "standalone" | "dialogue-tab"');
+    expect(audioSource).toContain('presentation = "standalone"');
+    expect(audioSource).toContain('presentation !== "dialogue-tab"');
+    expect(shellSource).toContain('presentation="dialogue-tab"');
   });
 
   it("cancels stale translation requests when the active prompt changes", () => {

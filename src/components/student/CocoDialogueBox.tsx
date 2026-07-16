@@ -126,6 +126,8 @@ export function CocoDialogueBox({
     dialogueText && translationState.kind === "ready"
       ? buildTranslationSegments(dialogueText, translationState.phrases)
       : null;
+  const hintLabel =
+    translationState.kind === "error" ? "Retry hint" : "Hint";
 
   return (
     <div style={mascotDialogueBoxStyle}>
@@ -134,6 +136,8 @@ export function CocoDialogueBox({
         {translationLine && dialogueText ? (
           <button
             type="button"
+            aria-label={hintLabel}
+            title={hintLabel}
             aria-pressed={translationState.kind === "ready"}
             aria-busy={translationState.kind === "loading"}
             onClick={loadTranslationHint}
@@ -173,18 +177,6 @@ export function CocoDialogueBox({
               })
             : dialogueText}
         </p>
-      ) : null}
-
-      {translationState.kind === "error" ? (
-        <button
-          type="button"
-          title="Retry translation"
-          aria-label="Retry translation"
-          onClick={loadTranslationHint}
-          style={mascotHintTabStyle}
-        >
-          Translation unavailable
-        </button>
       ) : null}
     </div>
   );

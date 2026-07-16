@@ -828,6 +828,7 @@ export function MissionFlowShell({
             <CocoSpeechAudio
               assignmentStudentId={assignmentStudentId}
               line={mascotDialogue.line}
+              presentation="dialogue-tab"
               onAmplitudeFrame={handleMascotAmplitudeFrame}
               onPlayingChange={handleMascotPlayingChange}
             />
