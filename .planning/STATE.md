@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 11
 current_phase_name: coco-chat-dynamic-turns-scene-framing
 status: executing
-stopped_at: Natural conversation history code complete; full verification remains
-last_updated: "2026-07-16T01:07:05Z"
+stopped_at: Natural conversation history automated verification complete; live UAT pending; attached chatbox controls next
+last_updated: "2026-07-16T01:08:31Z"
 last_activity: 2026-07-16
-last_activity_desc: Grounded live Coco generation in owned current-attempt conversation history
+last_activity_desc: Verified the natural conversation history repair across focused, full-suite, type, lint, and build gates
 progress:
   total_phases: 8
   completed_phases: 5
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 Phase: 11 (coco-chat-dynamic-turns-scene-framing) — EXECUTING
 Inserted repair: Phase 11.1 (coco-chat-opening-line-dynamic-turn-runnability) — COMPLETE
 Plan: 4 of 4 complete (11.1-01 through 11.1-04)
-Status: The natural-conversation-history plan is code-complete through Task 4. Dynamic generation accepts a validated 1–8 exchange ordered history, prohibits redundant known-answer questions, and reconstructs each exchange from the immutable opener plus owned current-attempt rows, preferring corrected student sentences. The upload path fails closed on malformed history and returns retryable database errors for lookup failures. Focused implementation verification passes 37/37; plan-wide verification, live Minju/classroom UAT, and the attached-chatbox-controls plan remain.
+Status: The natural-conversation-history plan is code-complete and automated-verified. Dynamic generation accepts a validated 1–8 exchange ordered history, prohibits redundant known-answer questions, and reconstructs each exchange from the immutable opener plus owned current-attempt rows, preferring corrected student sentences. The upload path fails closed on malformed history and returns retryable database errors for lookup failures. Fresh evidence: focused matrix 46/46 passed; full Vitest suite 693 passed / 4 skipped; typecheck exited 0; lint exited 0 with the one pre-existing unused `label` warning in `scripts/check-student-feedback-states.mjs`; production build exited 0. Live Minju/classroom UAT remains pending. The attached-chatbox-controls plan is next.
 
 **Dynamic conversation repair (Plan 1 of 2) — code complete, automated-verified 2026-07-15, in worktree `phase11-dynamic-conversation-repair` (not yet merged to main):**
 
