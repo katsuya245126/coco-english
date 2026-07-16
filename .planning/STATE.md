@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 11
 current_phase_name: coco-chat-dynamic-turns-scene-framing
 status: executing
-stopped_at: Bounded conversation-history contract complete; provider prompt and orchestration tasks remain
-last_updated: "2026-07-16T01:01:36Z"
+stopped_at: Provider known-answer prohibition complete; history reconstruction and orchestration remain
+last_updated: "2026-07-16T01:03:10Z"
 last_activity: 2026-07-16
-last_activity_desc: Defined the bounded ordered conversation-history contract and prompt payload
+last_activity_desc: Aligned provider prompts to prohibit redundant known-answer follow-ups
 progress:
   total_phases: 8
   completed_phases: 5
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 Phase: 11 (coco-chat-dynamic-turns-scene-framing) — EXECUTING
 Inserted repair: Phase 11.1 (coco-chat-opening-line-dynamic-turn-runnability) — COMPLETE
 Plan: 4 of 4 complete (11.1-01 through 11.1-04)
-Status: The natural-conversation-history plan is executing inline. Task 1 is complete: dynamic generation now accepts a validated 1–8 exchange ordered history and emits the complete history in the user prompt. Provider prompt alignment, deterministic history reconstruction, live audio orchestration, full verification, and the attached-chatbox-controls plan remain.
+Status: The natural-conversation-history plan is executing inline. Tasks 1–2 are complete: dynamic generation accepts a validated 1–8 exchange ordered history, emits it in the user prompt, and explicitly prohibits redundant questions about already-known facts. Deterministic history reconstruction, live audio orchestration, full verification, and the attached-chatbox-controls plan remain.
 
 **Dynamic conversation repair (Plan 1 of 2) — code complete, automated-verified 2026-07-15, in worktree `phase11-dynamic-conversation-repair` (not yet merged to main):**
 

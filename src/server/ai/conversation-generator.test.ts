@@ -23,8 +23,18 @@ const baseInput: GenerateCocoReplyInput = {
   requiredTurns: 4,
   hardCap: 8,
   windDown: false,
-  studentTranscript: "I would like a sandwich please.",
-  previousCocoLine: "What would you like to eat today?",
+  conversationHistory: [
+    {
+      turnOrder: 1,
+      cocoLine: "What would you like to eat today?",
+      studentResponse: "I would like a sandwich please.",
+    },
+    {
+      turnOrder: 2,
+      cocoLine: "Who do you eat lunch with?",
+      studentResponse: "I eat with Minju.",
+    },
+  ],
 };
 
 describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-grounding)", () => {
@@ -109,9 +119,15 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     await generateCocoReply(
       {
         ...baseInput,
+        turnOrder: 1,
         targetPattern: "How often do you _____?",
-        previousCocoLine: "How often do you play soccer?",
-        studentTranscript: "I don't play soccer.",
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "How often do you play soccer?",
+            studentResponse: "I don't play soccer.",
+          },
+        ],
       },
       { apiKey: "test-key", client },
     );
@@ -122,7 +138,7 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     const prompt = JSON.parse(user) as { instructions?: string[] };
     const combined = `${system} ${prompt.instructions?.join(" ") ?? ""}`;
 
-    expect(combined).toContain("acknowledge or react to the student's meaning");
+    expect(combined).toContain("Acknowledge or react specifically");
     expect(combined).toContain("Keep the current subject");
     expect(combined).toContain("soft lesson context");
     expect(combined).toContain("merely swaps in a new noun or activity");
@@ -131,7 +147,7 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     );
   });
 
-  it("instructs short kid-friendly lines with one 5-W follow-up about the student's answer", async () => {
+  it("instructs short kid-friendly lines with one new-information follow-up", async () => {
     const { generateCocoReply } = await import("@/server/ai/conversation-generator");
     const client = createFakeClient(async () => ({
       output_parsed: { line: "Fun! What games do you play?" },
@@ -140,8 +156,14 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     await generateCocoReply(
       {
         ...baseInput,
-        previousCocoLine: "What do you do after school?",
-        studentTranscript: "I play games.",
+        turnOrder: 1,
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "What do you do after school?",
+            studentResponse: "I play games.",
+          },
+        ],
       },
       { apiKey: "test-key", client },
     );
@@ -156,10 +178,55 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     expect(combined).toContain("young ESL learner");
     expect(combined).toContain("12 words");
     expect(combined).toContain("exactly one question");
-    // Follow-ups dig into the student's actual answer with 5-W questions,
-    // instead of steering every turn back into the targetPattern format.
+    // Follow-ups seek new information from the student's actual answer
+    // instead of mechanically rotating through 5-W prompts.
     expect(combined).toContain("who, what, where, when, why, or how");
-    expect(combined).toContain("What games do you play?");
+    expect(combined).toContain("not present or directly implied");
+  });
+
+  it("forbids asking for a fact already established in the conversation", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(async () => ({
+      output_parsed: {
+        line: "Oh, in the classroom! What do you and Minju talk about?",
+      },
+    }));
+
+    await generateCocoReply(
+      {
+        ...baseInput,
+        turnOrder: 2,
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "Who do you talk with at school?",
+            studentResponse: "I talk with Minju.",
+          },
+          {
+            turnOrder: 2,
+            cocoLine: "Where do you talk with Minju?",
+            studentResponse: "In the classroom.",
+          },
+        ],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const call = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const system = call?.input.find((message) => message.role === "system")?.content ?? "";
+    const user = call?.input.find((message) => message.role === "user")?.content ?? "{}";
+    const prompt = JSON.parse(user) as {
+      conversationHistory?: unknown;
+      instructions?: string[];
+    };
+    const combined = `${system} ${prompt.instructions?.join(" ") ?? ""}`;
+
+    expect(prompt.conversationHistory).toHaveLength(2);
+    expect(combined).toContain("already known");
+    expect(combined).toContain("not present or directly implied");
+    expect(combined).toContain("Who do you talk with in class?");
+    expect(combined).toContain("invalid");
+    expect(JSON.stringify(call)).not.toContain("previous_response_id");
   });
 });
 
