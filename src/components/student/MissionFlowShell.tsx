@@ -13,6 +13,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { MissionSnapshotTurn } from "@/domain/mission/schemas";
+import { describeConversationSubmissionFailure } from "@/domain/mission/conversation-submission-recovery";
 import type {
   PronunciationStarBand,
   WordHighlight,
@@ -563,6 +564,16 @@ export function MissionFlowShell({
         repeatFeedback: null,
         cocoLine: upload.cocoLine ?? null,
       }));
+    } catch (error) {
+      // In conversation mode the step is already on cocoThinking, so the
+      // recorder that would normally display this failure has unmounted —
+      // recover here or the student is stuck on the thinking screen.
+      if (!conversationMode) throw error;
+      if (token !== submissionTokenRef.current) return;
+      setActionError(describeConversationSubmissionFailure(error));
+      setFlow((prev) =>
+        prev.step === "cocoThinking" ? { ...prev, step: "question" } : prev,
+      );
     } finally {
       if (token === submissionTokenRef.current) setIsSubmittingVoice(false);
     }
