@@ -228,6 +228,46 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     expect(combined).toContain("invalid");
     expect(JSON.stringify(call)).not.toContain("previous_response_id");
   });
+
+  it("forbids echoing a vague answer and provides a concrete-choice example", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(async () => ({
+      output_parsed: {
+        line: "Lots of things! Do you talk about games or school?",
+      },
+    }));
+
+    await generateCocoReply(
+      {
+        ...baseInput,
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "Who do you talk with at school?",
+            studentResponse: "I talk with Minju.",
+          },
+          {
+            turnOrder: 2,
+            cocoLine: "What do you and Minju talk about?",
+            studentResponse: "Anything.",
+          },
+        ],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const call = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const system = call?.input.find((message) => message.role === "system")?.content ?? "";
+    const user = call?.input.find((message) => message.role === "user")?.content ?? "{}";
+    const prompt = JSON.parse(user) as { instructions?: string[] };
+    const combined = `${system} ${prompt.instructions?.join(" ") ?? ""}`;
+
+    expect(combined).toContain("minimally informative");
+    expect(combined).toContain("Do not shame the learner");
+    expect(combined).toContain("Talking about anything is fun");
+    expect(combined).toContain("Lots of things! Do you talk about games or school?");
+    expect(JSON.stringify(call)).not.toContain("previous_response_id");
+  });
 });
 
 describe("conversation-generator.ts source contract (stateless guarantee)", () => {

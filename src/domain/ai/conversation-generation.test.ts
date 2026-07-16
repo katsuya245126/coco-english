@@ -75,4 +75,24 @@ describe("conversation history generation contract", () => {
       conversationTurnInputSchema.safeParse({ ...input, turnOrder: 3 }).success,
     ).toBe(false);
   });
+
+  it("requires a concrete narrowing question for a vague latest answer", () => {
+    const prompt = buildConversationPrompt({
+      ...input,
+      conversationHistory: [
+        history[0],
+        {
+          turnOrder: 2,
+          cocoLine: "What do you and Minju talk about?",
+          studentResponse: "Anything.",
+        },
+      ],
+    });
+    const instructions = prompt.instructions.join(" ");
+
+    expect(instructions).toContain("minimally informative");
+    expect(instructions).toContain("do not echo the vague word");
+    expect(instructions).toContain("two concrete child-friendly choices");
+    expect(instructions).toContain("Do not shame the learner");
+  });
 });
