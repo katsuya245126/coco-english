@@ -9,7 +9,10 @@ import {
   nextUnfinishedTurnOrder,
   type PendingTurnReview,
 } from "@/domain/flow/completion";
-import { pageStyle, panelStyle } from "@/components/student/styles";
+import {
+  missionContentStyle,
+  missionPageStyle,
+} from "@/components/student/styles";
 import { MissionFlowShell } from "@/components/student/MissionFlowShell";
 import { warmEvaluators } from "@/server/ai/evaluator-warmup";
 import { deriveResumedDynamicPrompt } from "@/domain/mission/student-question-state";
@@ -205,8 +208,8 @@ export default async function MissionPage({ params }: MissionPageProps) {
   after(() => warmEvaluators(snapshot.level));
 
   return (
-    <main style={pageStyle}>
-      <div style={panelStyle}>
+    <main style={missionPageStyle}>
+      <div style={missionContentStyle}>
         <MissionFlowShell
           assignmentStudentId={assignmentStudentId}
           attemptId={attemptId}

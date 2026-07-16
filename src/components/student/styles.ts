@@ -12,6 +12,19 @@ export const pageStyle: CSSProperties = {
   boxSizing: "border-box",
 };
 
+export const MISSION_CONTENT_MAX_WIDTH = 640;
+
+export const missionPageStyle: CSSProperties = {
+  ...pageStyle,
+  padding: "clamp(16px, 3vw, 32px)",
+};
+
+export const missionContentStyle: CSSProperties = {
+  width: "100%",
+  maxWidth: MISSION_CONTENT_MAX_WIDTH,
+  alignSelf: "flex-start",
+};
+
 export const panelStyle: CSSProperties = {
   width: "100%",
   maxWidth: 420,
@@ -281,7 +294,7 @@ export const badgeRetryStyle: CSSProperties = {
 
 export const mascotStageStyle: CSSProperties = {
   width: "100%",
-  maxWidth: panelStyle.maxWidth,
+  maxWidth: MISSION_CONTENT_MAX_WIDTH,
   height: 300,
   position: "relative",
   marginTop: 16,

@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 11
 current_phase_name: coco-chat-dynamic-turns-scene-framing
 status: executing
-stopped_at: Fluid mission, immediate Hint, thinking sprite, and vague-reply implementation plan ready; awaiting execution choice
-last_updated: "2026-07-16T01:39:57Z"
+stopped_at: Fluid mission shell complete; nameplate, Hint, expression, and conversation tasks remain
+last_updated: "2026-07-16T01:48:18Z"
 last_activity: 2026-07-16
-last_activity_desc: Wrote the test-first implementation plan for the latest Phase 11 UAT repairs
+last_activity_desc: Completed the fluid 640px-capped mission shell repair
 progress:
   total_phases: 8
   completed_phases: 5
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 Phase: 11 (coco-chat-dynamic-turns-scene-framing) — EXECUTING
 Inserted repair: Phase 11.1 (coco-chat-opening-line-dynamic-turn-runnability) — COMPLETE
 Plan: 4 of 4 complete (11.1-01 through 11.1-04)
-Status: The natural-history and attached-chatbox plans remain code-complete and automated-verified on branch `worktree-phase11-dynamic-conversation-repair`. The latest post-UAT repair design is approved, and its test-first implementation plan is ready at `docs/superpowers/plans/2026-07-16-fluid-mission-hints-thinking-replies.md`. The six-task plan covers the fluid 640px-capped mission shell, compact nameplate, immediate/toggleable Hint reveal, thinking sprite during provider waits, natural narrowing for vague replies, and full verification/UAT. Execution has not started.
+Status: The fluid 640px-capped mission shell is complete and automated-verified on branch `worktree-phase11-dynamic-conversation-repair`. The compact nameplate, immediate/toggleable Hint reveal, thinking expression during provider waits, natural conversation narrowing for vague replies, and full verification/UAT tasks remain.
 
 **Dynamic conversation repair (Plan 1 of 2) — code complete, automated-verified 2026-07-15, in worktree `phase11-dynamic-conversation-repair` (not yet merged to main):**
 
