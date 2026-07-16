@@ -113,7 +113,13 @@ function createMockSupabase(options: {
   attemptStatus?: Database["public"]["Enums"]["attempt_status"];
   uploadError?: Error | null;
   missionSnapshot?: typeof conversationMissionSnapshotFixture;
-  previousCocoLine?: string | null;
+  previousTurns?: Array<{
+    turn_order: number;
+    original_transcript: string | null;
+    improved_sentence: string | null;
+    coco_line: string | null;
+  }>;
+  historyLookupError?: { message: string } | null;
   cocoLineUpsertError?: { message: string } | null;
 } = {}) {
   const operations: Operation[] = [];
@@ -162,6 +168,20 @@ function createMockSupabase(options: {
       eq: vi.fn((column: string, value: unknown) => {
         operation.filters.push([column, value]);
         return query;
+      }),
+      lt: vi.fn((column: string, value: unknown) => {
+        operation.filters.push([`${column}<`, value]);
+        return query;
+      }),
+      order: vi.fn(async () => {
+        if (!operations.includes(operation)) operations.push(operation);
+        if (table === "attempt_turns" && operation.action === "select") {
+          return {
+            data: options.previousTurns ?? [],
+            error: options.historyLookupError ?? null,
+          };
+        }
+        return { data: [], error: null };
       }),
       // Makes `query` itself awaitable — supports call sites that await the
       // builder directly with no terminal .select()/.single() (e.g. the
@@ -215,21 +235,6 @@ function createMockSupabase(options: {
                   },
             error: null,
           };
-        }
-        if (table === "attempt_turns") {
-          // Previous-turn coco_line lookup (turnOrder > 1 path).
-          const hasPreviousLineFilter = operation.filters.some(
-            ([col]) => col === "turn_order",
-          );
-          if (hasPreviousLineFilter && operation.action === "select") {
-            return {
-              data:
-                options.previousCocoLine !== undefined
-                  ? { coco_line: options.previousCocoLine }
-                  : null,
-              error: null,
-            };
-          }
         }
         return { data: null, error: null };
       }),
@@ -513,7 +518,14 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
 
   it("evaluates an owned dynamic turn with one persisted Coco line reused for generation", async () => {
     mockSupabase = createMockSupabase({
-      previousCocoLine: "That sounds fun! What will you do next?",
+      previousTurns: [
+        {
+          turn_order: 1,
+          original_transcript: "I like soccer.",
+          improved_sentence: null,
+          coco_line: "That sounds fun! What will you do next?",
+        },
+      ],
     });
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
@@ -543,7 +555,18 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     );
     expect(generate).toHaveBeenCalledWith(
       expect.objectContaining({
-        previousCocoLine: "That sounds fun! What will you do next?",
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "What would you like to say?",
+            studentResponse: "I like soccer.",
+          },
+          {
+            turnOrder: 2,
+            cocoLine: "That sounds fun! What will you do next?",
+            studentResponse: "I will play soccer.",
+          },
+        ],
       }),
     );
     expect(
@@ -552,10 +575,103 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
           operation.table === "attempt_turns" &&
           operation.action === "select" &&
           operation.filters.some(
-            ([column, value]) => column === "turn_order" && value === 1,
+            ([column, value]) => column === "turn_order<" && value === 2,
           ),
       ),
     ).toHaveLength(1);
+  });
+
+  it("passes the complete current-attempt history into generation", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        turns: [
+          {
+            ...conversationMissionSnapshotFixture.turns[0],
+            prompt: "Who do you talk with at school?",
+          },
+        ],
+      },
+      previousTurns: [
+        {
+          turn_order: 1,
+          original_transcript: "I talk Minju.",
+          improved_sentence: "I talk with Minju.",
+          coco_line: "Where do you talk with Minju?",
+        },
+      ],
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "Oh, in the classroom! What do you talk about?" },
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+      transcribeAudioFile: successfulTranscriber("In the classroom."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "Who do you talk with at school?",
+            studentResponse: "I talk with Minju.",
+          },
+          {
+            turnOrder: 2,
+            cocoLine: "Where do you talk with Minju?",
+            studentResponse: "In the classroom.",
+          },
+        ],
+      }),
+    );
+    const historyRead = mockSupabase.operations.find(
+      (operation) =>
+        operation.table === "attempt_turns" &&
+        operation.action === "select" &&
+        operation.filters.some(
+          ([column, value]) => column === "attempt_id" && value === "attempt-1",
+        ),
+    );
+    expect(historyRead?.filters).toContainEqual(["turn_order<", 2]);
+  });
+
+  it("returns a retryable database error when conversation history lookup fails", async () => {
+    mockSupabase = createMockSupabase({
+      historyLookupError: { message: "history unavailable" },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "should never be called" },
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+      transcribeAudioFile: successfulTranscriber("In the classroom."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(result).toEqual({ ok: false, error: "db_error", retryable: true });
+    expect(mockSupabase.upload).not.toHaveBeenCalled();
+    expect(generate).not.toHaveBeenCalled();
   });
 
   it("rejects a dynamic turn with no persisted Coco line before upload or evaluation", async () => {
@@ -730,7 +846,14 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   });
 
   it("computes windDown relative to the fixed hard cap (turnOrder >= 6), not required_turns", async () => {
-    mockSupabase = createMockSupabase({ previousCocoLine: "What else would you like?" });
+    mockSupabase = createMockSupabase({
+      previousTurns: Array.from({ length: 5 }, (_, index) => ({
+        turn_order: index + 1,
+        original_transcript: `Answer ${index + 1}.`,
+        improved_sentence: null,
+        coco_line: `Question ${index + 2}?`,
+      })),
+    });
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
     );

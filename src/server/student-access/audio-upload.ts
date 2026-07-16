@@ -54,6 +54,11 @@ import {
 import { generateCocoReply } from "@/server/ai/conversation-generator";
 import { isContentSafe } from "@/server/ai/content-moderation";
 import { selectFallbackLine } from "@/domain/conversation/fallback-lines";
+import type { ConversationExchange } from "@/domain/ai/conversation-generation";
+import {
+  buildConversationHistory,
+  type PersistedConversationTurn,
+} from "@/server/student-access/conversation-history";
 import { log } from "@/server/logging/logger";
 
 const DEFAULT_AUDIO_BUCKET = "student-audio";
@@ -360,7 +365,7 @@ type ConversationTurnContext = {
   targetPattern: string;
   requiredTurns: number;
   studentTranscript: string;
-  previousCocoLine: string | null;
+  conversationHistory: ConversationExchange[];
 };
 
 type ConversationTurnOutcome = {
@@ -415,8 +420,7 @@ async function runConversationTurn(
     requiredTurns: context.requiredTurns,
     hardCap: 8 as const,
     windDown,
-    studentTranscript: context.studentTranscript,
-    previousCocoLine: context.previousCocoLine,
+    conversationHistory: context.conversationHistory,
   };
 
   // (c) GENERATE
@@ -579,21 +583,36 @@ export async function uploadAttemptAudioClip(
       return { ok: false, error: "invalid_audio", retryable: false };
     }
 
-    const previousCocoLine =
-      input.turnOrder > 1 &&
-      (isDynamicChatTurn || input.clipKind === "original_answer")
-        ? await timeStage("previousCocoLineLookup", async () => {
-            const { data: previousTurn } = await supabase
-              .from("attempt_turns")
-              .select("coco_line")
-              .eq("attempt_id", input.attemptId)
-              .eq("turn_order", input.turnOrder - 1)
-              .maybeSingle();
-            return previousTurn?.coco_line ?? null;
-          })
-        : null;
+    let priorConversationTurns: PersistedConversationTurn[] = [];
+    let previousCocoLine: string | null = null;
 
-    if (isDynamicChatTurn && previousCocoLine === null) {
+    if (
+      snapshot.conversationMode === true &&
+      input.clipKind === "original_answer" &&
+      input.turnOrder > 1
+    ) {
+      const { data, error } = await timeStage("conversationHistoryLookup", () =>
+        supabase
+          .from("attempt_turns")
+          .select("turn_order, original_transcript, improved_sentence, coco_line")
+          .eq("attempt_id", input.attemptId)
+          .lt("turn_order", input.turnOrder)
+          .order("turn_order", { ascending: true }),
+      );
+      if (error) {
+        logTiming("failed", { error: "db_error", step: "conversation_history" });
+        return { ok: false, error: "db_error", retryable: true };
+      }
+      priorConversationTurns = data ?? [];
+      previousCocoLine = priorConversationTurns.at(-1)?.coco_line ?? null;
+    }
+
+    if (
+      isDynamicChatTurn &&
+      input.clipKind === "original_answer" &&
+      (previousCocoLine === null ||
+        priorConversationTurns.length !== input.turnOrder - 1)
+    ) {
       logTiming("failed", { error: "invalid_audio", step: "previous_coco_line" });
       return { ok: false, error: "invalid_audio", retryable: false };
     }
@@ -970,6 +989,22 @@ export async function uploadAttemptAudioClip(
     let cocoLineModerationEvent: CocoLineModerationEvent | null = null;
 
     if (snapshot.conversationMode === true && input.clipKind === "original_answer") {
+      const currentStudentResponse =
+        originalEvaluation?.improvedSentence?.trim() || transcript;
+      const historyResult = buildConversationHistory({
+        openerLine: snapshot.turns[0]?.prompt ?? "",
+        currentTurnOrder: input.turnOrder,
+        currentStudentResponse,
+        priorTurns: priorConversationTurns,
+      });
+      if (!historyResult.ok) {
+        logTiming("failed", {
+          error: "invalid_audio",
+          step: "conversation_history",
+        });
+        return { ok: false, error: "invalid_audio", retryable: false };
+      }
+
       const conversationOutcome = await timeStage("conversationTurn", () =>
         runConversationTurn(
           {
@@ -981,7 +1016,7 @@ export async function uploadAttemptAudioClip(
             targetPattern: snapshot.targetPattern,
             requiredTurns: snapshot.requiredTurns,
             studentTranscript: transcript,
-            previousCocoLine,
+            conversationHistory: historyResult.history,
           },
           {
             generateCocoReply: deps.generateCocoReply ?? generateCocoReply,
