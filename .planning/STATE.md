@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 11
 current_phase_name: coco-chat-dynamic-turns-scene-framing
 status: executing
-stopped_at: Plan 2 implementation and automated verification complete; remote migration blocked because this worktree is not linked to Supabase, and live phone/desktop UAT remains pending
-last_updated: "2026-07-15T16:41:00Z"
-last_activity: 2026-07-15
-last_activity_desc: Final-verified code-review fixes; migration and live UAT blockers remain
+stopped_at: Natural-conversation history and attached chatbox design approved; written spec awaiting user review before implementation planning
+last_updated: "2026-07-16T00:42:21Z"
+last_activity: 2026-07-16
+last_activity_desc: Documented approved history-grounded conversation and shared-border chatbox design
 progress:
   total_phases: 8
   completed_phases: 5
@@ -50,13 +50,14 @@ Automated verification done (Task 7 Steps 1-2): the plan's 8 focused test files 
 - Manual 8-point soccer-mission UAT (accept a correct free-talk answer with no repeat-the-question or transition screen; correct `I no play soccer.` → `I don't play soccer.` with required spoken repeat; refresh on the correction/repeat screen and confirm the same pending Coco line persists; run one preset mission and confirm its evaluation/correction/retry/transition screens are unchanged).
 
 Plan 2 (Korean phrase hints + VN chatbox, `docs/superpowers/plans/2026-07-15-korean-phrase-hints-chatbox.md`) implementation is complete and automated-verified. Dynamic prompts use contextual Korean phrase translation without the old target-pattern fallback, action-error dialogue suppresses the translation descriptor, and completion audio says only `Mission complete!` while the full teacher-review explanation remains visible. Code review found no critical issues; all important findings were fixed by aborting/invalidating stale hint requests, reserving the full 44px tab row above dialogue text, and rejecting whitespace/punctuation-only phrase spans. Final fresh verification after the review fixes: 677 tests passed / 4 skipped; typecheck and production build exited 0; lint exited 0 with one pre-existing warning in `scripts/check-student-feedback-states.mjs`. Migration `202607150001_translation_hint_cache.sql` remains local because `supabase db push` failed with `LegacyProjectNotLinkedError` (no project ref in this worktree). Phone/desktop UI UAT and deterministic feedback-state coverage remain pending; the user's port-3000 server is running the main checkout rather than this worktree.
+The next UAT follow-up design is approved and documented in `docs/superpowers/specs/2026-07-16-natural-conversation-attached-chatbox-design.md`. It rebuilds a bounded, app-owned conversation history for each dynamic reply so Coco cannot ask for already-known information, and it moves the Coco nameplate plus grouped Hint/replay controls onto the chatbox's shared top border. The approved visual source is `.superpowers/brainstorm/10900-1784134612/content/dialogue-controls-layout-v7.html`. The written spec is awaiting user review before an implementation plan is created.
 Active feature work: dismiss-incomplete and clickable no-attempt assignment evidence are implemented on `feature/dismiss-incomplete-assignment`; migrations `202607120003`, `202607120004`, and `202607120005` are live. Both by-ID and attempt-keyed dismiss/undo paths are state-sensitive. Phase 10.1 post-review fixes add compare-and-swap protection to the missed-status worker and reliable seeded-test cleanup. The cron regression passes 2/2, the live review-policy Playwright regression passes 5/5, typecheck passes, and the approved clean-cache production build succeeds.
 Quick task 260710-hbn completed the interrupted student retry/audio feedback work in commit `33779fa1`. The follow-up `retry-feedback-flow` debug session fixed final-turn review gating, repeat retry audio/actions, and transcript carryover. The subsequent code-review follow-up removed the unsafe grammar-only fill-in bypass, moved mission completion into a deployed atomic RPC, restored persisted feedback/audio on refresh, included evaluation in resume decisions, and fixed Coco playback teardown. Those follow-ups are complete and Phase 10 remains closed.
 The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on desktop but only 133px on a 375px phone. Responsive clamped insets now preserve the desktop framing at 226px on both standard phone and desktop widths without changing stage, dialogue, or recorder geometry.
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
 The `mission-create-retry-cleanup` follow-up found mission creation itself was healthy: an active dev server had been corrupted when production builds rewrote its `.next` chunks, leaving the form unhydrated and causing native GET submission. A clean restart restored two verified real saves. The retry route now honors `needs_retry` past the original deadline, and the teacher AI mission-draft feature was removed end-to-end. Phase 11's roadmap now requires standalone scene-premise generation rather than restoring full mission drafting.
 
-Last activity: 2026-07-15 — Final-verified code-review fixes; migration and live UAT blockers remain
+Last activity: 2026-07-16 — Documented approved history-grounded conversation and shared-border chatbox design
 
 Progress: [█████████░] 89%
 
