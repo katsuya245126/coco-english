@@ -124,7 +124,3 @@ export async function listStudentAssignmentPage(
   const page = Math.min(totalPages, Math.max(1, Math.floor(input.page) || 1));
   return { tab: input.tab, items: items.slice((page - 1) * pageSize, page * pageSize), page, pageSize, total, totalPages };
 }
-
-export async function listStudentAssignments(studentId: string): Promise<StudentAssignmentListItem[]> {
-  return (await listStudentAssignmentPage(studentId, { tab: "current", page: 1, pageSize: Number.MAX_SAFE_INTEGER })).items;
-}

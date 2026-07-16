@@ -14,13 +14,9 @@ import { z } from "zod";
 import { readStudentUnlock } from "@/app/join/actions";
 import {
   startOrResumeAttempt,
-  recordAnswer,
-  recordRepeat,
   recordHintReveal,
   completeAttempt,
   type StartOrResumeResult,
-  type RecordAnswerResult,
-  type RecordRepeatResult,
   type RecordHintRevealResult,
   type CompleteAttemptResult,
 } from "@/server/student-access/mission-flow";
@@ -29,20 +25,6 @@ import {
 
 const startAttemptSchema = z.object({
   assignmentStudentId: z.string().uuid(),
-});
-
-const submitAnswerSchema = z.object({
-  assignmentStudentId: z.string().uuid(),
-  attemptId: z.string().uuid(),
-  turnOrder: z.number().int().positive(),
-  originalTranscript: z.string().trim().min(1),
-});
-
-const submitRepeatSchema = z.object({
-  assignmentStudentId: z.string().uuid(),
-  attemptId: z.string().uuid(),
-  turnOrder: z.number().int().positive(),
-  repeatTranscript: z.string().trim().min(1),
 });
 
 const revealHintSchema = z.object({
@@ -76,42 +58,6 @@ export async function startAttemptAction(
   return startOrResumeAttempt({
     studentId: unlock.studentId,
     assignmentStudentId: parsed.data.assignmentStudentId,
-  });
-}
-
-export async function submitAnswerAction(
-  input: unknown,
-): Promise<RecordAnswerResult | SessionExpired | InvalidInput> {
-  const unlock = await readStudentUnlock();
-  if (!unlock) return { ok: false, error: "session_expired" };
-
-  const parsed = submitAnswerSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "invalid_input" };
-
-  return recordAnswer({
-    studentId: unlock.studentId,
-    assignmentStudentId: parsed.data.assignmentStudentId,
-    attemptId: parsed.data.attemptId,
-    turnOrder: parsed.data.turnOrder,
-    originalTranscript: parsed.data.originalTranscript,
-  });
-}
-
-export async function submitRepeatAction(
-  input: unknown,
-): Promise<RecordRepeatResult | SessionExpired | InvalidInput> {
-  const unlock = await readStudentUnlock();
-  if (!unlock) return { ok: false, error: "session_expired" };
-
-  const parsed = submitRepeatSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "invalid_input" };
-
-  return recordRepeat({
-    studentId: unlock.studentId,
-    assignmentStudentId: parsed.data.assignmentStudentId,
-    attemptId: parsed.data.attemptId,
-    turnOrder: parsed.data.turnOrder,
-    repeatTranscript: parsed.data.repeatTranscript,
   });
 }
 

@@ -15,7 +15,6 @@ import {
   archiveMission,
   cancelMissionAssignment,
   createMission,
-  deleteMission,
   listMissionAssignmentsForTeacher,
   restoreMission,
   updateMission,
@@ -29,9 +28,6 @@ const GENERIC_FAILURE =
 
 const ASSIGN_FAILURE =
   "We could not assign this mission. Please try again.";
-
-const DELETE_FAILURE =
-  "We could not delete this mission. Assigned missions cannot be deleted.";
 
 const ARCHIVE_FAILURE =
   "We could not archive this mission. Please try again.";
@@ -54,10 +50,6 @@ export type MissionActionResult =
 
 export type AssignMissionActionResult =
   | { ok: true; className: string; activeStudentCount: number }
-  | { ok: false; error: string };
-
-export type DeleteMissionActionResult =
-  | { ok: true }
   | { ok: false; error: string };
 
 export type ArchiveMissionActionResult =
@@ -188,28 +180,6 @@ export async function updateMissionAction(
     return { ok: true, missionId: mission.id };
   } catch {
     return { ok: false, error: GENERIC_FAILURE };
-  }
-}
-
-export async function deleteMissionAction(
-  missionId: string,
-): Promise<DeleteMissionActionResult> {
-  const profile = await requireTeacherProfile();
-  const parsed = missionIdSchema.safeParse({ missionId });
-
-  if (!parsed.success) {
-    return { ok: false, error: DELETE_FAILURE };
-  }
-
-  try {
-    await deleteMission({
-      teacherId: profile.id,
-      missionId: parsed.data.missionId,
-    });
-    revalidatePath("/teacher/missions");
-    return { ok: true };
-  } catch {
-    return { ok: false, error: DELETE_FAILURE };
   }
 }
 

@@ -154,36 +154,6 @@ export async function addStudents(
   return { added, pins, blankCount, duplicates, skippedExisting };
 }
 
-// Rename a student. The new name is normalized for storage so it stays
-// consistent with the active-name uniqueness constraint.
-export async function updateStudent(
-  classId: string,
-  studentId: string,
-  displayName: string,
-): Promise<RosterStudent> {
-  const supabase = await createSupabaseServerClient();
-  await assertOwnedClass(supabase, classId);
-
-  const normalized = normalizeRosterName(displayName);
-  if (normalized.length === 0) {
-    throw new Error("Student name cannot be blank.");
-  }
-
-  const result = await supabase
-    .from("students")
-    .update({ display_name: normalized })
-    .eq("id", studentId)
-    .eq("class_id", classId)
-    .select("id, display_name")
-    .single();
-
-  if (result.error) {
-    throw new Error(`Unable to update student: ${result.error.message}`);
-  }
-
-  return { id: result.data.id, displayName: result.data.display_name };
-}
-
 // Archive a student (soft remove): set archived_at so they drop out of the
 // active roster while their history is preserved (D-08, never a hard delete).
 export async function archiveStudent(
