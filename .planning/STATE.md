@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 11
 current_phase_name: coco-chat-dynamic-turns-scene-framing
 status: executing
-stopped_at: Natural-conversation history and attached-chatbox implementation plans ready; awaiting execution choice
-last_updated: "2026-07-16T00:54:16Z"
+stopped_at: Bounded conversation-history contract complete; provider prompt and orchestration tasks remain
+last_updated: "2026-07-16T01:01:36Z"
 last_activity: 2026-07-16
-last_activity_desc: Wrote two test-first implementation plans for natural continuity and attached chatbox controls
+last_activity_desc: Defined the bounded ordered conversation-history contract and prompt payload
 progress:
   total_phases: 8
   completed_phases: 5
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 Phase: 11 (coco-chat-dynamic-turns-scene-framing) — EXECUTING
 Inserted repair: Phase 11.1 (coco-chat-opening-line-dynamic-turn-runnability) — COMPLETE
 Plan: 4 of 4 complete (11.1-01 through 11.1-04)
-Status: Phase 11.1 runnability is complete, but real UAT exposed a conversation-quality gap. The approved repair accepts relevant correct free-talk answers, requires spoken meaning-preserving corrections for incorrect English, advances directly through contextual Coco lines, and gives all Coco prompts AI-selected Korean phrase translations through matched Coco/Hint/TTS dialogue tabs. Two sequential TDD implementation plans were written: dynamic conversation repair first, then Korean phrase hints and the VN chatbox. Only the optional hint-heart policy is deferred.
+Status: The natural-conversation-history plan is executing inline. Task 1 is complete: dynamic generation now accepts a validated 1–8 exchange ordered history and emits the complete history in the user prompt. Provider prompt alignment, deterministic history reconstruction, live audio orchestration, full verification, and the attached-chatbox-controls plan remain.
 
 **Dynamic conversation repair (Plan 1 of 2) — code complete, automated-verified 2026-07-15, in worktree `phase11-dynamic-conversation-repair` (not yet merged to main):**
 
