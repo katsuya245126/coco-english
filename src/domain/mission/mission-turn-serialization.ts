@@ -30,6 +30,5 @@ export function serializeMissionTurns(input: {
 
   return [
     buildChatOpeningTurn(input.opener, input.targetPattern),
-    ...input.turns.slice(1),
   ];
 }

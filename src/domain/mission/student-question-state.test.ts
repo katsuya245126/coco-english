@@ -60,11 +60,33 @@ describe("student question state", () => {
     });
   });
 
+  it("ignores a legacy authored tail when a generated conversation prompt owns turn two", () => {
+    const legacyTail: MissionSnapshotTurn = {
+      ...opener,
+      turnOrder: 2,
+      prompt: "What food do you like?",
+    };
+
+    expect(
+      deriveActiveStudentQuestion({
+        conversationMode: true,
+        turnIndex: 1,
+        turns: [opener, legacyTail],
+        dynamicPrompt: "Tell me more about soccer.",
+      }),
+    ).toEqual({
+      kind: "conversation",
+      prompt: "Tell me more about soccer.",
+      activeTurnOrder: 2,
+      recordingEnabled: true,
+      line: { lineKind: "coco_dynamic_line", turnOrder: 1 },
+    });
+  });
+
   it("restores the exact owned previous Coco line for a resumed dynamic question", () => {
     const dynamicPrompt = deriveResumedDynamicPrompt({
       conversationMode: true,
       startingTurnIndex: 1,
-      snapshotTurnCount: 1,
       attemptTurns: [
         { turnOrder: 1, cocoLine: "Tell me more about soccer." },
         { turnOrder: 2, cocoLine: "A later line must not be used." },
@@ -76,7 +98,7 @@ describe("student question state", () => {
       deriveActiveStudentQuestion({
         conversationMode: true,
         turnIndex: 1,
-        turns: [opener],
+        turns: [{ ...opener }, { ...opener, turnOrder: 2 }],
         dynamicPrompt,
       }),
     ).toMatchObject({

@@ -260,12 +260,19 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     const system = call?.input.find((message) => message.role === "system")?.content ?? "";
     const user = call?.input.find((message) => message.role === "user")?.content ?? "{}";
     const prompt = JSON.parse(user) as { instructions?: string[] };
-    const combined = `${system} ${prompt.instructions?.join(" ") ?? ""}`;
+    const instructions = prompt.instructions?.join(" ") ?? "";
 
-    expect(combined).toContain("minimally informative");
-    expect(combined).toContain("Do not shame the learner");
-    expect(combined).toContain("Talking about anything is fun");
-    expect(combined).toContain("Lots of things! Do you talk about games or school?");
+    for (const fragment of [
+      "minimally informative",
+      "do not echo the vague word",
+      "two concrete child-friendly choices",
+      "Do not shame the learner",
+    ]) {
+      expect(system).toContain(fragment);
+      expect(instructions).toContain(fragment);
+    }
+    expect(system).toContain("Talking about anything is fun");
+    expect(system).toContain("Lots of things! Do you talk about games or school?");
     expect(JSON.stringify(call)).not.toContain("previous_response_id");
   });
 });

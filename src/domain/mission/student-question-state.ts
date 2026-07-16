@@ -45,7 +45,8 @@ export function deriveActiveStudentQuestion({
   turns: MissionSnapshotTurn[];
   dynamicPrompt: string | null;
 }): ActiveStudentQuestion {
-  const snapshotTurn = turns[turnIndex];
+  const snapshotTurn =
+    !conversationMode || turnIndex === 0 ? turns[turnIndex] : undefined;
   if (snapshotTurn) {
     if (conversationMode) {
       return {
@@ -68,7 +69,7 @@ export function deriveActiveStudentQuestion({
   }
 
   const prompt = dynamicPrompt?.trim();
-  if (conversationMode && prompt) {
+  if (conversationMode && turnIndex > 0 && prompt) {
     return {
       kind: "conversation",
       prompt,
@@ -133,15 +134,13 @@ export function resolveAcceptedConversationTurn({
 export function deriveResumedDynamicPrompt({
   conversationMode,
   startingTurnIndex,
-  snapshotTurnCount,
   attemptTurns,
 }: {
   conversationMode: boolean;
   startingTurnIndex: number;
-  snapshotTurnCount: number;
   attemptTurns: Array<{ turnOrder: number; cocoLine: string | null }>;
 }): string | null {
-  if (!conversationMode || startingTurnIndex < snapshotTurnCount) return null;
+  if (!conversationMode || startingTurnIndex < 1) return null;
 
   return (
     attemptTurns.find((turn) => turn.turnOrder === startingTurnIndex)?.cocoLine?.trim() ||

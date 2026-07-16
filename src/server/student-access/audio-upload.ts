@@ -566,7 +566,7 @@ export async function uploadAttemptAudioClip(
     }
 
     const snapshot = readMissionSnapshot(assignmentStudent);
-    const snapshotTurn = snapshot?.turns.find(
+    const authoredSnapshotTurn = snapshot?.turns.find(
       (missionTurn) => missionTurn.turnOrder === input.turnOrder,
     );
     if (!snapshot) {
@@ -574,6 +574,10 @@ export async function uploadAttemptAudioClip(
       return { ok: false, error: "invalid_audio", retryable: false };
     }
 
+    const snapshotTurn =
+      snapshot.conversationMode === true && input.turnOrder > 1
+        ? undefined
+        : authoredSnapshotTurn;
     const isDynamicChatTurn =
       snapshot.conversationMode === true &&
       !snapshotTurn &&

@@ -195,7 +195,6 @@ export default async function MissionPage({ params }: MissionPageProps) {
   const initialDynamicPrompt = deriveResumedDynamicPrompt({
     conversationMode: snapshot.conversationMode,
     startingTurnIndex,
-    snapshotTurnCount: sortedTurns.length,
     attemptTurns,
   });
 

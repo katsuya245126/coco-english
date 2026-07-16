@@ -441,6 +441,7 @@ export const mascotTranslationBubbleStyle: CSSProperties = {
   transform: "translateX(-50%)",
   zIndex: 5,
   maxWidth: "calc(100vw - 32px)",
+  boxSizing: "border-box",
   padding: "6px 10px",
   borderRadius: 8,
   background: "#1E3A8A",
@@ -448,7 +449,8 @@ export const mascotTranslationBubbleStyle: CSSProperties = {
   fontSize: 15,
   fontWeight: 600,
   lineHeight: 1.3,
-  whiteSpace: "nowrap",
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
 };
 
 export const mascotSpeakerLabelStyle: CSSProperties = {

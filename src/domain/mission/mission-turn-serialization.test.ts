@@ -32,7 +32,7 @@ describe("buildChatOpeningTurn", () => {
 });
 
 describe("serializeMissionTurns", () => {
-  it("places the chat opener first and preserves every authored tail turn", () => {
+  it("serializes only the generated opener for conversation missions", () => {
     const secondTurn = { ...tailTurn };
     const thirdTurn: MissionTurnInput = {
       ...tailTurn,
@@ -53,9 +53,7 @@ describe("serializeMissionTurns", () => {
         "Can I have a...?",
       ),
     );
-    expect(result).toHaveLength(3);
-    expect(result[1]).toBe(secondTurn);
-    expect(result[2]).toBe(thirdTurn);
+    expect(result).toHaveLength(1);
   });
 
   it("returns preset turns with byte-equivalent JSON serialization", () => {

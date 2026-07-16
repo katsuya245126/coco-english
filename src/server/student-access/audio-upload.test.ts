@@ -581,6 +581,114 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     ).toHaveLength(1);
   });
 
+  it("ignores a legacy authored tail and evaluates turn two against its persisted Coco line", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        turns: [
+          conversationMissionSnapshotFixture.turns[0],
+          {
+            ...conversationMissionSnapshotFixture.turns[0],
+            turnOrder: 2,
+            prompt: "What authored food question is this legacy tail?",
+          },
+        ],
+      },
+      previousTurns: [
+        {
+          turn_order: 1,
+          original_transcript: "I like soccer.",
+          improved_sentence: null,
+          coco_line: "That sounds fun! What will you do next?",
+        },
+      ],
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginal = successfulOriginalEvaluator();
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "Great! Tell me one more thing." },
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+      transcribeAudioFile: successfulTranscriber("I will play soccer."),
+      evaluateOriginalTurn: evaluateOriginal,
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(evaluateOriginal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        evaluationMode: "conversation",
+        missionQuestion: "That sounds fun! What will you do next?",
+        targetExample: null,
+      }),
+    );
+    expect(generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "What would you like to say?",
+            studentResponse: "I like soccer.",
+          },
+          {
+            turnOrder: 2,
+            cocoLine: "That sounds fun! What will you do next?",
+            studentResponse: "I will play soccer.",
+          },
+        ],
+      }),
+    );
+  });
+
+  it("does not let a legacy authored tail bypass missing conversation history", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        turns: [
+          conversationMissionSnapshotFixture.turns[0],
+          {
+            ...conversationMissionSnapshotFixture.turns[0],
+            turnOrder: 2,
+            prompt: "What authored food question is this legacy tail?",
+          },
+        ],
+      },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginal = successfulOriginalEvaluator();
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+      transcribeAudioFile: successfulTranscriber("I will play soccer."),
+      evaluateOriginalTurn: evaluateOriginal,
+      generateCocoReply: fakeGenerateCocoReply(async () => ({
+        ok: true,
+        reply: { line: "Should never be generated." },
+      })),
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "invalid_audio",
+      retryable: false,
+    });
+    expect(mockSupabase.upload).not.toHaveBeenCalled();
+    expect(evaluateOriginal).not.toHaveBeenCalled();
+  });
+
   it("passes the complete current-attempt history into generation", async () => {
     mockSupabase = createMockSupabase({
       missionSnapshot: {

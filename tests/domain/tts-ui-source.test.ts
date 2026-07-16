@@ -115,6 +115,14 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(dialogueSource).not.toContain("onTouchStart");
   });
 
+  it("wraps only the anchored Korean translation bubble within a phone-safe width", () => {
+    const stylesSource = readSource("src/components/student/styles.ts");
+
+    expect(stylesSource).toMatch(
+      /export const mascotTranslationBubbleStyle: CSSProperties = \{[^}]*maxWidth: "calc\(100vw - 32px\)"[^}]*whiteSpace: "normal"[^}]*overflowWrap: "anywhere"[^}]*\};/,
+    );
+  });
+
   it("retries translation through the same visible Hint action", () => {
     const dialogueSource = readSource(
       "src/components/student/CocoDialogueBox.tsx",

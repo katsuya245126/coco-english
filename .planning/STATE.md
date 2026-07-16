@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 11
 current_phase_name: coco-chat-dynamic-turns-scene-framing
 status: executing
-stopped_at: Fluid-mission repair automated verification complete; credentialed screenshots and responsive/live UAT pending
-last_updated: "2026-07-16T02:29:19Z"
+stopped_at: Final whole-branch review fixes and automated verification complete; credentialed screenshots and responsive/live UAT pending
+last_updated: "2026-07-16T03:00:04Z"
 last_activity: 2026-07-16
-last_activity_desc: Recorded fluid-mission repair automated verification; credentialed screenshots and responsive/live UAT pending
+last_activity_desc: Completed final whole-branch review fixes and automated verification; credentialed screenshots and responsive/live UAT pending
 progress:
   total_phases: 8
   completed_phases: 5
@@ -31,17 +31,19 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 Phase: 11 (coco-chat-dynamic-turns-scene-framing) — EXECUTING
 Inserted repair: Phase 11.1 (coco-chat-opening-line-dynamic-turn-runnability) — COMPLETE
 Plan: 4 of 4 complete (11.1-01 through 11.1-04)
-Status: All five fluid-mission repair tasks and the prescribed automated verification are complete on unmerged branch `worktree-phase11-dynamic-conversation-repair`: the fluid 640px-capped mission shell, compact bottom-aligned attached Coco nameplate, first-press Korean Hint reveal with a cached ready-state hide/reopen toggle, thinking expression during provider waits, and natural conversation narrowing for vague replies. Credentialed deterministic screenshots and responsive/live interaction UAT remain pending because all three required credential variables were unavailable and this exact worktree was not serving `localhost:3000` after the safe build.
+Status: The fluid-mission implementation, final whole-branch review fixes, and prescribed automated verification are complete on unmerged branch `worktree-phase11-dynamic-conversation-repair`. Conversation missions now serialize only the generated opener and consistently use persisted/generated `coco_line` prompts after turn 1 across UI, resume, translation/TTS descriptors, evaluation, and history, including legacy snapshots with authored tail turns; preset snapshots remain byte-equivalent. Vague-prompt layer assertions and phone-safe Korean bubble wrapping are hardened. Credentialed deterministic screenshots and responsive/live interaction UAT remain pending because all three required credential variables were unavailable and this exact worktree was not serving `localhost:3000`.
 
-**Fluid-mission repair verification (Task 6, 2026-07-16):**
+**Final whole-branch review fix verification (2026-07-16):**
 
-- Focused regression matrix: exit 0; 8/8 test files passed, 93/93 tests passed. Vitest emitted the pre-existing Vite CJS Node API deprecation notice.
+- RED evidence: the initial changed-module run exited 1 with 6 intended failures (serialization retained 3 turns; UI selected a legacy authored tail twice; audio evaluation selected the legacy tail and uploaded before missing-history rejection; translation bubble remained nowrap). A dedicated old-interface resume run exited 1 and returned null when `snapshotTurnCount` was 2. No production code was changed before these failures were observed.
+- Changed-module GREEN run: exit 0; 5/5 test files passed, 68/68 tests passed.
+- Exact focused regression matrix: exit 0; 8/8 test files passed, 87/87 tests passed. Vitest emitted the pre-existing Vite CJS Node API deprecation notice.
 - `npm run typecheck`: exit 0.
 - `npm run lint`: exit 0 with 0 errors and exactly 1 pre-existing warning: unused `label` at `scripts/check-student-feedback-states.mjs:435`.
-- Full `npx vitest run`: exit 0; 79/79 test files passed, 702 tests passed, 4 skipped (706 total). Vitest emitted the same pre-existing Vite CJS Node API deprecation notice; negative-path tests emitted their expected structured warning/error logs.
-- Safe production build: found one exact-worktree `next dev` process (PID 49266), stopped only that process, and confirmed exit before building. `npm run build` exited 0, compiled successfully, and generated 9/9 static pages. The pre-existing Next.js multiple-lockfile/workspace-root inference warning remained.
-- Deterministic feedback-state screenshots: PENDING, not run. `FEEDBACK_STATE_CLASS_CODE`, `FEEDBACK_STATE_STUDENT_NAME`, and `FEEDBACK_STATE_PIN` were each non-empty=false; port 3000 had no listener and this exact worktree was not served.
-- Responsive/live interaction UAT: PENDING, not simulated. The unverified assertions are: no outer panel/border plus 16px-scaling gutters and no horizontal scroll; mission width capped at 640px; scene/mascot/dialogue/recorder/feedback column alignment; attached 76x38px-minimum Coco nameplate; non-colliding 44px-minimum Hint/replay controls; first-press Korean reveal; cached ready-state hide/reopen without another request; accessible failed-Hint retry; thinking sprite selection; concrete narrowing for `Anything.`; and unchanged Coco sprite/pulse/recorder/correction/preset-mission behavior.
+- Full `npx vitest run`: exit 0; 79/79 test files passed, 706 tests passed, 4 skipped (710 total). Vitest emitted the same pre-existing Vite CJS Node API deprecation notice; negative-path tests emitted their expected structured warning/error logs.
+- Safe production build precheck: exit 0; exact-worktree `next dev` found=false, so no process was stopped. `npm run build` exited 0, compiled successfully, and generated 9/9 static pages. The pre-existing Next.js multiple-lockfile/workspace-root inference warning remained.
+- Deterministic feedback-state screenshots: PENDING, not run. `FEEDBACK_STATE_CLASS_CODE_non_empty=false`, `FEEDBACK_STATE_STUDENT_NAME_non_empty=false`, `FEEDBACK_STATE_PIN_non_empty=false`, and `port_3000_listener=false`; this exact worktree was not served.
+- Responsive/live interaction UAT: PENDING, not simulated. In addition to the existing fluid-mission checklist, verify a long Korean phrase near both horizontal edges on phone widths. The bubble now wraps with a viewport-bounded maximum width and anywhere overflow, but a fully viewport-aware anchored shift would require live measurement state and remains a live-UAT risk.
 
 **Dynamic conversation repair (Plan 1 of 2) — code complete, automated-verified 2026-07-15, in worktree `phase11-dynamic-conversation-repair` (not yet merged to main):**
 
@@ -60,14 +62,14 @@ Automated verification done (Task 7 Steps 1-2): the plan's 8 focused test files 
 - Manual 8-point soccer-mission UAT (accept a correct free-talk answer with no repeat-the-question or transition screen; correct `I no play soccer.` → `I don't play soccer.` with required spoken repeat; refresh on the correction/repeat screen and confirm the same pending Coco line persists; run one preset mission and confirm its evaluation/correction/retry/transition screens are unchanged).
 
 Plan 2 (Korean phrase hints + VN chatbox, `docs/superpowers/plans/2026-07-15-korean-phrase-hints-chatbox.md`) implementation is complete and automated-verified. Dynamic prompts use contextual Korean phrase translation without the old target-pattern fallback, action-error dialogue suppresses the translation descriptor, and completion audio says only `Mission complete!` while the full teacher-review explanation remains visible. Code review found no critical issues; all important findings were fixed by aborting/invalidating stale hint requests, reserving the full 44px tab row above dialogue text, and rejecting whitespace/punctuation-only phrase spans. Final fresh verification after the review fixes: 677 tests passed / 4 skipped; typecheck and production build exited 0; lint exited 0 with one pre-existing warning in `scripts/check-student-feedback-states.mjs`. Migration `202607150001_translation_hint_cache.sql` remains local because `supabase db push` failed with `LegacyProjectNotLinkedError` (no project ref in this worktree). Phone/desktop UI UAT and deterministic feedback-state coverage remain pending; the user's port-3000 server is running the main checkout rather than this worktree.
-The natural-conversation history and attached-chatbox designs in `docs/superpowers/specs/2026-07-16-natural-conversation-attached-chatbox-design.md` have been implemented and automated-verified on this branch. Latest phone UAT is captured in `docs/superpowers/specs/2026-07-16-fluid-mission-hints-thinking-replies-design.md`; implementation planning waits for written-spec review.
+The natural-conversation history, attached chatbox, and latest fluid-mission design in `docs/superpowers/specs/2026-07-16-fluid-mission-hints-thinking-replies-design.md` are implemented and automated-verified on this branch, and the final whole-branch review fixes are complete. Credentialed screenshots and responsive/live UAT remain pending.
 Active feature work: dismiss-incomplete and clickable no-attempt assignment evidence are implemented on `feature/dismiss-incomplete-assignment`; migrations `202607120003`, `202607120004`, and `202607120005` are live. Both by-ID and attempt-keyed dismiss/undo paths are state-sensitive. Phase 10.1 post-review fixes add compare-and-swap protection to the missed-status worker and reliable seeded-test cleanup. The cron regression passes 2/2, the live review-policy Playwright regression passes 5/5, typecheck passes, and the approved clean-cache production build succeeds.
 Quick task 260710-hbn completed the interrupted student retry/audio feedback work in commit `33779fa1`. The follow-up `retry-feedback-flow` debug session fixed final-turn review gating, repeat retry audio/actions, and transcript carryover. The subsequent code-review follow-up removed the unsafe grammar-only fill-in bypass, moved mission completion into a deployed atomic RPC, restored persisted feedback/audio on refresh, included evaluation in resume decisions, and fixed Coco playback teardown. Those follow-ups are complete and Phase 10 remains closed.
 The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on desktop but only 133px on a 375px phone. Responsive clamped insets now preserve the desktop framing at 226px on both standard phone and desktop widths without changing stage, dialogue, or recorder geometry.
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
 The `mission-create-retry-cleanup` follow-up found mission creation itself was healthy: an active dev server had been corrupted when production builds rewrote its `.next` chunks, leaving the form unhydrated and causing native GET submission. A clean restart restored two verified real saves. The retry route now honors `needs_retry` past the original deadline, and the teacher AI mission-draft feature was removed end-to-end. Phase 11's roadmap now requires standalone scene-premise generation rather than restoring full mission drafting.
 
-Last activity: 2026-07-16 — Recorded fluid-mission repair automated verification; credentialed screenshots and responsive/live UAT pending
+Last activity: 2026-07-16 — Completed final whole-branch review fixes and automated verification; credentialed screenshots and responsive/live UAT pending
 
 Progress: [████████░░] 85%
 
