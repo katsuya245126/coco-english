@@ -58,7 +58,13 @@ export async function getOrCreateTranslationHint(
     const parsed = parseTranslationHint(input.sourceText, {
       phrases: cached.phrases,
     });
-    if (parsed.ok) {
+    // A dropped phrase means the row predates the current contract or is
+    // corrupt — regenerate instead of serving a thinned-out hint.
+    if (
+      parsed.ok &&
+      Array.isArray(cached.phrases) &&
+      parsed.hint.phrases.length === cached.phrases.length
+    ) {
       await supabase
         .from("translation_hint_cache")
         .update({ last_accessed_at: new Date().toISOString() })

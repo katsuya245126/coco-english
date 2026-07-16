@@ -96,7 +96,7 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(stageSource).toContain("SPRITE_BY_EXPRESSION");
     expect(stageSource).toContain("updateSpeakingVisual");
     expect(dialogueSource).toContain("displayName");
-    expect(dialogueSource).toMatch(/>\s*Hint\s*</);
+    expect(dialogueSource).toContain(">{hintLabel}</button>");
     expect(dialogueSource).toContain("voiceControl");
     expect(stylesSource).toContain('color: "#2563EB"');
     expect(stylesSource).toContain("minHeight: 44");
@@ -134,8 +134,12 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(dialogueSource).toContain("const hintLabel =");
     expect(dialogueSource).toContain('translationState.kind === "error"');
     expect(dialogueSource).toContain('"Retry hint"');
+    expect(dialogueSource).toContain('translationState.kind === "loading"');
+    expect(dialogueSource).toContain('"Hint…"');
     expect(dialogueSource).toContain("aria-label={hintLabel}");
-    expect(dialogueSource).toMatch(/>\s*Hint\s*</);
+    // The visible label must change with state, not just aria attributes.
+    expect(dialogueSource).toContain(">{hintLabel}</button>");
+    expect(dialogueSource).not.toMatch(/>\s*Hint\s*</);
     expect(dialogueSource).not.toContain("Translation unavailable");
     expect(shellSource).not.toMatch(
       /VoiceRecorderControl[\s\S]*disabled=\{.*translation/,
@@ -231,13 +235,14 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     );
   });
 
-  it("changes the chatbox without moving or resizing the mascot", () => {
+  it("preserves Coco's crop while giving the chatbox face clearance", () => {
     const stageSource = readSource("src/components/student/MascotStage.tsx");
     const stylesSource = readSource("src/components/student/styles.ts");
 
     expect(stageSource).toContain("SPRITE_BY_EXPRESSION");
     expect(stageSource).toContain("mascotSpriteWrapStyle");
-    expect(stylesSource).toContain("bottom: 120");
+    expect(stylesSource).toContain("height: 360");
+    expect(stylesSource).toContain("bottom: 180");
     expect(stylesSource).toContain("height: 180");
     expect(stylesSource).toContain(
       'left: "clamp(24px, calc((100% - 226px) / 2), 72px)"',
@@ -408,9 +413,10 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(stylesSource).toContain(
       'right: "clamp(24px, calc((100% - 226px) / 2), 72px)"',
     );
-    // Sprite box must clear the dialogue box (top at y=172 of the 300-tall
-    // stage) so close-up sprites' faces aren't hidden behind it.
-    expect(stylesSource).toContain("bottom: 120");
+    // The sprite keeps its existing crop at the top of the taller stage while
+    // the attached controls move below the face.
+    expect(stylesSource).toContain("height: 360");
+    expect(stylesSource).toContain("bottom: 180");
     expect(stylesSource).toContain("height: 180");
   });
 

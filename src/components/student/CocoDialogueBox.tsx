@@ -150,7 +150,11 @@ export function CocoDialogueBox({
       ? buildTranslationSegments(dialogueText, translationState.phrases)
       : null;
   const hintLabel =
-    translationState.kind === "error" ? "Retry hint" : "Hint";
+    translationState.kind === "loading"
+      ? "Hint…"
+      : translationState.kind === "error"
+        ? "Retry hint"
+        : "Hint";
 
   return (
     <div style={mascotDialogueShellStyle}>
@@ -164,14 +168,13 @@ export function CocoDialogueBox({
               title={hintLabel}
               aria-pressed={expandedPhraseIndex !== null}
               aria-busy={translationState.kind === "loading"}
+              disabled={translationState.kind === "loading"}
               onClick={loadTranslationHint}
               style={{
                 ...mascotHintTabStyle,
                 ...(voiceControl ? null : { borderRight: 0 }),
               }}
-            >
-              Hint
-            </button>
+            >{hintLabel}</button>
             {voiceControl ? (
               <span style={mascotVoiceTabStyle}>{voiceControl}</span>
             ) : null}

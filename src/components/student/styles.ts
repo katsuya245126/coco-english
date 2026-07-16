@@ -295,7 +295,7 @@ export const badgeRetryStyle: CSSProperties = {
 export const mascotStageStyle: CSSProperties = {
   width: "100%",
   maxWidth: MISSION_CONTENT_MAX_WIDTH,
-  height: 300,
+  height: 360,
   position: "relative",
   marginTop: 16,
   marginLeft: "auto",
@@ -319,10 +319,10 @@ export const mascotSpriteWrapStyle: CSSProperties = {
   // on screens too narrow to retain a 24px safety inset.
   left: "clamp(24px, calc((100% - 226px) / 2), 72px)",
   right: "clamp(24px, calc((100% - 226px) / 2), 72px)",
-  // Sits behind the dialogue box (stage 300 tall, box top at y=164). The 16px
-  // box overlap closes the transparent edge gap on portrait sprites without
-  // moving Coco or clipping the ears during the speaking scale pulse.
-  bottom: 120,
+  // Keep Coco's existing crop at the top of the taller stage. The attached
+  // dialogue tabs now meet the bottom of the sprite instead of covering the
+  // lower half of Coco's face.
+  bottom: 180,
   height: 180,
   transformOrigin: "bottom center",
 };

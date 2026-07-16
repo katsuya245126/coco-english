@@ -25,20 +25,34 @@ export type TranslationSegment =
   | { kind: "text"; text: string }
   | { kind: "phrase"; text: string; phrase: TranslationPhrase };
 
-export const translationPhraseSchema = z
+// What the model returns: phrase text only. Offsets are computed here —
+// LLMs cannot count characters, so model-provided offsets are never trusted.
+export const translationHintModelPhraseSchema = z
   .object({
     source: z.string().min(1),
-    start: z.number().int().nonnegative(),
-    end: z.number().int().positive(),
-    translation: z.string().trim().min(1),
+    translation: z.string().min(1),
   })
   .strict();
 
-export const translationHintSchema = z
+export const translationHintModelSchema = z
   .object({
-    phrases: z.array(translationPhraseSchema).max(3),
+    phrases: z.array(translationHintModelPhraseSchema).max(3),
   })
   .strict();
+
+const translationHintInputSchema = z.object({
+  phrases: z
+    .array(
+      z.object({
+        source: z.string().min(1),
+        // Legacy/cached payloads may still carry offsets; they are ignored.
+        start: z.number().optional(),
+        end: z.number().optional(),
+        translation: z.string().trim().min(1),
+      }),
+    )
+    .max(3),
+});
 
 export const translationHintRequestSchema = z
   .object({
@@ -80,25 +94,32 @@ export function parseTranslationHint(
   sourceText: string,
   value: unknown,
 ): ParseTranslationHintResult {
-  const parsed = translationHintSchema.safeParse(value);
+  const parsed = translationHintInputSchema.safeParse(value);
   if (!parsed.success) return { ok: false, error: "schema_failed" };
 
-  let previousEnd = 0;
+  const phrases: TranslationPhrase[] = [];
+  let cursor = 0;
   for (const phrase of parsed.data.phrases) {
+    const source = phrase.source.trim();
     if (
-      phrase.start >= phrase.end ||
-      phrase.end > sourceText.length ||
-      phrase.start < previousEnd ||
-      sourceText.slice(phrase.start, phrase.end) !== phrase.source ||
-      !/[\p{L}\p{N}]/u.test(phrase.source) ||
-      ISOLATED_FUNCTION_WORDS.has(phrase.source.trim().toLowerCase())
+      !/[\p{L}\p{N}]/u.test(source) ||
+      ISOLATED_FUNCTION_WORDS.has(source.toLowerCase())
     ) {
-      return { ok: false, error: "schema_failed" };
+      continue;
     }
-    previousEnd = phrase.end;
+    const start = sourceText.indexOf(source, cursor);
+    if (start < 0) continue;
+    const end = start + source.length;
+    phrases.push({
+      source,
+      start,
+      end,
+      translation: phrase.translation.trim(),
+    });
+    cursor = end;
   }
 
-  return { ok: true, hint: parsed.data };
+  return { ok: true, hint: { phrases } };
 }
 
 export function buildTranslationSegments(

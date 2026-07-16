@@ -10,22 +10,12 @@ import {
 describe("translation hint domain contract", () => {
   const sourceText = "How often do you play soccer?";
 
-  it("accepts zero to three exact semantic phrases in source order", () => {
+  it("locates offset-free phrases in the source text", () => {
     expect(
       parseTranslationHint(sourceText, {
         phrases: [
-          {
-            source: "How often",
-            start: 0,
-            end: 9,
-            translation: "얼마나 자주",
-          },
-          {
-            source: "play soccer",
-            start: 17,
-            end: 28,
-            translation: "축구를 하다",
-          },
+          { source: "How often", translation: "얼마나 자주" },
+          { source: "play soccer", translation: "축구를 하다" },
         ],
       }),
     ).toEqual({
@@ -53,59 +43,152 @@ describe("translation hint domain contract", () => {
     });
   });
 
+  it("ignores model-provided offsets and recomputes them", () => {
+    expect(
+      parseTranslationHint(sourceText, {
+        phrases: [
+          { source: "How often", start: 3, end: 7, translation: "얼마나 자주" },
+          {
+            source: "play soccer",
+            start: 0,
+            end: 99,
+            translation: "축구를 하다",
+          },
+        ],
+      }),
+    ).toEqual({
+      ok: true,
+      hint: {
+        phrases: [
+          {
+            source: "How often",
+            start: 0,
+            end: 9,
+            translation: "얼마나 자주",
+          },
+          {
+            source: "play soccer",
+            start: 17,
+            end: 28,
+            translation: "축구를 하다",
+          },
+        ],
+      },
+    });
+  });
+
+  it("resolves repeated phrases to successive occurrences", () => {
+    const text = "I like soccer because soccer is fun.";
+    expect(
+      parseTranslationHint(text, {
+        phrases: [
+          { source: "soccer", translation: "축구" },
+          { source: "soccer is fun", translation: "축구는 재미있다" },
+        ],
+      }),
+    ).toEqual({
+      ok: true,
+      hint: {
+        phrases: [
+          { source: "soccer", start: 7, end: 13, translation: "축구" },
+          {
+            source: "soccer is fun",
+            start: 22,
+            end: 35,
+            translation: "축구는 재미있다",
+          },
+        ],
+      },
+    });
+  });
+
+  it("locates phrases the model padded with whitespace", () => {
+    expect(
+      parseTranslationHint(sourceText, {
+        phrases: [{ source: " How often ", translation: "얼마나 자주" }],
+      }),
+    ).toEqual({
+      ok: true,
+      hint: {
+        phrases: [
+          { source: "How often", start: 0, end: 9, translation: "얼마나 자주" },
+        ],
+      },
+    });
+  });
+
+  it.each([
+    {
+      name: "phrases missing from the source",
+      phrases: [
+        { source: "How many", translation: "얼마나 많이" },
+        { source: "play soccer", translation: "축구를 하다" },
+      ],
+      kept: [
+        {
+          source: "play soccer",
+          start: 17,
+          end: 28,
+          translation: "축구를 하다",
+        },
+      ],
+    },
+    {
+      name: "phrases returned out of source order",
+      phrases: [
+        { source: "soccer", translation: "축구" },
+        { source: "How often", translation: "얼마나 자주" },
+      ],
+      kept: [{ source: "soccer", start: 22, end: 28, translation: "축구" }],
+    },
+    {
+      name: "isolated function words",
+      phrases: [
+        { source: "you", translation: "너" },
+        { source: "How often", translation: "얼마나 자주" },
+      ],
+      kept: [
+        { source: "How often", start: 0, end: 9, translation: "얼마나 자주" },
+      ],
+    },
+    {
+      name: "punctuation-only phrases",
+      phrases: [
+        { source: "?", translation: "물음표" },
+        { source: "How often", translation: "얼마나 자주" },
+      ],
+      kept: [
+        { source: "How often", start: 0, end: 9, translation: "얼마나 자주" },
+      ],
+    },
+  ])("drops $name and keeps the rest", ({ phrases, kept }) => {
+    expect(parseTranslationHint(sourceText, { phrases })).toEqual({
+      ok: true,
+      hint: { phrases: kept },
+    });
+  });
+
   it.each([
     {
       name: "more than three phrases",
       phrases: [
-        { source: "How", start: 0, end: 3, translation: "어떻게" },
-        { source: "often", start: 4, end: 9, translation: "자주" },
-        { source: "play", start: 17, end: 21, translation: "하다" },
-        { source: "soccer", start: 22, end: 28, translation: "축구" },
-      ],
-    },
-    {
-      name: "overlap",
-      phrases: [
-        { source: "How often", start: 0, end: 9, translation: "얼마나 자주" },
-        { source: "often do", start: 4, end: 12, translation: "자주 하다" },
-      ],
-    },
-    {
-      name: "reordered",
-      phrases: [
-        { source: "soccer", start: 22, end: 28, translation: "축구" },
-        { source: "How often", start: 0, end: 9, translation: "얼마나 자주" },
-      ],
-    },
-    {
-      name: "out of bounds",
-      phrases: [
-        { source: "soccer?", start: 22, end: 99, translation: "축구" },
-      ],
-    },
-    {
-      name: "substring mismatch",
-      phrases: [
-        { source: "How many", start: 0, end: 9, translation: "얼마나 많이" },
+        { source: "How", translation: "어떻게" },
+        { source: "often", translation: "자주" },
+        { source: "play", translation: "하다" },
+        { source: "soccer", translation: "축구" },
       ],
     },
     {
       name: "empty Korean",
-      phrases: [
-        { source: "How often", start: 0, end: 9, translation: "   " },
-      ],
+      phrases: [{ source: "How often", translation: "   " }],
     },
     {
-      name: "isolated function word",
-      phrases: [{ source: "you", start: 13, end: 16, translation: "너" }],
+      name: "empty source",
+      phrases: [{ source: "", translation: "빈 문자열" }],
     },
     {
-      name: "whitespace-only source",
-      phrases: [{ source: " ", start: 3, end: 4, translation: "공백" }],
-    },
-    {
-      name: "punctuation-only source",
-      phrases: [{ source: "?", start: 28, end: 29, translation: "물음표" }],
+      name: "non-array phrases",
+      phrases: "How often",
     },
   ])("rejects $name", ({ phrases }) => {
     expect(parseTranslationHint(sourceText, { phrases })).toEqual({

@@ -84,13 +84,14 @@ describe("generateTranslationHint", () => {
     );
   });
 
-  it("rejects malformed provider spans after structured parsing", async () => {
+  it("drops provider phrases that are not in the source text", async () => {
     const { generateTranslationHint } = await import(
       "@/server/ai/translation-hint-generator"
     );
     const client = createFakeClient({
       phrases: [
-        { source: "How many", start: 0, end: 9, translation: "얼마나 많이" },
+        { source: "How many", translation: "얼마나 많이" },
+        { source: "play soccer", translation: "축구를 하다" },
       ],
     });
     expect(
@@ -102,7 +103,19 @@ describe("generateTranslationHint", () => {
         },
         { apiKey: "test-key", client },
       ),
-    ).toEqual({ ok: false, error: "schema_failed" });
+    ).toEqual({
+      ok: true,
+      hint: {
+        phrases: [
+          {
+            source: "play soccer",
+            start: 17,
+            end: 28,
+            translation: "축구를 하다",
+          },
+        ],
+      },
+    });
   });
 
   it("returns missing_api_key without calling a provider", async () => {

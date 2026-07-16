@@ -5,10 +5,10 @@ milestone_name: — Coco Comes Alive
 current_phase: 11
 current_phase_name: coco-chat-dynamic-turns-scene-framing
 status: executing
-stopped_at: Final whole-branch review fixes and automated verification complete; credentialed screenshots and responsive/live UAT pending
-last_updated: "2026-07-16T03:00:04Z"
+stopped_at: Post-UAT hint, submission recovery, turn-count, and mascot face-clearance repairs verified; credentialed hint/live-flow UAT and merge pending
+last_updated: "2026-07-16T05:51:12Z"
 last_activity: 2026-07-16
-last_activity_desc: Completed final whole-branch review fixes and automated verification; credentialed screenshots and responsive/live UAT pending
+last_activity_desc: Verified post-UAT hint and mascot face-clearance repairs; credentialed hint/live-flow UAT and merge pending
 progress:
   total_phases: 8
   completed_phases: 5
@@ -31,7 +31,18 @@ See: .planning/PROJECT.md (updated 2026-07-01)
 Phase: 11 (coco-chat-dynamic-turns-scene-framing) — EXECUTING
 Inserted repair: Phase 11.1 (coco-chat-opening-line-dynamic-turn-runnability) — COMPLETE
 Plan: 4 of 4 complete (11.1-01 through 11.1-04)
-Status: The fluid-mission implementation, final whole-branch review fixes, and prescribed automated verification are complete on unmerged branch `worktree-phase11-dynamic-conversation-repair`. Conversation missions now serialize only the generated opener and consistently use persisted/generated `coco_line` prompts after turn 1 across UI, resume, translation/TTS descriptors, evaluation, and history, including legacy snapshots with authored tail turns; preset snapshots remain byte-equivalent. Vague-prompt layer assertions and phone-safe Korean bubble wrapping are hardened. Credentialed deterministic screenshots and responsive/live interaction UAT remain pending because all three required credential variables were unavailable and this exact worktree was not serving `localhost:3000`.
+Status: The fluid-mission implementation and post-UAT repairs are automated-verified on unmerged branch `worktree-phase11-dynamic-conversation-repair`. Conversation prompts remain generated and history-grounded after turn 1; chat turn counts use `required_turns`; failed submissions return learners to the question with retry copy; translation hints no longer trust model-generated character offsets and expose visible loading/retry states; and the mascot stage gives attached controls face clearance without changing Coco's crop. Credentialed hint/live-flow UAT and merge to `main` remain pending.
+
+**Post-UAT repair verification (2026-07-16):**
+
+- Mascot geometry TDD RED: attached tabs began at y=118 while the sprite ended at y=180, producing the reproduced 62px face overlap.
+- Mascot geometry GREEN: phone and desktop browser measurements place the tabs at sprite y=178, preserving only the intended 2px seam; rendered screenshots show Coco's full face above the controls.
+- Focused hint verification: 4/4 files, 53/53 tests passed.
+- Full `npx vitest run`: exit 0; 81/81 test files passed, 713 tests passed, 4 skipped.
+- `npm run typecheck`: exit 0 after removing the disposable `.next` route cache left by the temporary layout harness.
+- `npm run lint`: exit 0 with 0 errors and the one pre-existing unused-`label` warning at `scripts/check-student-feedback-states.mjs:435`.
+- `npm run build`: exit 0; compiled successfully and generated 9/9 static pages. The pre-existing multiple-lockfile/workspace-root warning remains.
+- Credentialed Hint and complete student-flow UAT: PENDING. The temporary `/dev-mascot` harness was removed after unauthenticated responsive layout verification.
 
 **Final whole-branch review fix verification (2026-07-16):**
 
@@ -69,7 +80,7 @@ The `mobile-mascot-position` debug follow-up reproduced Coco at 226px wide on de
 The `mobile-mascot-dialogue-gap` follow-up measured the portrait sprites' visible alpha edge and raised the dialogue box from bottom 24px to 32px, increasing its overlap with visible fur while leaving Coco's frame and scale unchanged.
 The `mission-create-retry-cleanup` follow-up found mission creation itself was healthy: an active dev server had been corrupted when production builds rewrote its `.next` chunks, leaving the form unhydrated and causing native GET submission. A clean restart restored two verified real saves. The retry route now honors `needs_retry` past the original deadline, and the teacher AI mission-draft feature was removed end-to-end. Phase 11's roadmap now requires standalone scene-premise generation rather than restoring full mission drafting.
 
-Last activity: 2026-07-16 — Completed final whole-branch review fixes and automated verification; credentialed screenshots and responsive/live UAT pending
+Last activity: 2026-07-16 — Verified post-UAT hint and mascot face-clearance repairs; credentialed hint/live-flow UAT and merge pending
 
 Progress: [████████░░] 85%
 
@@ -256,6 +267,6 @@ Items acknowledged and carried forward from v1.0 milestone close on 2026-07-01:
 
 **Handoff docs:** `.planning/handoff/` holds two 2026-07-10 session handoffs (mascot-audio-copy, audio-reclick-still-broken), committed 2026-07-11 as historical records — every open item in them has since landed: the replay re-click silence was resolved in `33779fa1` by removing Web Audio entirely from `CocoSpeechAudio.tsx` (native `<audio>` playback + synthetic mouth pulse; never reintroduce `createMediaElementSource` — a source test bans it), the terse "Say this sentence:" repeat-card label and the sprite-framing/dialogue-box overlap fixes landed in the same commit and the mobile follow-ups `f87766f5`/`7a599097`. Audible replay confirmation remains user-ear-only (agent preview and driven-Chrome tabs can't produce sound) and is folded into the existing Task 3 checkpoint.
 
-Last session: 2026-07-15T08:02:21Z
-Stopped at: Completed 11.1-04-PLAN.md; Phase 11.1 is complete
+Last session: 2026-07-16T05:51:12Z
+Stopped at: Post-UAT repairs verified; proceeding to commit and merge preparation, with credentialed hint/live-flow UAT still pending
 Note: Branch `phase-10-mascot-wip` is fully merged and can still be deleted (not yet done — ask before deleting). `.planning/phases/11-coco-chat-dynamic-turns-scene-framing/` is active again now that Phase 10 is back to the mascot. Phase 13 (Pronunciation Remediation Videos, MEDIA-F1) is new — not yet planned, no phase directory exists yet. Two incidental fixes landed this session outside Plan 10-04's own scope: `d104f16d` (CocoSpeechAudio analyser-ordering bug, found uncommitted, directly tied to the MASCOT-02 wiring) and `58bcc921` (repeat-turn exact-match fast-path, committed independently by the user during the same session — unrelated to Phase 10, not reviewed here).

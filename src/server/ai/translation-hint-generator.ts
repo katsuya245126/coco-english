@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import {
   parseTranslationHint,
-  translationHintSchema,
+  translationHintModelSchema,
   type TranslationHint,
 } from "@/domain/ai/translation-hint";
 import {
@@ -99,14 +99,14 @@ export async function generateTranslationHint(
               "Prefer contextual chunks, idioms, and level-appropriate difficult phrases.",
               "Do not select isolated function words such as do, the, or you.",
               "Do not cover every word or turn the complete sentence into clickable pieces.",
-              "For each phrase, source must be the exact substring sourceText.slice(start, end).",
+              "Each phrase's source must be an exact substring copied verbatim from sourceText.",
               "Translate only that phrase's contextual meaning into targetLocale.",
             ],
           }),
         },
       ],
       text: {
-        format: zodTextFormat(translationHintSchema, "translation_hint"),
+        format: zodTextFormat(translationHintModelSchema, "translation_hint"),
       },
     });
 
