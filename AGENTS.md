@@ -20,6 +20,7 @@
 
 - Keep server-owned assignment and attempt state transitions auditable.
 - Preserve mission snapshots, ownership checks, RLS, and per-turn audio storage.
+- Generate signed audio playback URLs on demand for teacher review; never expose stored audio through public URLs.
 - Keep teacher review transcript-first and Coco bounded rather than open-ended.
 - Never commit reusable student access values or secrets.
 

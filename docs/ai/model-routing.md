@@ -24,9 +24,15 @@ This is on-demand guidance, not a permanent ranking. Recommend the lowest effort
 - Reserve Fable Medium/High for genuinely difficult or ambiguous work when quota justifies it.
 - Treat subscription quota as the practical cost; API dollar charts are not direct subscription forecasts.
 
+## Subscription-aware handoffs
+
+The local setup note supplied on 2026-07-17 describes a $20 Claude Pro subscription and a $20 ChatGPT Plus subscription. Treat quota as the practical currency: use Claude Code with Fable 5 for multi-file planning, debugging, or long-context work, and Claude Code with Sonnet 5 (`/model claude-sonnet-5`) for routine edits, tests, docs, and copy. Use Codex with Sol High for a well-specified, self-contained implementation chunk or a second opinion; use Sol Medium for routine work when preserving stronger-model quota matters. When available in the environment, `codex:rescue` is an optional handoff path, not a required skill.
+
+Keep Codex handoffs self-contained and scoped: the local setup note estimates roughly 258K context on Plus, so do not send repository-wide refactors as one handoff. Avoid XHigh/Max effort by default on either platform because the marginal gain may consume roughly twice the quota; justify those tiers with a high-value, verified need. If an older setup note conflicts with this dated evidence or with currently available model names, use this note as the source of truth, recheck live availability before paid pilots, and record verified project observations below.
+
 ## Evidence and limitations
 
-DeepSWE v1.1 currently supports Sol Medium as a strong default and Sol High as strong hard-task value. It runs 113 long-horizon tasks through `mini-swe-agent`, not native Codex or Claude Code. Its corpus favors popular open-source TypeScript, Go, and Python repositories, under-represents localization and refactoring, and reports API cost. Coco English results and reprompting burden override this public signal.
+DeepSWE v1.1 currently supports Sol Medium as a strong default and Sol High as strong hard-task value. It runs 113 long-horizon tasks through `mini-swe-agent`, not native Codex or Claude Code. Its corpus favors popular open-source TypeScript, Go, and Python repositories, under-represents localization and refactoring, and reports API cost. Coco English results and reprompting burden override this public signal. Benchmark/model names are dated evidence, not a guarantee of current product availability; recheck before relying on them.
 
 Sources:
 

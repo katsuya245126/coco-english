@@ -16,10 +16,12 @@ Coco English is a teacher-linked AI speaking-homework app for elementary-level E
 - Mission snapshots prevent later edits changing assigned homework.
 - Low-confidence or malformed AI results route to teacher review.
 - Coco is a tone layer, not an open-ended autonomous chat agent.
+- Teacher audio review uses short per-turn clips and signed playback URLs generated on demand; stored audio is not public.
 
 ## Product Constraints
 
 - Protect student data and preserve ownership checks.
+- Keep audio access server-authorized and signed on demand for teacher review.
 - Keep teacher review transcript-first and audio-available.
 - Prefer vertical MVP changes over broad speculative layers.
 - Do not add school SSO, LMS sync, parent accounts, scoring, leaderboards, large character casts, or long-form free chat without an explicit product decision.
