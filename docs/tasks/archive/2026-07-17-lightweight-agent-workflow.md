@@ -1,7 +1,8 @@
 # Lightweight Agent Workflow Rollout
 
-**Status:** Implementation complete; manual verification pending
-**Stage:** Complete pending live discovery and behavior matrix
+**Status:** Complete
+**Verification:** Manual verification pending
+**Stage:** Implementation complete; live discovery and behavior matrix pending
 
 ## Goal
 
@@ -41,6 +42,7 @@ The implementation is complete, but live tool discovery and end-to-end behavior 
 
 - [ ] Claude Code discovers and invokes `/task-workflow` and `/progress`.
 - [ ] Codex discovers and invokes `$task-workflow` and `$progress`.
+- [ ] Natural-language build, fix, investigate, and plan requests auto-trigger the relevant skill in each tool without a repeated setup prompt.
 - [ ] `task-workflow` handles tiny, normal, and consequential requests with the intended approval boundary.
 - [ ] `progress` reports an active task, a completed task, no task, and deliberately inconsistent task/Git evidence without writing.
 - [ ] Model recommendations include platform, model, effort, reason, and escalation condition; context guidance never invents usage.
