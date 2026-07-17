@@ -1,4 +1,0 @@
-interface:
-  display_name: "Task Workflow"
-  short_description: "Start or resume project work with controlled context"
-  default_prompt: "Use $task-workflow to triage this request and recommend the next action."

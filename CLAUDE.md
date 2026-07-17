@@ -2,7 +2,7 @@
 
 Follow `AGENTS.md`, `PROJECT.md`, and the active `TASK.md`.
 
-Project skills:
+Global personal skills:
 
 - `/task-workflow` starts, resumes, or routes development work.
 - `/progress` reports read-only feature status and the next action.

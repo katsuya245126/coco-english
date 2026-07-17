@@ -29,9 +29,9 @@ The approved design is `docs/superpowers/specs/2026-07-17-lightweight-agent-work
 
 - [x] Root project context is concise and current.
 - [x] Task 1 established the stable context and dated routing reference.
-- [x] Task 2 established and structurally/behaviorally validated the canonical `task-workflow` skill and wrappers.
-- [x] Task 3 established and structurally/read-only validated the canonical `progress` skill and wrappers.
-- [x] Task 4 installed the cross-platform wrappers and retained GSD as the verification fallback.
+- [x] Task 2 established and structurally/behaviorally validated the canonical global `task-workflow` skill and Claude discovery link.
+- [x] Task 3 established and structurally/read-only validated the canonical global `progress` skill and Claude discovery link.
+- [x] Task 4 installed the cross-platform global skills and retained GSD as the verification fallback.
 - [x] Task 5 recorded structural, behavior, test, and preservation evidence without changing `.planning/` or application files.
 - [x] Signed audio playback and subscription-aware model-routing guidance are present in active project instructions.
 
@@ -47,7 +47,7 @@ The approved design is `docs/superpowers/specs/2026-07-17-lightweight-agent-work
 
 ## Verification evidence
 
-- Structural validators for both canonical skills and both Claude wrappers passed.
+- Structural validators for both canonical global skills and the Claude global links passed.
 - Recorded behavior fixtures passed, `git diff --check` passed, and `npm test -- --run` passed (81 files; 713 passed, 4 skipped).
 - Claude Code discovery is manual-pending because the local CLI reported `Not logged in · Please run /login`.
 - Codex discovery is manual-pending because the sandboxed CLI could not initialize `~/.codex/state_5.sqlite`, and an unsandboxed retry was denied by policy.

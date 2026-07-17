@@ -9,8 +9,8 @@
 
 ## Workflow
 
-- Until the active workflow rollout's manual verification matrix passes, use the GSD entrypoints as the operational fallback and mandatory entrypoint for normal or consequential building, fixing, planning, or investigation. Explicit `$task-workflow`, `$progress`, `/task-workflow`, and `/progress` commands remain available for validating the replacement workflow.
-- Use the read-only `progress` skill when asked for feature status or the next action.
+- Until the active workflow rollout's manual verification matrix passes, use the GSD entrypoints as the operational fallback and mandatory entrypoint for normal or consequential building, fixing, planning, or investigation. The globally installed personal `$task-workflow`, `$progress`, `/task-workflow`, and `/progress` skills remain available for validating the replacement workflow.
+- Use the globally installed read-only `progress` skill when asked for feature status or the next action.
 - Tiny obvious maintenance may proceed without `TASK.md` when it has no product, architecture, security, privacy, student-data, migration, deployment, billing, or cross-system effect.
 - Require user plan approval for consequential work defined by `task-workflow`.
 - Keep one active `TASK.md`; archive completed or paused tasks under `docs/tasks/archive/`.

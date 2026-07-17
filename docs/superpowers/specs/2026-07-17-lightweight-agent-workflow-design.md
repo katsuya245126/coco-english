@@ -77,7 +77,7 @@ Only one active task is allowed. If a new unrelated feature arrives, the workflo
 
 ### Agent instruction files
 
-`AGENTS.md` is short and cross-platform. It explains the source hierarchy, approval rules, verification expectations, and how to find project-local skills. It does not duplicate detailed skill procedures.
+`AGENTS.md` is short and cross-platform. It explains the source hierarchy, approval rules, verification expectations, and how to find the globally installed personal skills. It does not duplicate detailed skill procedures.
 
 `CLAUDE.md` is a thin Claude Code wrapper. It points Claude to the same project files and explains Claude-specific commands such as `/context`, `/compact`, and `/clear`. Shared policy remains outside this wrapper.
 
@@ -206,7 +206,7 @@ The workflow treats context as a limited working set:
 
 ## Claude Code and Codex Compatibility
 
-The workflow has one canonical project policy. Canonical project-local skills live in `.agents/skills/task-workflow/` and `.agents/skills/progress/`. Claude Code receives minimal discovery wrappers in `.claude/skills/task-workflow/` and `.claude/skills/progress/` that load the canonical instructions instead of copying their full procedures. The implementation plan must verify discovery in both tools before replacing the current workflow.
+The workflow has one canonical policy. Skills may be project-local or globally installed. For this single-owner Coco English project, the canonical `task-workflow` and `progress` skills are installed globally under `~/.agents/skills/`, and Claude Code discovers them through global links under `~/.claude/skills/`; duplicate project-local copies are intentionally omitted. A future shared or portable repository may restore project-local copies. The implementation plan must verify discovery in both tools before replacing the current workflow.
 
 Expected explicit invocations are `$task-workflow` and `$progress` in Codex, and `/task-workflow` and `/progress` in Claude Code. Natural-language project requests should also trigger the relevant skill without requiring the user to paste a setup prompt each time.
 
