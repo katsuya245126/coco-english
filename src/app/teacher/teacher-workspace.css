@@ -21,8 +21,8 @@
 .teacher-shell .create { color: #2563eb; }
 .teacher-shell .workspace { min-width: 0; }
 .teacher-shell .workspace > header { height: 64px; padding: 0 24px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; }
-.teacher-shell .workspace > header span, .teacher-shell .workspace > header form { display: flex; align-items: center; gap: 6px; color: #64748b; font-size: 12px; }
-.teacher-shell .workspace > header button { border: 0; background: none; color: #2563eb; cursor: pointer; }
+.teacher-shell .workspace > header span, .teacher-shell .workspace > header form { display: flex; align-items: center; gap: 8px; color: #334155; font-size: 15px; font-weight: 600; }
+.teacher-shell .workspace > header button { border: 0; background: none; color: #2563eb; cursor: pointer; font-size: 15px; font-weight: 700; padding: 6px 4px; }
 .teacher-shell .workspace > main { padding: 24px; }
 .teacher-shell .mobile-trigger { display: none; }
 .teacher-shell .banner { display: block; width: calc(100% - 48px); margin: 16px 24px 0; padding: 10px; border: 1px solid #93c5fd; border-radius: 8px; background: #eff6ff; color: #1d4ed8; font-weight: 700; cursor: pointer; }
