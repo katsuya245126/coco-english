@@ -53,8 +53,8 @@ Follow `docs/superpowers/plans/2026-07-17-lightweight-agent-workflow.md` task by
 
 ## Current position
 
-Both canonical skills and Claude wrappers are validated; active instruction migration is next.
+Lightweight instructions are active; cross-tool discovery and final rollback checks remain.
 
 ## Next step
 
-Replace GSD-heavy always-on instructions with concise discovery rules.
+Smoke-test both commands in Codex and Claude Code, then archive this rollout task.
