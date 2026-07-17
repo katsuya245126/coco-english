@@ -5,7 +5,7 @@ description: Use when the user asks where a feature or project stands, what is c
 
 # Progress
 
-This skill is read-only. Do not edit files, update status, stage changes, commit, or start implementation. Do not propose writes or status updates; the next action must be a read-only inspection or verification step.
+This skill is read-only. Do not edit files, update status, stage changes, commit, or start implementation. Do not propose writes or status updates; the next action must not modify repository state.
 
 ## Inspect
 
@@ -34,4 +34,4 @@ Return these fields in this order:
 
 Show a percentage only when an explicit checklist makes it calculable. Prefer `3/8 checks complete` to subjective estimates. If evidence is missing or contradictory, state confidence as low and explain why.
 
-Default to the active feature. Give a project-wide view only when the user requests it. If no active task exists, say so and recommend starting one through `task-workflow`.
+Default to the active feature. Give a project-wide view only when the user requests it. If no active task exists, say no task is tracked and ask which feature should be tracked next. Do not create or modify `TASK.md` or invoke `task-workflow`.
