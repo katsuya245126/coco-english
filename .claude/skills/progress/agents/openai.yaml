@@ -1,0 +1,4 @@
+interface:
+  display_name: "Progress"
+  short_description: "Report trustworthy feature status and the next action"
+  default_prompt: "Use /progress to report the current feature status and next action."
