@@ -9,7 +9,7 @@
 
 ## Workflow
 
-- Use the project-local `task-workflow` skill for normal or consequential building, fixing, planning, or investigation.
+- Until the active workflow rollout's manual verification matrix passes, use the GSD entrypoints as the operational fallback and mandatory entrypoint for normal or consequential building, fixing, planning, or investigation. Explicit `$task-workflow`, `$progress`, `/task-workflow`, and `/progress` commands remain available for validating the replacement workflow.
 - Use the read-only `progress` skill when asked for feature status or the next action.
 - Tiny obvious maintenance may proceed without `TASK.md` when it has no product, architecture, security, privacy, student-data, migration, deployment, billing, or cross-system effect.
 - Require user plan approval for consequential work defined by `task-workflow`.
@@ -30,6 +30,6 @@ Run the narrowest relevant tests first, then typecheck, lint, and build in propo
 
 For deterministic student feedback screenshots, start the app on `http://localhost:3000`, provide `FEEDBACK_STATE_CLASS_CODE`, `FEEDBACK_STATE_STUDENT_NAME`, and `FEEDBACK_STATE_PIN`, and run `npm run test:student-feedback-states`. See `docs/testing/student-feedback-states.md`.
 
-## Legacy GSD
+## GSD verification fallback
 
-`.planning/` and installed GSD skills remain available as backup. Do not read or update them by default. Use GSD only when the user explicitly requests it.
+Until the active workflow rollout's manual verification matrix passes, `.planning/` and installed GSD skills remain the operational fallback; use GSD as the mandatory entrypoint for normal or consequential work. Do not read or update `.planning/` outside that GSD workflow. After the matrix passes, GSD becomes optional backup and explicit user request remains sufficient to use it.
