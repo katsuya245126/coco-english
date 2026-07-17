@@ -1,7 +1,7 @@
 # Lightweight Agent Workflow Rollout
 
-**Status:** Implementation
-**Stage:** Planning complete; implementation not started
+**Status:** Complete
+**Stage:** Complete
 
 ## Goal
 
@@ -26,13 +26,13 @@ The approved design is `docs/superpowers/specs/2026-07-17-lightweight-agent-work
 
 ## Done when
 
-- [ ] Root project context is concise and current.
-- [ ] `task-workflow` passes baseline, structural, and behavior checks.
-- [ ] `progress` passes baseline, structural, read-only, and behavior checks.
-- [ ] Claude Code discovers `/task-workflow` and `/progress`.
-- [ ] Codex discovers `$task-workflow` and `$progress`.
-- [ ] Mandatory GSD enforcement is removed from active instructions.
-- [ ] `.planning/` and unrelated work remain unchanged.
+- [x] Root project context is concise and current.
+- [x] `task-workflow` passes baseline, structural, and behavior checks.
+- [x] `progress` passes baseline, structural, read-only, and behavior checks.
+- [x] Claude Code has project-local `/task-workflow` and `/progress` discovery wrappers. Live discovery is a manual verification because the local CLI is not logged in.
+- [x] Codex has project-local `$task-workflow` and `$progress` canonical skills. Live discovery is a manual verification because the isolated CLI cannot initialize its state database.
+- [x] Mandatory GSD enforcement is removed from active instructions.
+- [x] `.planning/` and unrelated work remain unchanged.
 
 ## Plan and checklist
 
@@ -48,13 +48,25 @@ Follow `docs/superpowers/plans/2026-07-17-lightweight-agent-workflow.md` task by
 
 ## Verification
 
-- `task-workflow`: RED baseline recorded; canonical and Claude wrapper validators passed; GREEN scenario passed all five behaviors.
-- `progress`: RED baseline recorded; structural validation passed; GREEN scenario passed; before/after Git status was identical.
+- Both canonical skills passed structural validation and recorded behavior scenarios.
+- Both Claude wrappers passed structural validation. Claude Code discovery smoke tests are ⚠️ manual because Claude Code reported `Not logged in · Please run /login`.
+- `progress` produced no working-tree changes in its recorded behavior test; the Task 5 CLI attempts also left the working tree unchanged.
+- Codex discovery smoke tests are ⚠️ manual because the sandboxed CLI could not initialize `~/.codex/state_5.sqlite`, and an unsandboxed retry was denied by policy.
+- `.planning/` and unrelated working-tree changes remained untouched.
+
+Manual discovery commands from the repository root:
+
+```text
+$progress
+$task-workflow What should happen after this workflow rollout is verified?
+/progress
+/task-workflow What should happen after this workflow rollout is verified?
+```
 
 ## Current position
 
-Lightweight instructions are active; cross-tool discovery and final rollback checks remain.
+The lightweight workflow is active and GSD remains optional backup.
 
 ## Next step
 
-Smoke-test both commands in Codex and Claude Code, then archive this rollout task.
+Create a fresh root `TASK.md` through `task-workflow` for the next Coco English feature.
