@@ -44,7 +44,7 @@ const urgencyOrder: Record<IncompleteUrgency, number> = { missed: 0, due_soon: 1
 
 export function groupIncompleteAssignments<T extends IncompleteAssignmentRow>(rows: T[], now: Date): IncompleteAssignmentGroup<T>[] {
   const groups = new Map<string, IncompleteAssignmentGroup<T>>();
-  const dueSoonEnd = now.getTime() + 24 * 60 * 60 * 1000;
+  const dueSoonEnd = now.getTime() + 3 * 24 * 60 * 60 * 1000;
 
   for (const row of rows) {
     if (row.dismissedAt != null) continue;
@@ -64,10 +64,10 @@ export function groupIncompleteAssignments<T extends IncompleteAssignmentRow>(ro
   return [...groups.values()].sort((a, b) => urgencyOrder[a.urgency] - urgencyOrder[b.urgency] || a.assignmentId.localeCompare(b.assignmentId));
 }
 
-// The Incomplete sidebar badge is the count of all outstanding student-assignment
-// items (D-19), across every urgency group including "later".
+// The Incomplete sidebar badge counts only time-pressing items ("missed" and
+// "due_soon"); "later" work isn't due soon enough to demand attention yet.
 export function countIncompleteItems(groups: IncompleteAssignmentGroup[]): number {
-  return groups.reduce((total, group) => total + group.items.length, 0);
+  return groups.reduce((total, group) => total + (group.urgency === "later" ? 0 : group.items.length), 0);
 }
 
 export type SubmissionRecency = { receivedAt: string; assignmentStudentId: string };

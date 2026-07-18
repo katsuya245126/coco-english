@@ -42,7 +42,7 @@ function IncompleteSection({ title, subtitle, groups }: { title: "Missed" | "Due
 
 export function TeacherIncompleteGroups({ groups, classes }: { groups: IncompleteAssignmentGroup[]; classes: string[] }) {
   const missed = groups.filter((group) => group.urgency === "missed"); const soon = groups.filter((group) => group.urgency === "due_soon"); const later = groups.filter((group) => group.urgency === "later");
-  return <section><div className="heading"><h1>Incomplete</h1><p>Students who have not submitted, ordered by urgency.</p></div><Filters classes={classes}/><IncompleteSection title="Missed" subtitle="Past due" groups={missed}/><IncompleteSection title="Due soon" subtitle="Within 24 hours" groups={soon}/><details><summary>Later <small>Assigned work not due within 24 hours</small></summary><div className="later"><IncompleteSection title="Due soon" subtitle="Later work" groups={later}/></div></details></section>;
+  return <section><div className="heading"><h1>Incomplete</h1><p>Students who have not submitted, ordered by urgency.</p></div><Filters classes={classes}/><IncompleteSection title="Missed" subtitle="Past due" groups={missed}/><IncompleteSection title="Due soon" subtitle="Within 3 days" groups={soon}/><details><summary>Later <small>Assigned work not due within 3 days</small></summary><div className="later"><IncompleteSection title="Due soon" subtitle="Later work" groups={later}/></div></details></section>;
 }
 
 export function ActivityOverflowMenu({ attemptId }: { attemptId: string }) {

@@ -43,7 +43,7 @@ describe("groupIncompleteAssignments", () => {
 
   it("orders missed, due soon, and later groups and preserves progress labels", () => {
     const result = groupIncompleteAssignments([
-      row("later", "a3", "assigned", "2026-07-13T00:00:00.001Z"),
+      row("later", "a3", "assigned", "2026-07-16T00:00:00.001Z"),
       row("soon", "a2", "started", "2026-07-13T00:00:00.000Z"),
       row("missed", "a1", "missed", "2026-07-11T00:00:00.000Z"),
       row("none", "a3", "started", null),
@@ -53,9 +53,29 @@ describe("groupIncompleteAssignments", () => {
     expect(result.map((group) => group.urgency)).toEqual(["missed", "due_soon", "later"]);
     expect(result[1].items[0].progress).toBe("started");
     expect(result[2].items.map((item) => item.progress)).toEqual(["not_started", "started"]);
-    // Count includes every outstanding item across all urgency groups (D-19):
-    // missed (1) + due_soon (1) + later (2) = 4.
-    expect(countIncompleteItems(result)).toBe(4);
+  });
+
+  it("treats deadlines through 3 days as due soon", () => {
+    const result = groupIncompleteAssignments([
+      row("boundary", "a1", "assigned", "2026-07-15T00:00:00.000Z"),
+      row("after", "a2", "assigned", "2026-07-15T00:00:00.001Z"),
+    ], now);
+
+    expect(result.map((group) => [group.assignmentId, group.urgency])).toEqual([
+      ["a1", "due_soon"],
+      ["a2", "later"],
+    ]);
+  });
+
+  it("counts only missed and due-soon items in the Incomplete badge", () => {
+    const result = groupIncompleteAssignments([
+      row("missed", "a1", "missed", "2026-07-11T00:00:00.000Z"),
+      row("soon", "a2", "assigned", "2026-07-15T00:00:00.000Z"),
+      row("later", "a3", "assigned", "2026-07-15T00:00:00.001Z"),
+      row("undated", "a4", "assigned", null),
+    ], now);
+
+    expect(countIncompleteItems(result)).toBe(2);
   });
 
   it("excludes retry and review workflow rows", () => {
