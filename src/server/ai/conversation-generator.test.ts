@@ -184,6 +184,29 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     expect(combined).toContain("not present or directly implied");
   });
 
+  it("prefers open follow-ups and reserves choices for stuck learners", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(async () => ({
+      output_parsed: { line: "Great! What games do you play inside?" },
+    }));
+
+    await generateCocoReply(baseInput, { apiKey: "test-key", client });
+    const call = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const system = call?.input.find((message) => message.role === "system")?.content ?? "";
+    const user = call?.input.find((message) => message.role === "user")?.content ?? "{}";
+    const prompt = JSON.parse(user) as { instructions?: string[] };
+
+    for (const fragment of [
+      "open question",
+      "short phrase or sentence",
+      "Do not default to yes/no or either/or questions",
+      "only when the latest response is vague, unclear, or shows the learner is stuck",
+    ]) {
+      expect(system).toContain(fragment);
+      expect(prompt.instructions?.join(" ")).toContain(fragment);
+    }
+  });
+
   it("forbids asking for a fact already established in the conversation", async () => {
     const { generateCocoReply } = await import("@/server/ai/conversation-generator");
     const client = createFakeClient(async () => ({

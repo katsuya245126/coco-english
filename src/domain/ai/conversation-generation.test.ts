@@ -92,7 +92,30 @@ describe("conversation history generation contract", () => {
 
     expect(instructions).toContain("minimally informative");
     expect(instructions).toContain("do not echo the vague word");
+    expect(instructions).toContain(
+      "only when the latest response is vague, unclear, or shows the learner is stuck",
+    );
     expect(instructions).toContain("two concrete child-friendly choices");
     expect(instructions).toContain("Do not shame the learner");
+  });
+
+  it("asks expandable questions after meaningful short answers", () => {
+    const prompt = buildConversationPrompt({
+      ...input,
+      conversationHistory: [
+        {
+          turnOrder: 1,
+          cocoLine: "Where do you like to play games?",
+          studentResponse: "Inside.",
+        },
+      ],
+      turnOrder: 1,
+    });
+    const instructions = prompt.instructions.join(" ");
+
+    expect(instructions).toContain("open question");
+    expect(instructions).toContain("short phrase or sentence");
+    expect(instructions).toContain("Do not default to yes/no or either/or questions");
+    expect(instructions).toContain("What games do you play inside?");
   });
 });
