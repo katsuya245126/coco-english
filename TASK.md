@@ -1,62 +1,84 @@
-# Lightweight Agent Workflow Rollout
+# Normalize Coco Sprites and Reconcile Mission Layout
 
-**Status:** Verification
-**Stage:** Verification; live discovery and behavior matrix pending
+**Status:** Implementation
+**Stage:** Pre-merge verification complete; local merge authorized
 
 ## Goal
 
-Install and validate the approved lightweight workflow for Codex and Claude Code while preserving GSD as the operational fallback until live verification passes.
+Make every Coco expression attach to the dialogue box by its visible artwork boundary, without desktop face cropping, mobile floating gaps, or expression-to-expression scale jumps.
 
-## Context
+## Context and ownership
 
-The approved design is `docs/superpowers/specs/2026-07-17-lightweight-agent-workflow-design.md`. The executable plan is `docs/superpowers/plans/2026-07-17-lightweight-agent-workflow.md`.
+- The operator explicitly selected “Reconcile normalized sprites first” in this task.
+- Session `019f6971-5098-7662-80f5-59dd076a538a` approved preserving visible artwork, normalizing transparent canvases, capping desktop size, and using one mobile/desktop attachment rule.
+- `main` contains user-owned, uncommitted replacement artwork for `coco-happy-alpha.png` and `coco-thinking-alpha.png`. Those selected replacements must be preserved and must not be modified in the main checkout.
+- This isolated branch owns the current mascot geometry commit and the uncommitted fluid-control preview.
 
-## Constraints
+## Scope
 
-- Preserve unrelated working-tree changes.
-- Do not modify `.planning/` or global GSD skills.
-- Validate each canonical skill before activating it.
-- Keep Claude and Codex behavior sourced from the same canonical procedures.
-- Until the manual matrix below passes, use GSD as the mandatory operational entrypoint for normal or consequential work; explicit `$task-workflow`, `$progress`, `/task-workflow`, and `/progress` remain available for validation.
+- Reconcile the selected happy/thinking replacements with the other four active alpha sprites.
+- Derive a deterministic normalization rule from rendered comparisons of all six expressions.
+- Normalize assets without AI regeneration or resampling the visible artwork.
+- Replace magic transparent-canvas offsets with the smallest layout rule that uses the normalized visible boundary.
+- Re-evaluate the uncommitted fluid mobile controls against the normalized sprites.
 
 ## Non-goals
 
-- Changing Coco English application behavior.
-- Cleaning up historical GSD records.
-- Installing the workflow globally for every project.
+- Dialogue pagination, Hint spinner/behavior, or conversation-generation changes.
+- Editing or deleting the user’s archived/opaque sprite files on `main`.
+- Merging, pushing, deploying, or mutating production.
 
-## Completed implementation checklist
+## Done checks
 
-- [x] Root project context is concise and current.
-- [x] Task 1 established the stable context and dated routing reference.
-- [x] Task 2 established and structurally/behaviorally validated the canonical global `task-workflow` skill and Claude discovery link.
-- [x] Task 3 established and structurally/read-only validated the canonical global `progress` skill and Claude discovery link.
-- [x] Task 4 installed the cross-platform global skills and retained GSD as the verification fallback.
-- [x] Task 5 recorded structural, behavior, test, and preservation evidence without changing `.planning/` or application files.
-- [x] Signed audio playback and subscription-aware model-routing guidance are present in active project instructions.
+- [x] Confirm the earlier session’s approved mascot direction.
+- [x] Prove the happy/thinking replacements on `main` are new artwork on oversized canvases, not normalized files.
+- [x] Compare safe normalization rules across all six real sprites without overwriting assets.
+- [x] Select individual alpha-trim plus bottom-aligned contain as the stable rule.
+- [x] Add a failing asset/layout contract before changing tracked assets or layout code.
+- [x] Normalize the six selected sprites in this worktree and preserve visible pixels without resampling.
+- [x] Remove superseded geometry offsets created only to compensate for transparent padding.
+- [x] Verify focused tests, typecheck, lint, and `git diff --check`.
+- [x] Capture labeled localhost screenshots for all expressions at desktop and mobile sizes.
+- [x] Obtain visual approval before any local implementation commit or merge.
 
-## Manual-pending verification matrix
+## Updated sprite diagnostic — 2026-07-19
 
-- [ ] Claude Code discovers and invokes `/task-workflow` and `/progress`.
-- [ ] Codex discovers and invokes `$task-workflow` and `$progress`.
-- [ ] Natural-language build, fix, investigate, and plan requests auto-trigger the relevant skill in each tool without a repeated setup prompt.
-- [ ] `task-workflow` handles tiny, normal, and consequential requests with the intended approval boundary.
-- [ ] `progress` reports an active task, a completed task, no task, and deliberately inconsistent task/Git evidence without writing.
-- [ ] Model recommendations include platform, model, effort, reason, and escalation condition; context guidance never invents usage.
-- [ ] Subagent guidance prevents recursion and overlapping edits in a live run.
+- [x] Compare the operator's updated main-checkout sprites with the approved normalized worktree set.
+- [x] Preserve the previously approved normalized sprites in `/private/tmp/coco-approved-sprites-20260718`.
+- [x] Losslessly normalize and reconcile the five changed sprites; retain the byte-identical thinking sprite.
+- [x] Capture fresh all-expression desktop/mobile localhost diagnostics.
+- [x] Capture fresh real-mission desktop/mobile localhost evidence.
+- [x] Remove the temporary diagnostic route and its generated Next type entry.
+- [x] Re-run focused tests, typecheck, lint, and `git diff --check`.
+- [x] Obtain visual approval for the updated sprite set.
 
 ## Verification evidence
 
-- Structural validators for both canonical global skills and the Claude global links passed.
-- Recorded behavior fixtures passed, `git diff --check` passed, and `npm test -- --run` passed (81 files; 713 passed, 4 skipped).
-- Claude Code discovery is manual-pending because the local CLI reported `Not logged in · Please run /login`.
-- Codex discovery is manual-pending because the sandboxed CLI could not initialize `~/.codex/state_5.sqlite`, and an unsandboxed retry was denied by policy.
-- `.planning/` and unrelated working-tree changes remain untouched.
+- Main/worktree/archive alpha-bound comparison recorded 2026-07-18.
+- Main happy/thinking replacements retain 1792×2400 canvases with roughly 905px transparent bottom padding.
+- Active expressions have materially different artwork bounds and aspect ratios, so blind trimming is unsafe without a rendered comparison.
+- Synthetic strategy comparison: `coco-normalization-strategies-synthetic.png` in the task visualization directory.
+- Normalization output sizes: neutral 967×1246, happy 902×1253, celebrate 1709×1960, encouraging 1024×734, thinking 872×1254, sad 1114×1164.
+- The normalizer verified the decoded RGBA pixels of every output against the corresponding source crop.
+- Fresh verification on 2026-07-18: 35 focused tests passed; typecheck passed; lint passed with zero errors and the known unrelated warning in `scripts/check-student-feedback-states.mjs`; `git diff --check` passed.
+- Localhost neutral-expression captures at 1440×900 and 390×844 show the full head and a 10px visible-art overlap with the dialogue border.
+- The operator approved the real-mission desktop/mobile captures on 2026-07-18.
+- All six expressions were then rendered through the real `MascotStage` component in a temporary localhost-only diagnostic route at desktop and mobile widths. The route was removed after capture and is not part of the implementation.
+- All-expression localhost evidence: `coco-all-expressions-localhost-desktop.png` and `coco-all-expressions-localhost-mobile.png` in the task visualization directory.
+- Fresh post-preview verification on 2026-07-18: 35 focused tests passed; typecheck passed after removing the preview's stale generated `.next/types` entry; lint passed with zero errors and the known unrelated warning; `git diff --check` passed.
+- On 2026-07-19, neutral, happy, celebrate, encouraging, and sad changed; thinking remained byte-identical. New normalized sizes: neutral 902×1253, happy 950×1251, celebrate 1526×1254, encouraging 1155×1253, thinking 872×1254, sad 1076×1254.
+- Updated localhost diagnostics: `coco-all-expressions-localhost-desktop-2026-07-19.png`, `coco-all-expressions-localhost-mobile-2026-07-19.png`, `coco-updated-localhost-mission-desktop-2026-07-19.png`, and `coco-updated-localhost-mission-mobile-2026-07-19.png` in the task visualization directory.
+- Fresh 2026-07-19 verification after removing the diagnostic route: 35 focused tests passed; typecheck passed; lint passed with zero errors and the known unrelated warning; `git diff --check` passed.
+- The operator approved the updated 2026-07-19 desktop/mobile diagnostics on 2026-07-19.
+- The operator explicitly authorized a local commit on `codex/coco-mascot-layout` on 2026-07-19. This does not authorize merge, push, deployment, or production mutation.
+- The approved implementation was committed locally on `codex/coco-mascot-layout` on 2026-07-19. No merge, push, deployment, or production mutation was performed.
+- Pre-merge full-suite verification initially exposed one stale `mascot-layout.test.ts` assertion for the superseded 16px overlap. The contract was updated to the approved 10px geometry; the final full suite passed 720 tests with 4 skipped across 82 files.
+- The operator explicitly authorized a local merge into `main` on 2026-07-19. This does not authorize push, deployment, or production mutation.
 
 ## Current position
 
-Implementation is complete. The rollout remains in verification until the manual discovery and behavior matrix passes; GSD is the operational fallback for normal or consequential work during this gate.
+The visually approved implementation is committed locally on `codex/coco-mascot-layout` with the corrected 10px geometry contract and a passing full suite. It uses the operator's 2026-07-19 sprite set, losslessly normalized, bottom-aligned `contain`, and the approved fluid mobile controls. Fresh real-mission and all-expression localhost evidence is approved. A local merge into `main` is authorized; no push or deployment is authorized.
 
 ## Next action
 
-Run the manual discovery and behavior matrix from a fresh authenticated Claude Code and Codex session, using `$progress`, `$task-workflow`, `/progress`, and `/task-workflow`, then record each unchecked result above.
+Preserve `main`'s unrelated dirty changes and overlapping raw sprite sources, merge `codex/coco-mascot-layout` into `main` locally, verify the merged result, then clean up the owned worktree and feature branch. Do not push, deploy, or mutate production.

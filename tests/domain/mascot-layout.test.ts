@@ -21,7 +21,7 @@ describe("mascot stage geometry", () => {
     );
   });
 
-  it("overlaps Coco's frame with the main chatbox by 16px", () => {
+  it("overlaps Coco's frame with the main chatbox by 10px", () => {
     const stageHeight = numericStyleValue(mascotStageStyle.height);
     const spriteBottom = numericStyleValue(mascotSpriteWrapStyle.bottom);
     const spriteHeight = numericStyleValue(mascotSpriteWrapStyle.height);
@@ -32,6 +32,6 @@ describe("mascot stage geometry", () => {
     const spriteEnd = spriteTop + spriteHeight;
     const dialogueStart = stageHeight - dialogueBottom - dialogueHeight;
 
-    expect(spriteEnd - dialogueStart).toBe(16);
+    expect(spriteEnd - dialogueStart).toBe(10);
   });
 });

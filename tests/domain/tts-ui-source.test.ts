@@ -212,40 +212,58 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(stylesSource).not.toContain('padding: "52px 16px 8px"');
   });
 
-  it("keeps a compact nameplate beside full-size Hint and replay actions", () => {
+  it("fluidly compacts attached dialogue controls while preserving desktop caps", () => {
     const stylesSource = readSource("src/components/student/styles.ts");
+    const audioSource = readSource(
+      "src/components/student/CocoSpeechAudio.tsx",
+    );
 
     expect(stylesSource).toMatch(
       /mascotDialogueTabsStyle[\s\S]*alignItems: "flex-end"/,
     );
-    expect(stylesSource).toMatch(
-      /mascotNameTabStyle[\s\S]*height: 38[\s\S]*minWidth: 76[\s\S]*padding: "0 12px"[\s\S]*fontSize: 14[\s\S]*fontWeight: 700/,
+    expect(stylesSource).toContain(
+      'height: "clamp(40px, 10vw, 48px)"',
     );
-    expect(stylesSource).toMatch(
-      /mascotAttachedTabStyle[\s\S]*height: 48/,
+    expect(stylesSource).toContain(
+      'height: "clamp(32px, 8.5vw, 38px)"',
     );
-    expect(stylesSource).toMatch(
-      /mascotDialogueActionsStyle[\s\S]*\.\.\.mascotAttachedTabStyle/,
+    expect(stylesSource).toContain(
+      'minWidth: "clamp(64px, 17vw, 76px)"',
     );
-    expect(stylesSource).toMatch(
-      /export const mascotHintTabStyle: CSSProperties = \{[^}]*minHeight: 44/,
+    expect(stylesSource).toContain(
+      'padding: "0 clamp(8px, 2.5vw, 12px)"',
     );
-    expect(stylesSource).toMatch(
-      /export const mascotVoiceTabStyle: CSSProperties = \{[^}]*minHeight: 44/,
+    expect(stylesSource).toContain(
+      'fontSize: "clamp(13px, 3.3vw, 14px)"',
+    );
+    expect(stylesSource).toContain(
+      'minHeight: "clamp(38px, 10vw, 44px)"',
+    );
+    expect(stylesSource).toContain(
+      'minWidth: "clamp(38px, 10vw, 44px)"',
+    );
+    expect(audioSource).toMatch(
+      /const buttonStyle:[\s\S]*minWidth: 44,[\s\S]*minHeight: 44/,
+    );
+    expect(audioSource).toMatch(
+      /const dialogueTabButtonStyle:[\s\S]*minWidth: "clamp\(38px, 10vw, 44px\)"[\s\S]*minHeight: "clamp\(38px, 10vw, 44px\)"/,
     );
   });
 
-  it("preserves Coco's crop while giving the chatbox face clearance", () => {
+  it("caps Coco's frame while giving the chatbox face clearance", () => {
     const stageSource = readSource("src/components/student/MascotStage.tsx");
     const stylesSource = readSource("src/components/student/styles.ts");
 
     expect(stageSource).toContain("SPRITE_BY_EXPRESSION");
     expect(stageSource).toContain("mascotSpriteWrapStyle");
     expect(stylesSource).toContain("height: 360");
-    expect(stylesSource).toContain("bottom: 180");
+    expect(stylesSource).toContain("bottom: 126");
     expect(stylesSource).toContain("height: 180");
     expect(stylesSource).toContain(
-      'left: "clamp(24px, calc((100% - 226px) / 2), 72px)"',
+      'left: "max(24px, calc((100% - 226px) / 2))"',
+    );
+    expect(stylesSource).toContain(
+      'width: "min(226px, calc(100% - 48px))"',
     );
   });
 
@@ -399,24 +417,24 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(stylesSource).not.toContain("minHeight: 64");
   });
 
-  it("uses upper-body mascot framing and state-specific thinking/sad sprites", () => {
+  it("contains normalized mascot art and attaches it to the dialogue box", () => {
     const stageSource = readSource("src/components/student/MascotStage.tsx");
     const stylesSource = readSource("src/components/student/styles.ts");
 
     expect(stageSource).toContain('thinking: "coco-thinking-alpha.png"');
     expect(stageSource).toContain('sad: "coco-sad-alpha.png"');
-    expect(stageSource).toContain('objectFit: "cover"');
-    expect(stageSource).toContain('objectPosition: "center 12%"');
+    expect(stageSource).toContain('objectFit: "contain"');
+    expect(stageSource).toContain('objectPosition: "center bottom"');
     expect(stylesSource).toContain(
-      'left: "clamp(24px, calc((100% - 226px) / 2), 72px)"',
+      'left: "max(24px, calc((100% - 226px) / 2))"',
     );
     expect(stylesSource).toContain(
-      'right: "clamp(24px, calc((100% - 226px) / 2), 72px)"',
+      'width: "min(226px, calc(100% - 48px))"',
     );
-    // The sprite keeps its existing crop at the top of the taller stage while
-    // the attached controls move below the face.
+    // The normalized visible boundary is bottom-aligned and overlaps the
+    // chatbox by 10px, so every expression meets it without a gap.
     expect(stylesSource).toContain("height: 360");
-    expect(stylesSource).toContain("bottom: 180");
+    expect(stylesSource).toContain("bottom: 126");
     expect(stylesSource).toContain("height: 180");
   });
 

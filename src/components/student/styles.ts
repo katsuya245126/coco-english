@@ -256,11 +256,11 @@ export const mascotBackdropStyle: CSSProperties = {
 export const mascotSpriteWrapStyle: CSSProperties = {
   position: "absolute",
   // Cap Coco's centered frame at 226px on desktop while keeping a 24px safety
-  // inset when the stage is too narrow. A 16px overlap lets the main chatbox
-  // mask transparent lower-edge pixels across every expression sprite.
+  // inset when the stage is too narrow. Normalized sprites are bottom-aligned
+  // and overlap the main chatbox by 10px so their visible edges stay attached.
   left: "max(24px, calc((100% - 226px) / 2))",
   width: "min(226px, calc(100% - 48px))",
-  bottom: 120,
+  bottom: 126,
   height: 180,
   transformOrigin: "bottom center",
 };
@@ -298,7 +298,7 @@ export const mascotDialogueTabsStyle: CSSProperties = {
 };
 
 const mascotAttachedTabStyle: CSSProperties = {
-  height: 48,
+  height: "clamp(40px, 10vw, 48px)",
   boxSizing: "border-box",
   border: "2px solid #2563EB",
   borderBottomColor: "transparent",
@@ -309,15 +309,15 @@ const mascotAttachedTabStyle: CSSProperties = {
 
 export const mascotNameTabStyle: CSSProperties = {
   ...mascotAttachedTabStyle,
-  height: 38,
-  minWidth: 76,
-  padding: "0 12px",
+  height: "clamp(32px, 8.5vw, 38px)",
+  minWidth: "clamp(64px, 17vw, 76px)",
+  padding: "0 clamp(8px, 2.5vw, 12px)",
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
   background: "#2563EB",
   color: "#FFFFFF",
-  fontSize: 14,
+  fontSize: "clamp(13px, 3.3vw, 14px)",
   fontWeight: 700,
 };
 
@@ -331,21 +331,21 @@ export const mascotDialogueActionsStyle: CSSProperties = {
 };
 
 export const mascotHintTabStyle: CSSProperties = {
-  minHeight: 44,
-  padding: "0 12px",
+  minHeight: "clamp(38px, 10vw, 44px)",
+  padding: "0 clamp(8px, 2.5vw, 12px)",
   border: 0,
   borderRight: "1px solid #BFDBFE",
   borderRadius: 0,
   background: "transparent",
   color: "#2563EB",
-  fontSize: 14,
+  fontSize: "clamp(13px, 3.3vw, 14px)",
   fontWeight: 700,
   cursor: "pointer",
 };
 
 export const mascotVoiceTabStyle: CSSProperties = {
-  minHeight: 44,
-  minWidth: 44,
+  minHeight: "clamp(38px, 10vw, 44px)",
+  minWidth: "clamp(38px, 10vw, 44px)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",

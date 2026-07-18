@@ -164,7 +164,7 @@ export function MascotStage({
           fill
           priority
           sizes="(max-width: 420px) 100vw, 420px"
-          style={{ objectFit: "cover", objectPosition: "center 12%" }}
+          style={{ objectFit: "contain", objectPosition: "center bottom" }}
         />
       </div>
       <CocoDialogueBox
