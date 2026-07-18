@@ -282,7 +282,7 @@ export const mascotDialogueBoxStyle: CSSProperties = {
   borderRadius: 8,
   padding: 22,
   boxSizing: "border-box",
-  overflowY: "auto",
+  overflow: "visible",
 };
 
 export const mascotDialogueTabsStyle: CSSProperties = {
@@ -331,16 +331,61 @@ export const mascotDialogueActionsStyle: CSSProperties = {
 };
 
 export const mascotHintTabStyle: CSSProperties = {
+  ...mascotAttachedTabStyle,
   minHeight: "clamp(38px, 10vw, 44px)",
   padding: "0 clamp(8px, 2.5vw, 12px)",
   border: 0,
   borderRight: "1px solid #BFDBFE",
   borderRadius: 0,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
   background: "transparent",
   color: "#2563EB",
   fontSize: "clamp(13px, 3.3vw, 14px)",
   fontWeight: 700,
   cursor: "pointer",
+};
+
+export const mascotDialoguePagerStyle: CSSProperties = {
+  position: "absolute",
+  left: 8,
+  right: 8,
+  bottom: -22,
+  zIndex: 4,
+  display: "grid",
+  gridTemplateColumns: "44px 1fr 44px",
+  alignItems: "center",
+  pointerEvents: "none",
+};
+
+export const mascotDialoguePageButtonStyle: CSSProperties = {
+  width: 44,
+  height: 44,
+  border: "2px solid #2563EB",
+  borderRadius: "50%",
+  background: "#FFFFFF",
+  color: "#2563EB",
+  fontSize: 24,
+  fontWeight: 700,
+  cursor: "pointer",
+  pointerEvents: "auto",
+};
+
+export const mascotDialoguePageIndicatorStyle: CSSProperties = {
+  justifySelf: "center",
+  padding: "3px 8px",
+  borderRadius: 999,
+  background: "#FFFFFF",
+  color: "#4B5563",
+  fontSize: 13,
+  fontWeight: 700,
+};
+
+export const mascotHintSpinnerStyle: CSSProperties = {
+  width: 14,
+  height: 14,
+  flexShrink: 0,
 };
 
 export const mascotVoiceTabStyle: CSSProperties = {

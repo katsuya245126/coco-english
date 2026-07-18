@@ -1,21 +1,28 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   buildTranslationSegments,
-  getFirstTranslationPhraseSegmentIndex,
   parseTranslationHint,
   toggleTranslationBubble,
   type TranslatableCocoLine,
   type TranslationPhrase,
 } from "@/domain/ai/translation-hint";
 import {
+  findDialoguePageIndex,
+  paginateDialogueText,
+} from "@/domain/conversation/dialogue-pagination";
+import {
   mascotDialogueActionsStyle,
   mascotDialogueBoxStyle,
+  mascotDialoguePageButtonStyle,
+  mascotDialoguePageIndicatorStyle,
+  mascotDialoguePagerStyle,
   mascotDialogueShellStyle,
   mascotDialogueTextStyle,
   mascotDialogueTabsStyle,
+  mascotHintSpinnerStyle,
   mascotHintTabStyle,
   mascotNameTabStyle,
   mascotPhraseButtonStyle,
@@ -49,8 +56,24 @@ export function CocoDialogueBox({
   const [expandedPhraseIndex, setExpandedPhraseIndex] = useState<number | null>(
     null,
   );
+  const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const activeRequestRef = useRef<AbortController | null>(null);
   const requestTokenRef = useRef(0);
+
+  const phrases = useMemo(
+    () =>
+      translationState.kind === "ready" ? translationState.phrases : [],
+    [translationState],
+  );
+  const pages = useMemo(
+    () => paginateDialogueText(dialogueText ?? "", phrases),
+    [dialogueText, phrases],
+  );
+  const safePageIndex = Math.min(
+    currentPageIndex,
+    Math.max(0, pages.length - 1),
+  );
+  const currentPage = pages[safePageIndex] ?? null;
 
   useEffect(() => {
     requestTokenRef.current += 1;
@@ -58,6 +81,7 @@ export function CocoDialogueBox({
     activeRequestRef.current = null;
     setTranslationState({ kind: "inactive" });
     setExpandedPhraseIndex(null);
+    setCurrentPageIndex(0);
     return () => {
       requestTokenRef.current += 1;
       activeRequestRef.current?.abort();
@@ -69,16 +93,22 @@ export function CocoDialogueBox({
     translationLine?.turnOrder,
   ]);
 
+  useEffect(() => {
+    setCurrentPageIndex((index) =>
+      Math.min(index, Math.max(0, pages.length - 1)),
+    );
+  }, [pages.length]);
+
   async function loadTranslationHint() {
     if (!translationLine || !dialogueText) return;
     if (translationState.kind === "ready") {
-      const firstPhraseIndex = getFirstTranslationPhraseSegmentIndex(
-        dialogueText,
-        translationState.phrases,
-      );
-      setExpandedPhraseIndex((currentIndex) =>
-        toggleTranslationBubble(currentIndex, firstPhraseIndex),
-      );
+      const firstPhrase = translationState.phrases[0];
+      if (!firstPhrase) return;
+      const nextIndex = toggleTranslationBubble(expandedPhraseIndex, 0);
+      setExpandedPhraseIndex(nextIndex);
+      if (nextIndex !== null) {
+        setCurrentPageIndex(findDialoguePageIndex(pages, firstPhrase.start));
+      }
       return;
     }
     activeRequestRef.current?.abort();
@@ -124,16 +154,20 @@ export function CocoDialogueBox({
         setTranslationState({ kind: "error" });
         return;
       }
-      const firstPhraseIndex = getFirstTranslationPhraseSegmentIndex(
-        dialogueText,
-        parsed.hint.phrases,
-      );
-      if (firstPhraseIndex === null) {
+      const firstPhrase = parsed.hint.phrases[0];
+      if (!firstPhrase) {
         setTranslationState({ kind: "error" });
         return;
       }
+      const protectedPages = paginateDialogueText(
+        dialogueText,
+        parsed.hint.phrases,
+      );
       setTranslationState({ kind: "ready", phrases: parsed.hint.phrases });
-      setExpandedPhraseIndex(firstPhraseIndex);
+      setExpandedPhraseIndex(0);
+      setCurrentPageIndex(
+        findDialoguePageIndex(protectedPages, firstPhrase.start),
+      );
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") return;
       if (requestTokenRef.current !== requestToken) return;
@@ -145,16 +179,25 @@ export function CocoDialogueBox({
     }
   }
 
-  const segments =
-    dialogueText && translationState.kind === "ready"
-      ? buildTranslationSegments(dialogueText, translationState.phrases)
-      : null;
-  const hintLabel =
-    translationState.kind === "loading"
-      ? "Hint…"
-      : translationState.kind === "error"
-        ? "Retry hint"
-        : "Hint";
+  const pagePhrases = currentPage
+    ? phrases
+        .filter(
+          (phrase) =>
+            phrase.start >= currentPage.start && phrase.end <= currentPage.end,
+        )
+        .map((phrase) => ({
+          ...phrase,
+          start: phrase.start - currentPage.start,
+          end: phrase.end - currentPage.start,
+        }))
+    : [];
+  const segments = currentPage
+    ? buildTranslationSegments(currentPage.text, pagePhrases)
+    : null;
+  const isHintLoading = translationState.kind === "loading";
+  const hintVisibleLabel =
+    translationState.kind === "error" ? "Retry hint" : "Hint";
+  const hintLabel = isHintLoading ? "Loading hint" : hintVisibleLabel;
 
   return (
     <div style={mascotDialogueShellStyle}>
@@ -167,14 +210,17 @@ export function CocoDialogueBox({
               aria-label={hintLabel}
               title={hintLabel}
               aria-pressed={expandedPhraseIndex !== null}
-              aria-busy={translationState.kind === "loading"}
-              disabled={translationState.kind === "loading"}
+              aria-busy={isHintLoading}
+              disabled={isHintLoading}
               onClick={loadTranslationHint}
               style={{
                 ...mascotHintTabStyle,
                 ...(voiceControl ? null : { borderRight: 0 }),
               }}
-            >{hintLabel}</button>
+            >
+              <span>{hintVisibleLabel}</span>
+              {isHintLoading ? <HintSpinner /> : null}
+            </button>
             {voiceControl ? (
               <span style={mascotVoiceTabStyle}>{voiceControl}</span>
             ) : null}
@@ -187,22 +233,28 @@ export function CocoDialogueBox({
       </div>
 
       <div style={mascotDialogueBoxStyle}>
-        {dialogueText ? (
+        {currentPage ? (
           <p style={mascotDialogueTextStyle}>
             {segments
-              ? segments.map((segment, index) => {
+              ? segments.map((segment) => {
                   if (segment.kind === "text") return segment.text;
-                  const isExpanded = expandedPhraseIndex === index;
+                  const absoluteStart = currentPage.start + segment.phrase.start;
+                  const phraseIndex = phrases.findIndex(
+                    (phrase) =>
+                      phrase.start === absoluteStart &&
+                      phrase.end === currentPage.start + segment.phrase.end,
+                  );
+                  const isExpanded = expandedPhraseIndex === phraseIndex;
                   return (
                     <span
-                      key={`${segment.phrase.start}-${segment.phrase.end}`}
+                      key={`${absoluteStart}-${currentPage.start + segment.phrase.end}`}
                       style={{ position: "relative", display: "inline-block" }}
                     >
                       <button
                         type="button"
                         aria-expanded={isExpanded}
                         onClick={() =>
-                          setExpandedPhraseIndex(isExpanded ? null : index)
+                          setExpandedPhraseIndex(isExpanded ? null : phraseIndex)
                         }
                         style={mascotPhraseButtonStyle}
                       >
@@ -216,10 +268,67 @@ export function CocoDialogueBox({
                     </span>
                   );
                 })
-              : dialogueText}
+              : currentPage.text}
           </p>
         ) : null}
       </div>
+      {pages.length > 1 ? (
+        <nav aria-label="Dialogue pages" style={mascotDialoguePagerStyle}>
+          <button
+            type="button"
+            aria-label="Previous dialogue page"
+            disabled={safePageIndex === 0}
+            onClick={() => setCurrentPageIndex((index) => Math.max(0, index - 1))}
+            style={{
+              ...mascotDialoguePageButtonStyle,
+              opacity: safePageIndex === 0 ? 0.35 : 1,
+            }}
+          >
+            ‹
+          </button>
+          <span style={mascotDialoguePageIndicatorStyle}>
+            {safePageIndex + 1} / {pages.length}
+          </span>
+          <button
+            type="button"
+            aria-label="Next dialogue page"
+            disabled={safePageIndex === pages.length - 1}
+            onClick={() =>
+              setCurrentPageIndex((index) => Math.min(pages.length - 1, index + 1))
+            }
+            style={{
+              ...mascotDialoguePageButtonStyle,
+              opacity: safePageIndex === pages.length - 1 ? 0.35 : 1,
+            }}
+          >
+            ›
+          </button>
+        </nav>
+      ) : null}
     </div>
+  );
+}
+
+function HintSpinner() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      aria-hidden="true"
+      style={mascotHintSpinnerStyle}
+    >
+      <path d="M21 12a9 9 0 1 1-6.219-8.56">
+        <animateTransform
+          attributeName="transform"
+          type="rotate"
+          from="0 12 12"
+          to="360 12 12"
+          dur="0.8s"
+          repeatCount="indefinite"
+        />
+      </path>
+    </svg>
   );
 }
