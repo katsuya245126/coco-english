@@ -133,15 +133,13 @@ function isVagueOrStuckResponse(response: string): boolean {
 }
 
 function usesEitherOrQuestion(line: string): boolean {
-  const questionEnd = line.lastIndexOf("?");
-  if (questionEnd < 0) return false;
-  const questionStart =
-    Math.max(
-      line.lastIndexOf(".", questionEnd),
-      line.lastIndexOf("!", questionEnd),
-      line.lastIndexOf("?", questionEnd - 1),
-    ) + 1;
-  return /\b(?:either|or)\b/iu.test(line.slice(questionStart, questionEnd));
+  return line
+    .split("?")
+    .slice(0, -1)
+    .some((question) => {
+      const questionStart = Math.max(question.lastIndexOf("."), question.lastIndexOf("!")) + 1;
+      return /\b(?:either|or)\b/iu.test(question.slice(questionStart));
+    });
 }
 
 /**

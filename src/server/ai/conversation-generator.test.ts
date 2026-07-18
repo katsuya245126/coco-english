@@ -247,6 +247,79 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     ).toContain("either/or");
   });
 
+  it("regenerates when an initial line contains an either-or question before a later question", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          output_parsed: {
+            line: "Do you read books or watch TV? What do you enjoy after school?",
+          },
+        })
+        .mockResolvedValueOnce({
+          output_parsed: { line: "Fun! What do you enjoy after school?" },
+        }),
+    );
+
+    const result = await generateCocoReply(
+      {
+        ...baseInput,
+        turnOrder: 1,
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "What do you do after school?",
+            studentResponse: "I draw pictures.",
+          },
+        ],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      reply: { line: "Fun! What do you enjoy after school?" },
+    });
+    expect(client.responses.parse).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a corrected line with an earlier either-or question after a meaningful response", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          output_parsed: {
+            line: "Do you read books or watch TV?",
+          },
+        })
+        .mockResolvedValueOnce({
+          output_parsed: {
+            line: "Do you read books or watch TV? What do you enjoy after school?",
+          },
+        }),
+    );
+
+    const result = await generateCocoReply(
+      {
+        ...baseInput,
+        turnOrder: 1,
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "What do you do after school?",
+            studentResponse: "I draw pictures.",
+          },
+        ],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toEqual({ ok: false, error: "schema_failed" });
+    expect(client.responses.parse).toHaveBeenCalledTimes(2);
+  });
+
   it("accepts a two-choice follow-up without regeneration after a stuck response", async () => {
     const { generateCocoReply } = await import("@/server/ai/conversation-generator");
     const client = createFakeClient(async () => ({
