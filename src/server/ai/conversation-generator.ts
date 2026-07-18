@@ -98,6 +98,52 @@ const CONVERSATION_SYSTEM_MESSAGE = [
   "Return only data matching the schema.",
 ].join(" ");
 
+const VAGUE_OR_STUCK_RESPONSES = new Set([
+  "i don't know",
+  "don't know",
+  "i do not know",
+  "do not know",
+  "not sure",
+  "i'm not sure",
+  "no idea",
+  "i have no idea",
+  "idk",
+  "anything",
+  "something",
+  "stuff",
+  "whatever",
+  "nothing",
+  "um",
+  "uh",
+  "hmm",
+  "yes",
+  "no",
+]);
+
+const OPEN_FOLLOW_UP_CORRECTION = [
+  "The previous candidate used an invalid either/or question after a meaningful student detail.",
+  "Regenerate the full line once with an open question that invites a short phrase or sentence.",
+  "Do not use a yes/no or either/or question.",
+  "Return only data matching the schema.",
+].join(" ");
+
+function isVagueOrStuckResponse(response: string): boolean {
+  const normalized = response.trim().toLowerCase().replace(/[.!?]+$/u, "");
+  return VAGUE_OR_STUCK_RESPONSES.has(normalized);
+}
+
+function usesEitherOrQuestion(line: string): boolean {
+  const questionEnd = line.lastIndexOf("?");
+  if (questionEnd < 0) return false;
+  const questionStart =
+    Math.max(
+      line.lastIndexOf(".", questionEnd),
+      line.lastIndexOf("!", questionEnd),
+      line.lastIndexOf("?", questionEnd - 1),
+    ) + 1;
+  return /\b(?:either|or)\b/iu.test(line.slice(questionStart, questionEnd));
+}
+
 /**
  * Generate Coco's next dynamic reply for one conversation turn. Rebuilds
  * the full grounding payload fresh every call via buildConversationPrompt
@@ -142,6 +188,40 @@ export async function generateCocoReply(
     const parsed = parseGeneratedCocoReply(response.output_parsed);
     if (!parsed.ok) {
       return { ok: false, error: "schema_failed" };
+    }
+
+    const latestResponse = validInput.data.conversationHistory.at(-1)?.studentResponse;
+    if (
+      latestResponse &&
+      !isVagueOrStuckResponse(latestResponse) &&
+      usesEitherOrQuestion(parsed.reply.line)
+    ) {
+      try {
+        const correctedResponse = await client.responses.parse({
+          model: resolveModel(deps),
+          input: [
+            {
+              role: "system",
+              content: `${CONVERSATION_SYSTEM_MESSAGE} ${OPEN_FOLLOW_UP_CORRECTION}`,
+            },
+            {
+              role: "user",
+              content: JSON.stringify(buildConversationPrompt(validInput.data)),
+            },
+          ],
+          text: {
+            format: zodTextFormat(generatedCocoReplySchema, "coco_reply"),
+          },
+        });
+        const corrected = parseGeneratedCocoReply(correctedResponse.output_parsed);
+        if (!corrected.ok || usesEitherOrQuestion(corrected.reply.line)) {
+          return { ok: false, error: "schema_failed" };
+        }
+        return { ok: true, reply: corrected.reply };
+      } catch {
+        log("error", "ai.conversation_generation_failed", { error: "schema_failed" });
+        return { ok: false, error: "schema_failed" };
+      }
     }
 
     return { ok: true, reply: parsed.reply };

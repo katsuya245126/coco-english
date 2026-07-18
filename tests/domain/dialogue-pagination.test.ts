@@ -8,25 +8,38 @@ import {
 describe("paginateDialogueText", () => {
   it("keeps a short line on one exact page", () => {
     const text = "What games do you play inside?";
-    expect(DIALOGUE_PAGE_WORD_LIMIT).toBe(16);
+    expect(DIALOGUE_PAGE_WORD_LIMIT).toBe(8);
     expect(paginateDialogueText(text)).toEqual([
       { start: 0, end: text.length, text },
     ]);
   });
 
+  it("splits a typical 10-word mobile reply while keeping a short open question whole", () => {
+    const mobileReply = "Playing inside is fun. What games do you play there?";
+    const shortOpenQuestion = "What games do you play?";
+
+    expect(paginateDialogueText(mobileReply).map((page) => page.text)).toEqual([
+      "Playing inside is fun. ",
+      "What games do you play there?",
+    ]);
+    expect(paginateDialogueText(shortOpenQuestion)).toEqual([
+      { start: 0, end: shortOpenQuestion.length, text: shortOpenQuestion },
+    ]);
+  });
+
   it("prefers sentence and clause boundaries before whitespace", () => {
     const sentences =
-      "One two three four five six seven eight nine. Ten eleven twelve thirteen fourteen fifteen sixteen seventeen.";
+      "One two three four five six. Seven eight nine ten eleven twelve thirteen fourteen.";
     const clauses =
-      "One two three four five six seven eight nine, ten eleven twelve thirteen fourteen fifteen sixteen seventeen.";
+      "One two three four five six, seven eight nine ten eleven twelve thirteen fourteen.";
 
     expect(paginateDialogueText(sentences).map((page) => page.text)).toEqual([
-      "One two three four five six seven eight nine. ",
-      "Ten eleven twelve thirteen fourteen fifteen sixteen seventeen.",
+      "One two three four five six. ",
+      "Seven eight nine ten eleven twelve thirteen fourteen.",
     ]);
     expect(paginateDialogueText(clauses).map((page) => page.text)).toEqual([
-      "One two three four five six seven eight nine, ",
-      "ten eleven twelve thirteen fourteen fifteen sixteen seventeen.",
+      "One two three four five six, ",
+      "seven eight nine ten eleven twelve thirteen fourteen.",
     ]);
   });
 
@@ -34,8 +47,8 @@ describe("paginateDialogueText", () => {
     const text = Array.from({ length: 20 }, (_, index) => `word${index + 1}`).join(" ");
     const pages = paginateDialogueText(text);
 
-    expect(pages).toHaveLength(2);
-    expect(pages[0]?.text.trim().split(/\s+/u)).toHaveLength(16);
+    expect(pages).toHaveLength(3);
+    expect(pages[0]?.text.trim().split(/\s+/u)).toHaveLength(8);
     expect(pages.map((page) => page.text).join("")).toBe(text);
   });
 
@@ -75,6 +88,6 @@ describe("paginateDialogueText", () => {
     );
     expect(findDialoguePageIndex(pages, 0)).toBe(0);
     expect(findDialoguePageIndex(pages, pages[1]?.start ?? 0)).toBe(1);
-    expect(findDialoguePageIndex(pages, Number.MAX_SAFE_INTEGER)).toBe(1);
+    expect(findDialoguePageIndex(pages, Number.MAX_SAFE_INTEGER)).toBe(2);
   });
 });
