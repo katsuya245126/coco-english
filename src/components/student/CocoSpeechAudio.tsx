@@ -365,8 +365,8 @@ const buttonStyle: React.CSSProperties = {
 };
 
 const dialogueTabButtonStyle: React.CSSProperties = {
-  minWidth: 44,
-  minHeight: 44,
+  minWidth: "clamp(38px, 10vw, 44px)",
+  minHeight: "clamp(38px, 10vw, 44px)",
   border: 0,
   borderRadius: 0,
   background: "transparent",
