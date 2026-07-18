@@ -255,16 +255,12 @@ export const mascotBackdropStyle: CSSProperties = {
 
 export const mascotSpriteWrapStyle: CSSProperties = {
   position: "absolute",
-  // Preserve the desktop 226px character frame on standard phone widths.
-  // Fixed 72px insets squeezed the frame to 133px on a 375px viewport and
-  // changed the object-fit crop; the clamp keeps it centered and only shrinks
-  // on screens too narrow to retain a 24px safety inset.
-  left: "clamp(24px, calc((100% - 226px) / 2), 72px)",
-  right: "clamp(24px, calc((100% - 226px) / 2), 72px)",
-  // Keep Coco's existing crop at the top of the taller stage. The attached
-  // dialogue tabs now meet the bottom of the sprite instead of covering the
-  // lower half of Coco's face.
-  bottom: 180,
+  // Cap Coco's centered frame at 226px on desktop while keeping a 24px safety
+  // inset when the stage is too narrow. A 16px overlap lets the main chatbox
+  // mask transparent lower-edge pixels across every expression sprite.
+  left: "max(24px, calc((100% - 226px) / 2))",
+  width: "min(226px, calc(100% - 48px))",
+  bottom: 120,
   height: 180,
   transformOrigin: "bottom center",
 };
