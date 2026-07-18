@@ -1,6 +1,6 @@
 # Dynamic dialogue pagination and open follow-ups
 
-**Status:** Planning
+**Status:** Awaiting implementation approval
 
 ## Goal
 
@@ -28,7 +28,7 @@ Make Coco's current dialogue easier to read in a compact chat box and make dynam
 
 ## Done Checks
 
-- [ ] Approved design spec is committed.
+- [x] Approved design spec is committed.
 - [ ] Implementation plan is approved.
 - [ ] Long current messages paginate without internal scrolling.
 - [ ] Page boundaries preserve source text and translation phrase ranges.
@@ -39,11 +39,11 @@ Make Coco's current dialogue easier to read in a compact chat box and make dynam
 
 ## Plan
 
-1. Write and review the design specification.
-2. Create an implementation plan after user approval.
+1. Write and review the design specification. Complete.
+2. Create an implementation plan after user approval. Complete.
 3. Implement test-first in small, scoped steps.
 4. Verify and archive this task.
 
 ## Current Position
 
-The recovered design was approved on 2026-07-19. Next: user review of the written specification.
+The design and implementation plan are written. Next: user selects an execution approach and approves implementation.
