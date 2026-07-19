@@ -32,17 +32,22 @@ export function parseWorktreePorcelain(source) {
     });
 }
 
+export function compareWorktrees(left, right, repoRoot, hasMain) {
+  const rank = (record) => {
+    if (record.branch === "main") return 0;
+    if (!hasMain && record.path === repoRoot) return 0;
+    return 1;
+  };
+  const rankDifference = rank(left) - rank(right);
+  if (rankDifference !== 0) return rankDifference;
+  return left.path.localeCompare(right.path);
+}
+
 export function sortWorktrees(records, repoRoot) {
   const hasMain = records.some((record) => record.branch === "main");
-  return [...records].sort((left, right) => {
-    if (left.branch === "main") return -1;
-    if (right.branch === "main") return 1;
-    if (!hasMain) {
-      if (left.path === repoRoot) return -1;
-      if (right.path === repoRoot) return 1;
-    }
-    return left.path.localeCompare(right.path);
-  });
+  return [...records].sort((left, right) =>
+    compareWorktrees(left, right, repoRoot, hasMain),
+  );
 }
 
 export function extractTaskTitle(source) {
@@ -53,13 +58,23 @@ export function extractTaskTitle(source) {
 export function cleanWorktreeName(value) {
   const cleaned = value
     .replace(/^claude\//u, "")
+    .replace(/^codex\//u, "")
     .replace(/^worktree-/u, "")
     .replace(/-[0-9a-f]{6,}$/iu, "")
     .replace(/[-_]+/gu, " ")
     .replace(/\s+/gu, " ")
     .trim();
   if (!cleaned) return null;
-  return `${cleaned[0].toUpperCase()}${cleaned.slice(1)}`;
+  const capitalized = `${cleaned[0].toUpperCase()}${cleaned.slice(1)}`;
+  return capitalized.replace(/\buat\b/giu, "UAT");
+}
+
+export function isGeneratedWorktree(record) {
+  if (record.detached || record.branch === null) return true;
+  return (
+    /^worktree-agent-[0-9a-f]{6,}$/iu.test(record.branch) ||
+    /^claude\/[^/]+-[0-9a-f]{6,}$/iu.test(record.branch)
+  );
 }
 
 export function cleanCommitSubject(value) {
@@ -75,6 +90,9 @@ export function cleanCommitSubject(value) {
 
 export function formatWorktreeLabel(record, metadata = {}) {
   if (record.branch === "main") return "Main";
+  if (!isGeneratedWorktree(record)) {
+    return cleanWorktreeName(record.branch) ?? "Detached checkout";
+  }
   const taskTitle = metadata.taskTitle?.trim();
   if (taskTitle) return taskTitle;
   const commitSubject = metadata.commitSubject?.trim();

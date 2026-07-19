@@ -8,9 +8,11 @@ const {
   buildDevInvocation,
   cleanCommitSubject,
   cleanWorktreeName,
+  compareWorktrees,
   disambiguateWorktreeLabels,
   extractTaskTitle,
   formatWorktreeLabel,
+  isGeneratedWorktree,
   parseSelection,
   parseWorktreePorcelain,
   sortWorktrees,
@@ -77,15 +79,32 @@ describe("UAT worktree discovery", () => {
     ).toEqual([null, "worktree-dialogue-pagination"]);
   });
 
-  it("uses Main for the main branch and prefers task purpose over commit and branch metadata", () => {
+  it("returns equality when the worktree comparator receives the same record", () => {
+    const [main] = parseWorktreePorcelain(porcelain);
+    expect(compareWorktrees(main, main, "/projects/coco-english", true)).toBe(0);
+  });
+
+  it("uses Main for main and a stable branch purpose for descriptive worktrees", () => {
     const [main, named] = parseWorktreePorcelain(porcelain);
+    const descriptive = { ...named, branch: "codex/uat-menu-labels" };
+
     expect(formatWorktreeLabel(main)).toBe("Main");
     expect(
-      formatWorktreeLabel(named, {
+      formatWorktreeLabel(descriptive, {
         taskTitle: "Dynamic dialogue pagination and open follow-ups",
-        commitSubject: "fix: reject multi-question follow-ups",
+        commitSubject: "fix: ignored metadata",
       }),
-    ).toBe("Dynamic dialogue pagination and open follow-ups");
+    ).toBe("UAT menu labels");
+  });
+
+  it("recognizes only generated agent and Claude branch shapes", () => {
+    const [, named, detached] = parseWorktreePorcelain(porcelain);
+
+    expect(isGeneratedWorktree({ ...named, branch: "worktree-agent-a4fe43921413" })).toBe(true);
+    expect(isGeneratedWorktree({ ...named, branch: "claude/clever-northcutt-200ab2" })).toBe(true);
+    expect(isGeneratedWorktree(detached)).toBe(true);
+    expect(isGeneratedWorktree({ ...named, branch: "codex/uat-menu-labels" })).toBe(false);
+    expect(isGeneratedWorktree({ ...named, branch: "worktree-dynamic-dialogue-pagination" })).toBe(false);
   });
 
   it("extracts only the first Markdown H1", () => {
@@ -95,12 +114,24 @@ describe("UAT worktree discovery", () => {
     expect(extractTaskTitle("## Detail only\n")).toBeNull();
   });
 
-  it("falls back through cleaned commit subject, cleaned branch, and detached directory", () => {
+  it("uses task, commit, then generated name fallbacks only for generated records", () => {
     const [, named, detached] = parseWorktreePorcelain(porcelain);
-    expect(formatWorktreeLabel(named, { commitSubject: "perf: pin functions to Seoul" })).toBe(
+    const generated = {
+      ...named,
+      path: "/projects/coco-english/.claude/worktrees/agent-a4fe43921413",
+      branch: "worktree-agent-a4fe43921413",
+    };
+
+    expect(
+      formatWorktreeLabel(generated, {
+        taskTitle: "Worktree-aware UAT launcher",
+        commitSubject: "fix: ignored commit",
+      }),
+    ).toBe("Worktree-aware UAT launcher");
+    expect(formatWorktreeLabel(generated, { commitSubject: "perf: pin functions to Seoul" })).toBe(
       "Pin functions to Seoul",
     );
-    expect(formatWorktreeLabel(named)).toBe("Dialogue pagination");
+    expect(formatWorktreeLabel(generated)).toBe("Agent");
     expect(formatWorktreeLabel(detached)).toBe("External coco worktree");
   });
 
@@ -112,7 +143,8 @@ describe("UAT worktree discovery", () => {
     expect(cleanCommitSubject("fix:   ")).toBeNull();
   });
 
-  it("cleans only known prefixes, separators, whitespace, and generated hex suffixes", () => {
+  it("cleans descriptive and generated names deterministically", () => {
+    expect(cleanWorktreeName("codex/uat-menu-labels")).toBe("UAT menu labels");
     expect(cleanWorktreeName("worktree-dynamic_dialogue-pagination")).toBe(
       "Dynamic dialogue pagination",
     );
