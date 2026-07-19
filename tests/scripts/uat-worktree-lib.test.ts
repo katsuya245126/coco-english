@@ -16,7 +16,6 @@ const {
   sortWorktrees,
 } = uatWorktreeLib;
 
-const repoRoot = "/projects/coco-english";
 const porcelain = `worktree /projects/coco-english
 HEAD 1111111111111111111111111111111111111111
 branch refs/heads/main
