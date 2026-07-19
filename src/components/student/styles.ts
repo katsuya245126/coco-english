@@ -406,9 +406,9 @@ export const mascotDialogueTextStyle: CSSProperties = {
 };
 
 export const mascotPhraseButtonStyle: CSSProperties = {
-  minHeight: 44,
-  padding: "8px 3px",
-  margin: "-8px 0",
+  minHeight: "auto",
+  padding: "2px 3px",
+  margin: 0,
   border: "1px solid #93C5FD",
   borderRadius: 6,
   background: "#EFF6FF",

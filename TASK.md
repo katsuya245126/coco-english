@@ -1,6 +1,6 @@
 # Dynamic dialogue pagination and open follow-ups
 
-**Status:** Awaiting implementation approval
+**Status:** Awaiting phone UAT confirmation
 
 ## Goal
 
@@ -29,13 +29,14 @@ Make Coco's current dialogue easier to read in a compact chat box and make dynam
 ## Done Checks
 
 - [x] Approved design spec is committed.
-- [ ] Implementation plan is approved.
-- [ ] Long current messages paginate without internal scrolling.
-- [ ] Page boundaries preserve source text and translation phrase ranges.
-- [ ] Hint loading uses a visible spinner and opens the first translated phrase on its page.
-- [ ] Dynamic prompt rules favor expandable open questions.
-- [ ] Preset behavior remains unchanged.
-- [ ] Focused tests and proportionate project checks pass.
+- [x] Implementation plan is approved.
+- [x] Long current messages paginate without internal scrolling.
+- [x] Page boundaries preserve source text and translation phrase ranges.
+- [x] Hint loading uses a visible spinner and opens the first translated phrase on its page.
+- [x] Dynamic prompt rules favor expandable open questions.
+- [x] Preset behavior remains unchanged.
+- [x] Focused tests and proportionate project checks pass.
+- [ ] Phone UAT confirms natural page boundaries and non-overlapping phrase highlighting.
 
 ## Plan
 
@@ -46,4 +47,16 @@ Make Coco's current dialogue easier to read in a compact chat box and make dynam
 
 ## Current Position
 
-The design and implementation plan are written. Next: user selects an execution approach and approves implementation.
+Implementation is committed through `b55f6ac3`. Phone UAT exposed two regressions:
+
+- the approved 16-word budget had been changed to 8, producing a 4/8/1 split for the 13-word summer-vacation line and different boundaries after hint ranges loaded;
+- the English phrase control's 44px minimum height and negative vertical margin covered adjacent text.
+
+Both regressions now have focused tests and local fixes. Verification on 2026-07-20:
+
+- focused pagination/UI tests: 38 passed;
+- full Vitest suite: 740 passed, 4 skipped;
+- typecheck: passed;
+- lint: passed with one pre-existing unused-argument warning in `scripts/check-student-feedback-states.mjs`.
+
+Next: refresh the existing port-3200 phone UAT and confirm the summer-vacation line remains whole before and after Hint, with the pale-blue phrase highlight no longer covering adjacent English.

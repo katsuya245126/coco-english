@@ -106,6 +106,7 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     const dialogueSource = readSource(
       "src/components/student/CocoDialogueBox.tsx",
     );
+    const stylesSource = readSource("src/components/student/styles.ts");
 
     expect(dialogueSource).toContain("buildTranslationSegments");
     expect(dialogueSource).toContain("aria-expanded={isExpanded}");
@@ -113,6 +114,9 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(dialogueSource).not.toContain("dangerouslySetInnerHTML");
     expect(dialogueSource).not.toContain("onPointerDown");
     expect(dialogueSource).not.toContain("onTouchStart");
+    expect(stylesSource).toMatch(
+      /mascotPhraseButtonStyle[\s\S]*minHeight: "auto"[\s\S]*padding: "2px 3px"[\s\S]*margin: 0/,
+    );
   });
 
   it("wraps only the anchored Korean translation bubble within a phone-safe width", () => {

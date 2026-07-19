@@ -1,4 +1,4 @@
-export const DIALOGUE_PAGE_WORD_LIMIT = 8;
+export const DIALOGUE_PAGE_WORD_LIMIT = 16;
 
 export type TextRange = { start: number; end: number };
 export type DialoguePage = TextRange & { text: string };
