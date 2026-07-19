@@ -237,7 +237,7 @@ export const resumeNoticeStyle: CSSProperties = {
 export const mascotStageStyle: CSSProperties = {
   width: "100%",
   maxWidth: MISSION_CONTENT_MAX_WIDTH,
-  height: 360,
+  height: 400,
   position: "relative",
   marginTop: 16,
   marginLeft: "auto",
@@ -260,7 +260,7 @@ export const mascotSpriteWrapStyle: CSSProperties = {
   // and overlap the main chatbox by 10px so their visible edges stay attached.
   left: "max(24px, calc((100% - 226px) / 2))",
   width: "min(226px, calc(100% - 48px))",
-  bottom: 126,
+  bottom: 166,
   height: 180,
   transformOrigin: "bottom center",
 };
@@ -270,7 +270,7 @@ export const mascotDialogueShellStyle: CSSProperties = {
   left: 16,
   right: 16,
   bottom: 32,
-  height: 104,
+  height: 144,
   overflow: "visible",
 };
 
