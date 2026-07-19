@@ -161,3 +161,21 @@ export function toggleTranslationBubble(
   if (firstIndex === null) return null;
   return currentIndex === null ? firstIndex : null;
 }
+
+export function clampPhrasesToPage(
+  phrases: TranslationPhrase[],
+  page: { start: number; end: number; text: string },
+): TranslationPhrase[] {
+  return phrases
+    .filter((phrase) => phrase.start < page.end && phrase.end > page.start)
+    .map((phrase) => {
+      const start = Math.max(phrase.start, page.start) - page.start;
+      const end = Math.min(phrase.end, page.end) - page.start;
+      return {
+        source: page.text.slice(start, end),
+        start,
+        end,
+        translation: phrase.translation,
+      };
+    });
+}
