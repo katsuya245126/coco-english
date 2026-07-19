@@ -59,4 +59,6 @@ Both regressions now have focused tests and local fixes. Verification on 2026-07
 - typecheck: passed;
 - lint: passed with one pre-existing unused-argument warning in `scripts/check-student-feedback-states.mjs`.
 
-Next: refresh the existing port-3200 phone UAT and confirm the summer-vacation line remains whole before and after Hint, with the pale-blue phrase highlight no longer covering adjacent English.
+Phone UAT then showed the restored 16-word budget packs the 13-word summer-vacation message onto one page that overflows the 104px chatbox and hides the pager. On 2026-07-20 the user approved a revised pagination design (sentence-atomic pages, ≤10-word packing, 16-word single-sentence cap with clause/whitespace fallback, pages frozen against Hint with split highlights, constant 4-line chatbox with matching mascot-stage growth): `docs/superpowers/specs/2026-07-20-sentence-aware-dialogue-pagination-design.md`.
+
+Next: user reviews the new spec, then revise the implementation plan (writing-plans) before any code change. Phone UAT of `6d73777b`'s phrase-control height fix is still owed and folds into the next UAT pass.
