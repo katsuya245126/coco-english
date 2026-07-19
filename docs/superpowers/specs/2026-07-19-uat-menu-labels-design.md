@@ -1,6 +1,6 @@
 # Human-readable UAT menu labels and Exit option
 
-**Status:** Approved design awaiting written-spec review
+**Status:** Approved
 
 ## Goal
 
@@ -28,7 +28,7 @@ Selecting `Exit` prints `Exited. No server was started.`, returns exit code 0, a
 
 ## Label resolution
 
-`main` always displays as `Main`. Other worktrees use the first available purpose label in this order:
+The worktree whose branch is `main` always displays as `Main` and sorts first, even when the launcher itself is running from a linked feature worktree. Other worktrees use the first available purpose label in this order:
 
 1. The first Markdown H1 in the worktree's root `TASK.md`.
 2. The subject of the worktree's latest Git commit.
@@ -37,13 +37,15 @@ Selecting `Exit` prints `Exited. No server was started.`, returns exit code 0, a
 
 Automatic branch cleanup removes the known `worktree-` and `claude/` prefixes, replaces hyphens and underscores with spaces, removes a trailing hyphenated hexadecimal identifier of at least six characters, trims repeated whitespace, and capitalizes the first character. It does not maintain a manual label registry.
 
+Latest-commit labels remove a leading conventional-commit type and optional scope, including forms such as `perf:`, `fix(11):`, and `docs(quick):`, then trim whitespace and capitalize the first character. A subject with no recognized prefix keeps its wording and receives the same capitalization.
+
 Only the first single-line H1 is read from `TASK.md`; no environment files or secrets are read. A missing or unreadable task file and a failed Git-subject lookup are ordinary fallback conditions, not launcher errors.
 
-If two worktrees resolve to the same label when compared case-insensitively, each duplicate receives its worktree directory name in brackets so the user can distinguish them. Unique labels remain free of technical suffixes.
+If two worktrees resolve to the same label when compared case-insensitively, duplicates receive their worktree directory name in brackets so the user can distinguish them. The real `main` record always remains exactly `Main`; when another worktree also resolves to `Main`, only the other record receives a suffix. Unique labels remain free of technical suffixes.
 
 ## Architecture and data flow
 
-Git porcelain parsing and deterministic root-first sorting remain unchanged. A small label-resolution layer enriches the parsed records before the menu is printed:
+Git porcelain parsing remains unchanged. Sorting changes from launcher-root-first to `main`-branch-first, with the launcher root retained only as the fallback first choice when no `main` branch is present. A small label-resolution layer enriches the parsed records before the menu is printed:
 
 1. Parse and sort worktree records.
 2. Resolve one purpose label per record using injected filesystem and Git-subject readers.
