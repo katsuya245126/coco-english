@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
+    "uat": "node scripts/uat-worktree.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
