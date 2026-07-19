@@ -34,18 +34,63 @@ export function parseWorktreePorcelain(source) {
 
 export function sortWorktrees(records, repoRoot) {
   return [...records].sort((left, right) => {
-    if (left.path === repoRoot) return -1;
-    if (right.path === repoRoot) return 1;
+    if (left.branch === "main") return -1;
+    if (right.branch === "main") return 1;
     return left.path.localeCompare(right.path);
   });
 }
 
-export function formatWorktreeLabel(record, repoRoot) {
-  const branch = record.branch ?? "(detached)";
-  if (record.path === repoRoot) return `${branch} — repository root`;
-  const relativePath = path.relative(repoRoot, record.path);
-  const displayPath = relativePath.startsWith("..") ? record.path : relativePath;
-  return `${branch} — ${displayPath}`;
+export function extractTaskTitle(source) {
+  const match = source.match(/^#\s+(.+?)\s*$/mu);
+  return match?.[1]?.trim() || null;
+}
+
+export function cleanWorktreeName(value) {
+  const cleaned = value
+    .replace(/^claude\//u, "")
+    .replace(/^worktree-/u, "")
+    .replace(/-[0-9a-f]{6,}$/iu, "")
+    .replace(/[-_]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+  if (!cleaned) return null;
+  return `${cleaned[0].toUpperCase()}${cleaned.slice(1)}`;
+}
+
+export function cleanCommitSubject(value) {
+  const cleaned = value
+    .replace(
+      /^(?:build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(?:\([^)]*\))?!?:\s*/iu,
+      "",
+    )
+    .trim();
+  if (!cleaned) return null;
+  return `${cleaned[0].toUpperCase()}${cleaned.slice(1)}`;
+}
+
+export function formatWorktreeLabel(record, metadata = {}) {
+  if (record.branch === "main") return "Main";
+  const taskTitle = metadata.taskTitle?.trim();
+  if (taskTitle) return taskTitle;
+  const commitSubject = metadata.commitSubject?.trim();
+  if (commitSubject) {
+    const cleanedSubject = cleanCommitSubject(commitSubject);
+    if (cleanedSubject) return cleanedSubject;
+  }
+  return cleanWorktreeName(record.branch ?? path.basename(record.path)) ?? "Detached checkout";
+}
+
+export function disambiguateWorktreeLabels(entries) {
+  const counts = new Map();
+  for (const { label } of entries) {
+    const key = label.toLocaleLowerCase("en-US");
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return entries.map(({ record, label }) => {
+    const key = label.toLocaleLowerCase("en-US");
+    if (counts.get(key) === 1 || record.branch === "main") return { record, label };
+    return { record, label: `${label} [${path.basename(record.path)}]` };
+  });
 }
 
 export function parseSelection(input, count) {

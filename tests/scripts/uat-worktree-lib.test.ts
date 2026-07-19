@@ -6,6 +6,10 @@ import * as uatWorktreeLib from "../../scripts/uat-worktree-lib.mjs";
 const {
   UAT_PORT,
   buildDevInvocation,
+  cleanCommitSubject,
+  cleanWorktreeName,
+  disambiguateWorktreeLabels,
+  extractTaskTitle,
   formatWorktreeLabel,
   parseSelection,
   parseWorktreePorcelain,
@@ -54,24 +58,81 @@ describe("UAT worktree discovery", () => {
     ]);
   });
 
-  it("keeps the repository root first and sorts the rest deterministically", () => {
-    const records = parseWorktreePorcelain(porcelain).reverse();
-    expect(sortWorktrees(records, repoRoot).map((record: { path: string }) => record.path)).toEqual([
-      repoRoot,
-      "/projects/coco-english/.claude/worktrees/dialogue-pagination",
-      "/tmp/external-coco-worktree",
+  it("sorts main first even when the launcher root is another worktree", () => {
+    const records = parseWorktreePorcelain(porcelain);
+    expect(
+      sortWorktrees(records, "/tmp/external-coco-worktree").map(
+        (record: { branch: string | null }) => record.branch,
+      ),
+    ).toEqual(["main", "worktree-dialogue-pagination", null]);
+  });
+
+  it("uses Main for the main branch and prefers task purpose over commit and branch metadata", () => {
+    const [main, named] = parseWorktreePorcelain(porcelain);
+    expect(formatWorktreeLabel(main)).toBe("Main");
+    expect(
+      formatWorktreeLabel(named, {
+        taskTitle: "Dynamic dialogue pagination and open follow-ups",
+        commitSubject: "fix: reject multi-question follow-ups",
+      }),
+    ).toBe("Dynamic dialogue pagination and open follow-ups");
+  });
+
+  it("extracts only the first Markdown H1", () => {
+    expect(extractTaskTitle("intro\n# First purpose\n## Detail\n# Later purpose\n")).toBe(
+      "First purpose",
+    );
+    expect(extractTaskTitle("## Detail only\n")).toBeNull();
+  });
+
+  it("falls back through cleaned commit subject, cleaned branch, and detached directory", () => {
+    const [, named, detached] = parseWorktreePorcelain(porcelain);
+    expect(formatWorktreeLabel(named, { commitSubject: "perf: pin functions to Seoul" })).toBe(
+      "Pin functions to Seoul",
+    );
+    expect(formatWorktreeLabel(named)).toBe("Dialogue pagination");
+    expect(formatWorktreeLabel(detached)).toBe("External coco worktree");
+  });
+
+  it("cleans conventional commit types and optional scopes", () => {
+    expect(cleanCommitSubject("fix(11): restore hints and clear Coco face")).toBe(
+      "Restore hints and clear Coco face",
+    );
+    expect(cleanCommitSubject("A plain purpose")).toBe("A plain purpose");
+    expect(cleanCommitSubject("fix:   ")).toBeNull();
+  });
+
+  it("cleans only known prefixes, separators, whitespace, and generated hex suffixes", () => {
+    expect(cleanWorktreeName("worktree-dynamic_dialogue-pagination")).toBe(
+      "Dynamic dialogue pagination",
+    );
+    expect(cleanWorktreeName("claude/clever-northcutt-200ab2")).toBe("Clever northcutt");
+    expect(cleanWorktreeName("feature-v2")).toBe("Feature v2");
+    expect(cleanWorktreeName("---")).toBeNull();
+  });
+
+  it("adds directory disambiguators only to case-insensitive duplicate labels", () => {
+    const records = parseWorktreePorcelain(porcelain);
+    const labeled = disambiguateWorktreeLabels([
+      { record: records[0], label: "Main" },
+      { record: records[1], label: "Same purpose" },
+      { record: records[2], label: "same PURPOSE" },
+    ]);
+    expect(labeled.map(({ label }: { label: string }) => label)).toEqual([
+      "Main",
+      "Same purpose [dialogue-pagination]",
+      "same PURPOSE [external-coco-worktree]",
     ]);
   });
 
-  it("labels main, named worktrees, and detached external paths clearly", () => {
-    const [main, named, detached] = parseWorktreePorcelain(porcelain);
-    expect(formatWorktreeLabel(main, repoRoot)).toBe("main — repository root");
-    expect(formatWorktreeLabel(named, repoRoot)).toBe(
-      "worktree-dialogue-pagination — .claude/worktrees/dialogue-pagination",
-    );
-    expect(formatWorktreeLabel(detached, repoRoot)).toBe(
-      "(detached) — /tmp/external-coco-worktree",
-    );
+  it("keeps the real Main label unsuffixed when another worktree resolves to Main", () => {
+    const [main, named] = parseWorktreePorcelain(porcelain);
+    expect(
+      disambiguateWorktreeLabels([
+        { record: main, label: "Main" },
+        { record: named, label: "main" },
+      ]).map(({ label }: { label: string }) => label),
+    ).toEqual(["Main", "main [dialogue-pagination]"]);
   });
 });
 
