@@ -29,13 +29,13 @@ Make Coco's current dialogue easier to read in a compact chat box and make dynam
 ## Done Checks
 
 - [x] Approved design spec is committed (2026-07-20 sentence-aware spec supersedes the pagination rules of the 2026-07-19 spec).
-- [ ] Revised implementation plan for the 2026-07-20 design is written and approved (the 2026-07-19 plan is superseded).
-- [x] Long current messages paginate without internal scrolling. *(verified under the superseded budget rule; re-verify under the revised design)*
-- [x] Page boundaries preserve source text and translation phrase ranges. *(verified under the superseded budget rule; re-verify under the revised design)*
+- [x] Revised implementation plan for the 2026-07-20 design is written and approved (the 2026-07-19 plan is superseded).
+- [x] Long current messages paginate without internal scrolling.
+- [x] Page boundaries preserve source text and translation phrase ranges.
 - [x] Hint loading uses a visible spinner and opens the first translated phrase on its page.
 - [x] Dynamic prompt rules favor expandable open questions.
 - [x] Preset behavior remains unchanged.
-- [ ] Focused tests and proportionate project checks pass for the revised implementation.
+- [x] Focused tests and proportionate project checks pass for the revised implementation.
 - [ ] Phone UAT (after the revised implementation) confirms natural sentence-aligned pages, Hint-stable boundaries, and non-overlapping phrase highlighting.
 
 ## Plan
@@ -62,4 +62,4 @@ Both regressions now have focused tests and local fixes. Verification on 2026-07
 
 Phone UAT (`Screenshot_20260720_024926_Chrome.jpg`, user-supplied) then showed the restored 16-word budget packs the 13-word summer-vacation message onto one page that overflows the 104px chatbox and hides the pager. On 2026-07-20 the user reviewed and approved a revised pagination design (sentence-atomic pages, ≤10-word packing, 16-word single-sentence cap with clause/whitespace fallback, pages frozen against Hint with split highlights, constant 4-line chatbox with matching mascot-stage growth): `docs/superpowers/specs/2026-07-20-sentence-aware-dialogue-pagination-design.md`.
 
-Next: write and approve the revised implementation plan, implement it test-first, then run phone UAT — which also still owes confirmation of `6d73777b`'s phrase-control height fix.
+Next: user runs phone UAT through the existing port-3200 tunnel and confirms sentence-aligned pages, Hint-stable boundaries, the four-line chatbox with no answer-panel overlap, and the `6d73777b` phrase-control height fix. Any phone screenshot must be labeled as user-supplied live UAT evidence.
