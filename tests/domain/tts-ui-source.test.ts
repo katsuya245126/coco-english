@@ -162,6 +162,9 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
 
     expect(dialogueSource).toContain("paginateDialogueText");
     expect(dialogueSource).toContain("findDialoguePageIndex");
+    expect(dialogueSource).toContain('paginateDialogueText(dialogueText ?? "")');
+    expect(dialogueSource).not.toContain("protectedPages");
+    expect(dialogueSource).toContain("clampPhrasesToPage");
     expect(dialogueSource).toContain('aria-label="Previous dialogue page"');
     expect(dialogueSource).toContain('aria-label="Next dialogue page"');
     expect(dialogueSource).toContain("safePageIndex + 1");

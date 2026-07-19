@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   buildTranslationSegments,
+  clampPhrasesToPage,
   parseTranslationHint,
   toggleTranslationBubble,
   type TranslatableCocoLine,
@@ -66,8 +67,8 @@ export function CocoDialogueBox({
     [translationState],
   );
   const pages = useMemo(
-    () => paginateDialogueText(dialogueText ?? "", phrases),
-    [dialogueText, phrases],
+    () => paginateDialogueText(dialogueText ?? ""),
+    [dialogueText],
   );
   const safePageIndex = Math.min(
     currentPageIndex,
@@ -159,15 +160,9 @@ export function CocoDialogueBox({
         setTranslationState({ kind: "error" });
         return;
       }
-      const protectedPages = paginateDialogueText(
-        dialogueText,
-        parsed.hint.phrases,
-      );
       setTranslationState({ kind: "ready", phrases: parsed.hint.phrases });
       setExpandedPhraseIndex(0);
-      setCurrentPageIndex(
-        findDialoguePageIndex(protectedPages, firstPhrase.start),
-      );
+      setCurrentPageIndex(findDialoguePageIndex(pages, firstPhrase.start));
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") return;
       if (requestTokenRef.current !== requestToken) return;
@@ -180,16 +175,7 @@ export function CocoDialogueBox({
   }
 
   const pagePhrases = currentPage
-    ? phrases
-        .filter(
-          (phrase) =>
-            phrase.start >= currentPage.start && phrase.end <= currentPage.end,
-        )
-        .map((phrase) => ({
-          ...phrase,
-          start: phrase.start - currentPage.start,
-          end: phrase.end - currentPage.start,
-        }))
+    ? clampPhrasesToPage(phrases, currentPage)
     : [];
   const segments = currentPage
     ? buildTranslationSegments(currentPage.text, pagePhrases)
@@ -239,15 +225,15 @@ export function CocoDialogueBox({
               ? segments.map((segment) => {
                   if (segment.kind === "text") return segment.text;
                   const absoluteStart = currentPage.start + segment.phrase.start;
+                  const absoluteEnd = currentPage.start + segment.phrase.end;
                   const phraseIndex = phrases.findIndex(
                     (phrase) =>
-                      phrase.start === absoluteStart &&
-                      phrase.end === currentPage.start + segment.phrase.end,
+                      phrase.start <= absoluteStart && phrase.end >= absoluteEnd,
                   );
                   const isExpanded = expandedPhraseIndex === phraseIndex;
                   return (
                     <span
-                      key={`${absoluteStart}-${currentPage.start + segment.phrase.end}`}
+                      key={`${absoluteStart}-${absoluteEnd}`}
                       style={{ position: "relative", display: "inline-block" }}
                     >
                       <button
