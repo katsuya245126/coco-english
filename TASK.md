@@ -1,49 +1,31 @@
-# Dynamic dialogue pagination and open follow-ups
+# Worktree-aware UAT launcher
 
-**Status:** Awaiting implementation approval
+**Status:** Implementation approved
 
 ## Goal
 
-Make Coco's current dialogue easier to read in a compact chat box and make dynamic-conversation follow-ups invite phrases or short sentences instead of repetitive one-word answers.
+Add a reusable `npm run uat` command that lets the user select `main` or any Coco English worktree and serves it on port 3200 for a persistent ngrok phone-testing workflow.
 
 ## Scope
 
-- Paginate only the current Coco message using semantic text boundaries.
-- Keep translation phrase highlighting and bubbles aligned with the visible page.
-- Add clear previous/next controls, a page indicator, and a visible Hint loading spinner.
-- Prefer open, context-grounded dynamic follow-ups; reserve either/or questions for vague or stuck responses.
+- Discover checkouts through Git worktree porcelain output.
+- Require an explicit numbered selection.
+- Print branch, path, commit, and UAT URL before launch.
+- Refuse an occupied port or active Next.js development lock.
+- Warn, without reading contents, when `.env.local` is absent.
 
 ## Non-goals
 
-- Conversation-history browsing.
-- Changes to preset mission evaluation, correction, progression, or hint ladders.
-- Mascot placement work already completed on `main`.
-- Latency, TTS generation, or transition-pipeline optimization.
-
-## Constraints
-
-- Preserve server-owned prompt provenance, translation offsets, and attempt history.
-- Preserve unrelated working-tree changes.
-- Do not push, merge, deploy, publish, or modify production without explicit permission.
+- Managing ngrok, Git branches, worktrees, caches, dependencies, secrets, or unrelated processes.
+- Changing `npm run dev` or application behavior.
 
 ## Done Checks
 
-- [x] Approved design spec is committed.
-- [ ] Implementation plan is approved.
-- [ ] Long current messages paginate without internal scrolling.
-- [ ] Page boundaries preserve source text and translation phrase ranges.
-- [ ] Hint loading uses a visible spinner and opens the first translated phrase on its page.
-- [ ] Dynamic prompt rules favor expandable open questions.
-- [ ] Preset behavior remains unchanged.
-- [ ] Focused tests and proportionate project checks pass.
-
-## Plan
-
-1. Write and review the design specification. Complete.
-2. Create an implementation plan after user approval. Complete.
-3. Implement test-first in small, scoped steps.
-4. Verify and archive this task.
+- [ ] Pure discovery and selection tests pass.
+- [ ] Runtime preflight and CLI tests pass.
+- [ ] `npm run uat` can serve a selected worktree and `main` on port 3200.
+- [ ] Typecheck, lint, and proportionate project tests pass.
 
 ## Current Position
 
-The design and implementation plan are written. Next: user selects an execution approach and approves implementation.
+Executing Task 1 of `docs/superpowers/plans/2026-07-19-worktree-uat-launcher.md`.
