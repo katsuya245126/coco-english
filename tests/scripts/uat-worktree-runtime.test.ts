@@ -11,7 +11,7 @@ const {
   evaluatePreflight,
   findNextDevLockHolders,
   readCommitSubject,
-  readTaskTitle,
+  readTaskSource,
   runUatLauncher,
 } = uatWorktreeRuntime;
 
@@ -85,11 +85,12 @@ describe("UAT runtime preflight", () => {
     );
   });
 
-  it("reads task purpose and commit subject with null fallbacks", () => {
-    const read = vi.fn(() => "# Purpose from task\n");
-    expect(readTaskTitle("/tmp/feature", read)).toBe("Purpose from task");
+  it("reads complete task source and commit subject with null fallbacks", () => {
+    const taskSource = "# Purpose from task\n\n## Scope\nFull ownership evidence.\n";
+    const read = vi.fn(() => taskSource);
+    expect(readTaskSource("/tmp/feature", read)).toBe(taskSource);
     expect(read).toHaveBeenCalledWith("/tmp/feature/TASK.md", "utf8");
-    expect(readTaskTitle("/tmp/feature", () => { throw new Error("missing"); })).toBeNull();
+    expect(readTaskSource("/tmp/feature", () => { throw new Error("missing"); })).toBeNull();
 
     const run = vi.fn(() => "Latest commit purpose\n");
     expect(readCommitSubject("/tmp/feature", run)).toBe("Latest commit purpose");
@@ -102,6 +103,19 @@ describe("UAT runtime preflight", () => {
   });
 });
 
+const labelPorcelain = `worktree /projects/coco-english
+HEAD 1111111111111111111111111111111111111111
+branch refs/heads/main
+
+worktree /tmp/uat-menu-labels
+HEAD 2222222222222222222222222222222222222222
+branch refs/heads/codex/uat-menu-labels
+
+worktree /tmp/agent-a4fe43921413
+HEAD 3333333333333333333333333333333333333333
+branch refs/heads/worktree-agent-a4fe43921413
+`;
+
 describe("runUatLauncher", () => {
   it("keeps the prompt open long enough to process a selection", () => {
     const result = spawnSync(process.execPath, ["scripts/uat-worktree.mjs"], {
@@ -112,6 +126,106 @@ describe("runUatLauncher", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("Invalid selection. No server was started.");
+  });
+
+  it("labels a descriptive branch from the branch even when it inherits main's task", async () => {
+    const output: string[] = [];
+    const inheritedTask = "# Dynamic dialogue pagination and open follow-ups\n";
+    await runUatLauncher({
+      repoRoot: "/projects/coco-english",
+      gitWorktreeOutput: labelPorcelain,
+      taskSource: vi.fn(() => inheritedTask),
+      commitSubject: vi.fn(() => "fix: ignored metadata"),
+      prompt: async () => "4",
+      write: (line: string) => output.push(line),
+      portAvailable: vi.fn(async () => true),
+      lockHolderPids: vi.fn(async () => []),
+      checkoutExists: vi.fn(() => true),
+      dependenciesInstalled: vi.fn(() => true),
+      envFileExists: vi.fn(() => true),
+      launch: vi.fn(async () => 0),
+    });
+
+    expect(output).toContain("3. UAT menu labels");
+    expect(output.join("\n")).not.toContain(
+      "Dynamic dialogue pagination and open follow-ups [uat-menu-labels]",
+    );
+  });
+
+  it("uses only a distinct generated task before falling back to its commit", async () => {
+    const mainTask = "# Main task\n";
+    const taskSource = vi.fn((checkoutPath: string) => {
+      if (checkoutPath === "/projects/coco-english") return mainTask;
+      if (checkoutPath === "/tmp/agent-a4fe43921413") return mainTask;
+      return null;
+    });
+    const commitSubject = vi.fn(() => "fix: generated checkout purpose");
+    const inheritedOutput: string[] = [];
+
+    await runUatLauncher({
+      repoRoot: "/projects/coco-english",
+      gitWorktreeOutput: labelPorcelain,
+      taskSource,
+      commitSubject,
+      prompt: async () => "4",
+      write: (line: string) => inheritedOutput.push(line),
+      portAvailable: vi.fn(async () => true),
+      lockHolderPids: vi.fn(async () => []),
+      checkoutExists: vi.fn(() => true),
+      dependenciesInstalled: vi.fn(() => true),
+      envFileExists: vi.fn(() => true),
+      launch: vi.fn(async () => 0),
+    });
+
+    expect(inheritedOutput).toContain("2. Generated checkout purpose");
+
+    taskSource.mockImplementation((checkoutPath: string) =>
+      checkoutPath === "/tmp/agent-a4fe43921413"
+        ? "# Worktree-aware UAT launcher\n"
+        : mainTask,
+    );
+    const distinctOutput: string[] = [];
+
+    await runUatLauncher({
+      repoRoot: "/projects/coco-english",
+      gitWorktreeOutput: labelPorcelain,
+      taskSource,
+      commitSubject,
+      prompt: async () => "4",
+      write: (line: string) => distinctOutput.push(line),
+      portAvailable: vi.fn(async () => true),
+      lockHolderPids: vi.fn(async () => []),
+      checkoutExists: vi.fn(() => true),
+      dependenciesInstalled: vi.fn(() => true),
+      envFileExists: vi.fn(() => true),
+      launch: vi.fn(async () => 0),
+    });
+
+    expect(distinctOutput).toContain("2. Worktree-aware UAT launcher");
+
+    taskSource.mockImplementation((checkoutPath: string) =>
+      checkoutPath === "/tmp/agent-a4fe43921413"
+        ? "# Worktree-aware UAT launcher\n"
+        : null,
+    );
+    const missingMainOutput: string[] = [];
+
+    await runUatLauncher({
+      repoRoot: "/projects/coco-english",
+      gitWorktreeOutput: labelPorcelain,
+      taskSource,
+      commitSubject,
+      prompt: async () => "4",
+      write: (line: string) => missingMainOutput.push(line),
+      portAvailable: vi.fn(async () => true),
+      lockHolderPids: vi.fn(async () => []),
+      checkoutExists: vi.fn(() => true),
+      dependenciesInstalled: vi.fn(() => true),
+      envFileExists: vi.fn(() => true),
+      launch: vi.fn(async () => 0),
+    });
+
+    expect(missingMainOutput).toContain("2. Generated checkout purpose");
   });
 
   it("lists worktrees, requires selection, prints provenance, and launches only npm dev", async () => {
@@ -127,10 +241,8 @@ worktree /tmp/feature
 HEAD 2222222222222222222222222222222222222222
 branch refs/heads/codex/feature
 `,
-      worktreeMetadata: (checkoutPath: string) =>
-        checkoutPath === "/tmp/feature"
-          ? { taskTitle: "Readable feature purpose", commitSubject: "ignored fallback" }
-          : {},
+      taskSource: () => null,
+      commitSubject: () => null,
       prompt: async () => "2",
       write: (line: string) => output.push(line),
       portAvailable: async () => true,
@@ -145,7 +257,7 @@ branch refs/heads/codex/feature
     const branchLine = output.indexOf("Branch: codex/feature");
     const menuOutput = output.slice(0, branchLine).join("\n");
     expect(menuOutput).toContain("1. Main");
-    expect(menuOutput).toContain("2. Readable feature purpose");
+    expect(menuOutput).toContain("2. Feature");
     expect(menuOutput).toContain("3. Exit");
     expect(menuOutput).not.toContain("/tmp/feature");
     expect(output.join("\n")).toContain("codex/feature");
@@ -159,7 +271,12 @@ branch refs/heads/codex/feature
     });
   });
 
-  it("does not launch after an invalid selection", async () => {
+  it("does not run preflight or launch after an invalid selection", async () => {
+    const portAvailable = vi.fn(async () => true);
+    const lockHolderPids = vi.fn(async () => []);
+    const checkoutExists = vi.fn(() => true);
+    const dependenciesInstalled = vi.fn(() => true);
+    const envFileExists = vi.fn(() => true);
     const launch = vi.fn(async () => 0);
     const result = await runUatLauncher({
       repoRoot: "/projects/coco-english",
@@ -167,18 +284,24 @@ branch refs/heads/codex/feature
 HEAD 1111111111111111111111111111111111111111
 branch refs/heads/main
 `,
-      worktreeMetadata: () => ({}),
+      taskSource: () => null,
+      commitSubject: () => null,
       prompt: async () => "9",
       write: () => undefined,
-      portAvailable: async () => true,
-      lockHolderPids: async () => [],
-      envFileExists: () => true,
-      checkoutExists: () => true,
-      dependenciesInstalled: () => true,
+      portAvailable,
+      lockHolderPids,
+      checkoutExists,
+      dependenciesInstalled,
+      envFileExists,
       launch,
     });
 
     expect(result).toBe(1);
+    expect(portAvailable).not.toHaveBeenCalled();
+    expect(lockHolderPids).not.toHaveBeenCalled();
+    expect(checkoutExists).not.toHaveBeenCalled();
+    expect(dependenciesInstalled).not.toHaveBeenCalled();
+    expect(envFileExists).not.toHaveBeenCalled();
     expect(launch).not.toHaveBeenCalled();
   });
 
@@ -196,7 +319,8 @@ branch refs/heads/main
 HEAD 1111111111111111111111111111111111111111
 branch refs/heads/main
 `,
-      worktreeMetadata: () => ({}),
+      taskSource: () => null,
+      commitSubject: () => null,
       prompt: async () => "2",
       write: (line: string) => output.push(line),
       portAvailable,

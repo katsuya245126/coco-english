@@ -10,6 +10,7 @@ import {
   disambiguateWorktreeLabels,
   extractTaskTitle,
   formatWorktreeLabel,
+  isGeneratedWorktree,
   parseSelection,
   parseWorktreePorcelain,
   sortWorktrees,
@@ -47,9 +48,9 @@ export function findNextDevLockHolders(checkoutPath, run = spawnSync) {
   return result.stdout.trim().split("\n").filter(Boolean);
 }
 
-export function readTaskTitle(checkoutPath, read = readFileSync) {
+export function readTaskSource(checkoutPath, read = readFileSync) {
   try {
-    return extractTaskTitle(read(path.join(checkoutPath, "TASK.md"), "utf8"));
+    return read(path.join(checkoutPath, "TASK.md"), "utf8");
   } catch {
     return null;
   }
@@ -109,14 +110,29 @@ export async function runUatLauncher(deps) {
     parseWorktreePorcelain(deps.gitWorktreeOutput),
     deps.repoRoot,
   );
+  const mainRecord = records.find((record) => record.branch === "main");
+  const mainTaskSource = mainRecord ? deps.taskSource(mainRecord.path) : null;
   const labeledRecords = disambiguateWorktreeLabels(
-    records.map((record) => ({
-      record,
-      label: formatWorktreeLabel(
+    records.map((record) => {
+      let metadata = {};
+      if (isGeneratedWorktree(record)) {
+        const taskSource = deps.taskSource(record.path);
+        const taskTitle =
+          mainTaskSource !== null &&
+          taskSource !== null &&
+          taskSource !== mainTaskSource
+            ? extractTaskTitle(taskSource)
+            : null;
+        metadata = {
+          taskTitle,
+          commitSubject: taskTitle ? null : deps.commitSubject(record.path),
+        };
+      }
+      return {
         record,
-        deps.worktreeMetadata(record.path),
-      ),
-    })),
+        label: formatWorktreeLabel(record, metadata),
+      };
+    }),
   );
   deps.write("Select the checkout to serve for phone UAT:");
   labeledRecords.forEach(({ label }, index) => {
@@ -172,10 +188,8 @@ async function main() {
     return await runUatLauncher({
       repoRoot,
       gitWorktreeOutput,
-      worktreeMetadata: (checkoutPath) => ({
-        taskTitle: readTaskTitle(checkoutPath),
-        commitSubject: readCommitSubject(checkoutPath),
-      }),
+      taskSource: (checkoutPath) => readTaskSource(checkoutPath),
+      commitSubject: (checkoutPath) => readCommitSubject(checkoutPath),
       prompt: (question) => rl.question(question),
       write: (line) => process.stdout.write(`${line}\n`),
       portAvailable: () => checkPortAvailable(UAT_PORT),
