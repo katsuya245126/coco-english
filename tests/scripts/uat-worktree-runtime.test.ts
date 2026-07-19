@@ -32,7 +32,7 @@ describe("UAT runtime preflight", () => {
     });
   });
 
-  it("detects a genuinely occupied local port", async () => {
+  it("detects a genuinely occupied local port (127.0.0.1-bound occupant)", async () => {
     const server = createServer();
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const address = server.address();
@@ -41,6 +41,33 @@ describe("UAT runtime preflight", () => {
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),
     );
+  });
+
+  it("detects a dual-stack (no-host) occupant, matching a default `next dev -p` bind", async () => {
+    const server = createServer();
+    // No host argument: Node binds dual-stack (all interfaces), the default
+    // `next dev -p <port>` shape with no `-H` flag.
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Expected a TCP address");
+    expect(await checkPortAvailable(address.port)).toBe(false);
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+  });
+
+  it("reports a genuinely free port as available", async () => {
+    // Reserve an ephemeral port, then release it immediately so it is very
+    // likely free for the immediately-following check.
+    const probe = createServer();
+    await new Promise<void>((resolve) => probe.listen(0, "127.0.0.1", resolve));
+    const address = probe.address();
+    if (!address || typeof address === "string") throw new Error("Expected a TCP address");
+    const { port } = address;
+    await new Promise<void>((resolve, reject) =>
+      probe.close((error) => (error ? reject(error) : resolve())),
+    );
+    expect(await checkPortAvailable(port)).toBe(true);
   });
 
   it("uses lsof only to inspect the selected checkout's held dev lock", () => {

@@ -13,13 +13,24 @@ import {
   sortWorktrees,
 } from "./uat-worktree-lib.mjs";
 
-export function checkPortAvailable(port) {
+function tryBind(port, host) {
   return new Promise((resolve) => {
     const server = net.createServer();
     server.once("error", () => resolve(false));
     server.once("listening", () => server.close(() => resolve(true)));
-    server.listen({ port, host: "127.0.0.1", exclusive: true });
+    const options = host === undefined ? { port, exclusive: true } : { port, host, exclusive: true };
+    server.listen(options);
   });
+}
+
+// A single bind attempt only detects an occupant listening on the same scope
+// (dual-stack vs. dual-stack, or loopback vs. loopback). A `next dev` process
+// with no `-H` flag binds dual-stack; some tools bind loopback-only. Probe
+// both scopes so either occupant shape is reported as unavailable.
+export async function checkPortAvailable(port) {
+  const dualStackFree = await tryBind(port, undefined);
+  if (!dualStackFree) return false;
+  return tryBind(port, "127.0.0.1");
 }
 
 export function findNextDevLockHolders(checkoutPath, run = spawnSync) {
