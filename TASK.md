@@ -1,49 +1,49 @@
-# Reliable UAT worktree labels
+# Dynamic dialogue pagination and open follow-ups
 
-**Status:** Implementation plan awaiting approval
+**Status:** Awaiting implementation approval
 
 ## Goal
 
-Make `npm run uat` identify descriptive worktrees from their branch purpose while using task or commit metadata only for generated and detached worktrees, so a restored inherited `TASK.md` cannot mislabel a completed feature.
+Make Coco's current dialogue easier to read in a compact chat box and make dynamic-conversation follow-ups invite phrases or short sentences instead of repetitive one-word answers.
 
 ## Scope
 
-- Use cleaned descriptive branches as stable menu labels.
-- Use a distinct non-main task, then latest commit, for generated or detached worktrees.
-- Keep `Main` first and `Exit` last.
-- Make the worktree comparator reflexive.
-- Prove invalid input skips every preflight and launch dependency.
+- Paginate only the current Coco message using semantic text boundaries.
+- Keep translation phrase highlighting and bubbles aligned with the visible page.
+- Add clear previous/next controls, a page indicator, and a visible Hint loading spinner.
+- Prefer open, context-grounded dynamic follow-ups; reserve either/or questions for vague or stuck responses.
 
 ## Non-goals
 
-- A manual label registry or general task-ownership schema.
-- New duplicate-label collision handling.
-- Worktree removal, renaming, unlocking, or cleanup.
-- Changes to port 3200, ngrok, Next.js, or application behavior.
+- Conversation-history browsing.
+- Changes to preset mission evaluation, correction, progression, or hint ladders.
+- Mascot placement work already completed on `main`.
+- Latency, TTS generation, or transition-pipeline optimization.
 
 ## Constraints
 
-- Preserve Git porcelain parsing, checkout provenance, preflight, and launch behavior.
-- Read only root `TASK.md`; never read environment-file contents or secrets.
+- Preserve server-owned prompt provenance, translation offsets, and attempt history.
 - Preserve unrelated working-tree changes.
 - Do not push, merge, deploy, publish, or modify production without explicit permission.
 
 ## Done Checks
 
-- [x] Corrective design is approved and committed.
-- [x] Test-first implementation plan is written.
+- [x] Approved design spec is committed.
 - [ ] Implementation plan is approved.
-- [ ] `codex/uat-menu-labels` renders as `UAT menu labels` despite an inherited main task.
-- [ ] Generated and detached labels follow the approved fallback order.
-- [ ] Comparator equality and invalid-selection preflight skipping have regression tests.
-- [ ] Focused tests, full tests, typecheck, lint, Exit smoke, and checkout smoke pass.
+- [ ] Long current messages paginate without internal scrolling.
+- [ ] Page boundaries preserve source text and translation phrase ranges.
+- [ ] Hint loading uses a visible spinner and opens the first translated phrase on its page.
+- [ ] Dynamic prompt rules favor expandable open questions.
+- [ ] Preset behavior remains unchanged.
+- [ ] Focused tests and proportionate project checks pass.
 
 ## Plan
 
-1. Correct pure worktree classification, cleanup, and sorting behavior.
-2. Compare generated-worktree task ownership against main in the runtime.
-3. Run whole-feature verification and record exact evidence.
+1. Write and review the design specification. Complete.
+2. Create an implementation plan after user approval. Complete.
+3. Implement test-first in small, scoped steps.
+4. Verify and archive this task.
 
 ## Current Position
 
-The corrective design and implementation plan are written. Next: user selects an execution approach and approves implementation.
+The design and implementation plan are written. Next: user selects an execution approach and approves implementation.
