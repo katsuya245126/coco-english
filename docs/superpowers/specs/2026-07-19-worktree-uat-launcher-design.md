@@ -1,7 +1,7 @@
 # Worktree-aware UAT launcher design
 
 **Date:** 2026-07-19
-**Status:** Awaiting written-spec approval
+**Status:** Approved
 
 ## Problem
 
