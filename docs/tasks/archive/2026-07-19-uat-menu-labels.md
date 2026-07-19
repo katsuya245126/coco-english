@@ -1,12 +1,12 @@
 # Human-readable UAT menu labels and Exit
 
-**Status:** Complete
+**Status:** Needs correction
 
 ## Goal
 
 Make `npm run uat` identify worktrees by purpose and provide a successful Exit option that never starts preflight or a server.
 
-## Delivered
+## Originally delivered
 
 - Main sorts first and displays as `Main`, including when invoked from a linked worktree.
 - Other labels prefer root `TASK.md` H1, latest commit subject, cleaned branch, then detached directory name.
@@ -31,4 +31,4 @@ Make `npm run uat` identify worktrees by purpose and provide a successful Exit o
 
 ## Current position
 
-Implemented, verified, and ready for integration.
+Independent live verification found an outcome-level defect: after closeout restored main's unrelated `TASK.md`, the `codex/uat-menu-labels` worktree rendered as `Dynamic dialogue pagination and open follow-ups [uat-menu-labels]`. The corrective hybrid branch-first design is approved; implementation and fresh verification remain before integration.
