@@ -154,11 +154,13 @@ describe("runUatLauncher", () => {
 
   it("uses only a distinct generated task before falling back to its commit", async () => {
     const mainTask = "# Main task\n";
-    const taskSource = vi.fn((checkoutPath: string) => {
-      if (checkoutPath === "/projects/coco-english") return mainTask;
-      if (checkoutPath === "/tmp/agent-a4fe43921413") return mainTask;
-      return null;
-    });
+    const taskSource = vi.fn<(checkoutPath: string) => string | null>(
+      (checkoutPath: string) => {
+        if (checkoutPath === "/projects/coco-english") return mainTask;
+        if (checkoutPath === "/tmp/agent-a4fe43921413") return mainTask;
+        return null;
+      },
+    );
     const commitSubject = vi.fn(() => "fix: generated checkout purpose");
     const inheritedOutput: string[] = [];
 
