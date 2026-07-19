@@ -10,6 +10,8 @@ const {
   checkPortAvailable,
   evaluatePreflight,
   findNextDevLockHolders,
+  readCommitSubject,
+  readTaskTitle,
   runUatLauncher,
 } = uatWorktreeRuntime;
 
@@ -82,6 +84,22 @@ describe("UAT runtime preflight", () => {
       expect.objectContaining({ encoding: "utf8" }),
     );
   });
+
+  it("reads task purpose and commit subject with null fallbacks", () => {
+    const read = vi.fn(() => "# Purpose from task\n");
+    expect(readTaskTitle("/tmp/feature", read)).toBe("Purpose from task");
+    expect(read).toHaveBeenCalledWith("/tmp/feature/TASK.md", "utf8");
+    expect(readTaskTitle("/tmp/feature", () => { throw new Error("missing"); })).toBeNull();
+
+    const run = vi.fn(() => "Latest commit purpose\n");
+    expect(readCommitSubject("/tmp/feature", run)).toBe("Latest commit purpose");
+    expect(run).toHaveBeenCalledWith(
+      "git",
+      ["-C", "/tmp/feature", "log", "-1", "--format=%s"],
+      { encoding: "utf8" },
+    );
+    expect(readCommitSubject("/tmp/feature", () => { throw new Error("missing"); })).toBeNull();
+  });
 });
 
 describe("runUatLauncher", () => {
@@ -109,6 +127,10 @@ worktree /tmp/feature
 HEAD 2222222222222222222222222222222222222222
 branch refs/heads/codex/feature
 `,
+      worktreeMetadata: (checkoutPath: string) =>
+        checkoutPath === "/tmp/feature"
+          ? { taskTitle: "Readable feature purpose", commitSubject: "ignored fallback" }
+          : {},
       prompt: async () => "2",
       write: (line: string) => output.push(line),
       portAvailable: async () => true,
@@ -120,6 +142,12 @@ branch refs/heads/codex/feature
     });
 
     expect(result).toBe(0);
+    const branchLine = output.indexOf("Branch: codex/feature");
+    const menuOutput = output.slice(0, branchLine).join("\n");
+    expect(menuOutput).toContain("1. Main");
+    expect(menuOutput).toContain("2. Readable feature purpose");
+    expect(menuOutput).toContain("3. Exit");
+    expect(menuOutput).not.toContain("/tmp/feature");
     expect(output.join("\n")).toContain("codex/feature");
     expect(output.join("\n")).toContain("/tmp/feature");
     expect(output.join("\n")).toContain("2222222");
@@ -139,6 +167,7 @@ branch refs/heads/codex/feature
 HEAD 1111111111111111111111111111111111111111
 branch refs/heads/main
 `,
+      worktreeMetadata: () => ({}),
       prompt: async () => "9",
       write: () => undefined,
       portAvailable: async () => true,
@@ -150,6 +179,46 @@ branch refs/heads/main
     });
 
     expect(result).toBe(1);
+    expect(launch).not.toHaveBeenCalled();
+  });
+
+  it("prints Exit last and exits successfully without preflight or launch", async () => {
+    const output: string[] = [];
+    const portAvailable = vi.fn(async () => true);
+    const lockHolderPids = vi.fn(async () => []);
+    const checkoutExists = vi.fn(() => true);
+    const dependenciesInstalled = vi.fn(() => true);
+    const envFileExists = vi.fn(() => true);
+    const launch = vi.fn(async () => 0);
+    const result = await runUatLauncher({
+      repoRoot: "/projects/coco-english",
+      gitWorktreeOutput: `worktree /projects/coco-english
+HEAD 1111111111111111111111111111111111111111
+branch refs/heads/main
+`,
+      worktreeMetadata: () => ({}),
+      prompt: async () => "2",
+      write: (line: string) => output.push(line),
+      portAvailable,
+      lockHolderPids,
+      checkoutExists,
+      dependenciesInstalled,
+      envFileExists,
+      launch,
+    });
+
+    expect(result).toBe(0);
+    expect(output).toEqual([
+      "Select the checkout to serve for phone UAT:",
+      "1. Main",
+      "2. Exit",
+      "Exited. No server was started.",
+    ]);
+    expect(portAvailable).not.toHaveBeenCalled();
+    expect(lockHolderPids).not.toHaveBeenCalled();
+    expect(checkoutExists).not.toHaveBeenCalled();
+    expect(dependenciesInstalled).not.toHaveBeenCalled();
+    expect(envFileExists).not.toHaveBeenCalled();
     expect(launch).not.toHaveBeenCalled();
   });
 

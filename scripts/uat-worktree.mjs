@@ -1,5 +1,5 @@
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,6 +7,8 @@ import { createInterface } from "node:readline/promises";
 import {
   UAT_PORT,
   buildDevInvocation,
+  disambiguateWorktreeLabels,
+  extractTaskTitle,
   formatWorktreeLabel,
   parseSelection,
   parseWorktreePorcelain,
@@ -43,6 +45,25 @@ export function findNextDevLockHolders(checkoutPath, run = spawnSync) {
   }
   if (result.status !== 0) return [];
   return result.stdout.trim().split("\n").filter(Boolean);
+}
+
+export function readTaskTitle(checkoutPath, read = readFileSync) {
+  try {
+    return extractTaskTitle(read(path.join(checkoutPath, "TASK.md"), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+export function readCommitSubject(checkoutPath, run = execFileSync) {
+  try {
+    return (
+      run("git", ["-C", checkoutPath, "log", "-1", "--format=%s"], { encoding: "utf8" })
+        .trim() || null
+    );
+  } catch {
+    return null;
+  }
 }
 
 export function evaluatePreflight({
@@ -88,16 +109,34 @@ export async function runUatLauncher(deps) {
     parseWorktreePorcelain(deps.gitWorktreeOutput),
     deps.repoRoot,
   );
+  const labeledRecords = disambiguateWorktreeLabels(
+    records.map((record) => ({
+      record,
+      label: formatWorktreeLabel(
+        record,
+        deps.worktreeMetadata(record.path),
+      ),
+    })),
+  );
   deps.write("Select the checkout to serve for phone UAT:");
-  records.forEach((record, index) => {
-    deps.write(`${index + 1}. ${formatWorktreeLabel(record, deps.repoRoot)}`);
+  labeledRecords.forEach(({ label }, index) => {
+    deps.write(`${index + 1}. ${label}`);
   });
-  const selection = parseSelection(await deps.prompt("Selection: "), records.length);
+  const exitIndex = labeledRecords.length;
+  deps.write(`${exitIndex + 1}. Exit`);
+  const selection = parseSelection(
+    await deps.prompt("Selection: "),
+    labeledRecords.length + 1,
+  );
   if (selection === null) {
     deps.write("Invalid selection. No server was started.");
     return 1;
   }
-  const selected = records[selection];
+  if (selection === exitIndex) {
+    deps.write("Exited. No server was started.");
+    return 0;
+  }
+  const selected = labeledRecords[selection].record;
   const [portAvailable, lockHolderPids] = await Promise.all([
     deps.portAvailable(),
     deps.lockHolderPids(selected.path),
@@ -133,6 +172,10 @@ async function main() {
     return await runUatLauncher({
       repoRoot,
       gitWorktreeOutput,
+      worktreeMetadata: (checkoutPath) => ({
+        taskTitle: readTaskTitle(checkoutPath),
+        commitSubject: readCommitSubject(checkoutPath),
+      }),
       prompt: (question) => rl.question(question),
       write: (line) => process.stdout.write(`${line}\n`),
       portAvailable: () => checkPortAvailable(UAT_PORT),
