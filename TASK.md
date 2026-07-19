@@ -1,33 +1,49 @@
-# Human-readable UAT menu labels and Exit
+# Dynamic dialogue pagination and open follow-ups
 
-**Status:** Planned; awaiting execution choice
+**Status:** Awaiting implementation approval
 
 ## Goal
 
-Make `npm run uat` identify worktrees by purpose and provide a successful Exit option that never starts preflight or a server.
+Make Coco's current dialogue easier to read in a compact chat box and make dynamic-conversation follow-ups invite phrases or short sentences instead of repetitive one-word answers.
 
 ## Scope
 
-- Resolve labels from `TASK.md`, latest commit subject, or cleaned branch/directory names.
-- Keep `Main` first and put `Exit` last.
-- Preserve branch, path, commit, and URL provenance after checkout selection.
-- Test label fallbacks, duplicate handling, Exit, and unchanged launch behavior.
+- Paginate only the current Coco message using semantic text boundaries.
+- Keep translation phrase highlighting and bubbles aligned with the visible page.
+- Add clear previous/next controls, a page indicator, and a visible Hint loading spinner.
+- Prefer open, context-grounded dynamic follow-ups; reserve either/or questions for vague or stuck responses.
 
 ## Non-goals
 
-- Manual label configuration.
-- Worktree management from the launcher.
-- Port, ngrok, application, or `npm run dev` changes.
+- Conversation-history browsing.
+- Changes to preset mission evaluation, correction, progression, or hint ladders.
+- Mascot placement work already completed on `main`.
+- Latency, TTS generation, or transition-pipeline optimization.
 
-## Done checks
+## Constraints
 
-- [x] Design approved and committed.
-- [x] Test-first implementation plan written.
-- [ ] Focused tests pass.
-- [ ] Full tests, typecheck, and lint pass.
-- [ ] Interactive Exit and checkout smoke checks pass.
-- [ ] Task is archived and the inherited main task brief is restored before integration.
+- Preserve server-owned prompt provenance, translation offsets, and attempt history.
+- Preserve unrelated working-tree changes.
+- Do not push, merge, deploy, publish, or modify production without explicit permission.
 
-## Current position
+## Done Checks
 
-The design and implementation plan are ready. Next: choose an execution approach.
+- [x] Approved design spec is committed.
+- [ ] Implementation plan is approved.
+- [ ] Long current messages paginate without internal scrolling.
+- [ ] Page boundaries preserve source text and translation phrase ranges.
+- [ ] Hint loading uses a visible spinner and opens the first translated phrase on its page.
+- [ ] Dynamic prompt rules favor expandable open questions.
+- [ ] Preset behavior remains unchanged.
+- [ ] Focused tests and proportionate project checks pass.
+
+## Plan
+
+1. Write and review the design specification. Complete.
+2. Create an implementation plan after user approval. Complete.
+3. Implement test-first in small, scoped steps.
+4. Verify and archive this task.
+
+## Current Position
+
+The design and implementation plan are written. Next: user selects an execution approach and approves implementation.

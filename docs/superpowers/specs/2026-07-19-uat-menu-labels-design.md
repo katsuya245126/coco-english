@@ -1,6 +1,6 @@
 # Human-readable UAT menu labels and Exit option
 
-**Status:** Approved
+**Status:** Implemented and verified
 
 ## Goal
 
