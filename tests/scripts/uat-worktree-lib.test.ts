@@ -67,6 +67,17 @@ describe("UAT worktree discovery", () => {
     ).toEqual(["main", "worktree-dialogue-pagination", null]);
   });
 
+  it("falls back to the launcher root sorting first when no main record exists", () => {
+    const records = parseWorktreePorcelain(porcelain).filter(
+      (record: { branch: string | null }) => record.branch !== "main",
+    );
+    expect(
+      sortWorktrees(records, "/tmp/external-coco-worktree").map(
+        (record: { branch: string | null }) => record.branch,
+      ),
+    ).toEqual([null, "worktree-dialogue-pagination"]);
+  });
+
   it("uses Main for the main branch and prefers task purpose over commit and branch metadata", () => {
     const [main, named] = parseWorktreePorcelain(porcelain);
     expect(formatWorktreeLabel(main)).toBe("Main");

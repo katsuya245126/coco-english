@@ -33,9 +33,14 @@ export function parseWorktreePorcelain(source) {
 }
 
 export function sortWorktrees(records, repoRoot) {
+  const hasMain = records.some((record) => record.branch === "main");
   return [...records].sort((left, right) => {
     if (left.branch === "main") return -1;
     if (right.branch === "main") return 1;
+    if (!hasMain) {
+      if (left.path === repoRoot) return -1;
+      if (right.path === repoRoot) return 1;
+    }
     return left.path.localeCompare(right.path);
   });
 }
