@@ -282,8 +282,8 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
 
     expect(stageSource).toContain("SPRITE_BY_EXPRESSION");
     expect(stageSource).toContain("mascotSpriteWrapStyle");
-    expect(stylesSource).toContain("height: 360");
-    expect(stylesSource).toContain("bottom: 126");
+    expect(stylesSource).toContain("height: 400");
+    expect(stylesSource).toContain("bottom: 166");
     expect(stylesSource).toContain("height: 180");
     expect(stylesSource).toContain(
       'left: "max(24px, calc((100% - 226px) / 2))"',
@@ -437,7 +437,7 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
   it("keeps the mascot dialogue box at a stable height without scrolling", () => {
     const stylesSource = readSource("src/components/student/styles.ts");
 
-    expect(stylesSource).toContain("height: 104");
+    expect(stylesSource).toContain("height: 144");
     expect(stylesSource).toContain("bottom: 32");
     expect(stylesSource).not.toContain('overflowY: "auto"');
     expect(stylesSource).not.toContain("minHeight: 64");
@@ -459,8 +459,8 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     );
     // The normalized visible boundary is bottom-aligned and overlaps the
     // chatbox by 10px, so every expression meets it without a gap.
-    expect(stylesSource).toContain("height: 360");
-    expect(stylesSource).toContain("bottom: 126");
+    expect(stylesSource).toContain("height: 400");
+    expect(stylesSource).toContain("bottom: 166");
     expect(stylesSource).toContain("height: 180");
   });
 
