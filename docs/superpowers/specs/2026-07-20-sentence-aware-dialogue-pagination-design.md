@@ -1,7 +1,7 @@
 # Sentence-Aware Dialogue Pagination Design
 
 **Date:** 2026-07-20
-**Status:** Approved (pending user review of this document)
+**Status:** Approved by user 2026-07-20
 **Supersedes:** the "page budget" and protected-range boundary rules in
 `2026-07-19-dynamic-dialogue-pagination-open-followups-design.md`. All other
 sections of that spec (controls, spinner, open follow-up prompt rules, preset
@@ -9,16 +9,17 @@ behavior) remain in force.
 
 ## Motivation
 
-Phone UAT (user-supplied live screenshot,
-`/Users/john/Downloads/Screenshot_20260719_202529_Chrome.jpg`) showed two
-failures of the budget-first rule:
+User-supplied live phone screenshots showed two failures of the budget-first
+rule:
 
 1. With a reduced 8-word budget, the sentence "What are you going to do during
    summer vacation?" split at an awkward word boundary, and the split moved
-   after Hint phrases loaded.
+   after Hint phrases loaded
+   (`/Users/john/Downloads/Screenshot_20260719_202529_Chrome.jpg`).
 2. With the approved 16-word budget, the 13-word two-sentence message packed
    onto a single page that overflows the fixed 104px chatbox (four rendered
-   lines) and hides the pager entirely.
+   lines) and hides the pager entirely
+   (`/Users/john/Downloads/Screenshot_20260720_024926_Chrome.jpg`).
 
 The word budget alone cannot express the real requirement: sentences should
 stay whole, short sentences may share, long content must still paginate, and
@@ -64,7 +65,7 @@ trailing text without a terminator counts as a final sentence.
 Worked examples:
 
 - "It's almost summer vacation! What are you going to do during summer
-  vacation?" (5 + 8 words) → two sentence-aligned pages, identical before and
+  vacation?" (4 + 9 words) → two sentence-aligned pages, identical before and
   after Hint loads.
 - "Great job! Let's keep going." (2 + 4 words) → one page.
 - Three 3-word sentences (9 combined) → one page; a fourth pushes to a new
