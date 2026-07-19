@@ -1,58 +1,81 @@
 import { describe, expect, it } from "vitest";
 import {
+  DIALOGUE_PAGE_PACK_WORD_LIMIT,
   DIALOGUE_PAGE_WORD_LIMIT,
   findDialoguePageIndex,
   paginateDialogueText,
 } from "@/domain/conversation/dialogue-pagination";
 
 describe("paginateDialogueText", () => {
+  it("locks the approved word limits", () => {
+    expect(DIALOGUE_PAGE_WORD_LIMIT).toBe(16);
+    expect(DIALOGUE_PAGE_PACK_WORD_LIMIT).toBe(10);
+  });
+
   it("keeps a short line on one exact page", () => {
     const text = "What games do you play inside?";
-    expect(DIALOGUE_PAGE_WORD_LIMIT).toBe(16);
     expect(paginateDialogueText(text)).toEqual([
       { start: 0, end: text.length, text },
     ]);
   });
 
-  it("keeps the phone UAT line whole before and after hint phrases load", () => {
+  it("splits the phone UAT line into two sentence-aligned pages", () => {
     const text =
       "It's almost summer vacation! What are you going to do during summer vacation?";
-    const firstPhrase = "almost summer vacation";
-    const secondPhrase = "what are you going to do";
-    const firstStart = text.indexOf(firstPhrase);
-    const secondStart = text.indexOf(secondPhrase);
-
+    const secondStart = text.indexOf("What");
     expect(paginateDialogueText(text)).toEqual([
-      { start: 0, end: text.length, text },
+      { start: 0, end: secondStart, text: "It's almost summer vacation! " },
+      {
+        start: secondStart,
+        end: text.length,
+        text: "What are you going to do during summer vacation?",
+      },
     ]);
-    expect(
-      paginateDialogueText(text, [
-        { start: firstStart, end: firstStart + firstPhrase.length },
-        { start: secondStart, end: secondStart + secondPhrase.length },
-      ]),
-    ).toEqual([
+  });
+
+  it("computes pages from source text alone so Hint cannot move them", () => {
+    expect(paginateDialogueText.length).toBe(1);
+  });
+
+  it("packs very short sentences up to the ten-word budget", () => {
+    const packed = "Great job! Let's keep going.";
+    expect(paginateDialogueText(packed)).toEqual([
+      { start: 0, end: packed.length, text: packed },
+    ]);
+
+    const three = "I ran fast. You ran fast. We all won.";
+    expect(paginateDialogueText(three)).toHaveLength(1);
+
+    const overBudget =
+      "One two three four five six. Seven eight nine ten eleven.";
+    expect(paginateDialogueText(overBudget).map((page) => page.text)).toEqual([
+      "One two three four five six. ",
+      "Seven eight nine ten eleven.",
+    ]);
+  });
+
+  it("keeps a lone eleven-to-sixteen-word sentence whole on its own page", () => {
+    const text =
+      "One two three four five six seven eight nine ten eleven twelve.";
+    expect(paginateDialogueText(text)).toEqual([
       { start: 0, end: text.length, text },
     ]);
   });
 
-  it("prefers sentence and clause boundaries before whitespace", () => {
-    const sentences =
-      "One two three four five six seven eight nine. Ten eleven twelve thirteen fourteen fifteen sixteen seventeen.";
+  it("splits an over-limit sentence at clause punctuation first", () => {
     const clauses =
       "One two three four five six seven eight nine, ten eleven twelve thirteen fourteen fifteen sixteen seventeen.";
-
-    expect(paginateDialogueText(sentences).map((page) => page.text)).toEqual([
-      "One two three four five six seven eight nine. ",
-      "Ten eleven twelve thirteen fourteen fifteen sixteen seventeen.",
-    ]);
     expect(paginateDialogueText(clauses).map((page) => page.text)).toEqual([
       "One two three four five six seven eight nine, ",
       "ten eleven twelve thirteen fourteen fifteen sixteen seventeen.",
     ]);
   });
 
-  it("uses whitespace for one over-budget clause and preserves the source", () => {
-    const text = Array.from({ length: 20 }, (_, index) => `word${index + 1}`).join(" ");
+  it("falls back to whitespace for one over-limit clause and preserves the source", () => {
+    const text = Array.from(
+      { length: 20 },
+      (_, index) => `word${index + 1}`,
+    ).join(" ");
     const pages = paginateDialogueText(text);
 
     expect(pages).toHaveLength(2);
@@ -60,28 +83,20 @@ describe("paginateDialogueText", () => {
     expect(pages.map((page) => page.text).join("")).toBe(text);
   });
 
-  it("moves a boundary before a protected phrase", () => {
-    const words = Array.from({ length: 20 }, (_, index) => `word${index + 1}`);
-    const text = words.join(" ");
-    const source = "word15 word16 word17 word18";
-    const start = text.indexOf(source);
-    const pages = paginateDialogueText(text, [{ start, end: start + source.length }]);
+  it("never packs fragments of a split sentence with a following sentence", () => {
+    const longSentence = Array.from(
+      { length: 20 },
+      (_, index) => `word${index + 1}`,
+    ).join(" ");
+    const text = `${longSentence}. Nice job.`;
+    const pages = paginateDialogueText(text).map((page) => page.text);
 
-    expect(pages.map((page) => page.text).join("")).toBe(text);
-    expect(pages.some((page) => page.start > start && page.start < start + source.length)).toBe(false);
-    expect(pages.some((page) => page.end > start && page.end < start + source.length)).toBe(false);
+    expect(pages).toHaveLength(3);
+    expect(pages[2]).toBe("Nice job.");
+    expect(pages.join("")).toBe(text);
   });
 
-  it("keeps an over-budget protected phrase intact", () => {
-    const phrase = Array.from({ length: 18 }, (_, index) => `word${index + 1}`).join(" ");
-    const text = `${phrase} tail`;
-    const pages = paginateDialogueText(text, [{ start: 0, end: phrase.length }]);
-
-    expect(pages[0]?.text).toBe(phrase);
-    expect(pages.map((page) => page.text).join("")).toBe(text);
-  });
-
-  it("handles empty, whitespace-only, and over-budget single-word input", () => {
+  it("handles empty, whitespace-only, and over-limit single-word input", () => {
     expect(paginateDialogueText("")).toEqual([]);
     expect(paginateDialogueText("   ")).toEqual([
       { start: 0, end: 3, text: "   " },
