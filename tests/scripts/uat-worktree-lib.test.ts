@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-// @ts-ignore -- the runtime launcher is intentionally dependency-free ESM.
-import {
+// @ts-expect-error -- the runtime launcher is intentionally dependency-free ESM.
+import * as uatWorktreeLib from "../../scripts/uat-worktree-lib.mjs";
+
+const {
   UAT_PORT,
   buildDevInvocation,
   formatWorktreeLabel,
   parseSelection,
   parseWorktreePorcelain,
   sortWorktrees,
-} from "../../scripts/uat-worktree-lib.mjs";
+} = uatWorktreeLib;
 
 const repoRoot = "/projects/coco-english";
 const porcelain = `worktree /projects/coco-english

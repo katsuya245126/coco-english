@@ -130,7 +130,7 @@ async function main() {
   );
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
-    return runUatLauncher({
+    return await runUatLauncher({
       repoRoot,
       gitWorktreeOutput,
       prompt: (question) => rl.question(question),

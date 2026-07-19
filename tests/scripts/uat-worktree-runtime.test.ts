@@ -1,14 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import { createServer } from "node:net";
 import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 
-// @ts-ignore -- the runtime launcher is intentionally dependency-free ESM.
-import {
+// @ts-expect-error -- the runtime launcher is intentionally dependency-free ESM.
+import * as uatWorktreeRuntime from "../../scripts/uat-worktree.mjs";
+
+const {
   checkPortAvailable,
   evaluatePreflight,
   findNextDevLockHolders,
   runUatLauncher,
-} from "../../scripts/uat-worktree.mjs";
+} = uatWorktreeRuntime;
 
 describe("UAT runtime preflight", () => {
   it("blocks missing checkout setup, an occupied port, and an active lock but only warns for missing env", () => {
@@ -82,6 +85,17 @@ describe("UAT runtime preflight", () => {
 });
 
 describe("runUatLauncher", () => {
+  it("keeps the prompt open long enough to process a selection", () => {
+    const result = spawnSync(process.execPath, ["scripts/uat-worktree.mjs"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: "999\n",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Invalid selection. No server was started.");
+  });
+
   it("lists worktrees, requires selection, prints provenance, and launches only npm dev", async () => {
     const output: string[] = [];
     const launch = vi.fn(async () => 0);
