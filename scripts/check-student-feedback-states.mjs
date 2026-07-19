@@ -538,7 +538,7 @@ async function main() {
     await page.getByText("Try this:").waitFor({ state: "visible", timeout: 15_000 });
     await page.getByRole("button", { name: "Try again" }).click();
     await submitRecording();
-    results.push(await screenshotState("07-repeat-retry-amber", "Try again:"));
+    results.push(await screenshotState("07-repeat-retry-amber", "Try again!"));
 
     await browser.close();
 
