@@ -20,6 +20,7 @@ type OriginalFeedbackKind =
   | "acceptedOriginal"
   | "needsCorrection"
   | "retryOriginal"
+  | "retryFullSentence"
   | "teacherReview";
 
 type RepeatFeedbackKind = "repeatAccepted" | "repeatRetry" | "repeatReview";
@@ -41,6 +42,9 @@ export function deriveExpression(input: {
   if (input.originalFeedbackKind === "acceptedOriginal") return "celebrate";
   if (input.originalFeedbackKind === "needsCorrection") return "thinking";
   if (input.originalFeedbackKind === "retryOriginal") return "sad";
+  // "Good start! Can you say it in a full sentence?" is a nudge, not a
+  // failure — Coco cheers the student into a longer answer.
+  if (input.originalFeedbackKind === "retryFullSentence") return "encouraging";
   if (input.originalFeedbackKind === "teacherReview") return "thinking";
   return "idle";
 }

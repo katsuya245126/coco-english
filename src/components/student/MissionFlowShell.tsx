@@ -85,6 +85,12 @@ type OriginalFeedback =
       wordsToPractice?: WordHighlight[];
     }
   | {
+      kind: "retryFullSentence";
+      transcript: string;
+      starBand?: PronunciationStarBand | null;
+      wordsToPractice?: WordHighlight[];
+    }
+  | {
       kind: "teacherReview";
       transcript: string;
       starBand?: PronunciationStarBand | null;
@@ -330,6 +336,7 @@ export function MissionFlowShell({
     evaluation?: {
       outcome?: string;
       improvedSentence?: string | null;
+      retryReason?: string | null;
     };
     starBand?: PronunciationStarBand | null;
     wordsToPractice?: WordHighlight[];
@@ -425,6 +432,12 @@ export function MissionFlowShell({
         starBand,
         wordsToPractice,
       };
+    }
+    if (
+      evaluation?.outcome === "retry_original" &&
+      evaluation.retryReason === "minimal_effort"
+    ) {
+      return { kind: "retryFullSentence", transcript, starBand, wordsToPractice };
     }
     if (evaluation?.outcome === "retry_original") {
       return { kind: "retryOriginal", transcript, starBand, wordsToPractice };
@@ -1113,6 +1126,16 @@ function getMascotDialogue({
     return {
       text: "Try again.",
       line: { lineKind: "coco_feedback", feedbackVariant: "retry_original" },
+    };
+  }
+
+  if (
+    flow.step === "aiFeedback" &&
+    flow.originalFeedback?.kind === "retryFullSentence"
+  ) {
+    return {
+      text: "Good start! Can you say it in a full sentence?",
+      line: { lineKind: "coco_feedback", feedbackVariant: "retry_full_sentence" },
     };
   }
 

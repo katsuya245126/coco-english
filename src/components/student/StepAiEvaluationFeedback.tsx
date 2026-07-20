@@ -20,6 +20,7 @@ type OriginalOutcome =
   | "acceptedOriginal"
   | "needsCorrection"
   | "retryOriginal"
+  | "retryFullSentence"
   | "teacherReview";
 
 type RepeatOutcome = "repeatAccepted" | "repeatRetry" | "repeatReview";
@@ -149,6 +150,23 @@ export function StepAiEvaluationFeedback({
         {showCocoLine ? (
           <div style={{ ...evaluationErrorStyle, marginTop: transcript ? 16 : 0 }}>
             <h2 style={headingInlineStyle}>Try again.</h2>
+          </div>
+        ) : null}
+        <RecordingReview onRetry={onRetry} />
+      </div>
+    );
+  }
+
+  if (outcome === "retryFullSentence") {
+    return (
+      <div style={stepCardStyle} aria-live="polite" role="alert">
+        <Transcript transcript={transcript} audioUrl={audioUrl} />
+        {showCocoLine ? (
+          <div style={{ ...evaluationErrorStyle, marginTop: transcript ? 16 : 0 }}>
+            <h2 style={headingInlineStyle}>Good start!</h2>
+            <p style={{ fontSize: 16, color: "#111827", margin: 0, lineHeight: 1.5 }}>
+              Can you say it in a full sentence?
+            </p>
           </div>
         ) : null}
         <RecordingReview onRetry={onRetry} />

@@ -18,7 +18,11 @@ export type CompletionTurn = {
 export type PendingTurnReview =
   | {
       step: "aiFeedback";
-      outcome: "acceptedOriginal" | "needsCorrection" | "retryOriginal";
+      outcome:
+        | "acceptedOriginal"
+        | "needsCorrection"
+        | "retryOriginal"
+        | "retryFullSentence";
       transcript: string;
       improvedSentence: string | null;
       clipKind: "original_answer";
@@ -47,6 +51,21 @@ function evaluationOutcome(turn: CompletionTurn): string | null {
   return evaluation.version === "ai-eval-v1" &&
     typeof evaluation.outcome === "string"
     ? evaluation.outcome
+    : null;
+}
+
+function evaluationRetryReason(turn: CompletionTurn): string | null {
+  if (
+    typeof turn.evaluation !== "object" ||
+    turn.evaluation === null ||
+    Array.isArray(turn.evaluation)
+  ) {
+    return null;
+  }
+
+  const evaluation = turn.evaluation as { retryReason?: unknown };
+  return typeof evaluation.retryReason === "string"
+    ? evaluation.retryReason
     : null;
 }
 
@@ -117,7 +136,9 @@ export function getPendingTurnReview(
       : outcome === "needs_correction"
         ? "needsCorrection"
         : outcome === "retry_original"
-          ? "retryOriginal"
+          ? evaluationRetryReason(turn) === "minimal_effort"
+            ? "retryFullSentence"
+            : "retryOriginal"
           : null;
   if (!originalOutcome) return null;
 

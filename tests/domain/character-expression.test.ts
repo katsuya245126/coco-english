@@ -9,6 +9,7 @@ type OriginalFeedbackKind =
   | "acceptedOriginal"
   | "needsCorrection"
   | "retryOriginal"
+  | "retryFullSentence"
   | "teacherReview";
 
 type RepeatFeedbackKind = "repeatAccepted" | "repeatRetry" | "repeatReview";
@@ -29,6 +30,7 @@ const originalFeedbackKinds: Array<OriginalFeedbackKind | undefined> = [
   "acceptedOriginal",
   "needsCorrection",
   "retryOriginal",
+  "retryFullSentence",
   "teacherReview",
 ];
 
@@ -99,6 +101,15 @@ describe("deriveExpression (MASCOT-03)", () => {
         originalFeedbackKind: "retryOriginal",
       }),
     ).toBe("sad");
+  });
+
+  it("keeps the full-sentence retry encouraging, never sad", () => {
+    expect(
+      deriveExpression({
+        step: "aiFeedback",
+        originalFeedbackKind: "retryFullSentence",
+      }),
+    ).toBe("encouraging");
   });
 
   it("keeps teacher-review outcomes non-committal", () => {

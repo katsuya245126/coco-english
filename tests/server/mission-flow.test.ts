@@ -211,6 +211,48 @@ describe("completion helpers: persisted feedback resume", () => {
     });
   });
 
+  it("resumes a minimal-effort block as retryFullSentence", () => {
+    const review = getPendingTurnReview({
+      ...makeTurn(1, {
+        original_transcript: "Yes.",
+        repeat_transcript: null,
+        repeat_accepted: null,
+      }),
+      improved_sentence: null,
+      evaluation: {
+        version: "ai-eval-v1",
+        outcome: "retry_original",
+        retryReason: "minimal_effort",
+        minimalEffortBlocks: 1,
+        requireRepeat: false,
+      },
+    });
+
+    expect(review).toMatchObject({
+      step: "aiFeedback",
+      outcome: "retryFullSentence",
+      transcript: "Yes.",
+    });
+  });
+
+  it("resumes a plain retry_original as retryOriginal (unchanged)", () => {
+    const review = getPendingTurnReview({
+      ...makeTurn(1, {
+        original_transcript: "안녕하세요",
+        repeat_transcript: null,
+        repeat_accepted: null,
+      }),
+      improved_sentence: null,
+      evaluation: {
+        version: "ai-eval-v1",
+        outcome: "retry_original",
+        requireRepeat: false,
+      },
+    });
+
+    expect(review).toMatchObject({ outcome: "retryOriginal" });
+  });
+
   it("restores a failed-repeat review instead of restarting the question", () => {
     expect(
       getPendingTurnReview({
