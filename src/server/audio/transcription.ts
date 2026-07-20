@@ -6,15 +6,19 @@
  */
 
 import OpenAI from "openai";
+import { detectNoSpeech } from "@/domain/audio/no-speech-detection";
 import { log } from "@/server/logging/logger";
 
 const DEFAULT_TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe";
+export const TRANSCRIPTION_PROMPT =
+  "The student is a Korean ESL learner speaking English. Transcribe only the English words spoken.";
 const HANGUL_SCRIPT = /[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7AF]+/gu;
 const ENGLISH_LETTER = /[A-Za-z]/;
 
 export type TranscriptionError =
   | "missing_api_key"
   | "empty_transcript"
+  | "no_speech"
   | "transcription_failed";
 
 export type TranscriptionResult =
@@ -105,13 +109,22 @@ export async function transcribeAudioFile(
       // Whisper-family models to switch the whole transcript to Korean — a
       // known failure mode with code-switched/bilingual audio.
       language: "en",
-      prompt: "The student is a Korean ESL learner speaking English. Transcribe only the English words spoken.",
+      prompt: TRANSCRIPTION_PROMPT,
     });
     const text = normalizeEnglishTranscript(response.text ?? "");
 
     if (!text || !hasEnglishTranscript(text)) {
       log("error", "audio.transcription_failed", { error: "empty_transcript" });
       return { ok: false, error: "empty_transcript" };
+    }
+
+    const noSpeechReason = detectNoSpeech(text, TRANSCRIPTION_PROMPT);
+    if (noSpeechReason) {
+      log("error", "audio.transcription_failed", {
+        error: "no_speech",
+        reason: noSpeechReason,
+      });
+      return { ok: false, error: "no_speech" };
     }
 
     return { ok: true, text };
