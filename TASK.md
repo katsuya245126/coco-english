@@ -1,6 +1,6 @@
 # Dynamic dialogue pagination and open follow-ups
 
-**Status:** Awaiting phone UAT confirmation
+**Status:** Complete (phone UAT passed 2026-07-20; merge approved)
 
 ## Goal
 
@@ -36,7 +36,7 @@ Make Coco's current dialogue easier to read in a compact chat box and make dynam
 - [x] Dynamic prompt rules favor expandable open questions.
 - [x] Preset behavior remains unchanged.
 - [x] Focused tests and proportionate project checks pass for the revised implementation.
-- [ ] Phone UAT (after the revised implementation) confirms natural sentence-aligned pages, Hint-stable boundaries, and non-overlapping phrase highlighting.
+- [x] Phone UAT (2026-07-20) confirms natural sentence-aligned pages, Hint-stable boundaries, and the pale-blue phrase control on device; Korean hint-bubble sizing fixed (c6f6eced) and merge approved by the user.
 
 ## Plan
 
