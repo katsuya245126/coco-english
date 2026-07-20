@@ -15,7 +15,7 @@
 - Use Node.js `>=20.19.0`, matching `package.json`. If the shell still reports `20.12.0`, select a compatible local runtime before executing implementation commands.
 - Do not push, merge, deploy, publish, send, or mutate production without explicit approval for that exact action and target.
 - Preserve ownership checks, mission snapshots, RLS, private per-turn audio storage, and signed teacher-review playback.
-- Prompt overlap is lexical: at least 70% of transcript word tokens must appear in the prompt word set, and the transcript must contain at least 5 tokens.
+- Prompt overlap is lexical and bidirectional: the transcript must contain at least 5 tokens, at least 70% of transcript tokens must appear in the prompt word set, and at least 70% of the prompt's unique words must appear in the transcript.
 - Reject only durations strictly less than 500 ms. A clip at exactly 500 ms proceeds normally; longer clips are never rejected by duration alone.
 - The known-hallucination blocklist uses normalized exact full-transcript matching only. Do not reject substrings or plausible utterances such as `Thank you.` or `Bye.`.
 - Reuse `transcription_failed_retryable` and the existing child-ESL copy. Add no client state, API response field, schema, or migration.
@@ -74,6 +74,12 @@ describe("detectNoSpeech", () => {
   it("does not apply overlap matching below five transcript tokens", () => {
     expect(
       detectNoSpeech("one two three four", "one two three four five six"),
+    ).toBeNull();
+  });
+
+  it("keeps plausible speech that borrows prompt vocabulary without echoing most of the prompt", () => {
+    expect(
+      detectNoSpeech("The student is speaking English.", TRANSCRIPTION_PROMPT),
     ).toBeNull();
   });
 
@@ -167,10 +173,18 @@ export function detectNoSpeech(
     const transcriptWords = normalizedTranscript.split(" ");
     if (transcriptWords.length >= MIN_PROMPT_OVERLAP_WORDS) {
       const promptWords = new Set(normalizedPrompt.split(" "));
-      const overlappingWords = transcriptWords.filter((word) =>
+      const overlappingTranscriptWords = transcriptWords.filter((word) =>
         promptWords.has(word),
       ).length;
-      if (overlappingWords / transcriptWords.length >= PROMPT_OVERLAP_THRESHOLD) {
+      const transcriptWordSet = new Set(transcriptWords);
+      const overlappingPromptWords = [...promptWords].filter((word) =>
+        transcriptWordSet.has(word),
+      ).length;
+      if (
+        overlappingTranscriptWords / transcriptWords.length >=
+          PROMPT_OVERLAP_THRESHOLD &&
+        overlappingPromptWords / promptWords.size >= PROMPT_OVERLAP_THRESHOLD
+      ) {
         return "prompt_echo";
       }
     }
@@ -190,7 +204,7 @@ Run:
 npx vitest run tests/domain/no-speech-detection.test.ts
 ```
 
-Expected: PASS with 15 tests and 0 failures (Vitest expands both `it.each` tables).
+Expected: PASS with 16 tests and 0 failures (Vitest expands both `it.each` tables).
 
 - [ ] **Step 5: Commit the pure policy**
 
@@ -327,7 +341,7 @@ Run:
 npx vitest run tests/domain/no-speech-detection.test.ts tests/server/transcription.test.ts
 ```
 
-Expected: PASS with 24 tests and 0 failures.
+Expected: PASS with 25 tests and 0 failures.
 
 - [ ] **Step 5: Commit the adapter integration**
 

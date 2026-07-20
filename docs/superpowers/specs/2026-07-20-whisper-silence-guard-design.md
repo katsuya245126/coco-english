@@ -31,7 +31,7 @@ The application already has the correct recovery behavior for a failed transcrip
 | --- | --- |
 | Detection scope | Strong prompt echo, normalized exact blocklist match, and extreme-short-tap pre-check |
 | False-positive posture | Conservative; no fuzzy semantic matching and no duration-only silence inference beyond accidental taps |
-| Prompt overlap threshold | At least 70% of transcript word tokens appear in the prompt word set |
+| Prompt overlap threshold | Bidirectional 70%: transcript-token coverage by the prompt set and prompt-set coverage by the transcript |
 | Minimum overlap transcript | At least 5 word tokens |
 | Short-tap cutoff | Strictly less than 500 ms |
 | Recovery | Existing `transcription_failed_retryable` path; no new client error or copy |
@@ -56,7 +56,7 @@ The detector evaluates these rules in order. Prompt-based rules are skipped if
 the normalized prompt is empty:
 
 1. **Prompt echo:** return `prompt_echo` when the normalized transcript contains the complete normalized prompt as a contiguous substring. This covers provider output that prefixes the prompt with text such as `Context:`.
-2. **Strong prompt overlap:** when the normalized transcript contains at least 5 word tokens, return `prompt_echo` when at least 70% of its word tokens are members of the normalized prompt's word set. The denominator is the transcript token count, including repeated tokens. Matching is lexical only, not semantic or edit-distance based.
+2. **Strong prompt overlap:** when the normalized transcript contains at least 5 word tokens, return `prompt_echo` only when both directions meet 70%: at least 70% of transcript tokens are members of the normalized prompt's word set, and at least 70% of the prompt's unique words appear in the transcript. Transcript coverage counts repeated tokens; prompt coverage counts unique words. The reciprocal condition prevents a short plausible sentence made from common prompt vocabulary from matching a much longer prompt. Matching is lexical only, not semantic or edit-distance based.
 3. **Known hallucination:** return `known_hallucination` only when the complete normalized transcript exactly equals one of these entries:
    - `thank you for watching`
    - `thanks for watching`
@@ -109,6 +109,7 @@ Add `tests/domain/no-speech-detection.test.ts` covering:
 - the exact prompt and a `Context:`-prefixed prompt echo;
 - the 70% boundary for transcripts of at least five words;
 - a below-threshold overlap and overlaps shorter than five words;
+- plausible speech using prompt vocabulary without covering most of the prompt;
 - punctuation, case, and whitespace normalization;
 - every exact blocklist entry;
 - blocklist phrases embedded in longer plausible speech;

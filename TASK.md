@@ -23,7 +23,7 @@ Prevent silent or effectively empty recordings from becoming prompt-echo transcr
 ## Constraints and decisions
 
 - User approved the design and defaults on 2026-07-20.
-- Prompt overlap requires at least 70% of transcript tokens and at least 5 tokens.
+- Prompt overlap requires at least 5 transcript tokens and 70% coverage in both directions: transcript tokens by the prompt set and prompt unique words by the transcript.
 - The short-tap cutoff is strictly less than 500 ms.
 - The hallucination blocklist is normalized exact full-transcript matching only.
 - No-speech never reaches evaluation, scoring, transcript persistence, conversation generation, or progression.

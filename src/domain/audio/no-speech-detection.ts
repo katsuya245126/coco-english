@@ -36,10 +36,18 @@ export function detectNoSpeech(
     const transcriptWords = normalizedTranscript.split(" ");
     if (transcriptWords.length >= MIN_PROMPT_OVERLAP_WORDS) {
       const promptWords = new Set(normalizedPrompt.split(" "));
-      const overlappingWords = transcriptWords.filter((word) =>
+      const overlappingTranscriptWords = transcriptWords.filter((word) =>
         promptWords.has(word),
       ).length;
-      if (overlappingWords / transcriptWords.length >= PROMPT_OVERLAP_THRESHOLD) {
+      const transcriptWordSet = new Set(transcriptWords);
+      const overlappingPromptWords = [...promptWords].filter((word) =>
+        transcriptWordSet.has(word),
+      ).length;
+      if (
+        overlappingTranscriptWords / transcriptWords.length >=
+          PROMPT_OVERLAP_THRESHOLD &&
+        overlappingPromptWords / promptWords.size >= PROMPT_OVERLAP_THRESHOLD
+      ) {
         return "prompt_echo";
       }
     }

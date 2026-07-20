@@ -37,6 +37,12 @@ describe("detectNoSpeech", () => {
     ).toBeNull();
   });
 
+  it("keeps plausible speech that borrows prompt vocabulary without echoing most of the prompt", () => {
+    expect(
+      detectNoSpeech("The student is speaking English.", TRANSCRIPTION_PROMPT),
+    ).toBeNull();
+  });
+
   it("normalizes case, punctuation, and whitespace before matching", () => {
     expect(
       detectNoSpeech(
