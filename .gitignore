@@ -10,6 +10,12 @@ playwright-report/
 # Local Claude Code agent/session files
 .claude/
 
+# Local Codex CLI config
+.codex/
+
+# Superpowers workflow session artifacts (briefs, review diffs, progress logs)
+.superpowers/
+
 # Supabase CLI local cache (linked project ref, pooler URL, version stamps)
 supabase/.temp/
 
