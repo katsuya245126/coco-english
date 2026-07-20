@@ -1,5 +1,7 @@
 # Dynamic Dialogue Pagination and Open Follow-ups Implementation Plan
 
+> **Superseded (pagination scope):** the pagination rules in this plan are superseded by `docs/superpowers/plans/2026-07-20-sentence-aware-dialogue-pagination.md` per the 2026-07-20 design spec. Open-follow-up prompt scope is unaffected.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Paginate only Coco's current message without breaking translation phrases, and make dynamic follow-ups invite phrases or short sentences by default.

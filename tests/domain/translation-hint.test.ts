@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildTranslationSegments,
+  clampPhrasesToPage,
   getFirstTranslationPhraseSegmentIndex,
   parseTranslationHint,
   toggleTranslationBubble,
@@ -266,5 +267,37 @@ describe("translation hint domain contract", () => {
         sourceText,
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("clampPhrasesToPage", () => {
+  // Source: "One two three four five six"
+  //          0123456789...
+  // Pages:  [0,14) "One two three " and [14,27) "four five six"
+  const pageOne = { start: 0, end: 14, text: "One two three " };
+  const pageTwo = { start: 14, end: 27, text: "four five six" };
+
+  it("clamps a straddling phrase to per-page segments with the full translation", () => {
+    const phrase = {
+      source: "three four",
+      start: 8,
+      end: 18,
+      translation: "셋 넷",
+    };
+    expect(clampPhrasesToPage([phrase], pageOne)).toEqual([
+      { source: "three ", start: 8, end: 14, translation: "셋 넷" },
+    ]);
+    expect(clampPhrasesToPage([phrase], pageTwo)).toEqual([
+      { source: "four", start: 0, end: 4, translation: "셋 넷" },
+    ]);
+  });
+
+  it("keeps inside phrases page-relative and drops outside phrases", () => {
+    const inside = { source: "two", start: 4, end: 7, translation: "둘" };
+    const outside = { source: "five", start: 19, end: 23, translation: "다섯" };
+    expect(clampPhrasesToPage([inside, outside], pageOne)).toEqual([
+      { source: "two", start: 4, end: 7, translation: "둘" },
+    ]);
+    expect(clampPhrasesToPage([], pageOne)).toEqual([]);
   });
 });

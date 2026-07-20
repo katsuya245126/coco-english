@@ -237,7 +237,7 @@ export const resumeNoticeStyle: CSSProperties = {
 export const mascotStageStyle: CSSProperties = {
   width: "100%",
   maxWidth: MISSION_CONTENT_MAX_WIDTH,
-  height: 360,
+  height: 400,
   position: "relative",
   marginTop: 16,
   marginLeft: "auto",
@@ -260,7 +260,7 @@ export const mascotSpriteWrapStyle: CSSProperties = {
   // and overlap the main chatbox by 10px so their visible edges stay attached.
   left: "max(24px, calc((100% - 226px) / 2))",
   width: "min(226px, calc(100% - 48px))",
-  bottom: 126,
+  bottom: 166,
   height: 180,
   transformOrigin: "bottom center",
 };
@@ -270,7 +270,7 @@ export const mascotDialogueShellStyle: CSSProperties = {
   left: 16,
   right: 16,
   bottom: 32,
-  height: 104,
+  height: 144,
   overflow: "visible",
 };
 
@@ -282,7 +282,7 @@ export const mascotDialogueBoxStyle: CSSProperties = {
   borderRadius: 8,
   padding: 22,
   boxSizing: "border-box",
-  overflowY: "auto",
+  overflow: "visible",
 };
 
 export const mascotDialogueTabsStyle: CSSProperties = {
@@ -331,16 +331,61 @@ export const mascotDialogueActionsStyle: CSSProperties = {
 };
 
 export const mascotHintTabStyle: CSSProperties = {
+  ...mascotAttachedTabStyle,
   minHeight: "clamp(38px, 10vw, 44px)",
   padding: "0 clamp(8px, 2.5vw, 12px)",
   border: 0,
   borderRight: "1px solid #BFDBFE",
   borderRadius: 0,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
   background: "transparent",
   color: "#2563EB",
   fontSize: "clamp(13px, 3.3vw, 14px)",
   fontWeight: 700,
   cursor: "pointer",
+};
+
+export const mascotDialoguePagerStyle: CSSProperties = {
+  position: "absolute",
+  left: 8,
+  right: 8,
+  bottom: -22,
+  zIndex: 4,
+  display: "grid",
+  gridTemplateColumns: "44px 1fr 44px",
+  alignItems: "center",
+  pointerEvents: "none",
+};
+
+export const mascotDialoguePageButtonStyle: CSSProperties = {
+  width: 44,
+  height: 44,
+  border: "2px solid #2563EB",
+  borderRadius: "50%",
+  background: "#FFFFFF",
+  color: "#2563EB",
+  fontSize: 24,
+  fontWeight: 700,
+  cursor: "pointer",
+  pointerEvents: "auto",
+};
+
+export const mascotDialoguePageIndicatorStyle: CSSProperties = {
+  justifySelf: "center",
+  padding: "3px 8px",
+  borderRadius: 999,
+  background: "#FFFFFF",
+  color: "#4B5563",
+  fontSize: 13,
+  fontWeight: 700,
+};
+
+export const mascotHintSpinnerStyle: CSSProperties = {
+  width: 14,
+  height: 14,
+  flexShrink: 0,
 };
 
 export const mascotVoiceTabStyle: CSSProperties = {
@@ -361,9 +406,9 @@ export const mascotDialogueTextStyle: CSSProperties = {
 };
 
 export const mascotPhraseButtonStyle: CSSProperties = {
-  minHeight: 44,
-  padding: "8px 3px",
-  margin: "-8px 0",
+  minHeight: "auto",
+  padding: "2px 3px",
+  margin: 0,
   border: "1px solid #93C5FD",
   borderRadius: 6,
   background: "#EFF6FF",
@@ -378,7 +423,10 @@ export const mascotTranslationBubbleStyle: CSSProperties = {
   top: "calc(100% + 6px)",
   transform: "translateX(-50%)",
   zIndex: 5,
-  maxWidth: "calc(100vw - 32px)",
+  // max-content: an absolutely-positioned bubble otherwise shrinks to its
+  // anchor phrase's width, rendering Korean one character per line.
+  width: "max-content",
+  maxWidth: "min(260px, calc(100vw - 32px))",
   boxSizing: "border-box",
   padding: "6px 10px",
   borderRadius: 8,
