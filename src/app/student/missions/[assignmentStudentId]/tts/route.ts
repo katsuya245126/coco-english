@@ -75,6 +75,8 @@ function resolveFeedbackLineText(feedbackVariant?: string): string | null {
       return "Hmm... let's try again";
     case "retry_original":
       return "Try again.";
+    case "retry_full_sentence":
+      return "Good start! Can you say it in a full sentence?";
     case "retry_repeat":
       return "Try again!";
     case "teacher_check":

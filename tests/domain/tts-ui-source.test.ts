@@ -390,6 +390,26 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(routeSource).toContain('return "Try again!"');
   });
 
+  it("speaks the full-sentence retry line for minimal-effort answers (phone-UAT item 6)", () => {
+    const shellSource = readSource(
+      "src/components/student/MissionFlowShell.tsx",
+    );
+    const routeSource = readSource(
+      "src/app/student/missions/[assignmentStudentId]/tts/route.ts",
+    );
+
+    // The bubble text and the server-resolved spoken line must be the same
+    // string, matching every other feedback variant.
+    expect(shellSource).toContain('feedbackVariant: "retry_full_sentence"');
+    expect(shellSource).toContain(
+      'text: "Good start! Can you say it in a full sentence?"',
+    );
+    expect(routeSource).toContain('case "retry_full_sentence":');
+    expect(routeSource).toContain(
+      'return "Good start! Can you say it in a full sentence?"',
+    );
+  });
+
   it("resolves improved/dynamic line lookups from the latest attempt only (multi-attempt voice regression)", () => {
     const routeSource = readSource(
       "src/app/student/missions/[assignmentStudentId]/tts/route.ts",
