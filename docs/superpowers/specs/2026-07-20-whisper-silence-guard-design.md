@@ -1,7 +1,7 @@
 # Whisper Silence Guard Design
 
 **Date:** 2026-07-20
-**Status:** Approved in conversation on 2026-07-20; awaiting written-spec review
+**Status:** Approved by user 2026-07-20
 
 ## Problem
 

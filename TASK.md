@@ -1,6 +1,6 @@
 # Whisper silence guard
 
-**Status:** Design approved; written spec awaiting user review
+**Status:** Written spec approved; implementation plan awaiting user review
 
 ## Goal
 
@@ -36,8 +36,9 @@ Prevent silent or effectively empty recordings from becoming prompt-echo transcr
 - [x] Isolated `codex/whisper-silence-guard` worktree created.
 - [x] Clean baseline verified: 85 test files passed; 774 tests passed; 4 skipped.
 - [x] Design spec written and self-reviewed.
-- [ ] User approves the written design spec.
-- [ ] Detailed implementation plan written and approved.
+- [x] User approved the written design spec on 2026-07-20.
+- [x] Detailed implementation plan written.
+- [ ] User approves the detailed implementation plan.
 - [ ] Domain, adapter, and orchestration tests fail for the intended reasons before implementation.
 - [ ] Minimal implementation makes focused tests pass.
 - [ ] Full Vitest, typecheck, and lint gates pass.
@@ -45,4 +46,4 @@ Prevent silent or effectively empty recordings from becoming prompt-echo transcr
 
 ## Current position
 
-The approved design is recorded in `docs/superpowers/specs/2026-07-20-whisper-silence-guard-design.md`. Next: user reviews the written spec. After approval, invoke `writing-plans`; do not implement before the plan is written and approved.
+The approved design is recorded in `docs/superpowers/specs/2026-07-20-whisper-silence-guard-design.md`. The implementation plan is recorded in `docs/superpowers/plans/2026-07-20-whisper-silence-guard.md`. Next: user reviews and approves the plan; do not implement before that approval.
