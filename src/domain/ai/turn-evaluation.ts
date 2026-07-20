@@ -187,8 +187,10 @@ function normalizeForParrotComparison(text: string): string {
  * instruction). A parroted correction would make the child repeat Coco's
  * question as their answer, so downgrade it to retry_original — the student
  * simply re-records and the parroted sentence is never shown or spoken.
- * Flags a correction that normalizes to the whole missionQuestion, or a
- * question-shaped sentence contained in a multi-sentence opener.
+ * Flags a correction that normalizes to the whole missionQuestion, contains
+ * it as a whole-word phrase (UAT 2026-07-20: a declarative answer with the
+ * full question appended), or is a question-shaped sentence contained in a
+ * multi-sentence opener.
  */
 export function guardParrotedConversationCorrection(
   decision: OriginalTurnDecision,
@@ -202,7 +204,7 @@ export function guardParrotedConversationCorrection(
   if (!question || !improved) return decision;
 
   const parroted =
-    improved === question ||
+    ` ${improved} `.includes(` ${question} `) ||
     (decision.improvedSentence.trim().endsWith("?") &&
       question.includes(improved));
   if (!parroted) return decision;

@@ -273,4 +273,48 @@ describe("parroted conversation-correction guard (UAT 2026-07-16 regression)", (
       }),
     ).toEqual(accepted);
   });
+
+  it("downgrades a declarative correction with the mission question appended (UAT 2026-07-20 regression)", async () => {
+    const { guardParrotedConversationCorrection } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    const outcome = guardParrotedConversationCorrection(
+      {
+        kind: "needs_correction",
+        requireRepeat: true,
+        improvedSentence:
+          "I don't play soccer. What games do you like to play?",
+      },
+      {
+        evaluationMode: "conversation",
+        missionQuestion: "What games do you like to play?",
+      },
+    );
+
+    expect(outcome).toEqual({
+      kind: "retry_original",
+      reason: "parroted_correction",
+      requireRepeat: false,
+    });
+  });
+
+  it("keeps a correction that asks a different question back", async () => {
+    const { guardParrotedConversationCorrection } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    const decision = {
+      kind: "needs_correction",
+      requireRepeat: true,
+      improvedSentence: "I like Valorant. What about you?",
+    } as const;
+
+    expect(
+      guardParrotedConversationCorrection(decision, {
+        evaluationMode: "conversation",
+        missionQuestion: "What games do you like to play?",
+      }),
+    ).toEqual(decision);
+  });
 });
