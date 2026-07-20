@@ -356,6 +356,47 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
       ]),
     );
   });
+
+  it("describes fragment expansion without an imitable literal answer and forbids appended questions", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    await evaluateOriginalTurn(
+      {
+        evaluationMode: "conversation",
+        missionQuestion: "What games do you like to play?",
+        transcript: "I don't",
+        targetPattern: "What games do you _____?",
+        targetExample: null,
+        level: "elementary",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const request = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const userMessage = request?.input.find((message) => message.role === "user");
+    const prompt = JSON.parse(userMessage?.content ?? "{}") as {
+      instructions?: string[];
+    };
+
+    const fragmentRule = prompt.instructions?.find((line) =>
+      line.includes("incomplete fragment"),
+    );
+    expect(fragmentRule).toBeDefined();
+    expect(fragmentRule).not.toContain("I don't play soccer");
+    expect(fragmentRule).toContain("student's own words");
+
+    expect(prompt.instructions).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("single declarative student answer"),
+        expect.stringContaining(
+          "never copy an example sentence from these instructions",
+        ),
+      ]),
+    );
+  });
 });
 
 describe("evaluateRepeatTurn server adapter (AI-04, AI-05)", () => {
