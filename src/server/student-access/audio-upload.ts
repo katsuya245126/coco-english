@@ -66,6 +66,7 @@ const FAILED_SCHEMA_REVIEW_REASON = "failed_schema";
 const LOW_CONFIDENCE_REVIEW_REASON = "low_confidence";
 export const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
 export const MAX_AUDIO_DURATION_MS = 90_000;
+export const MIN_TRANSCRIBABLE_AUDIO_DURATION_MS = 500;
 export const ALLOWED_AUDIO_MIME_TYPES = new Set([
   "audio/webm",
   "audio/mp4",
@@ -499,6 +500,19 @@ export async function uploadAttemptAudioClip(
     } finally {
       timings[`${stage}Ms`] = elapsedMs(startedAt);
     }
+  }
+
+  if (input.durationMs < MIN_TRANSCRIBABLE_AUDIO_DURATION_MS) {
+    logTiming("failed", {
+      error: "transcription_failed_retryable",
+      step: "duration_precheck",
+      reason: "short_clip",
+    });
+    return {
+      ok: false,
+      error: "transcription_failed_retryable",
+      retryable: true,
+    };
   }
 
   try {

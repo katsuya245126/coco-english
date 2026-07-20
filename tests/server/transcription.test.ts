@@ -1,5 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TranscriptionClient } from "@/server/audio/transcription";
+
+const { mockLog } = vi.hoisted(() => ({ mockLog: vi.fn() }));
+
+vi.mock("@/server/logging/logger", () => ({
+  log: mockLog,
+}));
 
 type FakeTranscriptionClient = TranscriptionClient;
 
@@ -14,6 +20,10 @@ function createFakeClient(result: unknown): FakeTranscriptionClient {
 }
 
 describe("transcribeAudioFile", () => {
+  beforeEach(() => {
+    mockLog.mockClear();
+  });
+
   it("returns transcript text from an injected client", async () => {
     const { transcribeAudioFile } = await import("@/server/audio/transcription");
     const client = createFakeClient({ text: "I like apples." });
@@ -133,6 +143,35 @@ describe("transcribeAudioFile", () => {
     );
 
     expect(result).toEqual({ ok: false, error: "empty_transcript" });
+  });
+
+  it("rejects a prompt echo using the exact prompt sent to the provider", async () => {
+    const { TRANSCRIPTION_PROMPT, transcribeAudioFile } = await import(
+      "@/server/audio/transcription"
+    );
+    const expectedPrompt =
+      "The student is a Korean ESL learner speaking English. Transcribe only the English words spoken.";
+    const client = createFakeClient({
+      text: `Context: ${expectedPrompt}`,
+    });
+
+    const result = await transcribeAudioFile(
+      {
+        file: new Blob(["silence"], { type: "audio/webm" }),
+        mimeType: "audio/webm",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toEqual({ ok: false, error: "no_speech" });
+    expect(TRANSCRIPTION_PROMPT).toBe(expectedPrompt);
+    expect(client.audio.transcriptions.create).toHaveBeenCalledWith(
+      expect.objectContaining({ prompt: TRANSCRIPTION_PROMPT }),
+    );
+    expect(mockLog).toHaveBeenCalledWith("error", "audio.transcription_failed", {
+      error: "no_speech",
+      reason: "prompt_echo",
+    });
   });
 
   it("maps provider failures without exposing provider details", async () => {
