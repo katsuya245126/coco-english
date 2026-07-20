@@ -423,7 +423,10 @@ export const mascotTranslationBubbleStyle: CSSProperties = {
   top: "calc(100% + 6px)",
   transform: "translateX(-50%)",
   zIndex: 5,
-  maxWidth: "calc(100vw - 32px)",
+  // max-content: an absolutely-positioned bubble otherwise shrinks to its
+  // anchor phrase's width, rendering Korean one character per line.
+  width: "max-content",
+  maxWidth: "min(260px, calc(100vw - 32px))",
   boxSizing: "border-box",
   padding: "6px 10px",
   borderRadius: 8,

@@ -119,11 +119,14 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     );
   });
 
-  it("wraps only the anchored Korean translation bubble within a phone-safe width", () => {
+  it("sizes the anchored Korean translation bubble to its text, not the phrase width", () => {
     const stylesSource = readSource("src/components/student/styles.ts");
 
+    // width: max-content stops the absolutely-positioned bubble from
+    // shrinking to the phrase button's width, which rendered Korean one
+    // character per line; the min() cap keeps it phone-safe.
     expect(stylesSource).toMatch(
-      /export const mascotTranslationBubbleStyle: CSSProperties = \{[^}]*maxWidth: "calc\(100vw - 32px\)"[^}]*whiteSpace: "normal"[^}]*overflowWrap: "anywhere"[^}]*\};/,
+      /export const mascotTranslationBubbleStyle: CSSProperties = \{[^}]*width: "max-content"[^}]*maxWidth: "min\(260px, calc\(100vw - 32px\)\)"[^}]*whiteSpace: "normal"[^}]*overflowWrap: "anywhere"[^}]*\};/,
     );
   });
 
