@@ -68,7 +68,7 @@ export type OriginalTurnDecision =
     }
   | {
       kind: "retry_original";
-      reason: "non_english" | "parroted_correction";
+      reason: "non_english" | "parroted_correction" | "minimal_effort";
       requireRepeat: false;
     }
   | {

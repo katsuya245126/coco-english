@@ -12,6 +12,10 @@ import type { Database, Json } from "@/lib/db/types";
 import { missionSnapshotSchema } from "@/domain/mission/schemas";
 import { isExactTargetMatch } from "@/domain/ai/fast-path";
 import {
+  isMinimalEffortAnswer,
+  MAX_MINIMAL_EFFORT_BLOCKS,
+} from "@/domain/ai/minimal-effort-detection";
+import {
   AI_EVALUATION_VERSION,
   decideOriginalTurnOutcome,
   guardParrotedConversationCorrection,
@@ -143,6 +147,8 @@ type StoredOriginalTurnEvaluation = {
   correctionNeeded: OriginalTurnEvaluation["correctionNeeded"];
   improvedSentence: string | null;
   requireRepeat: boolean;
+  retryReason?: "minimal_effort";
+  minimalEffortBlocks?: number;
 };
 
 type OriginalTurnWriteDecision = {
@@ -323,6 +329,25 @@ function toJson(
   value: StoredOriginalTurnEvaluation | StoredRepeatTurnEvaluation,
 ): Json {
   return value as unknown as Json;
+}
+
+function priorMinimalEffortBlocks(evaluation: unknown): number {
+  if (
+    typeof evaluation !== "object" ||
+    evaluation === null ||
+    Array.isArray(evaluation)
+  ) {
+    return 0;
+  }
+  const stored = evaluation as {
+    retryReason?: unknown;
+    minimalEffortBlocks?: unknown;
+  };
+  if (stored.retryReason !== "minimal_effort") return 0;
+  return typeof stored.minimalEffortBlocks === "number" &&
+    Number.isFinite(stored.minimalEffortBlocks)
+    ? Math.max(0, Math.floor(stored.minimalEffortBlocks))
+    : 0;
 }
 
 function reviewReasonOrDefault(
@@ -654,7 +679,7 @@ export async function uploadAttemptAudioClip(
           },
           { onConflict: "attempt_id,turn_order" },
         )
-        .select("id, original_transcript, improved_sentence")
+        .select("id, original_transcript, improved_sentence, evaluation")
         .single(),
     );
 
@@ -805,6 +830,97 @@ export async function uploadAttemptAudioClip(
         error: "transcription_failed_retryable",
         retryable: true,
       };
+    }
+
+    // Minimal-effort answer guard (phone-UAT item 6, design approved
+    // 2026-07-20). Deterministic blocklist only; an exact target-example
+    // match ("Yes, I do." as an authored target) always wins; after
+    // MAX_MINIMAL_EFFORT_BLOCKS blocks the answer evaluates normally so a
+    // stuck student is never trapped (D-04). Runs before pronunciation
+    // scoring / evaluation / conversation generation — a blocked try incurs
+    // no paid provider call and never consumes the turn.
+    if (
+      input.clipKind === "original_answer" &&
+      isMinimalEffortAnswer(transcript)
+    ) {
+      const exactTargetMatch =
+        targetExample !== null && isExactTargetMatch(transcript, targetExample);
+      const blocks = priorMinimalEffortBlocks(
+        (turn as { evaluation?: unknown }).evaluation,
+      );
+      if (!exactTargetMatch && blocks < MAX_MINIMAL_EFFORT_BLOCKS) {
+        const evaluation: StoredOriginalTurnEvaluation = {
+          version: AI_EVALUATION_VERSION,
+          outcome: "retry_original",
+          confidence: "high",
+          reviewReason: null,
+          meaningUnderstood: false,
+          targetPatternAttempted: false,
+          englishLanguage: "english",
+          correctionNeeded: false,
+          improvedSentence: null,
+          requireRepeat: false,
+          retryReason: "minimal_effort",
+          minimalEffortBlocks: blocks + 1,
+        };
+
+        const write = await timeStage("turnWrite", () =>
+          supabase.from("attempt_turns").upsert(
+            {
+              attempt_id: input.attemptId,
+              turn_order: input.turnOrder,
+              original_transcript: transcript,
+              target_attempted: false,
+              improved_sentence: null,
+              evaluation: toJson(evaluation),
+            },
+            { onConflict: "attempt_id,turn_order" },
+          ),
+        );
+        if (write.error) {
+          logTiming("failed", { error: "db_error", step: "turn_write" });
+          return { ok: false, error: "db_error", retryable: true };
+        }
+
+        const { error: clipUpdateError } = await timeStage(
+          "finalClipUpdate",
+          () =>
+            supabase
+              .from("audio_clips")
+              .update({
+                object_key: objectKey,
+                mime_type: input.mimeType,
+                duration_ms: input.durationMs,
+                byte_size: input.byteSize,
+                processing_status: "transcribed",
+              })
+              .eq("id", audioClip.id),
+        );
+        if (clipUpdateError) {
+          logTiming("failed", { error: "db_error", step: "final_clip_update" });
+          return { ok: false, error: "db_error", retryable: true };
+        }
+
+        log("info", "audio.minimal_effort_blocked", {
+          audioClipId: audioClip.id,
+          assignmentStudentId: input.assignmentStudentId,
+          attemptId: input.attemptId,
+          turnOrder: input.turnOrder,
+          blocks: blocks + 1,
+        });
+        logTiming("success", { step: "minimal_effort_guard" });
+        return {
+          ok: true,
+          audioClipId: audioClip.id,
+          processingStatus: "transcribed",
+          transcript,
+          evaluation,
+          starBand: null,
+          wordsToPractice: [],
+          cocoLine: null,
+          cocoLineModerationEvent: null,
+        };
+      }
     }
 
     let originalEvaluation: StoredOriginalTurnEvaluation | undefined;

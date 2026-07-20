@@ -986,3 +986,46 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     );
   });
 });
+
+describe("minimal-effort answer guard (conversation mode)", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    mockLog.mockClear();
+    mockSupabase = createMockSupabase();
+    process.env.STUDENT_AUDIO_BUCKET = "student-audio";
+  });
+
+  it("skips conversation-turn generation on a blocked answer", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "should never be called" },
+    }));
+    const moderate = fakeIsContentSafe(async () => ({
+      safe: true,
+      failedOpen: false,
+    }));
+    const evaluate = successfulOriginalEvaluator();
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("no"),
+      evaluateOriginalTurn: evaluate,
+      generateCocoReply: generate,
+      isContentSafe: moderate,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    expect(generate).not.toHaveBeenCalled();
+    expect(moderate).not.toHaveBeenCalled();
+    expect(evaluate).not.toHaveBeenCalled();
+    expect(result.cocoLine).toBeNull();
+    expect(result.evaluation).toMatchObject({
+      outcome: "retry_original",
+      retryReason: "minimal_effort",
+      minimalEffortBlocks: 1,
+    });
+  });
+});
