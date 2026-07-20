@@ -62,6 +62,28 @@ function failedTranscriber() {
   }));
 }
 
+function noSpeechTranscriber() {
+  return vi.fn(async () => ({
+    ok: false as const,
+    error: "no_speech" as const,
+  }));
+}
+
+function successfulPronunciationScorer() {
+  return vi.fn(async () => ({
+    ok: true as const,
+    score: {
+      accuracyScore: 88,
+      fluencyScore: 90,
+      completenessScore: 95,
+      pronunciationScore: 87,
+      starBand: 3 as const,
+      referenceText: "I like apples.",
+      wordScores: [],
+    },
+  }));
+}
+
 function successfulOriginalEvaluator(overrides = {}) {
   return vi.fn(async () => ({
     ok: true as const,
@@ -770,6 +792,40 @@ describe("uploadAttemptAudioClip", () => {
     ).toBe(false);
   });
 
+  it("maps no_speech to retryable without evaluation, scoring, or a transcript write", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const transcribe = noSpeechTranscriber();
+    const evaluateOriginal = successfulOriginalEvaluator();
+    const scorePronunciation = successfulPronunciationScorer();
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: transcribe,
+      evaluateOriginalTurn: evaluateOriginal,
+      scorePronunciation,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "transcription_failed_retryable",
+      retryable: true,
+    });
+    expect(transcribe).toHaveBeenCalledOnce();
+    expect(evaluateOriginal).not.toHaveBeenCalled();
+    expect(scorePronunciation).not.toHaveBeenCalled();
+    expect(
+      mockSupabase.operations.some(
+        (operation) =>
+          operation.table === "attempt_turns" &&
+          typeof operation.payload === "object" &&
+          operation.payload !== null &&
+          ("original_transcript" in operation.payload ||
+            "repeat_transcript" in operation.payload),
+      ),
+    ).toBe(false);
+  });
+
   it("rejects Korean-only transcripts before evaluation or transcript writes", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
@@ -909,6 +965,66 @@ describe("uploadAttemptAudioClip", () => {
           operation.action === "upsert",
       ),
     ).toBe(false);
+  });
+
+  it("returns retryable for a 300 ms tap before file, database, storage, or transcription work", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const file = new Blob(["voice"], { type: "audio/webm" });
+    const arrayBuffer = vi.spyOn(file, "arrayBuffer");
+    const transcribe = successfulTranscriber("I like apples.");
+    const evaluateOriginal = successfulOriginalEvaluator();
+    const scorePronunciation = successfulPronunciationScorer();
+
+    const result = await uploadAttemptAudioClip(
+      audioInput({ durationMs: 300, file }),
+      {
+        transcribeAudioFile: transcribe,
+        evaluateOriginalTurn: evaluateOriginal,
+        scorePronunciation,
+      },
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: "transcription_failed_retryable",
+      retryable: true,
+    });
+    expect(arrayBuffer).not.toHaveBeenCalled();
+    expect(mockSupabase.from).not.toHaveBeenCalled();
+    expect(mockSupabase.upload).not.toHaveBeenCalled();
+    expect(transcribe).not.toHaveBeenCalled();
+    expect(evaluateOriginal).not.toHaveBeenCalled();
+    expect(scorePronunciation).not.toHaveBeenCalled();
+    expect(mockLog).toHaveBeenCalledWith(
+      "info",
+      "audio.upload_timing",
+      expect.objectContaining({
+        status: "failed",
+        audioClipId: null,
+        durationMs: 300,
+        error: "transcription_failed_retryable",
+        step: "duration_precheck",
+        reason: "short_clip",
+      }),
+    );
+  });
+
+  it("allows a clip at the exact 500 ms boundary", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const transcribe = successfulTranscriber("I like apples.");
+
+    const result = await uploadAttemptAudioClip(audioInput({ durationMs: 500 }), {
+      transcribeAudioFile: transcribe,
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      scorePronunciation: successfulPronunciationScorer(),
+    });
+
+    expect(result).toMatchObject({ ok: true, transcript: "I like apples." });
+    expect(transcribe).toHaveBeenCalledOnce();
   });
 
   it("rejects oversized, overlong, and unsupported audio before storage or transcription", async () => {
