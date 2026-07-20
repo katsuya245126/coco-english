@@ -1,65 +1,48 @@
-# Dynamic dialogue pagination and open follow-ups
+# Whisper silence guard
 
-**Status:** Complete (phone UAT passed 2026-07-20; merge approved)
+**Status:** Design approved; written spec awaiting user review
 
 ## Goal
 
-Make Coco's current dialogue easier to read in a compact chat box and make dynamic-conversation follow-ups invite phrases or short sentences instead of repetitive one-word answers.
+Prevent silent or effectively empty recordings from becoming prompt-echo transcripts that consume a student's turn. Reuse the existing child-friendly retry state and keep the turn available for another recording.
 
 ## Scope
 
-- Paginate only the current Coco message using semantic text boundaries.
-- Keep translation phrase highlighting and bubbles aligned with the visible page.
-- Add clear previous/next controls, a page indicator, and a visible Hint loading spinner.
-- Prefer open, context-grounded dynamic follow-ups; reserve either/or questions for vague or stuck responses.
+- Detect strong transcription-prompt echoes and exact high-confidence silence hallucinations.
+- Reject accidental recordings shorter than 500 ms before storage or transcription.
+- Route detections through the existing `transcription_failed_retryable` response.
+- Keep detection in a pure domain function with narrow server adapter hooks.
 
 ## Non-goals
 
-- Conversation-history browsing.
-- Changes to preset mission evaluation, correction, progression, or hint ladders.
-- Mascot placement work already completed on `main`.
-- Latency, TTS generation, or transition-pipeline optimization.
+- General answer relevance or one-word-answer policy.
+- New client states, student-facing copy, API shapes, or database changes.
+- Audio-energy analysis, provider/model changes, or the stale moderation-gate branch.
+- Push, merge, deploy, publication, or production mutation.
 
-## Constraints
+## Constraints and decisions
 
-- Preserve server-owned prompt provenance, translation offsets, and attempt history.
-- Preserve unrelated working-tree changes.
-- Do not push, merge, deploy, publish, or modify production without explicit permission.
+- User approved the design and defaults on 2026-07-20.
+- Prompt overlap requires at least 70% of transcript tokens and at least 5 tokens.
+- The short-tap cutoff is strictly less than 500 ms.
+- The hallucination blocklist is normalized exact full-transcript matching only.
+- No-speech never reaches evaluation, scoring, transcript persistence, conversation generation, or progression.
+- Preserve the dirty main checkout and the protected port-3200 dynamic-dialogue worktree.
+- Use unit/source-string tests only; never call the paid provider in tests.
 
-## Done Checks
+## Done checks
 
-- [x] Approved design spec is committed (2026-07-20 sentence-aware spec supersedes the pagination rules of the 2026-07-19 spec).
-- [x] Revised implementation plan for the 2026-07-20 design is written and approved (the 2026-07-19 plan is superseded).
-- [x] Long current messages paginate without internal scrolling.
-- [x] Page boundaries preserve source text and translation phrase ranges.
-- [x] Hint loading uses a visible spinner and opens the first translated phrase on its page.
-- [x] Dynamic prompt rules favor expandable open questions.
-- [x] Preset behavior remains unchanged.
-- [x] Focused tests and proportionate project checks pass for the revised implementation.
-- [x] Phone UAT (2026-07-20) confirms natural sentence-aligned pages, Hint-stable boundaries, and the pale-blue phrase control on device; Korean hint-bubble sizing fixed (c6f6eced) and merge approved by the user.
+- [x] Design approved by user.
+- [x] Isolated `codex/whisper-silence-guard` worktree created.
+- [x] Clean baseline verified: 85 test files passed; 774 tests passed; 4 skipped.
+- [x] Design spec written and self-reviewed.
+- [ ] User approves the written design spec.
+- [ ] Detailed implementation plan written and approved.
+- [ ] Domain, adapter, and orchestration tests fail for the intended reasons before implementation.
+- [ ] Minimal implementation makes focused tests pass.
+- [ ] Full Vitest, typecheck, and lint gates pass.
+- [ ] Task archived after completion.
 
-## Plan
+## Current position
 
-1. Write and review the design specification. Complete; revised 2026-07-20.
-2. Create an implementation plan after user approval. The 2026-07-19 plan is superseded by the revised design; a revised plan is not yet written or approved.
-3. Write and approve the revised implementation plan.
-4. Implement test-first in small, scoped steps.
-5. Verify with automated checks, then phone UAT, then archive this task.
-
-## Current Position
-
-Implementation is committed through `b55f6ac3`. Phone UAT exposed two regressions:
-
-- the approved 16-word budget had been changed to 8, producing a 4/8/1 split for the 13-word summer-vacation line and different boundaries after hint ranges loaded;
-- the English phrase control's 44px minimum height and negative vertical margin covered adjacent text.
-
-Both regressions now have focused tests and local fixes. Verification on 2026-07-20:
-
-- focused pagination/UI tests: 38 passed;
-- full Vitest suite: 740 passed, 4 skipped;
-- typecheck: passed;
-- lint: passed with one pre-existing unused-argument warning in `scripts/check-student-feedback-states.mjs`.
-
-Phone UAT (`Screenshot_20260720_024926_Chrome.jpg`, user-supplied) then showed the restored 16-word budget packs the 13-word summer-vacation message onto one page that overflows the 104px chatbox and hides the pager. On 2026-07-20 the user reviewed and approved a revised pagination design (sentence-atomic pages, ≤10-word packing, 16-word single-sentence cap with clause/whitespace fallback, pages frozen against Hint with split highlights, constant 4-line chatbox with matching mascot-stage growth): `docs/superpowers/specs/2026-07-20-sentence-aware-dialogue-pagination-design.md`.
-
-Next: user runs phone UAT through the existing port-3200 tunnel and confirms sentence-aligned pages, Hint-stable boundaries, the four-line chatbox with no answer-panel overlap, and the `6d73777b` phrase-control height fix. Any phone screenshot must be labeled as user-supplied live UAT evidence.
+The approved design is recorded in `docs/superpowers/specs/2026-07-20-whisper-silence-guard-design.md`. Next: user reviews the written spec. After approval, invoke `writing-plans`; do not implement before the plan is written and approved.
