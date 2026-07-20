@@ -317,4 +317,88 @@ describe("parroted conversation-correction guard (UAT 2026-07-16 regression)", (
       }),
     ).toEqual(decision);
   });
+
+  it("catches an appended question when Coco's line has a lead-in sentence", async () => {
+    const { guardParrotedConversationCorrection } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    const outcome = guardParrotedConversationCorrection(
+      {
+        kind: "needs_correction",
+        requireRepeat: true,
+        improvedSentence:
+          "I don't play soccer. What games do you like to play?",
+      },
+      {
+        evaluationMode: "conversation",
+        missionQuestion: "That's cool! What games do you like to play?",
+      },
+    );
+
+    expect(outcome).toEqual({
+      kind: "retry_original",
+      reason: "parroted_correction",
+      requireRepeat: false,
+    });
+  });
+
+  it("does not flag a correction containing a very short Coco question as a word", async () => {
+    const { guardParrotedConversationCorrection } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    const decision = {
+      kind: "needs_correction",
+      requireRepeat: true,
+      improvedSentence: "That's why I like it.",
+    } as const;
+
+    expect(
+      guardParrotedConversationCorrection(decision, {
+        evaluationMode: "conversation",
+        missionQuestion: "Why?",
+      }),
+    ).toEqual(decision);
+  });
+
+  it("still downgrades a correction that IS the short question verbatim", async () => {
+    const { guardParrotedConversationCorrection } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    const outcome = guardParrotedConversationCorrection(
+      {
+        kind: "needs_correction",
+        requireRepeat: true,
+        improvedSentence: "Why?",
+      },
+      {
+        evaluationMode: "conversation",
+        missionQuestion: "Why?",
+      },
+    );
+
+    expect(outcome.kind).toBe("retry_original");
+  });
+
+  it("matches across curly and straight apostrophes", async () => {
+    const { guardParrotedConversationCorrection } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    const outcome = guardParrotedConversationCorrection(
+      {
+        kind: "needs_correction",
+        requireRepeat: true,
+        improvedSentence: "I like puzzle games. What games don't you like?",
+      },
+      {
+        evaluationMode: "conversation",
+        missionQuestion: "What games don’t you like?",
+      },
+    );
+
+    expect(outcome.kind).toBe("retry_original");
+  });
 });

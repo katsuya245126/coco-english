@@ -175,9 +175,28 @@ export type OriginalTurnGuardContext = {
 function normalizeForParrotComparison(text: string): string {
   return text
     .toLowerCase()
+    .replace(/[’‘]/g, "'")
     .replace(/[^\p{L}\p{N}']+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/**
+ * Coco's dynamic lines often prepend a reaction sentence ("That's cool! What
+ * games do you like to play?"), so leakage must be matched per question-shaped
+ * sentence, not only against the whole line. Very short questions ("Why?")
+ * are excluded from containment matching because their words appear in
+ * legitimate answers; the whole-string equality check still covers them.
+ */
+const MIN_CONTAINMENT_QUESTION_WORDS = 3;
+
+function normalizedQuestionSegments(missionQuestion: string): string[] {
+  return missionQuestion
+    .split(/(?<=[.!?])\s+/)
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.endsWith("?"))
+    .map(normalizeForParrotComparison)
+    .filter((segment) => segment.length > 0);
 }
 
 /**
@@ -188,9 +207,9 @@ function normalizeForParrotComparison(text: string): string {
  * question as their answer, so downgrade it to retry_original — the student
  * simply re-records and the parroted sentence is never shown or spoken.
  * Flags a correction that normalizes to the whole missionQuestion, contains
- * it as a whole-word phrase (UAT 2026-07-20: a declarative answer with the
- * full question appended), or is a question-shaped sentence contained in a
- * multi-sentence opener.
+ * one of its question-shaped sentences as a whole-word phrase (UAT
+ * 2026-07-20: a declarative answer with the full question appended), or is a
+ * question-shaped sentence contained in a multi-sentence opener.
  */
 export function guardParrotedConversationCorrection(
   decision: OriginalTurnDecision,
@@ -203,8 +222,17 @@ export function guardParrotedConversationCorrection(
   const improved = normalizeForParrotComparison(decision.improvedSentence);
   if (!question || !improved) return decision;
 
+  const containsQuestionSegment = normalizedQuestionSegments(
+    context.missionQuestion ?? "",
+  ).some(
+    (segment) =>
+      segment.split(" ").length >= MIN_CONTAINMENT_QUESTION_WORDS &&
+      ` ${improved} `.includes(` ${segment} `),
+  );
+
   const parroted =
-    ` ${improved} `.includes(` ${question} `) ||
+    improved === question ||
+    containsQuestionSegment ||
     (decision.improvedSentence.trim().endsWith("?") &&
       question.includes(improved));
   if (!parroted) return decision;

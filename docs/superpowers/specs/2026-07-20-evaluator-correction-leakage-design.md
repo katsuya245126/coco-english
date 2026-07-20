@@ -77,6 +77,18 @@ In `conversationInstructions`:
 - `src/server/student-access/audio-upload.test.ts`: existing orchestration
   guard regression continues to cover the wiring; no new wiring is added.
 
+## Amendment (post-review, 2026-07-20)
+
+Code review found that in dynamic chat `missionQuestion` is Coco's previous
+generated line (`audio-upload.ts`: `snapshotTurn?.prompt ?? previousCocoLine`),
+which routinely has a lead-in sentence ("That's cool! What games do you like
+to play?") — full-line containment would miss the leaked shape — and that very
+short questions ("Why?") would false-positive on legitimate answers. The guard
+therefore matches per question-shaped sentence segment of the mission
+question, requires at least 3 normalized words for containment matching
+(whole-string equality still covers shorter questions), and folds curly
+apostrophes during normalization. Policy is unchanged: reject → retry.
+
 ## Non-goals
 
 - General relevance scoring, minimal-effort answers (item 6), topic drift
