@@ -26,6 +26,7 @@
 - Keep teacher review transcript-first and Coco bounded rather than open-ended.
 - When changing mission evaluation, progression, hints, TTS, or Coco generation, preserve the preset/conversation split. Conversation mode accepts relevant valid English, applies meaning-preserving corrections, skips preset success and transition narration, grounds follow-ups in owned attempt history, and never falls back to the original target-pattern hint. Preset behavior remains unchanged unless explicitly requested.
 - Never commit reusable student access values or secrets.
+- A private local class-reset maintenance tool may exist at `.superpowers/private-tools/reset-class-assignments/`. When asked to use it, read its local `AGENTS.md` and `README.md` first. Never stage, commit, push, publish, or copy its contents into tracked files. Applying its database migration, running a real preview, and executing a reset each require separate approval naming the exact environment and action.
 
 ## Verification
 
