@@ -402,3 +402,100 @@ describe("parroted conversation-correction guard (UAT 2026-07-16 regression)", (
     expect(outcome.kind).toBe("retry_original");
   });
 });
+
+describe("post-cap minimal-effort correction guard (phone UAT 2026-07-21)", () => {
+  const polarCorrection = {
+    kind: "needs_correction",
+    requireRepeat: true,
+    improvedSentence: "Yes, I do.",
+  } as const;
+
+  it("routes a nonsensical polar correction for an information question to review", async () => {
+    const { guardNonsensicalMinimalEffortCorrection } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    expect(
+      guardNonsensicalMinimalEffortCorrection(polarCorrection, {
+        evaluationMode: "conversation",
+        missionQuestion: "How often do you play soccer?",
+        transcript: "Yes.",
+        priorMinimalEffortBlocks: 2,
+      }),
+    ).toEqual({
+      kind: "teacher_review",
+      reviewReason: "ambiguous",
+      requireRepeat: false,
+    });
+  });
+
+  it.each([
+    ["Yeah.", "Yes, I do."],
+    ["Yep!", "Yes, I do."],
+    ["Yup", "Yes, I do."],
+    ["Nope.", "No, I don’t."],
+    ["Nah", "No, I don't."],
+    ["No.", "No, I do not."],
+    ["Nah.", "No, I cannot."],
+  ])("covers post-cap polar variant %s and correction %s", async (transcript, improvedSentence) => {
+    const { guardNonsensicalMinimalEffortCorrection } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    expect(
+      guardNonsensicalMinimalEffortCorrection(
+        { ...polarCorrection, improvedSentence },
+        {
+          evaluationMode: "conversation",
+          missionQuestion: "How often do you play soccer?",
+          transcript,
+          priorMinimalEffortBlocks: 2,
+        },
+      ),
+    ).toMatchObject({ kind: "teacher_review", reviewReason: "ambiguous" });
+  });
+
+  it("does not alter pre-cap, preset, polar-question, or meaningful corrections", async () => {
+    const { guardNonsensicalMinimalEffortCorrection } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    expect(
+      guardNonsensicalMinimalEffortCorrection(polarCorrection, {
+        evaluationMode: "conversation",
+        missionQuestion: "How often do you play soccer?",
+        transcript: "Yes.",
+        priorMinimalEffortBlocks: 1,
+      }),
+    ).toEqual(polarCorrection);
+    expect(
+      guardNonsensicalMinimalEffortCorrection(polarCorrection, {
+        evaluationMode: "preset",
+        missionQuestion: "How often do you play soccer?",
+        transcript: "Yes.",
+        priorMinimalEffortBlocks: 2,
+      }),
+    ).toEqual(polarCorrection);
+    expect(
+      guardNonsensicalMinimalEffortCorrection(polarCorrection, {
+        evaluationMode: "conversation",
+        missionQuestion: "Do you play soccer?",
+        transcript: "Yes.",
+        priorMinimalEffortBlocks: 2,
+      }),
+    ).toEqual(polarCorrection);
+
+    const meaningfulCorrection = {
+      ...polarCorrection,
+      improvedSentence: "I play soccer sometimes.",
+    } as const;
+    expect(
+      guardNonsensicalMinimalEffortCorrection(meaningfulCorrection, {
+        evaluationMode: "conversation",
+        missionQuestion: "How often do you play soccer?",
+        transcript: "Yes.",
+        priorMinimalEffortBlocks: 2,
+      }),
+    ).toEqual(meaningfulCorrection);
+  });
+});

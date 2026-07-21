@@ -20,7 +20,7 @@ type OriginalOutcome =
   | "acceptedOriginal"
   | "needsCorrection"
   | "retryOriginal"
-  | "retryFullSentence"
+  | "retryMinimalEffort"
   | "teacherReview";
 
 type RepeatOutcome = "repeatAccepted" | "repeatRetry" | "repeatReview";
@@ -31,6 +31,8 @@ type StepAiEvaluationFeedbackProps = {
   transcript?: string | null;
   audioUrl?: string;
   improvedSentence?: string | null;
+  minimalEffortKind?: "dont_know" | "short_answer";
+  retryExample?: string | null;
   starBand?: PronunciationStarBand | null;
   wordsToPractice?: WordHighlight[];
   showCocoLine?: boolean;
@@ -60,6 +62,8 @@ export function StepAiEvaluationFeedback({
   transcript,
   audioUrl,
   improvedSentence,
+  minimalEffortKind,
+  retryExample,
   starBand,
   wordsToPractice,
   showCocoLine = true,
@@ -157,18 +161,35 @@ export function StepAiEvaluationFeedback({
     );
   }
 
-  if (outcome === "retryFullSentence") {
+  if (outcome === "retryMinimalEffort") {
+    const isUnsure = minimalEffortKind === "dont_know";
     return (
       <div style={stepCardStyle} aria-live="polite" role="alert">
         <Transcript transcript={transcript} audioUrl={audioUrl} />
-        {showCocoLine ? (
-          <div style={{ ...evaluationErrorStyle, marginTop: transcript ? 16 : 0 }}>
-            <h2 style={headingInlineStyle}>Good start!</h2>
-            <p style={{ fontSize: 16, color: "#111827", margin: 0, lineHeight: 1.5 }}>
-              Can you say it in a full sentence?
+        <div
+          style={{
+            ...improvedSentenceCardStyle,
+            marginTop: transcript ? 16 : 0,
+          }}
+        >
+          <h2 style={headingInlineStyle}>
+            {isUnsure
+              ? "It’s okay to guess!"
+              : retryExample
+                ? "Try an answer like this:"
+                : "Tell Coco a little more."}
+          </h2>
+          {isUnsure ? (
+            <p style={minimalEffortInstructionStyle}>
+              {retryExample ? "Try one answer like this:" : "Try one answer."}
             </p>
-          </div>
-        ) : null}
+          ) : !retryExample ? (
+            <p style={minimalEffortInstructionStyle}>
+              Answer Coco’s question and add one detail.
+            </p>
+          ) : null}
+          {retryExample ? <p style={sentenceStyle}>{retryExample}</p> : null}
+        </div>
         <RecordingReview onRetry={onRetry} />
       </div>
     );
@@ -434,6 +455,13 @@ const headingInlineStyle: CSSProperties = {
   color: "#111827",
   margin: "0 0 8px",
   lineHeight: 1.25,
+};
+
+const minimalEffortInstructionStyle: CSSProperties = {
+  fontSize: 16,
+  color: "#111827",
+  margin: "8px 0 0",
+  lineHeight: 1.5,
 };
 
 const sentenceStyle: CSSProperties = {

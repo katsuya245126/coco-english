@@ -1481,6 +1481,8 @@ describe("minimal-effort answer guard", () => {
       outcome: "retry_original",
       retryReason: "minimal_effort",
       minimalEffortBlocks: 1,
+      minimalEffortKind: "short_answer",
+      retryExample: "I like playing soccer after school.",
       requireRepeat: false,
     });
     expect(result.starBand).toBeNull();
@@ -1523,6 +1525,8 @@ describe("minimal-effort answer guard", () => {
     expect(result.evaluation).toMatchObject({
       retryReason: "minimal_effort",
       minimalEffortBlocks: 2,
+      minimalEffortKind: "dont_know",
+      retryExample: "I like playing soccer after school.",
     });
   });
 
@@ -1553,7 +1557,33 @@ describe("minimal-effort answer guard", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("expected ok");
     expect(evaluate).toHaveBeenCalledTimes(1);
-    expect(result.evaluation).toMatchObject({ outcome: "needs_correction" });
+    expect(result.evaluation).toMatchObject({
+      outcome: "needs_correction",
+      minimalEffortBlocks: 2,
+    });
+  });
+
+  it("does not restart blocking after a post-cap generic retry overwrites the reason", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    mockSupabase = createMockSupabase({
+      turnEvaluation: {
+        version: "ai-eval-v1",
+        outcome: "retry_original",
+        minimalEffortBlocks: 2,
+      },
+    });
+    const evaluate = successfulOriginalEvaluator();
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("No."),
+      evaluateOriginalTurn: evaluate,
+      scorePronunciation: successfulPronunciationScorer(),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(evaluate).toHaveBeenCalledTimes(1);
   });
 
   it("never blocks an exact target-example match", async () => {

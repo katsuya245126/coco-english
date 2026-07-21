@@ -357,6 +357,44 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
     );
   });
 
+  it("forbids polar fragment expansion for open information questions", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: {
+        ...correctOriginalProviderResult,
+        outcome: "teacher_review",
+        meaningUnderstood: false,
+        targetPatternAttempted: false,
+        confidence: "medium",
+        reviewReason: "ambiguous",
+      },
+    });
+
+    await evaluateOriginalTurn(
+      {
+        evaluationMode: "conversation",
+        missionQuestion: "How often do you play soccer?",
+        transcript: "Yes.",
+        targetPattern: "I play soccer _____.",
+        targetExample: null,
+        level: "elementary",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const request = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const userMessage = request?.input.find((message) => message.role === "user");
+    const prompt = JSON.parse(userMessage?.content ?? "{}") as {
+      instructions?: string[];
+    };
+    const instructions = prompt.instructions?.join(" ") ?? "";
+
+    expect(instructions).toContain("information question");
+    expect(instructions).toContain("auxiliary yes/no sentence");
+    expect(instructions).toContain("teacher_review");
+    expect(instructions).toContain("do not invent");
+  });
+
   it("describes fragment expansion without an imitable literal answer and forbids appended questions", async () => {
     const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
     const client = createFakeClient({

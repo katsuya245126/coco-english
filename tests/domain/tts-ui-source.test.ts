@@ -102,6 +102,22 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(stylesSource).toContain("minHeight: 44");
   });
 
+  it("shows the dynamic-reply wait state inside Coco's dialogue box", () => {
+    const shellSource = readSource(
+      "src/components/student/MissionFlowShell.tsx",
+    );
+    const dialogueSource = readSource(
+      "src/components/student/CocoDialogueBox.tsx",
+    );
+
+    expect(shellSource).toMatch(
+      /flow\.step === "cocoThinking"[\s\S]{0,180}text: "Coco is thinking…"[\s\S]{0,80}line: null/,
+    );
+    expect(shellSource).not.toContain("StepCocoThinking");
+    expect(dialogueSource).toContain('aria-live="polite"');
+    expect(dialogueSource).toContain('aria-atomic="true"');
+  });
+
   it("keeps English inline and shows Korean only in an anchored phrase bubble", () => {
     const dialogueSource = readSource(
       "src/components/student/CocoDialogueBox.tsx",
@@ -116,6 +132,23 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(dialogueSource).not.toContain("onTouchStart");
     expect(stylesSource).toMatch(
       /mascotPhraseButtonStyle[\s\S]*minHeight: "auto"[\s\S]*padding: "2px 3px"[\s\S]*margin: 0/,
+    );
+  });
+
+  it("lets a wide hint phrase wrap inline without orphaning trailing punctuation", () => {
+    const dialogueSource = readSource(
+      "src/components/student/CocoDialogueBox.tsx",
+    );
+    const stylesSource = readSource("src/components/student/styles.ts");
+
+    expect(dialogueSource).toContain(
+      'style={{ position: "relative", display: "inline" }}',
+    );
+    expect(stylesSource).toMatch(
+      /mascotPhraseButtonStyle[\s\S]*display: "inline"[\s\S]*whiteSpace: "normal"/,
+    );
+    expect(dialogueSource).not.toContain(
+      'style={{ position: "relative", display: "inline-block" }}',
     );
   });
 
@@ -390,7 +423,7 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(routeSource).toContain('return "Try again!"');
   });
 
-  it("speaks the full-sentence retry line for minimal-effort answers (phone-UAT item 6)", () => {
+  it("uses distinct server-owned retry lines for minimal-effort answers", () => {
     const shellSource = readSource(
       "src/components/student/MissionFlowShell.tsx",
     );
@@ -398,16 +431,23 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
       "src/app/student/missions/[assignmentStudentId]/tts/route.ts",
     );
 
-    // The bubble text and the server-resolved spoken line must be the same
-    // string, matching every other feedback variant.
-    expect(shellSource).toContain('feedbackVariant: "retry_full_sentence"');
+    expect(shellSource).toContain('feedbackVariant: "retry_minimal_example"');
+    expect(shellSource).toContain('feedbackVariant: "retry_minimal_detail"');
+    expect(shellSource).toContain('feedbackVariant: "retry_minimal_unsure"');
     expect(shellSource).toContain(
-      'text: "Good start! Can you say it in a full sentence?"',
+      'text: "It\'s okay to guess. Try one answer!"',
     );
-    expect(routeSource).toContain('case "retry_full_sentence":');
+    expect(routeSource).toContain('case "retry_minimal_example":');
+    expect(routeSource).toContain('case "retry_minimal_detail":');
+    expect(routeSource).toContain('case "retry_minimal_unsure":');
     expect(routeSource).toContain(
-      'return "Good start! Can you say it in a full sentence?"',
+      'return "It\'s okay to guess. Try one answer!"',
     );
+    expect(shellSource).toContain("retryExample={flow.originalFeedback.retryExample}");
+    expect(shellSource).toContain(
+      "minimalEffortKind={flow.originalFeedback.minimalEffortKind}",
+    );
+    expect(shellSource).not.toContain("Can you say it in a full sentence?");
   });
 
   it("resolves improved/dynamic line lookups from the latest attempt only (multi-attempt voice regression)", () => {

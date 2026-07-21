@@ -211,7 +211,7 @@ describe("completion helpers: persisted feedback resume", () => {
     });
   });
 
-  it("resumes a minimal-effort block as retryFullSentence", () => {
+  it("resumes a minimal-effort block with its help metadata", () => {
     const review = getPendingTurnReview({
       ...makeTurn(1, {
         original_transcript: "Yes.",
@@ -224,14 +224,44 @@ describe("completion helpers: persisted feedback resume", () => {
         outcome: "retry_original",
         retryReason: "minimal_effort",
         minimalEffortBlocks: 1,
+        minimalEffortKind: "short_answer",
+        retryExample: "I play soccer sometimes.",
         requireRepeat: false,
       },
     });
 
     expect(review).toMatchObject({
       step: "aiFeedback",
-      outcome: "retryFullSentence",
+      outcome: "retryMinimalEffort",
       transcript: "Yes.",
+      minimalEffortKind: "short_answer",
+      retryExample: "I play soccer sometimes.",
+    });
+  });
+
+  it("resumes I don't know with distinct unsure guidance", () => {
+    const review = getPendingTurnReview({
+      ...makeTurn(1, {
+        original_transcript: "I don't know.",
+        repeat_transcript: null,
+        repeat_accepted: null,
+      }),
+      improved_sentence: null,
+      evaluation: {
+        version: "ai-eval-v1",
+        outcome: "retry_original",
+        retryReason: "minimal_effort",
+        minimalEffortBlocks: 1,
+        minimalEffortKind: "dont_know",
+        retryExample: null,
+        requireRepeat: false,
+      },
+    });
+
+    expect(review).toMatchObject({
+      outcome: "retryMinimalEffort",
+      minimalEffortKind: "dont_know",
+      retryExample: null,
     });
   });
 

@@ -34,7 +34,6 @@ import { StepImprovedRepeat } from "@/components/student/StepImprovedRepeat";
 import { StepAiEvaluationFeedback } from "@/components/student/StepAiEvaluationFeedback";
 import { StepTurnTransition } from "@/components/student/StepTurnTransition";
 import { StepMissionComplete } from "@/components/student/StepMissionComplete";
-import { StepCocoThinking } from "@/components/student/StepCocoThinking";
 import { ScenePremiseCard } from "@/components/student/ScenePremiseCard";
 import { MascotStage } from "@/components/student/MascotStage";
 import {
@@ -64,7 +63,7 @@ export type FlowStep =
   | "reviewPending"
   | "complete";
 
-type OriginalFeedback =
+type OriginalFeedback = (
   | {
       kind: "acceptedOriginal";
       transcript: string;
@@ -85,7 +84,7 @@ type OriginalFeedback =
       wordsToPractice?: WordHighlight[];
     }
   | {
-      kind: "retryFullSentence";
+      kind: "retryMinimalEffort";
       transcript: string;
       starBand?: PronunciationStarBand | null;
       wordsToPractice?: WordHighlight[];
@@ -95,7 +94,11 @@ type OriginalFeedback =
       transcript: string;
       starBand?: PronunciationStarBand | null;
       wordsToPractice?: WordHighlight[];
-    };
+    }
+) & {
+  minimalEffortKind?: "dont_know" | "short_answer";
+  retryExample?: string | null;
+};
 
 export type RepeatFeedbackCompatibility = "repeatAccepted" | "teacherReview";
 
@@ -211,6 +214,8 @@ function initialFlowState(
         : {
             kind: initialReview.outcome,
             transcript: initialReview.transcript,
+            minimalEffortKind: initialReview.minimalEffortKind,
+            retryExample: initialReview.retryExample,
           };
 
     return {
@@ -337,6 +342,8 @@ export function MissionFlowShell({
       outcome?: string;
       improvedSentence?: string | null;
       retryReason?: string | null;
+      minimalEffortKind?: "dont_know" | "short_answer";
+      retryExample?: string | null;
     };
     starBand?: PronunciationStarBand | null;
     wordsToPractice?: WordHighlight[];
@@ -437,7 +444,14 @@ export function MissionFlowShell({
       evaluation?.outcome === "retry_original" &&
       evaluation.retryReason === "minimal_effort"
     ) {
-      return { kind: "retryFullSentence", transcript, starBand, wordsToPractice };
+      return {
+        kind: "retryMinimalEffort",
+        transcript,
+        minimalEffortKind: evaluation.minimalEffortKind,
+        retryExample: evaluation.retryExample,
+        starBand,
+        wordsToPractice,
+      };
     }
     if (evaluation?.outcome === "retry_original") {
       return { kind: "retryOriginal", transcript, starBand, wordsToPractice };
@@ -882,8 +896,6 @@ export function MissionFlowShell({
           </p>
         )}
 
-        {flow.step === "cocoThinking" && <StepCocoThinking />}
-
         {flow.step === "question" && activeQuestion.kind === "preset" && (
           <StepBuddyQuestion
             assignmentStudentId={assignmentStudentId}
@@ -941,6 +953,8 @@ export function MissionFlowShell({
                 ? flow.originalFeedback.improvedSentence
                 : null
             }
+            minimalEffortKind={flow.originalFeedback.minimalEffortKind}
+            retryExample={flow.originalFeedback.retryExample}
             starBand={flow.originalFeedback.starBand}
             wordsToPractice={flow.originalFeedback.wordsToPractice}
             showCocoLine={false}
@@ -1080,9 +1094,9 @@ function getMascotDialogue({
   }
 
   if (flow.step === "cocoThinking") {
-    // No dialogue bubble/voice during the wait — StepCocoThinking already
-    // shows the "Coco is thinking…" indicator (CHAT-02).
-    return { text: null, line: null };
+    // Keep the wait state inside Coco's persistent dialogue box. It is
+    // intentionally unvoiced and has no translation hint.
+    return { text: "Coco is thinking…", line: null };
   }
 
   if (flow.step === "question" && activeQuestion.kind !== "unavailable") {
@@ -1131,11 +1145,32 @@ function getMascotDialogue({
 
   if (
     flow.step === "aiFeedback" &&
-    flow.originalFeedback?.kind === "retryFullSentence"
+    flow.originalFeedback?.kind === "retryMinimalEffort"
   ) {
+    if (flow.originalFeedback.minimalEffortKind === "dont_know") {
+      return {
+        text: "It's okay to guess. Try one answer!",
+        line: {
+          lineKind: "coco_feedback",
+          feedbackVariant: "retry_minimal_unsure",
+        },
+      };
+    }
+    if (flow.originalFeedback.retryExample) {
+      return {
+        text: "Try the example below!",
+        line: {
+          lineKind: "coco_feedback",
+          feedbackVariant: "retry_minimal_example",
+        },
+      };
+    }
     return {
-      text: "Good start! Can you say it in a full sentence?",
-      line: { lineKind: "coco_feedback", feedbackVariant: "retry_full_sentence" },
+      text: "Answer Coco's question and add one detail.",
+      line: {
+        lineKind: "coco_feedback",
+        feedbackVariant: "retry_minimal_detail",
+      },
     };
   }
 

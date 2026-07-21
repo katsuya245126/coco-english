@@ -121,6 +121,7 @@ function createMockSupabase(options: {
   }>;
   historyLookupError?: { message: string } | null;
   cocoLineUpsertError?: { message: string } | null;
+  turnEvaluation?: unknown;
 } = {}) {
   const operations: Operation[] = [];
   const upload = vi.fn(async () => ({ error: options.uploadError ?? null }));
@@ -242,7 +243,12 @@ function createMockSupabase(options: {
         if (!operations.includes(operation)) operations.push(operation);
         if (table === "attempt_turns") {
           return {
-            data: { id: "turn-1", original_transcript: null, improved_sentence: null },
+            data: {
+              id: "turn-1",
+              original_transcript: null,
+              improved_sentence: null,
+              evaluation: options.turnEvaluation ?? null,
+            },
             error: null,
           };
         }
@@ -996,6 +1002,10 @@ describe("minimal-effort answer guard (conversation mode)", () => {
   });
 
   it("skips conversation-turn generation on a blocked answer", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot:
+        soccerConversationSnapshot as unknown as typeof conversationMissionSnapshotFixture,
+    });
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
     );
@@ -1026,6 +1036,48 @@ describe("minimal-effort answer guard (conversation mode)", () => {
       outcome: "retry_original",
       retryReason: "minimal_effort",
       minimalEffortBlocks: 1,
+      minimalEffortKind: "short_answer",
+      retryExample: "I play soccer sometimes.",
+    });
+  });
+
+  it("routes the post-cap How often polar correction to teacher review", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot:
+        soccerConversationSnapshot as unknown as typeof conversationMissionSnapshotFixture,
+      turnEvaluation: {
+        version: "ai-eval-v1",
+        outcome: "retry_original",
+        retryReason: "minimal_effort",
+        minimalEffortBlocks: 2,
+      },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluate = successfulOriginalEvaluator({
+      outcome: "needs_correction",
+      meaningUnderstood: false,
+      targetPatternAttempted: false,
+      correctionNeeded: true,
+      improvedSentence: "Yes, I do.",
+    });
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("Yes."),
+      evaluateOriginalTurn: evaluate,
+    });
+
+    expect(evaluate).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "teacher_review",
+        reviewReason: "ambiguous",
+        improvedSentence: null,
+        requireRepeat: false,
+        minimalEffortBlocks: 2,
+      },
     });
   });
 });

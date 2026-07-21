@@ -16,8 +16,14 @@ import {
   MAX_MINIMAL_EFFORT_BLOCKS,
 } from "@/domain/ai/minimal-effort-detection";
 import {
+  classifyMinimalEffortFeedback,
+  resolveMinimalEffortRetryExample,
+  type MinimalEffortKind,
+} from "@/domain/ai/minimal-effort-feedback";
+import {
   AI_EVALUATION_VERSION,
   decideOriginalTurnOutcome,
+  guardNonsensicalMinimalEffortCorrection,
   guardParrotedConversationCorrection,
   type OriginalTurnGuardContext,
   decideRepeatTurnOutcome,
@@ -149,6 +155,8 @@ type StoredOriginalTurnEvaluation = {
   requireRepeat: boolean;
   retryReason?: "minimal_effort";
   minimalEffortBlocks?: number;
+  minimalEffortKind?: MinimalEffortKind;
+  retryExample?: string | null;
 };
 
 type OriginalTurnWriteDecision = {
@@ -199,9 +207,16 @@ export function applyOriginalTurnEvaluation(
     };
   }
 
-  const decision = guardParrotedConversationCorrection(
-    decideOriginalTurnOutcome(result.evaluation),
-    guardContext ?? { evaluationMode: "preset", missionQuestion: null },
+  const resolvedGuardContext = guardContext ?? {
+    evaluationMode: "preset",
+    missionQuestion: null,
+  };
+  const decision = guardNonsensicalMinimalEffortCorrection(
+    guardParrotedConversationCorrection(
+      decideOriginalTurnOutcome(result.evaluation),
+      resolvedGuardContext,
+    ),
+    resolvedGuardContext,
   );
   const improvedSentence =
     decision.kind === "needs_correction" ? decision.improvedSentence : null;
@@ -340,10 +355,8 @@ function priorMinimalEffortBlocks(evaluation: unknown): number {
     return 0;
   }
   const stored = evaluation as {
-    retryReason?: unknown;
     minimalEffortBlocks?: unknown;
   };
-  if (stored.retryReason !== "minimal_effort") return 0;
   return typeof stored.minimalEffortBlocks === "number" &&
     Number.isFinite(stored.minimalEffortBlocks)
     ? Math.max(0, Math.floor(stored.minimalEffortBlocks))
@@ -839,16 +852,28 @@ export async function uploadAttemptAudioClip(
     // stuck student is never trapped (D-04). Runs before pronunciation
     // scoring / evaluation / conversation generation — a blocked try incurs
     // no paid provider call and never consumes the turn.
+    const minimalEffortBlocks = priorMinimalEffortBlocks(
+      (turn as { evaluation?: unknown }).evaluation,
+    );
+
     if (
       input.clipKind === "original_answer" &&
       isMinimalEffortAnswer(transcript)
     ) {
       const exactTargetMatch =
         targetExample !== null && isExactTargetMatch(transcript, targetExample);
-      const blocks = priorMinimalEffortBlocks(
-        (turn as { evaluation?: unknown }).evaluation,
-      );
-      if (!exactTargetMatch && blocks < MAX_MINIMAL_EFFORT_BLOCKS) {
+      if (
+        !exactTargetMatch &&
+        minimalEffortBlocks < MAX_MINIMAL_EFFORT_BLOCKS
+      ) {
+        const minimalEffortKind =
+          classifyMinimalEffortFeedback(transcript) ?? "short_answer";
+        const retryExample = resolveMinimalEffortRetryExample({
+          evaluationMode:
+            snapshot.conversationMode === true ? "conversation" : "preset",
+          missionQuestion: missionQuestion ?? "",
+          targetExample,
+        });
         const evaluation: StoredOriginalTurnEvaluation = {
           version: AI_EVALUATION_VERSION,
           outcome: "retry_original",
@@ -861,7 +886,9 @@ export async function uploadAttemptAudioClip(
           improvedSentence: null,
           requireRepeat: false,
           retryReason: "minimal_effort",
-          minimalEffortBlocks: blocks + 1,
+          minimalEffortBlocks: minimalEffortBlocks + 1,
+          minimalEffortKind,
+          retryExample,
         };
 
         const write = await timeStage("turnWrite", () =>
@@ -906,7 +933,7 @@ export async function uploadAttemptAudioClip(
           assignmentStudentId: input.assignmentStudentId,
           attemptId: input.attemptId,
           turnOrder: input.turnOrder,
-          blocks: blocks + 1,
+          blocks: minimalEffortBlocks + 1,
         });
         logTiming("success", { step: "minimal_effort_guard" });
         return {
@@ -988,7 +1015,12 @@ export async function uploadAttemptAudioClip(
               evaluationMode:
                 snapshot.conversationMode === true ? "conversation" : "preset",
               missionQuestion: missionQuestion ?? null,
+              transcript,
+              priorMinimalEffortBlocks: minimalEffortBlocks,
             });
+            if (minimalEffortBlocks > 0) {
+              decision.evaluation.minimalEffortBlocks = minimalEffortBlocks;
+            }
             originalEvaluation = decision.evaluation;
 
             const write = await timeStage("turnWrite", () =>

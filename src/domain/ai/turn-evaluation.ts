@@ -170,7 +170,58 @@ export function decideOriginalTurnOutcome(
 export type OriginalTurnGuardContext = {
   evaluationMode: "preset" | "conversation";
   missionQuestion: string | null;
+  transcript?: string;
+  priorMinimalEffortBlocks?: number;
 };
+
+const INFORMATION_QUESTION_PATTERN = /^(?:who|what|when|where|why|how)\b/iu;
+const POLAR_MINIMAL_RESPONSE_PATTERN =
+  /^(?:yes|yeah|yep|yup|no|nope|nah)[.!?]?$/iu;
+const POLAR_AUXILIARY_PHRASES = new Set([
+  "do", "don't", "do not", "did", "didn't", "did not", "am", "am not",
+  "can", "can't", "cannot", "can not", "will", "won't", "will not",
+  "have", "haven't", "have not", "would", "wouldn't", "would not",
+]);
+
+function isAuxiliaryYesNoCorrection(text: string) {
+  const normalized = text
+    .trim()
+    .toLocaleLowerCase("en-US")
+    .replace(/[’‘]/gu, "'")
+    .replace(/[,.!?]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+  const match = normalized.match(/^(?:yes|no) i (.+)$/u);
+  return match?.[1] ? POLAR_AUXILIARY_PHRASES.has(match[1]) : false;
+}
+
+/**
+ * After the two deterministic retries, the evaluator still gets one chance
+ * to interpret a short answer. It must not turn a polar answer into a
+ * grammatical sentence that remains semantically unrelated to an information
+ * question. Ambiguous meaning is safer for teacher review than invented copy.
+ */
+export function guardNonsensicalMinimalEffortCorrection(
+  decision: OriginalTurnDecision,
+  context: OriginalTurnGuardContext,
+): OriginalTurnDecision {
+  if (
+    context.evaluationMode !== "conversation" ||
+    (context.priorMinimalEffortBlocks ?? 0) < 2 ||
+    !INFORMATION_QUESTION_PATTERN.test(context.missionQuestion?.trim() ?? "") ||
+    !POLAR_MINIMAL_RESPONSE_PATTERN.test(context.transcript?.trim() ?? "") ||
+    decision.kind !== "needs_correction" ||
+    !isAuxiliaryYesNoCorrection(decision.improvedSentence)
+  ) {
+    return decision;
+  }
+
+  return {
+    kind: "teacher_review",
+    reviewReason: "ambiguous",
+    requireRepeat: false,
+  };
+}
 
 function normalizeForParrotComparison(text: string): string {
   return text
