@@ -3,6 +3,7 @@ import {
   HARD_TURN_CAP,
   buildConversationPrompt,
   conversationTurnInputSchema,
+  validateGeneratedCocoReplyLine,
   type GenerateCocoReplyInput,
 } from "@/domain/ai/conversation-generation";
 
@@ -117,5 +118,127 @@ describe("conversation history generation contract", () => {
     expect(instructions).toContain("short phrase or sentence");
     expect(instructions).toContain("Do not default to yes/no or either/or questions");
     expect(instructions).toContain("What games do you play inside?");
+  });
+
+  it("pins the active activity and requires complete, punctuated sentences", () => {
+    const instructions = buildConversationPrompt(input).instructions.join(" ");
+
+    expect(instructions).toContain("active activity");
+    expect(instructions).toContain("complete, correctly punctuated sentences");
+    expect(instructions).toContain(
+      "Who do you swim with?",
+    );
+    expect(instructions).toContain("What do you like about swimming together?");
+    expect(instructions).toContain("What games do you play together?");
+  });
+
+  it("rejects the UAT run-on and accepts a punctuated on-topic reply", () => {
+    expect(
+      validateGeneratedCocoReplyLine(
+        "Your friend is fun to swim with what games do you play together?",
+        {
+          expectsQuestion: true,
+          allowEitherOrQuestion: false,
+          activeQuestion: "Who do you swim with?",
+        },
+      ),
+    ).toEqual({ ok: false, reason: "run_on_question" });
+
+    expect(
+      validateGeneratedCocoReplyLine(
+        "Swimming together is fun! What do you like about it?",
+        {
+          expectsQuestion: true,
+          allowEitherOrQuestion: false,
+          activeQuestion: "Who do you swim with?",
+        },
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  it("rejects punctuated topic drift independently of run-on formatting", () => {
+    expect(
+      validateGeneratedCocoReplyLine(
+        "Your friend sounds fun! What games do you play together?",
+        {
+          expectsQuestion: true,
+          allowEitherOrQuestion: false,
+          activeQuestion: "Who do you swim with?",
+        },
+      ),
+    ).toEqual({ ok: false, reason: "topic_drift" });
+    expect(
+      validateGeneratedCocoReplyLine(
+        "That sounds fun! What games do you play together?",
+        {
+          expectsQuestion: true,
+          allowEitherOrQuestion: false,
+          activeQuestion: "Who do you swim with?",
+        },
+      ),
+    ).toEqual({ ok: false, reason: "topic_drift" });
+  });
+
+  it("allows a nearby transition when the student rejects the active topic", () => {
+    expect(
+      validateGeneratedCocoReplyLine(
+        "Okay! What do you like to do instead?",
+        {
+          expectsQuestion: true,
+          allowEitherOrQuestion: false,
+          activeQuestion: "How often do you play soccer?",
+          latestStudentResponse: "I don't play soccer.",
+        },
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  it("rejects an auxiliary-question run-on independently of topic drift", () => {
+    expect(
+      validateGeneratedCocoReplyLine(
+        "Swimming is fun do you swim every day?",
+        {
+          expectsQuestion: true,
+          allowEitherOrQuestion: false,
+          activeQuestion: "Who do you swim with?",
+        },
+      ),
+    ).toEqual({ ok: false, reason: "run_on_question" });
+  });
+
+  it("accepts a complete final closing line and rejects a final question", () => {
+    expect(
+      validateGeneratedCocoReplyLine("Thanks for talking with me!", {
+        expectsQuestion: false,
+        allowEitherOrQuestion: false,
+      }),
+    ).toEqual({ ok: true });
+    expect(
+      validateGeneratedCocoReplyLine("What will you do next?", {
+        expectsQuestion: false,
+        allowEitherOrQuestion: false,
+      }),
+    ).toEqual({ ok: false, reason: "question_format" });
+  });
+
+  it("requires one correctly punctuated question and the prompt word limit", () => {
+    expect(
+      validateGeneratedCocoReplyLine("That sounds fun", {
+        expectsQuestion: true,
+        allowEitherOrQuestion: false,
+      }),
+    ).toEqual({ ok: false, reason: "question_format" });
+    expect(
+      validateGeneratedCocoReplyLine(
+        "That sounds fun! Where do you swim? Who teaches you?",
+        { expectsQuestion: true, allowEitherOrQuestion: false },
+      ),
+    ).toEqual({ ok: false, reason: "question_format" });
+    expect(
+      validateGeneratedCocoReplyLine(
+        "Your best friend from school sounds very fun! Where do you swim together?",
+        { expectsQuestion: true, allowEitherOrQuestion: false },
+      ),
+    ).toEqual({ ok: false, reason: "word_limit" });
   });
 });

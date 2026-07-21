@@ -49,7 +49,9 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
   it("returns ok:true with the parsed reply for a schema-valid fake client response", async () => {
     const { generateCocoReply } = await import("@/server/ai/conversation-generator");
     const client = createFakeClient(async () => ({
-      output_parsed: { line: "Great choice! What would you like to drink?" },
+      output_parsed: {
+        line: "Eating with Minju is fun! What do you talk about?",
+      },
     }));
 
     const result = await generateCocoReply(baseInput, {
@@ -60,7 +62,9 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
 
     expect(result).toEqual({
       ok: true,
-      reply: { line: "Great choice! What would you like to drink?" },
+      reply: {
+        line: "Eating with Minju is fun! What do you talk about?",
+      },
     });
     expect(client.responses.parse).toHaveBeenCalledWith(
       expect.objectContaining({ model: "test-conversation-model" }),
@@ -142,9 +146,86 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     expect(combined).toContain("Keep the current subject");
     expect(combined).toContain("soft lesson context");
     expect(combined).toContain("merely swaps in a new noun or activity");
+    expect(combined).toContain("active activity");
+    expect(combined).toContain("complete, correctly punctuated sentences");
+    expect(combined).toContain("What do you like about swimming together?");
+    expect(combined).toContain("What games do you play together?");
     expect(combined).not.toContain(
       "Stay anchored to the target grammar pattern every turn",
     );
+  });
+
+  it("regenerates the UAT run-on once with an on-topic, punctuated reply", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          output_parsed: {
+            line: "Your friend is fun to swim with what games do you play together?",
+          },
+        })
+        .mockResolvedValueOnce({
+          output_parsed: {
+            line: "Swimming together is fun! What do you like about it?",
+          },
+        }),
+    );
+
+    const result = await generateCocoReply(
+      {
+        ...baseInput,
+        turnOrder: 1,
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "Who do you swim with?",
+            studentResponse: "With my friend.",
+          },
+        ],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      reply: { line: "Swimming together is fun! What do you like about it?" },
+    });
+    expect(client.responses.parse).toHaveBeenCalledTimes(2);
+    expect(
+      vi.mocked(client.responses.parse).mock.calls[1]?.[0].input[0]?.content,
+    ).toContain("complete, correctly punctuated sentences");
+  });
+
+  it("uses a no-question closing policy at the hard cap", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(async () => ({
+      output_parsed: { line: "Thanks for talking with me!" },
+    }));
+    const conversationHistory = Array.from({ length: 8 }, (_, index) => ({
+      turnOrder: index + 1,
+      cocoLine: index === 7 ? "What did you enjoy today?" : `Question ${index + 1}?`,
+      studentResponse: index === 7 ? "I enjoyed swimming." : `Answer ${index + 1}.`,
+    }));
+
+    const result = await generateCocoReply(
+      {
+        ...baseInput,
+        turnOrder: 8,
+        hardCap: 8,
+        windDown: true,
+        conversationHistory,
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      reply: { line: "Thanks for talking with me!" },
+    });
+    const call = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const combined = call?.input.map((message) => message.content).join(" ") ?? "";
+    expect(combined).toContain("closing line with no question");
   });
 
   it("instructs short kid-friendly lines with one new-information follow-up", async () => {

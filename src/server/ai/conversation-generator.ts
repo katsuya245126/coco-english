@@ -20,6 +20,7 @@ import {
   generatedCocoReplySchema,
   parseGeneratedCocoReply,
   buildConversationPrompt,
+  validateGeneratedCocoReplyLine,
   type GenerateCocoReplyInput,
   type GeneratedCocoReply,
 } from "@/domain/ai/conversation-generation";
@@ -76,20 +77,23 @@ function createClient(apiKey: string): ConversationResponsesClient {
 const CONVERSATION_SYSTEM_MESSAGE = [
   "Generate Coco's next line in a bounded ESL practice conversation.",
   "You are talking with a young ESL learner: use short, simple sentences and easy everyday words.",
-  "Keep the whole line under 12 words and ask exactly one question.",
+  "Keep the whole line under 12 words. Ask exactly one question unless turnOrder equals hardCap; at hardCap write one short closing line with no question.",
+  "Write complete, correctly punctuated sentences. Put sentence-ending punctuation between a reaction and the follow-up question; never join them as a run-on.",
   "Treat every detail in conversationHistory as already known.",
   "Acknowledge or react specifically to the latest studentResponse before asking a follow-up.",
-  "Ask exactly one short question for genuinely new information whose answer is not present or directly implied anywhere in conversationHistory.",
-  "After a meaningful answer, ask an open question that connects directly to the answer and invites a short phrase or sentence.",
-  "Treat a short answer as meaningful when it adds a real detail; after 'Inside.', ask an expandable question such as 'What games do you play inside?'.",
+  "Before the hard-cap turn, ask exactly one short question for genuinely new information whose answer is not present or directly implied anywhere in conversationHistory.",
+  "Before the hard-cap turn, after a meaningful answer, ask an open question that connects directly to the answer and invites a short phrase or sentence.",
+  "Before the hard-cap turn, treat a short answer as meaningful when it adds a real detail; after 'Inside.', ask an expandable question such as 'What games do you play inside?'.",
   "Do not default to yes/no or either/or questions after a meaningful answer.",
   "Treat vague replies such as 'anything', 'something', or 'stuff' as minimally informative; do not echo the vague word as if it were a meaningful detail.",
-  "Acknowledge lightly, then ask one short scene-relevant narrowing question. Use two concrete child-friendly choices only when the latest response is vague, unclear, or shows the learner is stuck.",
+  "Before the hard-cap turn, acknowledge lightly, then ask one short scene-relevant narrowing question. Use two concrete child-friendly choices only when the latest response is vague, unclear, or shows the learner is stuck.",
   "Do not shame the learner or demand a more specific answer.",
   "Example: after 'What do you and Minju talk about?' -> 'Anything.', do not say 'Talking about anything is fun.'; say 'Lots of things! Do you talk about games or school?'.",
   "Do not mechanically rotate through who, what, where, when, why, or how when that repeats a known person, place, activity, preference, or fact.",
   "Example: after 'Who do you talk with at school?' -> 'I talk with Minju.' -> 'Where do you talk with Minju?' -> 'In the classroom.', 'Who do you talk with in class?' is invalid because Minju is already known; ask a new detail such as 'What do you and Minju talk about?'.",
   "Keep the current subject while a natural unanswered detail remains; otherwise transition gently to a nearby part of the scene.",
+  "Keep the active activity from Coco's latest question as the topic; a person or place in the student's answer is a detail about that activity, not permission to switch activities.",
+  "Example: after 'Who do you swim with?' -> 'With my friend.', ask 'What do you like about swimming together?'; 'What games do you play together?' is invalid because it drops the active activity, swimming.",
   "Treat targetPattern as soft lesson context only, never as a next-line template — do not steer the student back into the targetPattern format.",
   "Reject a follow-up that merely swaps in a new noun or activity to repeat targetPattern; the follow-up must connect to the student's actual answer.",
   "Begin winding down and gently steering toward a close when turnsRemaining <= 2 (windDown is true).",
@@ -120,26 +124,20 @@ const VAGUE_OR_STUCK_RESPONSES = new Set([
   "no",
 ]);
 
-const OPEN_FOLLOW_UP_CORRECTION = [
-  "The previous candidate used an invalid either/or question after a meaningful student detail.",
-  "Regenerate the full line once with an open question that invites a short phrase or sentence.",
-  "Do not use a yes/no or either/or question.",
-  "Return only data matching the schema.",
-].join(" ");
+function replyPolicyCorrection(expectsQuestion: boolean) {
+  return [
+    "The previous candidate broke the reply rules: it may be a run-on, incorrectly punctuated, too long, off-topic, or use an invalid either/or question after a meaningful student detail.",
+    expectsQuestion
+      ? "Regenerate the full line once with complete, correctly punctuated sentences and an open question that stays on the active activity."
+      : "Regenerate the full line once as one complete, correctly punctuated closing line with no question.",
+    "Keep it under 12 words. Do not use a yes/no or either/or question unless the learner is vague or stuck.",
+    "Return only data matching the schema.",
+  ].join(" ");
+}
 
 function isVagueOrStuckResponse(response: string): boolean {
   const normalized = response.trim().toLowerCase().replace(/[.!?]+$/u, "");
   return VAGUE_OR_STUCK_RESPONSES.has(normalized);
-}
-
-function usesEitherOrQuestion(line: string): boolean {
-  return line
-    .split("?")
-    .slice(0, -1)
-    .some((question) => {
-      const questionStart = Math.max(question.lastIndexOf("."), question.lastIndexOf("!")) + 1;
-      return /\b(?:either|or)\b/iu.test(question.slice(questionStart));
-    });
 }
 
 /**
@@ -189,18 +187,25 @@ export async function generateCocoReply(
     }
 
     const latestResponse = validInput.data.conversationHistory.at(-1)?.studentResponse;
-    if (
-      latestResponse &&
-      !isVagueOrStuckResponse(latestResponse) &&
-      usesEitherOrQuestion(parsed.reply.line)
-    ) {
+    const allowEitherOrQuestion = latestResponse
+      ? isVagueOrStuckResponse(latestResponse)
+      : false;
+    const expectsQuestion = validInput.data.turnOrder < validInput.data.hardCap;
+    const activeQuestion = validInput.data.conversationHistory.at(-1)?.cocoLine;
+    const linePolicy = validateGeneratedCocoReplyLine(parsed.reply.line, {
+      expectsQuestion,
+      allowEitherOrQuestion,
+      activeQuestion,
+      latestStudentResponse: latestResponse,
+    });
+    if (!linePolicy.ok) {
       try {
         const correctedResponse = await client.responses.parse({
           model: resolveModel(deps),
           input: [
             {
               role: "system",
-              content: `${CONVERSATION_SYSTEM_MESSAGE} ${OPEN_FOLLOW_UP_CORRECTION}`,
+              content: `${CONVERSATION_SYSTEM_MESSAGE} ${replyPolicyCorrection(expectsQuestion)}`,
             },
             {
               role: "user",
@@ -212,7 +217,19 @@ export async function generateCocoReply(
           },
         });
         const corrected = parseGeneratedCocoReply(correctedResponse.output_parsed);
-        if (!corrected.ok || usesEitherOrQuestion(corrected.reply.line)) {
+        if (!corrected.ok) {
+          return { ok: false, error: "schema_failed" };
+        }
+        const correctedPolicy = validateGeneratedCocoReplyLine(
+          corrected.reply.line,
+          {
+            expectsQuestion,
+            allowEitherOrQuestion,
+            activeQuestion,
+            latestStudentResponse: latestResponse,
+          },
+        );
+        if (!correctedPolicy.ok) {
           return { ok: false, error: "schema_failed" };
         }
         return { ok: true, reply: corrected.reply };
