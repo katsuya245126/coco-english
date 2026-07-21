@@ -220,7 +220,11 @@ export function CocoDialogueBox({
 
       <div style={mascotDialogueBoxStyle}>
         {currentPage ? (
-          <p style={mascotDialogueTextStyle}>
+          <p
+            style={mascotDialogueTextStyle}
+            aria-live="polite"
+            aria-atomic="true"
+          >
             {segments
               ? segments.map((segment) => {
                   if (segment.kind === "text") return segment.text;
@@ -234,7 +238,7 @@ export function CocoDialogueBox({
                   return (
                     <span
                       key={`${absoluteStart}-${absoluteEnd}`}
-                      style={{ position: "relative", display: "inline-block" }}
+                      style={{ position: "relative", display: "inline" }}
                     >
                       <button
                         type="button"

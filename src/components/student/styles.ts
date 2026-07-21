@@ -406,6 +406,7 @@ export const mascotDialogueTextStyle: CSSProperties = {
 };
 
 export const mascotPhraseButtonStyle: CSSProperties = {
+  display: "inline",
   minHeight: "auto",
   padding: "2px 3px",
   margin: 0,
@@ -414,6 +415,7 @@ export const mascotPhraseButtonStyle: CSSProperties = {
   background: "#EFF6FF",
   color: "inherit",
   font: "inherit",
+  whiteSpace: "normal",
   cursor: "pointer",
 };
 
