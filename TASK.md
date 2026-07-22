@@ -1,6 +1,6 @@
 # Final Coco closing for dynamic conversation missions
 
-**Status:** Written specification approved; implementation plan awaiting user approval
+**Status:** Implemented and verified; awaiting conversation-mode UAT
 
 ## Goal
 
@@ -48,9 +48,9 @@ until the user reviews and approves the implementation plan.
 - [x] Written design specification created and self-reviewed.
 - [x] User reviewed and approved the written specification.
 - [x] Test-first implementation plan written and self-reviewed.
-- [ ] User approves the implementation plan.
-- [ ] Implementation completed with focused regression coverage.
-- [ ] Proportionate release verification completed.
+- [x] User approves the implementation plan.
+- [x] Implementation completed with focused regression coverage.
+- [x] Proportionate release verification completed.
 - [ ] Conversation-mode UAT confirms the final spoken closing and button flow.
 
 ## Current position
@@ -61,7 +61,31 @@ Written specification:
 Implementation plan:
 `docs/superpowers/plans/2026-07-23-final-coco-closing.md`
 
+Commits:
+- `82b6dd25` feat(conversation): generate final Coco closing (Task 1)
+- `d4e5d185` feat(student): show final Coco closing (Task 2)
+
+## Verification evidence (2026-07-23)
+
+- Focused Task 1 suite: `npx vitest run src/domain/ai/conversation-generation.test.ts src/server/ai/conversation-generator.test.ts src/domain/conversation/fallback-lines.test.ts src/server/student-access/audio-upload.test.ts`
+  → 4 files, 78 tests, all passed.
+- Focused Task 2 suite: `npx vitest run src/domain/mission/student-question-state.test.ts tests/server/student-mission-flow.test.ts tests/domain/tts-ui-source.test.ts tests/domain/character-expression.test.ts tests/server/student-mission-page.test.ts`
+  → 5 files, 79 tests, all passed.
+- Combined focused regression matrix (Task 1 + Task 2 files together): 9 files, 157 tests, all passed, no preset/teacher-review/ownership/TTS/resume regressions.
+- Full suite: `npm test -- --run` → 90 test files passed, 922 tests passed, 4 skipped, 0 failed.
+- `npm run typecheck` → exit 0, no TypeScript errors.
+- `npm run lint` → exit 0; only the pre-existing unrelated `label` unused-var warning in `scripts/check-student-feedback-states.mjs` remains.
+- `npm run build` → exit 0, all 33 routes compiled, no type or route errors. Run only after the user stopped the checkout's own `next dev -p 3200` process so the build did not share a live `.next` cache.
+
 ## Next step
 
-User reviews and approves the implementation plan, then selects inline or
-explicitly authorized subagent-driven execution.
+Run a five-turn conversation mission (real device or localhost) and confirm:
+1. the final answer produces a relevant spoken no-question Coco closing;
+2. **Finish mission** reveals the existing completion screen with no extra
+   network mutation;
+3. reopening the assignment afterward cannot return to a recorder or a
+   phantom next turn.
+
+Once confirmed, archive this task to `docs/tasks/archive/2026-07-23-final-coco-closing.md`
+with status `Complete`. Do not push, deploy, merge, publish, or mutate
+Supabase without separate explicit approval.
