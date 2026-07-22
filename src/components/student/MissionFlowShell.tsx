@@ -687,12 +687,23 @@ export function MissionFlowShell({
     }));
   }
 
-  function finishTeacherReviewFeedback() {
+  async function finishTeacherReviewFeedback() {
     const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
-    setFlow((prev) => ({
-      ...prev,
-      step: isFinalTurn ? "reviewPending" : "transition",
-    }));
+    if (isFinalTurn) {
+      setFlow((prev) => ({ ...prev, step: "reviewPending" }));
+      return;
+    }
+
+    if (conversationMode) {
+      const aid = await ensureAttempt();
+      if (!aid) {
+        throw new Error("attempt_start_failed");
+      }
+      await continueAcceptedConversationTurn(aid, flow.cocoLine);
+      return;
+    }
+
+    setFlow((prev) => ({ ...prev, step: "transition" }));
   }
 
   async function finishAcceptedOriginal() {
@@ -790,7 +801,8 @@ export function MissionFlowShell({
   }
 
   // Preset missions only — chat missions advance directly through
-  // continueAcceptedConversationTurn and never reach the transition step.
+  // continueAcceptedConversationTurn (accepted or teacher-reviewed turns
+  // alike) and never reach the transition step.
   function handleNextTurn() {
     revokeAudioUrls();
     setFlow((previous) => {
