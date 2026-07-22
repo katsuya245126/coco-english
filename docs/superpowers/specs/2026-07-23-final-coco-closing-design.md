@@ -1,6 +1,6 @@
 # Final Coco closing for dynamic conversation missions
 
-**Status:** Approved design; awaiting written-spec review
+**Status:** Approved
 
 ## Problem
 

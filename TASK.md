@@ -1,6 +1,6 @@
 # Final Coco closing for dynamic conversation missions
 
-**Status:** Design approved; written specification awaiting user review
+**Status:** Written specification approved; implementation plan awaiting user approval
 
 ## Goal
 
@@ -15,8 +15,8 @@ the correction threshold on 2026-07-23, approved the Finish button, and approved
 splitting the UAT remediation into two sequential tasks. Task 1 is this closing
 flow. Task 2 will separately address evaluation and follow-up quality.
 
-No implementation is approved until the user reviews the written specification
-and then approves the implementation plan.
+The user approved the written specification. No implementation is approved
+until the user reviews and approves the implementation plan.
 
 ## Scope
 
@@ -46,8 +46,9 @@ and then approves the implementation plan.
 - [x] Task decomposition reviewed with Claude and approved by the user.
 - [x] Design presented and approved in conversation.
 - [x] Written design specification created and self-reviewed.
-- [ ] User reviews the written specification.
-- [ ] Test-first implementation plan written, self-reviewed, and approved.
+- [x] User reviewed and approved the written specification.
+- [x] Test-first implementation plan written and self-reviewed.
+- [ ] User approves the implementation plan.
 - [ ] Implementation completed with focused regression coverage.
 - [ ] Proportionate release verification completed.
 - [ ] Conversation-mode UAT confirms the final spoken closing and button flow.
@@ -57,6 +58,10 @@ and then approves the implementation plan.
 Written specification:
 `docs/superpowers/specs/2026-07-23-final-coco-closing-design.md`
 
+Implementation plan:
+`docs/superpowers/plans/2026-07-23-final-coco-closing.md`
+
 ## Next step
 
-User reviews the written specification before implementation planning begins.
+User reviews and approves the implementation plan, then selects inline or
+explicitly authorized subagent-driven execution.
