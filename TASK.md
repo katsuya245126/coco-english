@@ -1,6 +1,6 @@
 # Final Coco closing for dynamic conversation missions
 
-**Status:** Implemented and verified; awaiting conversation-mode UAT
+**Status:** UAT blocked by pre-existing conversation teacher-review lifecycle bug
 
 ## Goal
 
@@ -61,6 +61,23 @@ Written specification:
 Implementation plan:
 `docs/superpowers/plans/2026-07-23-final-coco-closing.md`
 
+UAT blocker diagnosis and approved remediation design:
+`docs/superpowers/specs/2026-07-23-conversation-review-continuation-design.md`
+
+The 2026-07-23 localhost UAT exposed a pre-existing contradiction: a
+non-final conversation turn routed to teacher review terminalizes the
+assignment and attempt, while the client advances to the generated follow-up.
+The follow-up text is available ephemerally, but Coco-line persistence, hint,
+TTS, and the next recording fail against the terminal state. Git history shows
+the contradiction predates the final-closing commits and was exposed by
+`66c0c44e`.
+
+The user approved a remediation design in conversation on 2026-07-23:
+review routing stays internal and non-terminal until normal mission completion;
+reviewed missions look completed to students; and dynamic conversation missions
+gain a default-on, snapshotted complete-sentence-answer setting. The written
+spec awaits user review before an implementation plan is created.
+
 Commits:
 - `82b6dd25` feat(conversation): generate final Coco closing (Task 1)
 - `d4e5d185` feat(student): show final Coco closing (Task 2)
@@ -79,12 +96,16 @@ Commits:
 
 ## Next step
 
-Run a five-turn conversation mission (real device or localhost) and confirm:
-1. the final answer produces a relevant spoken no-question Coco closing;
-2. **Finish mission** reveals the existing completion screen with no extra
-   network mutation;
-3. reopening the assignment afterward cannot return to a recorder or a
-   phantom next turn.
+Review the written UAT-remediation specification, then create and approve a
+test-first implementation plan. After implementation, run a five-turn
+conversation mission (real device or localhost) and confirm:
+1. a meaningful fragment is corrected according to the mission setting;
+2. an internal teacher-review turn advances with working hint, TTS, and audio;
+3. the final answer produces a relevant spoken no-question Coco closing;
+4. **Finish mission** reveals the existing completion screen;
+5. the assignment appears completed to the student while remaining reviewable
+   to the teacher; and
+6. reopening the assignment cannot return to a recorder or phantom next turn.
 
 Once confirmed, archive this task to `docs/tasks/archive/2026-07-23-final-coco-closing.md`
 with status `Complete`. Do not push, deploy, merge, publish, or mutate
