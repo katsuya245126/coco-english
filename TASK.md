@@ -32,9 +32,9 @@ The user approved the recommended design on 2026-07-23.
 - [x] Design spec written and self-reviewed.
 - [x] Written spec reviewed by user.
 - [x] Test-first implementation plan written and self-reviewed.
-- [ ] Test-first implementation complete.
+- [x] Test-first implementation complete.
 - [ ] Focused and release verification complete.
 
 ## Next step
 
-Implement the Kakao root hydration compatibility contract test-first.
+Run focused and release verification.

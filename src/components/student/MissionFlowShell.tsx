@@ -833,10 +833,10 @@ export function MissionFlowShell({
       <h1 style={displayTitleStyle}>{missionTitle}</h1>
       <TurnProgressBar current={currentTurnNumber} total={requiredTurns} />
 
-      {/* Scene premise (SCENE-01): rendered once above turn 1, on mission
-          start only (fresh start or resume at turn 1) — never re-shown on
-          later turns. */}
-      {startingTurnIndex === 0 && (
+      {/* Scene premise (SCENE-01): preset missions may render it once above turn 1.
+          Conversation missions keep the premise as AI grounding but do not repeat it
+          as a separate student-facing card. */}
+      {!conversationMode && startingTurnIndex === 0 && (
         <ScenePremiseCard scenePremise={scenePremise} />
       )}
 

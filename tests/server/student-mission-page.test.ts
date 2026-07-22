@@ -52,4 +52,15 @@ describe("student mission resume state", () => {
       /mascotStageStyle[\s\S]*maxWidth: MISSION_CONTENT_MAX_WIDTH/,
     );
   });
+
+  it("hides the scene card in conversation mode without removing scene grounding", () => {
+    expect(pageSource).toContain("scenePremise={snapshot.scenePremise}");
+    expect(shellSource).toContain("scenePremise: string | null");
+    expect(shellSource).toContain(
+      'import { ScenePremiseCard } from "@/components/student/ScenePremiseCard";',
+    );
+    expect(shellSource).toMatch(
+      /\{!conversationMode && startingTurnIndex === 0 && \([\s\S]*?<ScenePremiseCard scenePremise=\{scenePremise\} \/>[\s\S]*?\)\}/,
+    );
+  });
 });
