@@ -1,7 +1,7 @@
 # Conversation Review Continuation and Answer Policy Design
 
 **Date:** 2026-07-23
-**Status:** Approved in conversation; awaiting written-spec review
+**Status:** Approved, including written-spec review
 
 ## Goal
 
@@ -186,4 +186,3 @@ presentation, hint, TTS, recording, re-entry guard, and teacher evidence.
 - Replacing the existing bounded Coco conversation architecture.
 - Applying a database migration, deploying, pushing, publishing, or mutating
   any external environment without separate approval.
-

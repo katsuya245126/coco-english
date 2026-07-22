@@ -75,8 +75,10 @@ the contradiction predates the final-closing commits and was exposed by
 The user approved a remediation design in conversation on 2026-07-23:
 review routing stays internal and non-terminal until normal mission completion;
 reviewed missions look completed to students; and dynamic conversation missions
-gain a default-on, snapshotted complete-sentence-answer setting. The written
-spec awaits user review before an implementation plan is created.
+gain a default-on, snapshotted complete-sentence-answer setting. The user
+approved the written specification. A test-first implementation plan is ready
+for review at
+`docs/superpowers/plans/2026-07-23-conversation-review-continuation.md`.
 
 Commits:
 - `82b6dd25` feat(conversation): generate final Coco closing (Task 1)
@@ -96,8 +98,8 @@ Commits:
 
 ## Next step
 
-Review the written UAT-remediation specification, then create and approve a
-test-first implementation plan. After implementation, run a five-turn
+Review and approve the test-first UAT-remediation implementation plan. After
+implementation, run a five-turn
 conversation mission (real device or localhost) and confirm:
 1. a meaningful fragment is corrected according to the mission setting;
 2. an internal teacher-review turn advances with working hint, TTS, and audio;
