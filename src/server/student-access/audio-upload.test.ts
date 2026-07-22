@@ -460,6 +460,46 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     });
   });
 
+  it("passes the snapshotted answer policy and review disposition to owned AI adapters", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        requireCompleteSentenceAnswers: false,
+      } as unknown as typeof conversationMissionSnapshotFixture,
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluate = successfulOriginalEvaluator({
+      outcome: "teacher_review",
+      meaningUnderstood: false,
+      targetPatternAttempted: false,
+      confidence: "medium",
+      reviewReason: "ambiguous",
+    });
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "Soccer is fun! Who do you usually play with?" },
+    }));
+
+    await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("School."),
+      evaluateOriginalTurn: evaluate,
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(evaluate).toHaveBeenCalledWith(
+      expect.objectContaining({ requireCompleteSentenceAnswers: false }),
+    );
+    expect(generate).toHaveBeenCalledWith(
+      expect.objectContaining({ responseHandling: "review_pending" }),
+    );
+  });
+
   it("flagged student input: no generateCocoReply call; canned redirect persisted with flagged_student_input event", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"

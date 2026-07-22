@@ -430,6 +430,7 @@ type ConversationTurnContext = {
   requiredTurns: number;
   studentTranscript: string;
   conversationHistory: ConversationExchange[];
+  responseHandling: "normal" | "review_pending";
 };
 
 type ConversationTurnOutcome = {
@@ -515,6 +516,7 @@ async function runConversationTurn(
     requiredTurns: context.requiredTurns,
     hardCap: 8,
     safetyMode: "standard",
+    responseHandling: context.responseHandling,
     conversationHistory: context.conversationHistory,
   };
 
@@ -1093,6 +1095,8 @@ export async function uploadAttemptAudioClip(
                     level: snapshot.level,
                     turnOrder: input.turnOrder,
                     transcript,
+                    requireCompleteSentenceAnswers:
+                      snapshot.requireCompleteSentenceAnswers,
                   });
                 });
             const decision = applyOriginalTurnEvaluation(evaluationResult, {
@@ -1267,6 +1271,10 @@ export async function uploadAttemptAudioClip(
             requiredTurns: snapshot.requiredTurns,
             studentTranscript: transcript,
             conversationHistory: historyResult.history,
+            responseHandling:
+              originalEvaluation?.outcome === "teacher_review"
+                ? "review_pending"
+                : "normal",
           },
           {
             generateCocoReply: deps.generateCocoReply ?? generateCocoReply,

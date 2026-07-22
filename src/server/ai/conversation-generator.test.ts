@@ -23,6 +23,7 @@ const baseInput: GenerateCocoReplyInput = {
   requiredTurns: 4,
   hardCap: 8,
   safetyMode: "standard",
+  responseHandling: "normal",
   conversationHistory: [
     {
       turnOrder: 1,

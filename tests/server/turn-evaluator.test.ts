@@ -126,7 +126,7 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
         expect.stringContaining("preserve the student's intended meaning"),
         // Fragments like "I don't" must be expanded into a full-sentence
         // answer, never "corrected" to the question itself (UAT 2026-07-16).
-        expect.stringContaining("incomplete fragment"),
+        expect.stringContaining("understandable meaning"),
       ]),
     );
   });
@@ -357,6 +357,85 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
     );
   });
 
+  it("requires a meaning-preserving complete sentence for an understandable fragment when enabled", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: {
+        ...correctOriginalProviderResult,
+        outcome: "needs_correction",
+        targetPatternAttempted: false,
+        correctionNeeded: true,
+        improvedSentence: "I like to play soccer at school.",
+      },
+    });
+
+    const result = await evaluateOriginalTurn(
+      {
+        evaluationMode: "conversation",
+        missionQuestion: "Where do you like to play soccer?",
+        transcript: "School.",
+        targetPattern: "I like to play soccer at _____.",
+        targetExample: null,
+        level: "elementary",
+        requireCompleteSentenceAnswers: true,
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "needs_correction",
+        improvedSentence: "I like to play soccer at school.",
+      },
+    });
+    const request = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const userMessage = request?.input.find((message) => message.role === "user");
+    const prompt = JSON.parse(userMessage?.content ?? "{}") as {
+      requireCompleteSentenceAnswers?: boolean;
+      instructions?: string[];
+    };
+    expect(prompt.requireCompleteSentenceAnswers).toBe(true);
+    expect(prompt.instructions?.join(" ")).toContain(
+      "Where do you like to play soccer?",
+    );
+    expect(prompt.instructions?.join(" ")).toContain("School.");
+    expect(prompt.instructions?.join(" ")).toContain(
+      "I like to play soccer at school.",
+    );
+  });
+
+  it("allows a relevant fragment when complete sentences are disabled", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    await evaluateOriginalTurn(
+      {
+        evaluationMode: "conversation",
+        missionQuestion: "Where do you like to play soccer?",
+        transcript: "School.",
+        targetPattern: "I like to play soccer at _____.",
+        targetExample: null,
+        level: "elementary",
+        requireCompleteSentenceAnswers: false,
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const request = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const userMessage = request?.input.find((message) => message.role === "user");
+    const prompt = JSON.parse(userMessage?.content ?? "{}") as {
+      requireCompleteSentenceAnswers?: boolean;
+      instructions?: string[];
+    };
+    expect(prompt.requireCompleteSentenceAnswers).toBe(false);
+    expect(prompt.instructions?.join(" ")).toContain(
+      "accept a relevant understandable fragment",
+    );
+  });
+
   it("forbids polar fragment expansion for open information questions", async () => {
     const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
     const client = createFakeClient({
@@ -420,7 +499,7 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
     };
 
     const fragmentRule = prompt.instructions?.find((line) =>
-      line.includes("incomplete fragment"),
+      line.includes("understandable meaning"),
     );
     expect(fragmentRule).toBeDefined();
     expect(fragmentRule).not.toContain("I don't play soccer");

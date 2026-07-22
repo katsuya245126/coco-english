@@ -29,6 +29,7 @@ const input: GenerateCocoReplyInput = {
   hardCap: HARD_TURN_CAP,
   safetyMode: "standard",
   conversationHistory: history,
+  responseHandling: "normal",
 };
 
 function historyThrough(turnOrder: number) {
@@ -362,5 +363,31 @@ describe("conversation history generation contract", () => {
     expect(
       conversationReplyMode({ turnOrder: 8, requiredTurns: 8 }),
     ).toBe("closing");
+  });
+
+  it("grounds an internally reviewed response without inventing its meaning", () => {
+    const prompt = buildConversationPrompt({
+      ...input,
+      responseHandling: "review_pending",
+      conversationHistory: [
+        {
+          turnOrder: 1,
+          cocoLine: "Who do you play soccer with?",
+          studentResponse: "I play with my friend.",
+        },
+        {
+          turnOrder: 2,
+          cocoLine: "Where do you play soccer?",
+          studentResponse: "Something unclear.",
+        },
+      ],
+    });
+    const instructions = prompt.instructions.join(" ");
+
+    expect(prompt.responseHandling).toBe("review_pending");
+    expect(instructions).toContain("Use the latest studentResponse only when");
+    expect(instructions).toContain("most recent earlier studentResponse");
+    expect(instructions).toContain("scenePremise");
+    expect(instructions).toContain("do not invent");
   });
 });

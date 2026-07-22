@@ -15,6 +15,14 @@ export type ConversationSafetyMode = z.infer<
   typeof conversationSafetyModeSchema
 >;
 
+export const conversationResponseHandlingSchema = z.enum([
+  "normal",
+  "review_pending",
+]);
+export type ConversationResponseHandling = z.infer<
+  typeof conversationResponseHandlingSchema
+>;
+
 export const conversationExchangeSchema = z.object({
   turnOrder: z.number().int().min(1).max(HARD_TURN_CAP),
   cocoLine: z.string().trim().min(1),
@@ -47,6 +55,7 @@ export const conversationTurnInputSchema = z
     requiredTurns: z.number().int().min(3).max(8),
     hardCap: z.literal(HARD_TURN_CAP),
     safetyMode: conversationSafetyModeSchema,
+    responseHandling: conversationResponseHandlingSchema,
     conversationHistory: conversationHistorySchema,
   })
   .superRefine((input, context) => {
@@ -243,6 +252,14 @@ export function buildConversationPrompt(input: GenerateCocoReplyInput) {
   const replyMode = conversationReplyMode(input);
   const turnsRemaining = Math.max(0, input.requiredTurns - input.turnOrder);
   const windDown = replyMode === "follow_up" && turnsRemaining <= 1;
+  const reviewPendingInstructions: string[] =
+    input.responseHandling === "review_pending"
+      ? [
+          "The latest studentResponse is internally uncertain. Use the latest studentResponse only when its meaning is clear from Coco's active question; do not invent or state guessed details as facts.",
+          "If the latest response is unclear, continue from the most recent earlier studentResponse with understandable meaning.",
+          "If no studentResponse is usable, ask one short neutral question grounded in scenePremise.",
+        ]
+      : [];
 
   return {
     scenePremise: input.scenePremise,
@@ -254,6 +271,7 @@ export function buildConversationPrompt(input: GenerateCocoReplyInput) {
     turnsRemaining,
     windDown,
     safetyMode: input.safetyMode,
+    responseHandling: input.responseHandling,
     conversationHistory: input.conversationHistory,
     instructions: [
       "Speak to a young ESL learner: short, simple sentences with easy everyday words.",
@@ -262,6 +280,7 @@ export function buildConversationPrompt(input: GenerateCocoReplyInput) {
         : "Acknowledge the latest studentResponse, then ask exactly one relevant question for new information.",
       "Write complete, correctly punctuated sentences. Put sentence-ending punctuation between a reaction and the follow-up question; never join them as a run-on.",
       "Treat every detail in conversationHistory as already known.",
+      ...reviewPendingInstructions,
       "Before the closing turn, acknowledge the latest studentResponse, then ask exactly one question for new information whose answer is not present or directly implied anywhere in conversationHistory.",
       "Before the closing turn, after a meaningful answer, ask an open question that connects directly to the answer and invites a short phrase or sentence.",
       "Before the closing turn, treat a short answer as meaningful when it adds a real detail; after 'Inside.', ask an expandable question such as 'What games do you play inside?'.",

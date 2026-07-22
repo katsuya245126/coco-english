@@ -54,6 +54,7 @@ export type EvaluateOriginalTurnInput = {
   level: MissionLevel;
   turnOrder?: number;
   transcript: string;
+  requireCompleteSentenceAnswers?: boolean;
 };
 
 export type EvaluateRepeatTurnInput = {
@@ -107,17 +108,31 @@ const conversationInstructions = [
   "When the student's meaning is relevant but the English is incorrect, use needs_correction and write one natural improvedSentence; preserve the student's intended meaning.",
   "Never use the missionQuestion as improvedSentence. Never substitute an authored example or a question-shaped targetPattern unless it genuinely states the student's intended answer.",
   "Example: correct 'I no play soccer.' to 'I don't play soccer.'; do not correct it to 'How often do you play soccer?'.",
-  "If the transcript is an incomplete fragment such as 'I don't', expand it into one short declarative sentence in the student's own words that answers missionQuestion, and use that as improvedSentence.",
   "For an information question (who, what, when, where, why, or how), do not expand yes/no into an auxiliary yes/no sentence such as 'Yes, I do.' because it does not answer the question.",
+];
+
+const conversationGenuineAmbiguityInstructions = [
   "If the student's meaning cannot be inferred without inventing content, return teacher_review with reviewReason ambiguous; do not invent an answer.",
   "improvedSentence must be one single declarative student answer: never append missionQuestion or any other question to it, and never copy an example sentence from these instructions into it.",
 ];
 
 function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
-  const modeInstructions =
-    input.evaluationMode === "conversation"
-      ? conversationInstructions
-      : presetInstructions;
+  const isConversationMode = input.evaluationMode === "conversation";
+  const modeInstructions = isConversationMode
+    ? conversationInstructions
+    : presetInstructions;
+  const requireCompleteSentenceAnswers =
+    isConversationMode && input.requireCompleteSentenceAnswers !== false;
+  const completeSentenceInstructions = isConversationMode
+    ? requireCompleteSentenceAnswers
+      ? [
+          "When a relevant fragment has an understandable meaning, use needs_correction and write one short complete declarative improvedSentence in the student's own words.",
+          "Example: missionQuestion 'Where do you like to play soccer?' plus transcript 'School.' becomes improvedSentence 'I like to play soccer at school.'; do not route that understandable fragment to teacher_review.",
+        ]
+      : [
+          "When complete sentences are not required, accept a relevant understandable fragment even when it is not a complete sentence.",
+        ]
+    : [];
 
   return {
     evaluationMode: input.evaluationMode,
@@ -127,11 +142,14 @@ function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
     level: input.level,
     turnOrder: input.turnOrder ?? null,
     transcript: input.transcript,
+    requireCompleteSentenceAnswers,
     instructions: [
       "Evaluate only this transcript against the assigned ESL turn.",
       "Treat non-English transcripts as non_english and not successful practice.",
       "Common English phrasing variants (contractions like 'I am' vs 'I'm', minor word-order or article differences that preserve the same meaning) are equivalent and should not cause needs_correction.",
       ...modeInstructions,
+      ...completeSentenceInstructions,
+      ...(isConversationMode ? conversationGenuineAmbiguityInstructions : []),
       "Use teacher_review for ambiguity, low confidence, or unsafe uncertainty.",
       "Do not include student names, PINs, audio keys, or private class data.",
     ],
