@@ -1,6 +1,6 @@
 # Kakao hydration compatibility and conversation scene-card removal
 
-**Status:** Implementation in progress
+**Status:** Implemented and verified; awaiting Kakao real-device recheck
 
 ## Goal
 
@@ -33,8 +33,40 @@ The user approved the recommended design on 2026-07-23.
 - [x] Written spec reviewed by user.
 - [x] Test-first implementation plan written and self-reviewed.
 - [x] Test-first implementation complete.
-- [ ] Focused and release verification complete.
+- [x] Focused and release verification complete.
+
+## Verification evidence (2026-07-23)
+
+Focused regression matrix:
+
+```
+npx vitest run tests/server/root-layout-source.test.ts tests/server/student-mission-page.test.ts src/server/ai/opener-generator.test.ts src/server/ai/conversation-generator.test.ts src/domain/ai/conversation-generation.test.ts
+```
+Result: 5 files passed, 59 tests passed, 0 failed.
+
+Full automated release gate, run sequentially:
+
+```
+npm test -- --run
+```
+Result: 89 files passed, 910 tests passed, 4 skipped, 0 failed. No `listen EPERM` socket failures observed.
+
+```
+npm run typecheck
+```
+Result: exit 0, no errors.
+
+```
+npm run lint
+```
+Result: exit 0. 1 pre-existing warning (`scripts/check-student-feedback-states.mjs:435`, unused `label` arg). No new errors or warnings introduced.
+
+```
+npm run build
+```
+Result: exit 0. Production build compiled successfully; all 9 static pages generated; no route or type errors.
 
 ## Next step
 
-Run focused and release verification.
+Open a conversation mission in the KakaoTalk in-app browser and confirm the
+root hydration warning is absent and the visible "The scene" card is gone.
