@@ -215,6 +215,47 @@ describe("conversation history generation contract", () => {
     ).toEqual({ ok: false, reasons: ["topic_drift"] });
   });
 
+  it("allows a reply that engages with the student's newly introduced topic", () => {
+    expect(
+      validateGeneratedCocoReplyLine(
+        "Minecraft is fun! What do you like to build?",
+        {
+          expectsQuestion: true,
+          allowEitherOrQuestion: false,
+          activeQuestion: "What are you going to do during summer vacation?",
+          latestStudentResponse: "I like minecraft.",
+        },
+      ),
+    ).toEqual({ ok: true });
+
+    expect(
+      validateGeneratedCocoReplyLine(
+        "The beach sounds fun! Who do you go with?",
+        {
+          expectsQuestion: true,
+          allowEitherOrQuestion: false,
+          activeQuestion: "What happens next?",
+          latestStudentResponse:
+            "I will go to the beach with my family and play video games.",
+        },
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  it("still rejects drift when the reply matches neither the question nor the student's response", () => {
+    expect(
+      validateGeneratedCocoReplyLine(
+        "Pizza is great! What toppings do you like?",
+        {
+          expectsQuestion: true,
+          allowEitherOrQuestion: false,
+          activeQuestion: "What are you going to do during summer vacation?",
+          latestStudentResponse: "I like minecraft.",
+        },
+      ),
+    ).toEqual({ ok: false, reasons: ["topic_drift"] });
+  });
+
   it("allows a nearby transition when the student rejects the active topic", () => {
     expect(
       validateGeneratedCocoReplyLine(

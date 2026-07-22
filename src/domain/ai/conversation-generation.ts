@@ -145,9 +145,15 @@ function staysOnActiveTopic(
   ) {
     return true;
   }
-  const topicWords = normalizedWords(latestQuestionText(activeQuestion)).filter(
-    (word) => word.length >= 3 && !TOPIC_STOP_WORDS.has(word),
-  );
+  const questionTopicWords = normalizedWords(
+    latestQuestionText(activeQuestion),
+  ).filter((word) => word.length >= 3 && !TOPIC_STOP_WORDS.has(word));
+  const responseTopicWords = latestStudentResponse
+    ? normalizedWords(latestStudentResponse).filter(
+        (word) => word.length >= 3 && !TOPIC_STOP_WORDS.has(word),
+      )
+    : [];
+  const topicWords = [...questionTopicWords, ...responseTopicWords];
   if (topicWords.length === 0) return true;
 
   const lineWords = normalizedWords(line);
