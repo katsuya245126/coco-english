@@ -122,6 +122,8 @@ export function parseTranslationHint(
   return { ok: true, hint: { phrases } };
 }
 
+const TERMINAL_PUNCTUATION_ONLY = /^[.!?,]+$/u;
+
 export function buildTranslationSegments(
   sourceText: string,
   phrases: TranslationPhrase[],
@@ -138,7 +140,13 @@ export function buildTranslationSegments(
   }
 
   if (cursor < sourceText.length) {
-    segments.push({ kind: "text", text: sourceText.slice(cursor) });
+    const trailing = sourceText.slice(cursor);
+    const lastSegment = segments.at(-1);
+    if (lastSegment?.kind === "phrase" && TERMINAL_PUNCTUATION_ONLY.test(trailing)) {
+      lastSegment.text += trailing;
+    } else {
+      segments.push({ kind: "text", text: trailing });
+    }
   }
 
   return segments;
