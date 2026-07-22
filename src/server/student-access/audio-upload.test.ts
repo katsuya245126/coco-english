@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/lib/db/types";
+import type { GenerateCocoReplyResult } from "@/server/ai/conversation-generator";
+import type { GenerateCocoReplyInput } from "@/domain/ai/conversation-generation";
 
 // Conversation-mode orchestration in audio-upload.ts (CHAT-01/03/05/06,
 // D-10/D-11/D-13). Mirrors the mocking shape of tests/server/audio-upload.test.ts
@@ -271,10 +273,7 @@ function createMockSupabase(options: {
 }
 
 function fakeGenerateCocoReply(
-  impl: () => Promise<
-    | { ok: true; reply: { line: string } }
-    | { ok: false; error: "missing_api_key" | "provider_failed" | "schema_failed" }
-  >,
+  impl: (input: GenerateCocoReplyInput) => Promise<GenerateCocoReplyResult>,
 ) {
   return vi.fn(impl);
 }
@@ -898,6 +897,8 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       expect(result.cocoLine).toBe("That's great! Tell me more.");
       expect(result.cocoLineModerationEvent).toEqual({ kind: "retried" });
     }
+    expect(generate.mock.calls[0]?.[0]).toMatchObject({ safetyMode: "standard" });
+    expect(generate.mock.calls[1]?.[0]).toMatchObject({ safetyMode: "retry" });
   });
 
   it("fails moderation twice: canned fallback persisted with canned_fallback event", async () => {
@@ -929,7 +930,10 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.cocoLine).toBeTruthy();
-      expect(result.cocoLineModerationEvent).toEqual({ kind: "canned_fallback" });
+      expect(result.cocoLineModerationEvent).toEqual({
+        kind: "canned_fallback",
+        cause: "unsafe_output",
+      });
     }
   });
 
@@ -955,8 +959,126 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.cocoLine).toBeTruthy();
-      expect(result.cocoLineModerationEvent).toEqual({ kind: "canned_fallback" });
+      expect(result.cocoLineModerationEvent).toEqual({
+        kind: "canned_fallback",
+        cause: "provider_failed",
+      });
     }
+  });
+
+  it.each([
+    ["invalid_input", { kind: "canned_fallback", cause: "invalid_input" }],
+    ["missing_api_key", { kind: "canned_fallback", cause: "missing_api_key" }],
+    ["provider_failed", { kind: "canned_fallback", cause: "provider_failed" }],
+    ["schema_failed", { kind: "canned_fallback", cause: "schema_failed" }],
+  ] as const)(
+    "persists the %s generation fallback cause",
+    async (error, expectedEvent) => {
+      const { uploadAttemptAudioClip } = await import(
+        "@/server/student-access/audio-upload"
+      );
+      const generate = fakeGenerateCocoReply(async () => ({ ok: false, error }));
+      const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+        transcribeAudioFile: successfulTranscriber("I like soccer."),
+        evaluateOriginalTurn: successfulOriginalEvaluator(),
+        generateCocoReply: generate,
+        isContentSafe: fakeIsContentSafe(async () => ({
+          safe: true,
+          failedOpen: false,
+        })),
+      });
+
+      expect(result).toMatchObject({
+        ok: true,
+        cocoLineModerationEvent: expectedEvent,
+      });
+    },
+  );
+
+  it("persists every policy reason when correction is exhausted", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: false,
+      error: "reply_policy_failed",
+      violations: ["either_or_question", "topic_drift"],
+    }));
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      transcribeAudioFile: successfulTranscriber("I like soccer."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      cocoLineModerationEvent: {
+        kind: "canned_fallback",
+        cause: "reply_policy_failed",
+        violations: ["either_or_question", "topic_drift"],
+      },
+    });
+  });
+
+  it("distinguishes unavailable input moderation from flagged input", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "This must not be generated." },
+    }));
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      transcribeAudioFile: successfulTranscriber("I like soccer."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: false,
+        failedOpen: true,
+      })),
+    });
+
+    expect(generate).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      ok: true,
+      cocoLineModerationEvent: { kind: "input_moderation_unavailable" },
+    });
+  });
+
+  it("falls back immediately when output moderation is unavailable", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "Soccer is fun! Who plays with you?" },
+    }));
+    let moderationCall = 0;
+    const moderate = fakeIsContentSafe(async () => {
+      moderationCall += 1;
+      return moderationCall === 1
+        ? { safe: true as const, failedOpen: false as const }
+        : { safe: false as const, failedOpen: true as const };
+    });
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      transcribeAudioFile: successfulTranscriber("I like soccer."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: generate,
+      isContentSafe: moderate,
+    });
+
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      ok: true,
+      cocoLineModerationEvent: {
+        kind: "canned_fallback",
+        cause: "output_moderation_unavailable",
+      },
+    });
   });
 
   it("computes windDown relative to the fixed hard cap (turnOrder >= 6), not required_turns", async () => {
