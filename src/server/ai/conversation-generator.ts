@@ -21,20 +21,32 @@ import {
   parseGeneratedCocoReply,
   buildConversationPrompt,
   validateGeneratedCocoReplyLine,
+  type ConversationSafetyMode,
   type GenerateCocoReplyInput,
   type GeneratedCocoReply,
+  type GeneratedCocoReplyLineViolation,
 } from "@/domain/ai/conversation-generation";
 
 const DEFAULT_CONVERSATION_MODEL = "gpt-4.1-mini";
 
 export type GenerateCocoReplyError =
+  | "invalid_input"
   | "missing_api_key"
   | "provider_failed"
-  | "schema_failed";
+  | "schema_failed"
+  | "reply_policy_failed";
 
 export type GenerateCocoReplyResult =
   | { ok: true; reply: GeneratedCocoReply }
-  | { ok: false; error: GenerateCocoReplyError };
+  | {
+      ok: false;
+      error: Exclude<GenerateCocoReplyError, "reply_policy_failed">;
+    }
+  | {
+      ok: false;
+      error: "reply_policy_failed";
+      violations: GeneratedCocoReplyLineViolation[];
+    };
 
 export type ConversationResponsesClient = {
   responses: {
@@ -77,7 +89,7 @@ function createClient(apiKey: string): ConversationResponsesClient {
 const CONVERSATION_SYSTEM_MESSAGE = [
   "Generate Coco's next line in a bounded ESL practice conversation.",
   "You are talking with a young ESL learner: use short, simple sentences and easy everyday words.",
-  "Keep the whole line under 12 words. Ask exactly one question unless turnOrder equals hardCap; at hardCap write one short closing line with no question.",
+  "Prefer one or two short, simple sentences. Ask exactly one question unless turnOrder equals hardCap; at hardCap write one short closing line with no question.",
   "Write complete, correctly punctuated sentences. Put sentence-ending punctuation between a reaction and the follow-up question; never join them as a run-on.",
   "Treat every detail in conversationHistory as already known.",
   "Acknowledge or react specifically to the latest studentResponse before asking a follow-up.",
@@ -102,6 +114,15 @@ const CONVERSATION_SYSTEM_MESSAGE = [
   "Return only data matching the schema.",
 ].join(" ");
 
+const SAFETY_RETRY_SYSTEM_MESSAGE =
+  "The previous candidate was rejected by output moderation. Generate a different neutral, child-safe classroom line. Do not repeat, quote, or refer to the rejected candidate.";
+
+function systemMessageFor(safetyMode: ConversationSafetyMode): string {
+  return safetyMode === "retry"
+    ? `${CONVERSATION_SYSTEM_MESSAGE} ${SAFETY_RETRY_SYSTEM_MESSAGE}`
+    : CONVERSATION_SYSTEM_MESSAGE;
+}
+
 const VAGUE_OR_STUCK_RESPONSES = new Set([
   "i don't know",
   "don't know",
@@ -124,20 +145,60 @@ const VAGUE_OR_STUCK_RESPONSES = new Set([
   "no",
 ]);
 
-function replyPolicyCorrection(expectsQuestion: boolean) {
+const VAGUE_OR_STUCK_PREFIXES = [
+  "i don't know",
+  "don't know",
+  "i do not know",
+  "do not know",
+  "i'm not sure",
+  "i am not sure",
+  "not sure",
+  "i have no idea",
+  "no idea",
+] as const;
+
+const VIOLATION_CORRECTION_HINTS: Record<
+  GeneratedCocoReplyLineViolation,
+  string
+> = {
+  question_format:
+    "The previous candidate had the wrong punctuation: a line that expects a question must end in exactly one \"?\", and a closing line must have no \"?\" and end in \".\" or \"!\".",
+  run_on_question:
+    "The previous candidate ran a reaction straight into the question without sentence-ending punctuation between them. Put \".\", \"!\", or \"?\" between the reaction and the question.",
+  either_or_question:
+    "The previous candidate used an invalid either/or question after a meaningful student detail. Ask a single open question instead — do not offer a choice with \"or\".",
+  topic_drift:
+    "The previous candidate drifted away from the active topic (the student's latest answer and Coco's last question). Ask about a detail directly connected to what the student just said.",
+};
+
+function replyPolicyCorrection(
+  expectsQuestion: boolean,
+  violations: GeneratedCocoReplyLineViolation[],
+) {
   return [
-    "The previous candidate broke the reply rules: it may be a run-on, incorrectly punctuated, too long, off-topic, or use an invalid either/or question after a meaningful student detail.",
+    ...violations.map((violation) => VIOLATION_CORRECTION_HINTS[violation]),
     expectsQuestion
-      ? "Regenerate the full line once with complete, correctly punctuated sentences and an open question that stays on the active activity."
+      ? "Regenerate the full line once with complete, correctly punctuated sentences and one open question that stays on the active activity."
       : "Regenerate the full line once as one complete, correctly punctuated closing line with no question.",
-    "Keep it under 12 words. Do not use a yes/no or either/or question unless the learner is vague or stuck.",
+    "Prefer one or two short, simple sentences. Do not use a yes/no or either/or question unless the learner is vague or stuck.",
     "Return only data matching the schema.",
   ].join(" ");
 }
 
 function isVagueOrStuckResponse(response: string): boolean {
-  const normalized = response.trim().toLowerCase().replace(/[.!?]+$/u, "");
-  return VAGUE_OR_STUCK_RESPONSES.has(normalized);
+  const normalized = response
+    .trim()
+    .toLocaleLowerCase("en-US")
+    .replace(/[’‘]/gu, "'")
+    .replace(/[.!?]+$/u, "");
+
+  return (
+    VAGUE_OR_STUCK_RESPONSES.has(normalized) ||
+    VAGUE_OR_STUCK_PREFIXES.some(
+      (prefix) =>
+        normalized === prefix || normalized.startsWith(`${prefix} `),
+    )
+  );
 }
 
 /**
@@ -154,13 +215,15 @@ export async function generateCocoReply(
 ): Promise<GenerateCocoReplyResult> {
   const validInput = conversationTurnInputSchema.safeParse(input);
   if (!validInput.success) {
-    return { ok: false, error: "schema_failed" };
+    return { ok: false, error: "invalid_input" };
   }
 
   const apiKey = resolveApiKey(deps);
   if (!deps?.client && !apiKey) {
     return { ok: false, error: "missing_api_key" };
   }
+
+  const systemMessage = systemMessageFor(validInput.data.safetyMode);
 
   try {
     const client = deps?.client ?? createClient(apiKey);
@@ -169,7 +232,7 @@ export async function generateCocoReply(
       input: [
         {
           role: "system",
-          content: CONVERSATION_SYSTEM_MESSAGE,
+          content: systemMessage,
         },
         {
           role: "user",
@@ -199,13 +262,17 @@ export async function generateCocoReply(
       latestStudentResponse: latestResponse,
     });
     if (!linePolicy.ok) {
+      log("warn", "ai.conversation_line_policy_rejected", {
+        reasons: linePolicy.reasons,
+        attempt: "first",
+      });
       try {
         const correctedResponse = await client.responses.parse({
           model: resolveModel(deps),
           input: [
             {
               role: "system",
-              content: `${CONVERSATION_SYSTEM_MESSAGE} ${replyPolicyCorrection(expectsQuestion)}`,
+              content: `${systemMessage} ${replyPolicyCorrection(expectsQuestion, linePolicy.reasons)}`,
             },
             {
               role: "user",
@@ -230,12 +297,20 @@ export async function generateCocoReply(
           },
         );
         if (!correctedPolicy.ok) {
-          return { ok: false, error: "schema_failed" };
+          log("warn", "ai.conversation_line_policy_rejected", {
+            reasons: correctedPolicy.reasons,
+            attempt: "corrected",
+          });
+          return {
+            ok: false,
+            error: "reply_policy_failed",
+            violations: correctedPolicy.reasons,
+          };
         }
         return { ok: true, reply: corrected.reply };
       } catch {
-        log("error", "ai.conversation_generation_failed", { error: "schema_failed" });
-        return { ok: false, error: "schema_failed" };
+        log("error", "ai.conversation_generation_failed", { error: "provider_failed" });
+        return { ok: false, error: "provider_failed" };
       }
     }
 

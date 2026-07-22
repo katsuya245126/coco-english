@@ -27,6 +27,7 @@ const input: GenerateCocoReplyInput = {
   requiredTurns: 5,
   hardCap: HARD_TURN_CAP,
   windDown: false,
+  safetyMode: "standard",
   conversationHistory: history,
 };
 

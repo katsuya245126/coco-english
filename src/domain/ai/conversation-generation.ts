@@ -10,6 +10,11 @@ import { z } from "zod";
 
 export const HARD_TURN_CAP = 8 as const;
 
+export const conversationSafetyModeSchema = z.enum(["standard", "retry"]);
+export type ConversationSafetyMode = z.infer<
+  typeof conversationSafetyModeSchema
+>;
+
 export const conversationExchangeSchema = z.object({
   turnOrder: z.number().int().min(1).max(HARD_TURN_CAP),
   cocoLine: z.string().trim().min(1),
@@ -42,6 +47,7 @@ export const conversationTurnInputSchema = z
     requiredTurns: z.number().int().min(3).max(8),
     hardCap: z.literal(HARD_TURN_CAP),
     windDown: z.boolean(),
+    safetyMode: conversationSafetyModeSchema,
     conversationHistory: conversationHistorySchema,
   })
   .superRefine((input, context) => {
@@ -223,6 +229,7 @@ export function buildConversationPrompt(input: GenerateCocoReplyInput) {
     hardCap: HARD_TURN_CAP,
     turnsRemaining: HARD_TURN_CAP - input.turnOrder,
     windDown: input.windDown,
+    safetyMode: input.safetyMode,
     conversationHistory: input.conversationHistory,
     instructions: [
       "Speak to a young ESL learner: short, simple sentences with easy everyday words.",
