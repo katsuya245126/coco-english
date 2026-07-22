@@ -545,6 +545,15 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(code).not.toContain("createAnalyser");
     expect(code).toContain("syntheticSpeechLevel");
   });
+
+  it("voices the final closing through the persisted dynamic-line descriptor", () => {
+    const shellSource = readSource(
+      "src/components/student/MissionFlowShell.tsx",
+    );
+    expect(shellSource).toMatch(
+      /flow\.step === "closing"[\s\S]*lineKind: "coco_dynamic_line"[\s\S]*turnOrder: flow\.turnIndex \+ 1/,
+    );
+  });
 });
 
 describe("Student/server TTS boundary (T-08-01)", () => {

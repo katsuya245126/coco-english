@@ -22,6 +22,7 @@ const allSteps: FlowStep[] = [
   "repeatFeedback",
   "transition",
   "reviewPending",
+  "closing",
   "complete",
 ];
 
@@ -59,6 +60,10 @@ describe("deriveExpression (MASCOT-03)", () => {
         repeatFeedbackKind: "repeatAccepted",
       }),
     ).toBe("celebrate");
+  });
+
+  it("keeps Coco happy while delivering the final closing", () => {
+    expect(deriveExpression({ step: "closing" })).toBe("happy");
   });
 
   it("maps repeat feedback to celebrate, sad, or thinking", () => {
@@ -148,6 +153,7 @@ describe("deriveExpression (MASCOT-03)", () => {
     const neutralSteps = allSteps.filter(
       (candidate) =>
         candidate !== "complete" &&
+        candidate !== "closing" &&
         candidate !== "repeat" &&
         candidate !== "cocoThinking",
     );

@@ -299,4 +299,36 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(shellSource).toContain("finishAcceptedOriginal");
     expect(shellSource).toContain("finishRepeatFeedback");
   });
+
+  it("completes once, shows the final Coco closing, then waits for Finish mission", () => {
+    const shellSource = readFileSync(
+      "src/components/student/MissionFlowShell.tsx",
+      "utf8",
+    );
+    const closingSource = readFileSync(
+      "src/components/student/StepConversationClosing.tsx",
+      "utf8",
+    );
+
+    expect(shellSource).toContain('| "closing"');
+    expect(shellSource).toContain('resolution.kind === "closing"');
+    expect(shellSource).toContain("completeMissionAction");
+    expect(shellSource).toContain('step: "closing"');
+    expect(shellSource).toContain("<StepConversationClosing");
+    expect(shellSource).toContain('lineKind: "coco_dynamic_line"');
+    expect(shellSource).toContain(
+      "continueAcceptedConversationTurn(aid, upload.cocoLine ?? null)",
+    );
+    expect(shellSource).toContain(
+      "continueAcceptedConversationTurn(aid, flow.cocoLine)",
+    );
+    expect(shellSource).toMatch(
+      /function finishConversationClosing\(\) \{\s*setFlow\(\(prev\) => \(\{ \.\.\.prev, step: "complete" \}\)\);\s*\}/,
+    );
+    expect(closingSource).toContain("Finish mission");
+    expect(closingSource).toContain("onFinish");
+    expect(closingSource).not.toContain("completeMissionAction");
+    expect(closingSource).not.toContain("disabled=");
+    expect(closingSource).not.toContain("CocoSpeechAudio");
+  });
 });

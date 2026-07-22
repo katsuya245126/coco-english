@@ -63,4 +63,11 @@ describe("student mission resume state", () => {
       /\{!conversationMode && startingTurnIndex === 0 && \([\s\S]*?<ScenePremiseCard scenePremise=\{scenePremise\} \/>[\s\S]*?\)\}/,
     );
   });
+
+  it("keeps completed assignments out of the recorder on reload", () => {
+    expect(pageSource).toContain('const RECORDABLE_STATUSES = new Set(["assigned", "started", "needs_retry"])');
+    expect(pageSource.indexOf("RECORDABLE_STATUSES")).toBeLessThan(
+      pageSource.indexOf("<MissionFlowShell"),
+    );
+  });
 });

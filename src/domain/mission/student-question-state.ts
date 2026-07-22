@@ -103,7 +103,7 @@ export type AcceptedConversationTurnResolution =
       turnIndex: number;
       dynamicPrompt: string;
     }
-  | { kind: "complete" }
+  | { kind: "closing"; closingLine: string }
   | { kind: "unavailable" };
 
 export function resolveAcceptedConversationTurn({
@@ -115,19 +115,17 @@ export function resolveAcceptedConversationTurn({
   requiredTurns: number;
   pendingCocoLine: string | null;
 }): AcceptedConversationTurnResolution {
-  if (turnIndex + 1 >= requiredTurns) {
-    return { kind: "complete" };
-  }
+  const line = pendingCocoLine?.trim();
+  if (!line) return { kind: "unavailable" };
 
-  const dynamicPrompt = pendingCocoLine?.trim();
-  if (!dynamicPrompt) {
-    return { kind: "unavailable" };
+  if (turnIndex + 1 >= requiredTurns) {
+    return { kind: "closing", closingLine: line };
   }
 
   return {
     kind: "next",
     turnIndex: turnIndex + 1,
-    dynamicPrompt,
+    dynamicPrompt: line,
   };
 }
 

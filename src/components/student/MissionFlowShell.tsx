@@ -33,6 +33,7 @@ import { StepBuddyQuestion } from "@/components/student/StepBuddyQuestion";
 import { StepImprovedRepeat } from "@/components/student/StepImprovedRepeat";
 import { StepAiEvaluationFeedback } from "@/components/student/StepAiEvaluationFeedback";
 import { StepTurnTransition } from "@/components/student/StepTurnTransition";
+import { StepConversationClosing } from "@/components/student/StepConversationClosing";
 import { StepMissionComplete } from "@/components/student/StepMissionComplete";
 import { ScenePremiseCard } from "@/components/student/ScenePremiseCard";
 import { MascotStage } from "@/components/student/MascotStage";
@@ -61,6 +62,7 @@ export type FlowStep =
   | "repeatFeedback"
   | "transition"
   | "reviewPending"
+  | "closing"
   | "complete";
 
 type OriginalFeedback = (
@@ -491,7 +493,7 @@ export function MissionFlowShell({
       return;
     }
 
-    if (resolution.kind === "complete") {
+    if (resolution.kind === "closing") {
       const result = await completeMissionAction({
         assignmentStudentId,
         attemptId: aid,
@@ -502,7 +504,12 @@ export function MissionFlowShell({
         );
         throw new Error("mission_complete_failed");
       }
-      setFlow((prev) => ({ ...prev, step: "complete" }));
+      revokeAudioUrls();
+      setFlow((prev) => ({
+        ...prev,
+        step: "closing",
+        cocoLine: resolution.closingLine,
+      }));
       return;
     }
 
@@ -520,6 +527,10 @@ export function MissionFlowShell({
       cocoLine: null,
       dynamicPrompt: resolution.dynamicPrompt,
     });
+  }
+
+  function finishConversationClosing() {
+    setFlow((prev) => ({ ...prev, step: "complete" }));
   }
 
   async function handleSubmitOriginalVoice(recording: RecordedVoiceClip) {
@@ -1056,6 +1067,10 @@ export function MissionFlowShell({
           />
         )}
 
+        {flow.step === "closing" && (
+          <StepConversationClosing onFinish={finishConversationClosing} />
+        )}
+
         {flow.step === "complete" && (
           <StepMissionComplete
             assignmentStudentId={assignmentStudentId}
@@ -1221,6 +1236,16 @@ function getMascotDialogue({
     return {
       text: turnTransition,
       line: { lineKind: "coco_transition" },
+    };
+  }
+
+  if (flow.step === "closing" && flow.cocoLine) {
+    return {
+      text: flow.cocoLine,
+      line: {
+        lineKind: "coco_dynamic_line",
+        turnOrder: flow.turnIndex + 1,
+      },
     };
   }
 

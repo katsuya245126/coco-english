@@ -158,14 +158,29 @@ describe("student question state", () => {
     });
   });
 
-  it("completes the final accepted chat turn without requiring another Coco line", () => {
+  it("resolves the final accepted chat turn to its closing line", () => {
     expect(
       resolveAcceptedConversationTurn({
         turnIndex: 3,
         requiredTurns: 4,
-        pendingCocoLine: null,
+        pendingCocoLine:
+          "Sushi sounds delicious! Thanks for talking with me. See you next time!",
       }),
-    ).toEqual({ kind: "complete" });
+    ).toEqual({
+      kind: "closing",
+      closingLine:
+        "Sushi sounds delicious! Thanks for talking with me. See you next time!",
+    });
+  });
+
+  it("fails closed when the final accepted turn has no closing line", () => {
+    expect(
+      resolveAcceptedConversationTurn({
+        turnIndex: 3,
+        requiredTurns: 4,
+        pendingCocoLine: "   ",
+      }),
+    ).toEqual({ kind: "unavailable" });
   });
 
   it("fails closed when a non-final accepted chat turn has no pending Coco line", () => {
