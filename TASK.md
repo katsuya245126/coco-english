@@ -1,72 +1,62 @@
-# Kakao hydration compatibility and conversation scene-card removal
+# Final Coco closing for dynamic conversation missions
 
-**Status:** Implemented and verified; awaiting Kakao real-device recheck
+**Status:** Design approved; written specification awaiting user review
 
 ## Goal
 
-Prevent KakaoTalk's root-element style injection from producing a React
-hydration warning, and remove the redundant visible scene card from dynamic
-conversation missions without weakening Coco's scene grounding.
+End a successful dynamic conversation mission with a relevant spoken Coco
+closing and an explicit **Finish mission** button before the existing completion
+screen.
 
-## Approval
+## Classification and approval
 
-The user approved the recommended design on 2026-07-23.
+This is consequential student-flow and AI-generation work. The user approved
+the correction threshold on 2026-07-23, approved the Finish button, and approved
+splitting the UAT remediation into two sequential tasks. Task 1 is this closing
+flow. Task 2 will separately address evaluation and follow-up quality.
+
+No implementation is approved until the user reviews the written specification
+and then approves the implementation plan.
 
 ## Scope
 
-- Suppress hydration warnings only on root `<html>` and `<body>` elements.
-- Hide `ScenePremiseCard` only when `conversationMode` is true.
-- Preserve scene generation, storage, snapshots, opener grounding, dynamic
-  reply grounding, and preset-mode behavior.
+- Derive final closing behavior from the mission's `requiredTurns`.
+- Generate a response-specific, no-question Coco farewell after the final
+  accepted answer.
+- Use a separate safe, non-interpolated closing fallback.
+- Persist and speak the closing through existing `coco_line` and TTS ownership
+  boundaries.
+- Record completion, then show a closing step with **Finish mission**.
+- Preserve safe completed-assignment re-entry behavior.
+- Cover accepted-original and accepted-repeat endings.
 
 ## Non-goals
 
-- Database, AI prompt, or state-transition changes.
-- Removing the scene premise from the underlying mission model.
-- Push or deployment.
+- Elementary correction thresholds or accepted recasts.
+- Conversation-history contract changes.
+- Follow-up policy repair, either/or relaxation, or follow-up fallback rewrite.
+- Per-clip evidence history or database migration.
+- Preset-mode behavior changes.
+- Push, deployment, or external database mutation.
 
 ## Done checks
 
-- [x] Root cause identified from the Kakao error diff and root layout source.
-- [x] Design approved.
-- [x] Design spec written and self-reviewed.
-- [x] Written spec reviewed by user.
-- [x] Test-first implementation plan written and self-reviewed.
-- [x] Test-first implementation complete.
-- [x] Focused and release verification complete.
+- [x] Production UAT symptom and root cause identified.
+- [x] Closing UX and Finish-button behavior confirmed by the user.
+- [x] Task decomposition reviewed with Claude and approved by the user.
+- [x] Design presented and approved in conversation.
+- [x] Written design specification created and self-reviewed.
+- [ ] User reviews the written specification.
+- [ ] Test-first implementation plan written, self-reviewed, and approved.
+- [ ] Implementation completed with focused regression coverage.
+- [ ] Proportionate release verification completed.
+- [ ] Conversation-mode UAT confirms the final spoken closing and button flow.
 
-## Verification evidence (2026-07-23)
+## Current position
 
-Focused regression matrix:
-
-```
-npx vitest run tests/server/root-layout-source.test.ts tests/server/student-mission-page.test.ts src/server/ai/opener-generator.test.ts src/server/ai/conversation-generator.test.ts src/domain/ai/conversation-generation.test.ts
-```
-Result: 5 files passed, 59 tests passed, 0 failed.
-
-Full automated release gate, run sequentially:
-
-```
-npm test -- --run
-```
-Result: 89 files passed, 910 tests passed, 4 skipped, 0 failed. No `listen EPERM` socket failures observed.
-
-```
-npm run typecheck
-```
-Result: exit 0, no errors.
-
-```
-npm run lint
-```
-Result: exit 0. 1 pre-existing warning (`scripts/check-student-feedback-states.mjs:435`, unused `label` arg). No new errors or warnings introduced.
-
-```
-npm run build
-```
-Result: exit 0. Production build compiled successfully; all 9 static pages generated; no route or type errors.
+Written specification:
+`docs/superpowers/specs/2026-07-23-final-coco-closing-design.md`
 
 ## Next step
 
-Open a conversation mission in the KakaoTalk in-app browser and confirm the
-root hydration warning is absent and the visible "The scene" card is gone.
+User reviews the written specification before implementation planning begins.
