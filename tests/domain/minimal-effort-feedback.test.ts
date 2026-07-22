@@ -98,4 +98,26 @@ describe("minimal-effort feedback metadata", () => {
       }),
     ).toBeNull();
   });
+
+  it("extracts the trailing question from a reaction-plus-question opener", () => {
+    expect(
+      resolveMinimalEffortRetryExample({
+        evaluationMode: "conversation",
+        missionQuestion:
+          "I play soccer three times a week. How often do you play soccer?",
+        targetExample: null,
+      }),
+    ).toBe("I play soccer sometimes.");
+  });
+
+  it("extracts the trailing question from a dynamic follow-up with pronoun swap", () => {
+    expect(
+      resolveMinimalEffortRetryExample({
+        evaluationMode: "conversation",
+        missionQuestion:
+          "Swimming together is fun! How often do you swim with your friend?",
+        targetExample: null,
+      }),
+    ).toBe("I swim with my friend sometimes.");
+  });
 });

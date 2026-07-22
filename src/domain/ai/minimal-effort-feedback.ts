@@ -41,8 +41,15 @@ function usableTargetExample(targetExample: string | null | undefined) {
   );
 }
 
+function trailingQuestionSentence(question: string) {
+  const questions = question.trim().match(/[^.!?]*\?/gu);
+  return (questions?.at(-1) ?? question).trim();
+}
+
 function resolveHowOftenExample(question: string) {
-  const match = question.trim().match(/^how often do you\s+(.+?)\??$/iu);
+  const match = trailingQuestionSentence(question).match(
+    /^how often do you\s+(.+?)\??$/iu,
+  );
   const rawPredicate = match?.[1]?.trim().replace(/[.!?]+$/u, "");
   if (!rawPredicate || /\byou\b/iu.test(rawPredicate) || /^and\b/iu.test(rawPredicate)) {
     return null;
