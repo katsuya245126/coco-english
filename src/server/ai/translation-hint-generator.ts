@@ -96,9 +96,12 @@ export async function generateTranslationHint(
             targetLocale: input.targetLocale,
             instructions: [
               "Return zero to three useful semantic meaning units in source order.",
+              "When the sentence has enough useful language, prefer two or three shorter chunks instead of one large chunk.",
+              "Keep each selected chunk short, usually two to four words.",
               "Prefer contextual chunks, idioms, and level-appropriate difficult phrases.",
               "Do not select isolated function words such as do, the, or you.",
               "Do not cover every word or turn the complete sentence into clickable pieces.",
+              "Never select one span that covers the whole sentence or the whole sentence except terminal punctuation.",
               "Each phrase's source must be an exact substring copied verbatim from sourceText.",
               "Translate only that phrase's contextual meaning into targetLocale.",
             ],

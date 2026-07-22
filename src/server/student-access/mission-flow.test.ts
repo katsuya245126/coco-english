@@ -195,6 +195,32 @@ describe("recordCocoLine (CHAT-06, T-11-11 idempotent upsert + ownership)", () =
     });
   });
 
+  it("persists an attributable policy fallback event without rejected text", async () => {
+    const { recordCocoLine } = await import(
+      "@/server/student-access/mission-flow"
+    );
+    const event = {
+      kind: "canned_fallback" as const,
+      cause: "reply_policy_failed" as const,
+      violations: ["either_or_question" as const, "topic_drift" as const],
+    };
+
+    const result = await recordCocoLine({
+      studentId: "student-1",
+      assignmentStudentId: "as-1",
+      attemptId: "attempt-1",
+      turnOrder: 2,
+      cocoLine: "That's interesting! Tell me more about that.",
+      moderationEvent: event,
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(mockSupabase.operations.at(-1)?.payload).toMatchObject({
+      moderation_event: event,
+    });
+    expect(JSON.stringify(event)).not.toContain("line");
+  });
+
   it("returns not_found for a mismatched student/attempt (ownership enforced, V4)", async () => {
     mockSupabase = createMockSupabase({ assignmentFound: false });
     const { recordCocoLine } = await import(

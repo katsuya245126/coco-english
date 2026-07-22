@@ -157,6 +157,7 @@ function createMockSupabase(options: {
   uploadError?: Error | null;
   turnWriteError?: Error | null;
   missionSnapshot?: typeof missionSnapshotFixture;
+  turnEvaluation?: unknown;
 } = {}) {
   const operations: Operation[] = [];
   const upload = vi.fn(async () => ({
@@ -239,7 +240,10 @@ function createMockSupabase(options: {
       single: vi.fn(async () => {
         if (!operations.includes(operation)) operations.push(operation);
         if (table === "attempt_turns") {
-          return { data: { id: "turn-1" }, error: null };
+          return {
+            data: { id: "turn-1", evaluation: options.turnEvaluation ?? null },
+            error: null,
+          };
         }
         if (table === "audio_clips") {
           return { data: { id: "clip-1" }, error: null };
@@ -1445,5 +1449,185 @@ describe("uploadAttemptAudioClip", () => {
     expect(callOrder.indexOf("score:start")).toBeLessThan(
       callOrder.indexOf("evaluate:end"),
     );
+  });
+});
+
+describe("minimal-effort answer guard", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    mockLog.mockClear();
+    mockSupabase = createMockSupabase();
+    process.env.STUDENT_AUDIO_BUCKET = "student-audio";
+  });
+
+  it("blocks a minimal-effort answer without calling the evaluator or scorer", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluate = successfulOriginalEvaluator();
+    const score = successfulPronunciationScorer();
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("Yes."),
+      evaluateOriginalTurn: evaluate,
+      scorePronunciation: score,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    expect(evaluate).not.toHaveBeenCalled();
+    expect(score).not.toHaveBeenCalled();
+    expect(result.evaluation).toMatchObject({
+      outcome: "retry_original",
+      retryReason: "minimal_effort",
+      minimalEffortBlocks: 1,
+      minimalEffortKind: "short_answer",
+      retryExample: "I like playing soccer after school.",
+      requireRepeat: false,
+    });
+    expect(result.starBand).toBeNull();
+
+    const turnUpsert = mockSupabase.operations.find(
+      (operation) =>
+        operation.table === "attempt_turns" &&
+        operation.action === "upsert" &&
+        typeof operation.payload === "object" &&
+        operation.payload !== null &&
+        "original_transcript" in operation.payload,
+    );
+    expect(turnUpsert?.payload).toMatchObject({
+      original_transcript: "Yes.",
+      improved_sentence: null,
+    });
+  });
+
+  it("increments the block counter from the stored evaluation", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    mockSupabase = createMockSupabase({
+      turnEvaluation: {
+        version: "ai-eval-v1",
+        outcome: "retry_original",
+        retryReason: "minimal_effort",
+        minimalEffortBlocks: 1,
+      },
+    });
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I don't know."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      scorePronunciation: successfulPronunciationScorer(),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.evaluation).toMatchObject({
+      retryReason: "minimal_effort",
+      minimalEffortBlocks: 2,
+      minimalEffortKind: "dont_know",
+      retryExample: "I like playing soccer after school.",
+    });
+  });
+
+  it("evaluates normally after 2 prior blocks (never traps the student)", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    mockSupabase = createMockSupabase({
+      turnEvaluation: {
+        version: "ai-eval-v1",
+        outcome: "retry_original",
+        retryReason: "minimal_effort",
+        minimalEffortBlocks: 2,
+      },
+    });
+    const evaluate = successfulOriginalEvaluator({
+      outcome: "needs_correction",
+      correctionNeeded: true,
+      improvedSentence: "Yes, I like pizza.",
+    });
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("Yes."),
+      evaluateOriginalTurn: evaluate,
+      scorePronunciation: successfulPronunciationScorer(),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    expect(evaluate).toHaveBeenCalledTimes(1);
+    expect(result.evaluation).toMatchObject({
+      outcome: "needs_correction",
+      minimalEffortBlocks: 2,
+    });
+  });
+
+  it("does not restart blocking after a post-cap generic retry overwrites the reason", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    mockSupabase = createMockSupabase({
+      turnEvaluation: {
+        version: "ai-eval-v1",
+        outcome: "retry_original",
+        minimalEffortBlocks: 2,
+      },
+    });
+    const evaluate = successfulOriginalEvaluator();
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("No."),
+      evaluateOriginalTurn: evaluate,
+      scorePronunciation: successfulPronunciationScorer(),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(evaluate).toHaveBeenCalledTimes(1);
+  });
+
+  it("never blocks an exact target-example match", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...missionSnapshotFixture,
+        turns: [
+          { ...missionSnapshotFixture.turns[0], targetExample: "Yes." },
+          missionSnapshotFixture.turns[1],
+        ],
+      },
+    });
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("Yes."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      scorePronunciation: successfulPronunciationScorer(),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.evaluation).toMatchObject({ outcome: "accepted_original" });
+  });
+
+  it("does not run the guard for repeat attempts", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateRepeat = successfulRepeatEvaluator();
+
+    const result = await uploadAttemptAudioClip(
+      audioInput({ clipKind: "repeat_attempt" }),
+      {
+        transcribeAudioFile: successfulTranscriber("Yes."),
+        evaluateRepeatTurn: evaluateRepeat,
+        scorePronunciation: successfulPronunciationScorer(),
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.evaluation).toMatchObject({ outcome: "accepted_repeat" });
   });
 });

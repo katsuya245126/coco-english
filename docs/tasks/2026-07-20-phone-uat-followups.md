@@ -7,8 +7,8 @@ via the ngrok tunnel to the port-3200 dev server). The pagination feature itself
 (commit `c6f6eced`). Everything below is **out of that branch's scope** and needs
 its own task. Evidence screenshots are in `/Users/john/Downloads/` (filenames below).
 
-Each item: evidence → likely cause → recommended solution. None of these are
-started; treat each as an independent backlog task.
+Each item: evidence → likely cause → recommended solution. Dated resolution
+notes record follow-up work completed after the original UAT.
 
 ## Ship-today priority order
 
@@ -39,6 +39,13 @@ systemic failure; defer items 5 and 7 if time is tight.
 ---
 
 ## 1. Coco's dynamic reply pivots off-topic (swimming → games)
+
+**Resolution (2026-07-21):** Implemented on
+`minimal-effort-answer-guard`. Conversation-only prompts now keep the latest
+question's activity active and require complete punctuation, with the exact
+swimming/friend/games counterexample. A deterministic line policy rejects the
+observed run-on, excessive length, malformed question counts, and inappropriate
+either/or questions, then permits at most one corrective regeneration.
 
 - **Evidence:** User answered "with my friend" to "Who do you swim with?" and Coco
   replied "Your friend is fun to swim with what games do you play together?" —
@@ -102,6 +109,12 @@ systemic failure; defer items 5 and 7 if time is tight.
 
 ## 5. Phrase-selection granularity + orphaned trailing "?"
 
+**Resolution (2026-07-21):** Implemented on
+`minimal-effort-answer-guard`. The selector now prefers 2–3 shorter chunks of
+roughly 2–4 words and forbids near-whole-sentence spans. Phrase wrappers and
+buttons participate in inline wrapping, and a policy-versioned source digest
+bypasses legacy cached selections without a migration.
+
 - **Evidence:** `Screenshot_20260720_104445_Chrome.jpg` ("How often do you
   [ride your bike outside] ?"), `Screenshot_20260720_104346_Chrome.jpg` ("[What
   do you like to do outside] ?" with the "?" orphaned on its own line).
@@ -124,6 +137,13 @@ systemic failure; defer items 5 and 7 if time is tight.
 
 ## 6. One-word answers should not consume a turn
 
+**Resolution (2026-07-21):** The early two-block guard remains intact on
+`minimal-effort-answer-guard`; its retry UX now stores a safe deterministic
+example when available, uses a detail fallback otherwise, and gives `I don't
+know` distinct supportive guidance. The block count survives later evaluation,
+and an auxiliary `Yes, I do.` correction for an information question is routed
+to ambiguous teacher review instead of being shown to the student.
+
 - **Evidence:** user report — students can answer "yes / no / I don't know" and
   finish homework without producing sentences.
 - **Product decision (user-stated):** minimal-effort answers should at minimum
@@ -137,6 +157,11 @@ systemic failure; defer items 5 and 7 if time is tight.
   overlap or conflict.
 
 ## 7. Show "Coco is thinking…" inside the chat box
+
+**Resolution (2026-07-21):** Implemented on
+`minimal-effort-answer-guard`. The existing `cocoThinking` state now supplies
+unvoiced text through the persistent mascot dialogue path with a polite atomic
+live region; the duplicate standalone thinking card was removed.
 
 - **Evidence:** user request during UAT.
 - **Context:** a thinking/loading treatment exists from the fluid-mission-hints

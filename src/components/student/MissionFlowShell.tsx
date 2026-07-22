@@ -34,7 +34,6 @@ import { StepImprovedRepeat } from "@/components/student/StepImprovedRepeat";
 import { StepAiEvaluationFeedback } from "@/components/student/StepAiEvaluationFeedback";
 import { StepTurnTransition } from "@/components/student/StepTurnTransition";
 import { StepMissionComplete } from "@/components/student/StepMissionComplete";
-import { StepCocoThinking } from "@/components/student/StepCocoThinking";
 import { ScenePremiseCard } from "@/components/student/ScenePremiseCard";
 import { MascotStage } from "@/components/student/MascotStage";
 import {
@@ -64,7 +63,7 @@ export type FlowStep =
   | "reviewPending"
   | "complete";
 
-type OriginalFeedback =
+type OriginalFeedback = (
   | {
       kind: "acceptedOriginal";
       transcript: string;
@@ -85,11 +84,21 @@ type OriginalFeedback =
       wordsToPractice?: WordHighlight[];
     }
   | {
+      kind: "retryMinimalEffort";
+      transcript: string;
+      starBand?: PronunciationStarBand | null;
+      wordsToPractice?: WordHighlight[];
+    }
+  | {
       kind: "teacherReview";
       transcript: string;
       starBand?: PronunciationStarBand | null;
       wordsToPractice?: WordHighlight[];
-    };
+    }
+) & {
+  minimalEffortKind?: "dont_know" | "short_answer";
+  retryExample?: string | null;
+};
 
 export type RepeatFeedbackCompatibility = "repeatAccepted" | "teacherReview";
 
@@ -205,6 +214,8 @@ function initialFlowState(
         : {
             kind: initialReview.outcome,
             transcript: initialReview.transcript,
+            minimalEffortKind: initialReview.minimalEffortKind,
+            retryExample: initialReview.retryExample,
           };
 
     return {
@@ -330,6 +341,9 @@ export function MissionFlowShell({
     evaluation?: {
       outcome?: string;
       improvedSentence?: string | null;
+      retryReason?: string | null;
+      minimalEffortKind?: "dont_know" | "short_answer";
+      retryExample?: string | null;
     };
     starBand?: PronunciationStarBand | null;
     wordsToPractice?: WordHighlight[];
@@ -422,6 +436,19 @@ export function MissionFlowShell({
         kind: "needsCorrection",
         transcript,
         improvedSentence: evaluation.improvedSentence,
+        starBand,
+        wordsToPractice,
+      };
+    }
+    if (
+      evaluation?.outcome === "retry_original" &&
+      evaluation.retryReason === "minimal_effort"
+    ) {
+      return {
+        kind: "retryMinimalEffort",
+        transcript,
+        minimalEffortKind: evaluation.minimalEffortKind,
+        retryExample: evaluation.retryExample,
         starBand,
         wordsToPractice,
       };
@@ -660,12 +687,23 @@ export function MissionFlowShell({
     }));
   }
 
-  function finishTeacherReviewFeedback() {
+  async function finishTeacherReviewFeedback() {
     const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
-    setFlow((prev) => ({
-      ...prev,
-      step: isFinalTurn ? "reviewPending" : "transition",
-    }));
+    if (isFinalTurn) {
+      setFlow((prev) => ({ ...prev, step: "reviewPending" }));
+      return;
+    }
+
+    if (conversationMode) {
+      const aid = await ensureAttempt();
+      if (!aid) {
+        throw new Error("attempt_start_failed");
+      }
+      await continueAcceptedConversationTurn(aid, flow.cocoLine);
+      return;
+    }
+
+    setFlow((prev) => ({ ...prev, step: "transition" }));
   }
 
   async function finishAcceptedOriginal() {
@@ -763,7 +801,8 @@ export function MissionFlowShell({
   }
 
   // Preset missions only — chat missions advance directly through
-  // continueAcceptedConversationTurn and never reach the transition step.
+  // continueAcceptedConversationTurn (accepted or teacher-reviewed turns
+  // alike) and never reach the transition step.
   function handleNextTurn() {
     revokeAudioUrls();
     setFlow((previous) => {
@@ -827,6 +866,7 @@ export function MissionFlowShell({
         assignmentStudentId={assignmentStudentId}
         displayName={characterProfile.displayName}
         dialogueText={mascotDialogue.text}
+        isThinking={flow.step === "cocoThinking"}
         translationLine={
           !actionError &&
           flow.step === "question" &&
@@ -868,8 +908,6 @@ export function MissionFlowShell({
             {actionError}
           </p>
         )}
-
-        {flow.step === "cocoThinking" && <StepCocoThinking />}
 
         {flow.step === "question" && activeQuestion.kind === "preset" && (
           <StepBuddyQuestion
@@ -928,6 +966,8 @@ export function MissionFlowShell({
                 ? flow.originalFeedback.improvedSentence
                 : null
             }
+            minimalEffortKind={flow.originalFeedback.minimalEffortKind}
+            retryExample={flow.originalFeedback.retryExample}
             starBand={flow.originalFeedback.starBand}
             wordsToPractice={flow.originalFeedback.wordsToPractice}
             showCocoLine={false}
@@ -1067,9 +1107,9 @@ function getMascotDialogue({
   }
 
   if (flow.step === "cocoThinking") {
-    // No dialogue bubble/voice during the wait — StepCocoThinking already
-    // shows the "Coco is thinking…" indicator (CHAT-02).
-    return { text: null, line: null };
+    // Keep the wait state inside Coco's persistent dialogue box. It is
+    // intentionally unvoiced and has no translation hint.
+    return { text: "Coco is thinking…", line: null };
   }
 
   if (flow.step === "question" && activeQuestion.kind !== "unavailable") {
@@ -1113,6 +1153,37 @@ function getMascotDialogue({
     return {
       text: "Try again.",
       line: { lineKind: "coco_feedback", feedbackVariant: "retry_original" },
+    };
+  }
+
+  if (
+    flow.step === "aiFeedback" &&
+    flow.originalFeedback?.kind === "retryMinimalEffort"
+  ) {
+    if (flow.originalFeedback.minimalEffortKind === "dont_know") {
+      return {
+        text: "It's okay to guess. Try one answer!",
+        line: {
+          lineKind: "coco_feedback",
+          feedbackVariant: "retry_minimal_unsure",
+        },
+      };
+    }
+    if (flow.originalFeedback.retryExample) {
+      return {
+        text: "Try the example below!",
+        line: {
+          lineKind: "coco_feedback",
+          feedbackVariant: "retry_minimal_example",
+        },
+      };
+    }
+    return {
+      text: "Answer Coco's question and add one detail.",
+      line: {
+        lineKind: "coco_feedback",
+        feedbackVariant: "retry_minimal_detail",
+      },
     };
   }
 

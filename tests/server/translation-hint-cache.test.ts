@@ -108,6 +108,46 @@ describe("getOrCreateTranslationHint", () => {
     );
   });
 
+  it("versions the source digest so pre-redesign cached chunks are missed", async () => {
+    const { createHash } = await import("node:crypto");
+    const {
+      computeTranslationSourceDigest,
+      TRANSLATION_HINT_POLICY_VERSION,
+    } = await import("@/server/ai/translation-hint-cache");
+    const legacyDigest = createHash("sha256")
+      .update(input.sourceText, "utf8")
+      .digest("hex");
+
+    expect(TRANSLATION_HINT_POLICY_VERSION).toBe(
+      "translation-hint-v2-short-chunks",
+    );
+    expect(computeTranslationSourceDigest(input.sourceText)).not.toBe(
+      legacyDigest,
+    );
+
+    cacheRows.push({
+      source_digest: legacyDigest,
+      student_level: input.studentLevel,
+      target_locale: input.targetLocale,
+      phrases: validHint.phrases,
+    });
+    const generate = vi.fn(async () => ({ ok: true as const, hint: validHint }));
+    const { getOrCreateTranslationHint } = await import(
+      "@/server/ai/translation-hint-cache"
+    );
+
+    expect(await getOrCreateTranslationHint(input, { generate })).toMatchObject({
+      ok: true,
+      cacheStatus: "miss",
+    });
+    filters = [];
+    expect(await getOrCreateTranslationHint(input, { generate })).toMatchObject({
+      ok: true,
+      cacheStatus: "hit",
+    });
+    expect(generate).toHaveBeenCalledTimes(1);
+  });
+
   it("returns cache_failed for select and upsert errors", async () => {
     const { getOrCreateTranslationHint } = await import(
       "@/server/ai/translation-hint-cache"

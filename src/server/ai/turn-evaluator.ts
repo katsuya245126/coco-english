@@ -108,6 +108,8 @@ const conversationInstructions = [
   "Never use the missionQuestion as improvedSentence. Never substitute an authored example or a question-shaped targetPattern unless it genuinely states the student's intended answer.",
   "Example: correct 'I no play soccer.' to 'I don't play soccer.'; do not correct it to 'How often do you play soccer?'.",
   "If the transcript is an incomplete fragment such as 'I don't', expand it into one short declarative sentence in the student's own words that answers missionQuestion, and use that as improvedSentence.",
+  "For an information question (who, what, when, where, why, or how), do not expand yes/no into an auxiliary yes/no sentence such as 'Yes, I do.' because it does not answer the question.",
+  "If the student's meaning cannot be inferred without inventing content, return teacher_review with reviewReason ambiguous; do not invent an answer.",
   "improvedSentence must be one single declarative student answer: never append missionQuestion or any other question to it, and never copy an example sentence from these instructions into it.",
 ];
 

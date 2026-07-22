@@ -80,8 +80,27 @@ describe("generateTranslationHint", () => {
         expect.stringContaining("Do not select isolated function words"),
         expect.stringContaining("Do not cover every word"),
         expect.stringContaining("exact substring"),
+        expect.stringContaining("two or three shorter chunks"),
+        expect.stringContaining("two to four words"),
+        expect.stringContaining("terminal punctuation"),
       ]),
     );
+  });
+
+  it("keeps the short-chunk rules in the production prompt source", async () => {
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const source = await fs.readFile(
+      path.resolve(
+        process.cwd(),
+        "src/server/ai/translation-hint-generator.ts",
+      ),
+      "utf8",
+    );
+
+    expect(source).toContain("two or three shorter chunks");
+    expect(source).toContain("two to four words");
+    expect(source).toContain("terminal punctuation");
   });
 
   it("drops provider phrases that are not in the source text", async () => {

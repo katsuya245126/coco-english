@@ -18,11 +18,17 @@ export type CompletionTurn = {
 export type PendingTurnReview =
   | {
       step: "aiFeedback";
-      outcome: "acceptedOriginal" | "needsCorrection" | "retryOriginal";
+      outcome:
+        | "acceptedOriginal"
+        | "needsCorrection"
+        | "retryOriginal"
+        | "retryMinimalEffort";
       transcript: string;
       improvedSentence: string | null;
       clipKind: "original_answer";
       cocoLine: string | null;
+      minimalEffortKind?: "dont_know" | "short_answer";
+      retryExample?: string | null;
     }
   | {
       step: "repeatFeedback";
@@ -48,6 +54,49 @@ function evaluationOutcome(turn: CompletionTurn): string | null {
     typeof evaluation.outcome === "string"
     ? evaluation.outcome
     : null;
+}
+
+function evaluationRetryReason(turn: CompletionTurn): string | null {
+  if (
+    typeof turn.evaluation !== "object" ||
+    turn.evaluation === null ||
+    Array.isArray(turn.evaluation)
+  ) {
+    return null;
+  }
+
+  const evaluation = turn.evaluation as { retryReason?: unknown };
+  return typeof evaluation.retryReason === "string"
+    ? evaluation.retryReason
+    : null;
+}
+
+function evaluationMinimalEffortMetadata(turn: CompletionTurn) {
+  if (
+    typeof turn.evaluation !== "object" ||
+    turn.evaluation === null ||
+    Array.isArray(turn.evaluation)
+  ) {
+    return { minimalEffortKind: undefined, retryExample: null };
+  }
+
+  const evaluation = turn.evaluation as {
+    minimalEffortKind?: unknown;
+    retryExample?: unknown;
+  };
+  const minimalEffortKind =
+    evaluation.minimalEffortKind === "dont_know" ||
+    evaluation.minimalEffortKind === "short_answer"
+      ? evaluation.minimalEffortKind
+      : undefined;
+  return {
+    minimalEffortKind,
+    retryExample:
+      typeof evaluation.retryExample === "string" &&
+      evaluation.retryExample.trim().length > 0
+        ? evaluation.retryExample.trim()
+        : null,
+  };
 }
 
 function originalAnswerAccepted(turn: CompletionTurn): boolean {
@@ -117,9 +166,16 @@ export function getPendingTurnReview(
       : outcome === "needs_correction"
         ? "needsCorrection"
         : outcome === "retry_original"
-          ? "retryOriginal"
+          ? evaluationRetryReason(turn) === "minimal_effort"
+            ? "retryMinimalEffort"
+            : "retryOriginal"
           : null;
   if (!originalOutcome) return null;
+
+  const minimalEffortMetadata =
+    originalOutcome === "retryMinimalEffort"
+      ? evaluationMinimalEffortMetadata(turn)
+      : {};
 
   return {
     step: "aiFeedback",
@@ -128,6 +184,7 @@ export function getPendingTurnReview(
     improvedSentence: turn.improved_sentence ?? null,
     clipKind: "original_answer",
     cocoLine: turn.coco_line?.trim() || null,
+    ...minimalEffortMetadata,
   };
 }
 

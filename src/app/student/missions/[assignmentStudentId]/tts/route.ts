@@ -75,6 +75,12 @@ function resolveFeedbackLineText(feedbackVariant?: string): string | null {
       return "Hmm... let's try again";
     case "retry_original":
       return "Try again.";
+    case "retry_minimal_example":
+      return "Try the example below!";
+    case "retry_minimal_detail":
+      return "Answer Coco's question and add one detail.";
+    case "retry_minimal_unsure":
+      return "It's okay to guess. Try one answer!";
     case "retry_repeat":
       return "Try again!";
     case "teacher_check":

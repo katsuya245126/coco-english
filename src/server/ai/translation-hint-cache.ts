@@ -12,9 +12,13 @@ import {
 } from "@/server/ai/translation-hint-generator";
 
 export const DEFAULT_TRANSLATION_LOCALE = "ko" as const;
+export const TRANSLATION_HINT_POLICY_VERSION =
+  "translation-hint-v2-short-chunks" as const;
 
 export function computeTranslationSourceDigest(sourceText: string): string {
-  return createHash("sha256").update(sourceText, "utf8").digest("hex");
+  return createHash("sha256")
+    .update(`${TRANSLATION_HINT_POLICY_VERSION}\u0000${sourceText}`, "utf8")
+    .digest("hex");
 }
 
 export type GetOrCreateTranslationHintResult =

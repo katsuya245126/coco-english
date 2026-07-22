@@ -12,8 +12,18 @@ import type { Database, Json } from "@/lib/db/types";
 import { missionSnapshotSchema } from "@/domain/mission/schemas";
 import { isExactTargetMatch } from "@/domain/ai/fast-path";
 import {
+  isMinimalEffortAnswer,
+  MAX_MINIMAL_EFFORT_BLOCKS,
+} from "@/domain/ai/minimal-effort-detection";
+import {
+  classifyMinimalEffortFeedback,
+  resolveMinimalEffortRetryExample,
+  type MinimalEffortKind,
+} from "@/domain/ai/minimal-effort-feedback";
+import {
   AI_EVALUATION_VERSION,
   decideOriginalTurnOutcome,
+  guardNonsensicalMinimalEffortCorrection,
   guardParrotedConversationCorrection,
   type OriginalTurnGuardContext,
   decideRepeatTurnOutcome,
@@ -51,10 +61,18 @@ import {
   routeAssignmentStudentToTeacherReview,
   type TeacherReviewReason,
 } from "@/server/student-access/mission-flow";
-import { generateCocoReply } from "@/server/ai/conversation-generator";
+import {
+  generateCocoReply,
+  type GenerateCocoReplyError,
+  type GenerateCocoReplyResult,
+} from "@/server/ai/conversation-generator";
 import { isContentSafe } from "@/server/ai/content-moderation";
 import { selectFallbackLine } from "@/domain/conversation/fallback-lines";
-import type { ConversationExchange } from "@/domain/ai/conversation-generation";
+import type {
+  ConversationExchange,
+  GenerateCocoReplyInput,
+  GeneratedCocoReplyLineViolation,
+} from "@/domain/ai/conversation-generation";
 import {
   buildConversationHistory,
   type PersistedConversationTurn,
@@ -90,14 +108,27 @@ export type UploadAttemptAudioClipInput = {
   byteSize: number;
 };
 
-export type CocoLineModerationEventKind =
-  | "flagged_student_input"
-  | "retried"
-  | "canned_fallback";
+export type CannedFallbackCause =
+  | GenerateCocoReplyError
+  | "unsafe_output"
+  | "output_moderation_unavailable";
 
-export type CocoLineModerationEvent = {
-  kind: CocoLineModerationEventKind;
-};
+export type CocoLineModerationEvent =
+  | { kind: "flagged_student_input" }
+  | { kind: "input_moderation_unavailable" }
+  | { kind: "retried" }
+  | {
+      kind: "canned_fallback";
+      cause: Exclude<CannedFallbackCause, "reply_policy_failed">;
+    }
+  | {
+      kind: "canned_fallback";
+      cause: "reply_policy_failed";
+      violations: GeneratedCocoReplyLineViolation[];
+    };
+
+export type CocoLineModerationEventKind =
+  CocoLineModerationEvent["kind"];
 
 export type UploadAttemptAudioClipResult =
   | {
@@ -143,6 +174,10 @@ type StoredOriginalTurnEvaluation = {
   correctionNeeded: OriginalTurnEvaluation["correctionNeeded"];
   improvedSentence: string | null;
   requireRepeat: boolean;
+  retryReason?: "minimal_effort";
+  minimalEffortBlocks?: number;
+  minimalEffortKind?: MinimalEffortKind;
+  retryExample?: string | null;
 };
 
 type OriginalTurnWriteDecision = {
@@ -193,9 +228,16 @@ export function applyOriginalTurnEvaluation(
     };
   }
 
-  const decision = guardParrotedConversationCorrection(
-    decideOriginalTurnOutcome(result.evaluation),
-    guardContext ?? { evaluationMode: "preset", missionQuestion: null },
+  const resolvedGuardContext = guardContext ?? {
+    evaluationMode: "preset",
+    missionQuestion: null,
+  };
+  const decision = guardNonsensicalMinimalEffortCorrection(
+    guardParrotedConversationCorrection(
+      decideOriginalTurnOutcome(result.evaluation),
+      resolvedGuardContext,
+    ),
+    resolvedGuardContext,
   );
   const improvedSentence =
     decision.kind === "needs_correction" ? decision.improvedSentence : null;
@@ -325,6 +367,23 @@ function toJson(
   return value as unknown as Json;
 }
 
+function priorMinimalEffortBlocks(evaluation: unknown): number {
+  if (
+    typeof evaluation !== "object" ||
+    evaluation === null ||
+    Array.isArray(evaluation)
+  ) {
+    return 0;
+  }
+  const stored = evaluation as {
+    minimalEffortBlocks?: unknown;
+  };
+  return typeof stored.minimalEffortBlocks === "number" &&
+    Number.isFinite(stored.minimalEffortBlocks)
+    ? Math.max(0, Math.floor(stored.minimalEffortBlocks))
+    : 0;
+}
+
 function reviewReasonOrDefault(
   reviewReason: string | null,
 ): TeacherReviewReason {
@@ -374,6 +433,25 @@ type ConversationTurnOutcome = {
   moderationEvent: CocoLineModerationEvent | null;
 };
 
+type GenerateCocoReplyFailure = Extract<
+  GenerateCocoReplyResult,
+  { ok: false }
+>;
+
+function generationFallbackEvent(
+  failure: GenerateCocoReplyFailure,
+): CocoLineModerationEvent {
+  if (failure.error === "reply_policy_failed") {
+    return {
+      kind: "canned_fallback",
+      cause: failure.error,
+      violations: failure.violations,
+    };
+  }
+
+  return { kind: "canned_fallback", cause: failure.error };
+}
+
 /**
  * Conversation-mode orchestration (CHAT-01/03/05/06, D-10/D-11/D-13,
  * RESEARCH.md step a-f pipeline). Runs ONLY for conversationMode missions,
@@ -383,10 +461,14 @@ type ConversationTurnOutcome = {
  *
  * Order (never reordered):
  *  a. hard-cap check (canGenerateNextDynamicTurn)
- *  b. moderate student input FIRST — flagged input never reaches the generator
+ *  b. moderate student input FIRST — flagged input never reaches the generator;
+ *     moderation being merely unavailable (failedOpen) is recorded distinctly
+ *     from an explicit unsafe verdict, but both fail closed (canned fallback)
  *  c. generate Coco's next line
- *  d. moderate the generated line; regenerate once with stronger steering if flagged
- *  e. provider failure shares the same canned-fallback path as (d)
+ *  d. moderate the generated line; only an explicit unsafe verdict regenerates
+ *     (via safetyMode: "retry") — an unavailable check fails closed immediately,
+ *     never spending a useless generation retry
+ *  e. provider/schema/policy failures persist their attributable cause
  *  f. persist (recordCocoLine) — coco_line + moderation_event
  */
 async function runConversationTurn(
@@ -404,35 +486,39 @@ async function runConversationTurn(
 
   // (b) MODERATE STUDENT INPUT FIRST (D-11) — a flagged transcript never
   // reaches the generator; the extra moderation call per turn is accepted.
+  // Fails closed either way, but an explicit unsafe verdict is recorded
+  // distinctly from moderation merely being unavailable.
   const studentInputCheck = await deps.isContentSafe(context.studentTranscript);
   if (!studentInputCheck.safe) {
     return {
       cocoLine: selectFallbackLine(context.turnOrder),
-      moderationEvent: { kind: "flagged_student_input" },
+      moderationEvent: studentInputCheck.failedOpen
+        ? { kind: "input_moderation_unavailable" }
+        : { kind: "flagged_student_input" },
     };
   }
 
   const windDown = context.turnOrder >= 6; // relative to the fixed hard cap of 8, not required_turns
 
-  const generationInput = {
+  const generationInput: GenerateCocoReplyInput = {
     scenePremise: context.scenePremise ?? "",
     targetPattern: context.targetPattern,
     turnOrder: context.turnOrder,
     requiredTurns: context.requiredTurns,
-    hardCap: 8 as const,
+    hardCap: 8,
     windDown,
+    safetyMode: "standard",
     conversationHistory: context.conversationHistory,
   };
 
   // (c) GENERATE
   const firstAttempt = await deps.generateCocoReply(generationInput);
 
-  // (e) PROVIDER/SCHEMA FAILURE shares the same canned-fallback path as (d)'s
-  // final fallback (D-13).
+  // (e) PROVIDER/SCHEMA/POLICY FAILURE persists its attributable cause.
   if (!firstAttempt.ok) {
     return {
       cocoLine: selectFallbackLine(context.turnOrder),
-      moderationEvent: { kind: "canned_fallback" },
+      moderationEvent: generationFallbackEvent(firstAttempt),
     };
   }
 
@@ -442,20 +528,49 @@ async function runConversationTurn(
     return { cocoLine: firstAttempt.reply.line, moderationEvent: null };
   }
 
-  // Regenerate ONCE with stronger safety steering. Every regenerated line is
-  // re-moderated — never assumed clean (RESEARCH.md anti-pattern warning).
-  const retryAttempt = await deps.generateCocoReply(generationInput);
-  if (retryAttempt.ok) {
-    const retryLineCheck = await deps.isContentSafe(retryAttempt.reply.line);
-    if (retryLineCheck.safe) {
-      return { cocoLine: retryAttempt.reply.line, moderationEvent: { kind: "retried" } };
-    }
+  // Output moderation merely being unavailable fails closed immediately —
+  // no generation retry, since there is nothing to retry against (the first
+  // line was never confirmed unsafe).
+  if (firstLineCheck.failedOpen) {
+    return {
+      cocoLine: selectFallbackLine(context.turnOrder),
+      moderationEvent: {
+        kind: "canned_fallback",
+        cause: "output_moderation_unavailable",
+      },
+    };
   }
 
-  // Fail twice / retry itself failed to generate -> shared canned fallback.
+  // Only an explicit unsafe verdict reaches regeneration, sent through the
+  // dedicated safety-retry steering. Every regenerated line is re-moderated
+  // — never assumed clean (RESEARCH.md anti-pattern warning).
+  const retryAttempt = await deps.generateCocoReply({
+    ...generationInput,
+    safetyMode: "retry",
+  });
+  if (!retryAttempt.ok) {
+    return {
+      cocoLine: selectFallbackLine(context.turnOrder),
+      moderationEvent: generationFallbackEvent(retryAttempt),
+    };
+  }
+
+  const retryLineCheck = await deps.isContentSafe(retryAttempt.reply.line);
+  if (retryLineCheck.safe) {
+    return {
+      cocoLine: retryAttempt.reply.line,
+      moderationEvent: { kind: "retried" },
+    };
+  }
+
   return {
     cocoLine: selectFallbackLine(context.turnOrder),
-    moderationEvent: { kind: "canned_fallback" },
+    moderationEvent: retryLineCheck.failedOpen
+      ? {
+          kind: "canned_fallback",
+          cause: "output_moderation_unavailable",
+        }
+      : { kind: "canned_fallback", cause: "unsafe_output" },
   };
 }
 
@@ -654,7 +769,7 @@ export async function uploadAttemptAudioClip(
           },
           { onConflict: "attempt_id,turn_order" },
         )
-        .select("id, original_transcript, improved_sentence")
+        .select("id, original_transcript, improved_sentence, evaluation")
         .single(),
     );
 
@@ -807,6 +922,111 @@ export async function uploadAttemptAudioClip(
       };
     }
 
+    // Minimal-effort answer guard (phone-UAT item 6, design approved
+    // 2026-07-20). Deterministic blocklist only; an exact target-example
+    // match ("Yes, I do." as an authored target) always wins; after
+    // MAX_MINIMAL_EFFORT_BLOCKS blocks the answer evaluates normally so a
+    // stuck student is never trapped (D-04). Runs before pronunciation
+    // scoring / evaluation / conversation generation — a blocked try incurs
+    // no paid provider call and never consumes the turn.
+    const minimalEffortBlocks = priorMinimalEffortBlocks(
+      (turn as { evaluation?: unknown }).evaluation,
+    );
+
+    if (
+      input.clipKind === "original_answer" &&
+      isMinimalEffortAnswer(transcript)
+    ) {
+      const exactTargetMatch =
+        targetExample !== null && isExactTargetMatch(transcript, targetExample);
+      if (
+        !exactTargetMatch &&
+        minimalEffortBlocks < MAX_MINIMAL_EFFORT_BLOCKS
+      ) {
+        const minimalEffortKind =
+          classifyMinimalEffortFeedback(transcript) ?? "short_answer";
+        const retryExample = resolveMinimalEffortRetryExample({
+          evaluationMode:
+            snapshot.conversationMode === true ? "conversation" : "preset",
+          missionQuestion: missionQuestion ?? "",
+          targetExample,
+        });
+        const evaluation: StoredOriginalTurnEvaluation = {
+          version: AI_EVALUATION_VERSION,
+          outcome: "retry_original",
+          confidence: "high",
+          reviewReason: null,
+          meaningUnderstood: false,
+          targetPatternAttempted: false,
+          englishLanguage: "english",
+          correctionNeeded: false,
+          improvedSentence: null,
+          requireRepeat: false,
+          retryReason: "minimal_effort",
+          minimalEffortBlocks: minimalEffortBlocks + 1,
+          minimalEffortKind,
+          retryExample,
+        };
+
+        const write = await timeStage("turnWrite", () =>
+          supabase.from("attempt_turns").upsert(
+            {
+              attempt_id: input.attemptId,
+              turn_order: input.turnOrder,
+              original_transcript: transcript,
+              target_attempted: false,
+              improved_sentence: null,
+              evaluation: toJson(evaluation),
+            },
+            { onConflict: "attempt_id,turn_order" },
+          ),
+        );
+        if (write.error) {
+          logTiming("failed", { error: "db_error", step: "turn_write" });
+          return { ok: false, error: "db_error", retryable: true };
+        }
+
+        const { error: clipUpdateError } = await timeStage(
+          "finalClipUpdate",
+          () =>
+            supabase
+              .from("audio_clips")
+              .update({
+                object_key: objectKey,
+                mime_type: input.mimeType,
+                duration_ms: input.durationMs,
+                byte_size: input.byteSize,
+                processing_status: "transcribed",
+              })
+              .eq("id", audioClip.id),
+        );
+        if (clipUpdateError) {
+          logTiming("failed", { error: "db_error", step: "final_clip_update" });
+          return { ok: false, error: "db_error", retryable: true };
+        }
+
+        log("info", "audio.minimal_effort_blocked", {
+          audioClipId: audioClip.id,
+          assignmentStudentId: input.assignmentStudentId,
+          attemptId: input.attemptId,
+          turnOrder: input.turnOrder,
+          blocks: minimalEffortBlocks + 1,
+        });
+        logTiming("success", { step: "minimal_effort_guard" });
+        return {
+          ok: true,
+          audioClipId: audioClip.id,
+          processingStatus: "transcribed",
+          transcript,
+          evaluation,
+          starBand: null,
+          wordsToPractice: [],
+          cocoLine: null,
+          cocoLineModerationEvent: null,
+        };
+      }
+    }
+
     let originalEvaluation: StoredOriginalTurnEvaluation | undefined;
     let repeatEvaluation: StoredRepeatTurnEvaluation | undefined;
 
@@ -872,7 +1092,12 @@ export async function uploadAttemptAudioClip(
               evaluationMode:
                 snapshot.conversationMode === true ? "conversation" : "preset",
               missionQuestion: missionQuestion ?? null,
+              transcript,
+              priorMinimalEffortBlocks: minimalEffortBlocks,
             });
+            if (minimalEffortBlocks > 0) {
+              decision.evaluation.minimalEffortBlocks = minimalEffortBlocks;
+            }
             originalEvaluation = decision.evaluation;
 
             const write = await timeStage("turnWrite", () =>

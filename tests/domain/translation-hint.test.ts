@@ -221,6 +221,26 @@ describe("translation hint domain contract", () => {
     ]);
   });
 
+  it("attaches trailing terminal punctuation to the last phrase instead of leaving it orphaned", () => {
+    const text = "Great! Who do you play soccer with at school?";
+    const parsed = parseTranslationHint(text, {
+      phrases: [
+        { source: "Who do you", translation: "누구랑" },
+        { source: "play soccer", translation: "축구를 하다" },
+        { source: "at school", translation: "학교에서" },
+      ],
+    });
+    if (!parsed.ok) throw new Error("fixture must be valid");
+
+    const segments = buildTranslationSegments(text, parsed.hint.phrases);
+    const last = segments.at(-1);
+    expect(last?.kind).toBe("phrase");
+    expect(last).toMatchObject({ text: "at school?" });
+    expect(segments.some((segment) => segment.kind === "text" && segment.text === "?")).toBe(
+      false,
+    );
+  });
+
   it("finds the first translated segment and toggles its bubble", () => {
     const text = "Please play soccer today.";
     const phrases = [

@@ -23,6 +23,7 @@ const baseInput: GenerateCocoReplyInput = {
   requiredTurns: 4,
   hardCap: 8,
   windDown: false,
+  safetyMode: "standard",
   conversationHistory: [
     {
       turnOrder: 1,
@@ -49,7 +50,9 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
   it("returns ok:true with the parsed reply for a schema-valid fake client response", async () => {
     const { generateCocoReply } = await import("@/server/ai/conversation-generator");
     const client = createFakeClient(async () => ({
-      output_parsed: { line: "Great choice! What would you like to drink?" },
+      output_parsed: {
+        line: "Eating with Minju is fun! What do you talk about?",
+      },
     }));
 
     const result = await generateCocoReply(baseInput, {
@@ -60,7 +63,9 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
 
     expect(result).toEqual({
       ok: true,
-      reply: { line: "Great choice! What would you like to drink?" },
+      reply: {
+        line: "Eating with Minju is fun! What do you talk about?",
+      },
     });
     expect(client.responses.parse).toHaveBeenCalledWith(
       expect.objectContaining({ model: "test-conversation-model" }),
@@ -142,9 +147,86 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     expect(combined).toContain("Keep the current subject");
     expect(combined).toContain("soft lesson context");
     expect(combined).toContain("merely swaps in a new noun or activity");
+    expect(combined).toContain("active activity");
+    expect(combined).toContain("complete, correctly punctuated sentences");
+    expect(combined).toContain("What do you like about swimming together?");
+    expect(combined).toContain("What games do you play together?");
     expect(combined).not.toContain(
       "Stay anchored to the target grammar pattern every turn",
     );
+  });
+
+  it("regenerates the UAT run-on once with an on-topic, punctuated reply", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          output_parsed: {
+            line: "Your friend is fun to swim with what games do you play together?",
+          },
+        })
+        .mockResolvedValueOnce({
+          output_parsed: {
+            line: "Swimming together is fun! What do you like about it?",
+          },
+        }),
+    );
+
+    const result = await generateCocoReply(
+      {
+        ...baseInput,
+        turnOrder: 1,
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "Who do you swim with?",
+            studentResponse: "With my friend.",
+          },
+        ],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      reply: { line: "Swimming together is fun! What do you like about it?" },
+    });
+    expect(client.responses.parse).toHaveBeenCalledTimes(2);
+    expect(
+      vi.mocked(client.responses.parse).mock.calls[1]?.[0].input[0]?.content,
+    ).toContain("complete, correctly punctuated sentences");
+  });
+
+  it("uses a no-question closing policy at the hard cap", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(async () => ({
+      output_parsed: { line: "Thanks for talking with me!" },
+    }));
+    const conversationHistory = Array.from({ length: 8 }, (_, index) => ({
+      turnOrder: index + 1,
+      cocoLine: index === 7 ? "What did you enjoy today?" : `Question ${index + 1}?`,
+      studentResponse: index === 7 ? "I enjoyed swimming." : `Answer ${index + 1}.`,
+    }));
+
+    const result = await generateCocoReply(
+      {
+        ...baseInput,
+        turnOrder: 8,
+        hardCap: 8,
+        windDown: true,
+        conversationHistory,
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      reply: { line: "Thanks for talking with me!" },
+    });
+    const call = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const combined = call?.input.map((message) => message.content).join(" ") ?? "";
+    expect(combined).toContain("closing line with no question");
   });
 
   it("instructs short kid-friendly lines with one new-information follow-up", async () => {
@@ -176,7 +258,8 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
 
     // Kid-friendly register: short simple sentences, easy words, hard word cap.
     expect(combined).toContain("young ESL learner");
-    expect(combined).toContain("12 words");
+    expect(combined).toContain("one or two short, simple sentences");
+    expect(combined).not.toContain("12 words");
     expect(combined).toContain("exactly one question");
     // Follow-ups seek new information from the student's actual answer
     // instead of mechanically rotating through 5-W prompts.
@@ -316,7 +399,11 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
       { apiKey: "test-key", client },
     );
 
-    expect(result).toEqual({ ok: false, error: "schema_failed" });
+    expect(result).toEqual({
+      ok: false,
+      error: "reply_policy_failed",
+      violations: ["question_format", "either_or_question"],
+    });
     expect(client.responses.parse).toHaveBeenCalledTimes(2);
   });
 
@@ -350,6 +437,146 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     expect(client.responses.parse).toHaveBeenCalledTimes(1);
   });
 
+  it("allows choices after a full-sentence stuck response", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(async () => ({
+      output_parsed: {
+        line: "No problem! Do you play Minecraft or soccer?",
+      },
+    }));
+
+    const result = await generateCocoReply(
+      {
+        ...baseInput,
+        turnOrder: 1,
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "What games do you play inside?",
+            studentResponse: "I don't know what games I play inside.",
+          },
+        ],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      reply: { line: "No problem! Do you play Minecraft or soccer?" },
+    });
+    expect(client.responses.parse).toHaveBeenCalledTimes(1);
+  });
+
+  it("adds every detected violation hint to one correction prompt", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          output_parsed: {
+            line: "Do you read books or watch TV? What happens next?",
+          },
+        })
+        .mockResolvedValueOnce({
+          output_parsed: { line: "Swimming is fun! Who swims with you?" },
+        }),
+    );
+
+    await generateCocoReply(
+      {
+        ...baseInput,
+        turnOrder: 1,
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "Where do you swim?",
+            studentResponse: "At the pool.",
+          },
+        ],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const correctionSystem = vi
+      .mocked(client.responses.parse)
+      .mock.calls[1][0].input.find((message) => message.role === "system")
+      ?.content;
+    expect(correctionSystem).toContain("wrong punctuation");
+    expect(correctionSystem).toContain("invalid either/or question");
+    expect(correctionSystem).toContain("drifted away from the active topic");
+    expect(correctionSystem).not.toContain("12 words");
+  });
+
+  it("logs only reason codes and never the raw generated line", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const rejectedLine = "Do you play with friends or alone?";
+    const client = createFakeClient(
+      vi
+        .fn()
+        .mockResolvedValueOnce({ output_parsed: { line: rejectedLine } })
+        .mockResolvedValueOnce({
+          output_parsed: { line: "Soccer is fun! Who plays with you?" },
+        }),
+    );
+    const chunks: string[] = [];
+    const stdoutSpy = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation((chunk) => {
+        chunks.push(String(chunk));
+        return true;
+      });
+
+    await generateCocoReply(
+      {
+        ...baseInput,
+        turnOrder: 1,
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "How often do you play soccer?",
+            studentResponse: "I like soccer.",
+          },
+        ],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const logged = chunks.join("");
+    expect(logged).toContain("ai.conversation_line_policy_rejected");
+    expect(logged).toContain("either_or_question");
+    expect(logged).not.toContain(rejectedLine);
+    stdoutSpy.mockRestore();
+  });
+
+  it("adds stronger system steering only in safety retry mode", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(async () => ({
+      output_parsed: { line: "Lunch sounds good! What will you eat?" },
+    }));
+
+    await generateCocoReply(
+      { ...baseInput, safetyMode: "retry" },
+      { apiKey: "test-key", client },
+    );
+    await generateCocoReply(
+      { ...baseInput, safetyMode: "standard" },
+      { apiKey: "test-key", client },
+    );
+
+    const retrySystem = vi
+      .mocked(client.responses.parse)
+      .mock.calls[0][0].input.find((message) => message.role === "system")
+      ?.content;
+    const standardSystem = vi
+      .mocked(client.responses.parse)
+      .mock.calls[1][0].input.find((message) => message.role === "system")
+      ?.content;
+    const safetySentence =
+      "The previous candidate was rejected by output moderation.";
+    expect(retrySystem).toContain(safetySentence);
+    expect(standardSystem).not.toContain(safetySentence);
+  });
+
   it("does not mistake an acknowledgement with or for an either-or question", async () => {
     const { generateCocoReply } = await import("@/server/ai/conversation-generator");
     const client = createFakeClient(async () => ({
@@ -380,7 +607,7 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     expect(client.responses.parse).toHaveBeenCalledTimes(1);
   });
 
-  it("returns schema_failed when the corrected reply still uses an either-or question", async () => {
+  it("returns reply_policy_failed with reasons when correction still violates policy", async () => {
     const { generateCocoReply } = await import("@/server/ai/conversation-generator");
     const client = createFakeClient(
       vi.fn().mockResolvedValue({
@@ -405,11 +632,59 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
       { apiKey: "test-key", client },
     );
 
-    expect(result).toEqual({ ok: false, error: "schema_failed" });
+    expect(result).toEqual({
+      ok: false,
+      error: "reply_policy_failed",
+      violations: ["either_or_question"],
+    });
     expect(client.responses.parse).toHaveBeenCalledTimes(2);
   });
 
-  it("returns schema_failed when the corrective regeneration fails", async () => {
+  it("tells the correction prompt the specific violation instead of a generic list", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          output_parsed: {
+            line: "You like soccer! Do you play with friends or alone?",
+          },
+        })
+        .mockResolvedValueOnce({
+          output_parsed: {
+            line: "Soccer is fun! Who do you play soccer with?",
+          },
+        }),
+    );
+
+    const result = await generateCocoReply(
+      {
+        ...baseInput,
+        turnOrder: 1,
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "How often do you play soccer?",
+            studentResponse: "I like soccer.",
+          },
+        ],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      reply: { line: "Soccer is fun! Who do you play soccer with?" },
+    });
+    const secondCallArgs = vi.mocked(client.responses.parse).mock.calls[1][0];
+    const systemMessage = secondCallArgs.input.find(
+      (message) => message.role === "system",
+    )?.content;
+    expect(systemMessage).toContain("invalid either/or question");
+    expect(systemMessage).not.toContain("it may be a run-on");
+  });
+
+  it("preserves provider_failed when the correction call throws", async () => {
     const { generateCocoReply } = await import("@/server/ai/conversation-generator");
     const client = createFakeClient(
       vi
@@ -437,7 +712,7 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
       { apiKey: "test-key", client },
     );
 
-    expect(result).toEqual({ ok: false, error: "schema_failed" });
+    expect(result).toEqual({ ok: false, error: "provider_failed" });
     expect(client.responses.parse).toHaveBeenCalledTimes(2);
   });
 
