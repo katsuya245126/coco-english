@@ -583,7 +583,8 @@ export function MissionFlowShell({
 
       if (
         conversationMode &&
-        originalFeedback.kind === "acceptedOriginal"
+        (originalFeedback.kind === "acceptedOriginal" ||
+          originalFeedback.kind === "teacherReview")
       ) {
         await continueAcceptedConversationTurn(aid, upload.cocoLine ?? null);
         return;
@@ -657,7 +658,8 @@ export function MissionFlowShell({
 
       if (
         conversationMode &&
-        repeatFeedback.kind === "repeatAccepted"
+        (repeatFeedback.kind === "repeatAccepted" ||
+          repeatFeedback.kind === "repeatReview")
       ) {
         await continueAcceptedConversationTurn(aid, flow.cocoLine);
         return;
@@ -698,19 +700,13 @@ export function MissionFlowShell({
     }));
   }
 
+  // Preset mode only — conversation-mode teacher-review turns advance
+  // through continueAcceptedConversationTurn (see handleSubmitOriginalVoice
+  // and handleSubmitRepeatVoice) and never reach this handler.
   async function finishTeacherReviewFeedback() {
     const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
     if (isFinalTurn) {
       setFlow((prev) => ({ ...prev, step: "reviewPending" }));
-      return;
-    }
-
-    if (conversationMode) {
-      const aid = await ensureAttempt();
-      if (!aid) {
-        throw new Error("attempt_start_failed");
-      }
-      await continueAcceptedConversationTurn(aid, flow.cocoLine);
       return;
     }
 

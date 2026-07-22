@@ -294,17 +294,35 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
 
     expect(shellSource).toContain("resolveAcceptedConversationTurn");
     expect(shellSource).toContain("continueAcceptedConversationTurn");
-    expect(shellSource).toMatch(
-      /conversationMode[\s\S]*originalFeedback\.kind === "acceptedOriginal"[\s\S]*continueAcceptedConversationTurn/,
-    );
-    expect(shellSource).toMatch(
-      /conversationMode[\s\S]*repeatFeedback\.kind === "repeatAccepted"[\s\S]*continueAcceptedConversationTurn/,
-    );
     expect(shellSource).toContain('resolution.kind === "unavailable"');
     expect(shellSource).toContain("Coco’s next question isn’t available yet");
     expect(shellSource).toContain("StepTurnTransition");
     expect(shellSource).toContain("finishAcceptedOriginal");
     expect(shellSource).toContain("finishRepeatFeedback");
+  });
+
+  it("silently advances reviewed conversation originals and repeats", () => {
+    const shellSource = readFileSync(
+      "src/components/student/MissionFlowShell.tsx",
+      "utf8",
+    );
+
+    expect(shellSource).toMatch(
+      /conversationMode[\s\S]*originalFeedback\.kind === "acceptedOriginal"[\s\S]*originalFeedback\.kind === "teacherReview"[\s\S]*continueAcceptedConversationTurn/,
+    );
+    expect(shellSource).toMatch(
+      /conversationMode[\s\S]*repeatFeedback\.kind === "repeatAccepted"[\s\S]*repeatFeedback\.kind === "repeatReview"[\s\S]*continueAcceptedConversationTurn/,
+    );
+    const reviewHandlerStart = shellSource.indexOf(
+      "async function finishTeacherReviewFeedback",
+    );
+    const reviewHandlerEnd = shellSource.indexOf(
+      "async function finishAcceptedOriginal",
+      reviewHandlerStart,
+    );
+    expect(
+      shellSource.slice(reviewHandlerStart, reviewHandlerEnd),
+    ).not.toContain("conversationMode");
   });
 
   it("completes once, shows the final Coco closing, then waits for Finish mission", () => {

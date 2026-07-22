@@ -2,7 +2,7 @@
 
 import type { StudentAssignmentListItem } from "@/server/student-access/assignment-list";
 
-const BADGE_LABELS: Record<StudentAssignmentListItem["displayStatus"], string> = { start: "New", continue: "In progress", retry: "Retry", done: "Completed", late: "Late", review: "Teacher review" };
+const BADGE_LABELS: Record<StudentAssignmentListItem["displayStatus"], string> = { start: "New", continue: "In progress", retry: "Retry", done: "Completed", late: "Late" };
 const ACTION_LABELS: Partial<Record<StudentAssignmentListItem["displayStatus"], string>> = { start: "Start mission", continue: "Continue mission", retry: "Try again", late: "Continue mission" };
 
 function dateLabel(value: string | null, prefix: string) {

@@ -53,4 +53,12 @@ describe("student history UI source contracts", () => {
     const historySource = recapPage + recap;
     for (const forbidden of ["VoiceRecorderControl", "startOrResume", "completeAttempt", "Request retry", "resubmitAction"]) expect(historySource).not.toContain(forbidden);
   });
+  it("authorizes completed and internally reviewed recap ownership", () => {
+    expect(recapMapper).toContain(
+      '.in("status", ["completed", "teacher_review"])',
+    );
+    expect(recapMapper).not.toContain(
+      '.eq("status", "completed")',
+    );
+  });
 });

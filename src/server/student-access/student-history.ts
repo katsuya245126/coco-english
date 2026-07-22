@@ -55,14 +55,14 @@ function playbackFor(clip: { object_key: string | null; processing_status: strin
 export async function getCompletedMissionRecap(studentId: string, assignmentStudentId: string): Promise<StudentMissionRecap | null> {
   const supabase = createSupabaseServiceClient();
   const owned = await supabase.from("assignment_students").select("id, status, latest_attempt_id, submitted_at, assignments!inner(title, mission_snapshot, canceled_at)")
-    .eq("id", assignmentStudentId).eq("student_id", studentId).eq("status", "completed").maybeSingle();
+    .eq("id", assignmentStudentId).eq("student_id", studentId).in("status", ["completed", "teacher_review"]).maybeSingle();
   if (owned.error || !owned.data) return null;
   const row = owned.data as { id: string; latest_attempt_id: string | null; submitted_at: string | null; assignments: { title: string; mission_snapshot: unknown; canceled_at: string | null } | Array<{ title: string; mission_snapshot: unknown; canceled_at: string | null }> };
   const assignment = Array.isArray(row.assignments) ? row.assignments[0] : row.assignments;
   const snapshot = parseSnapshot(assignment?.mission_snapshot);
   if (!row.latest_attempt_id || !assignment || assignment.canceled_at || !snapshot) return null;
 
-  const attempt = await supabase.from("attempts").select("id, status, completed_at").eq("id", row.latest_attempt_id).eq("assignment_student_id", row.id).eq("status", "completed").maybeSingle();
+  const attempt = await supabase.from("attempts").select("id, status, completed_at").eq("id", row.latest_attempt_id).eq("assignment_student_id", row.id).in("status", ["completed", "teacher_review"]).maybeSingle();
   if (attempt.error || !attempt.data) return null;
   const turnsResult = await supabase.from("attempt_turns").select("id, turn_order, original_transcript, repeat_transcript, repeat_accepted").eq("attempt_id", row.latest_attempt_id).order("turn_order", { ascending: true });
   if (turnsResult.error) throw new Error(`Unable to load recap turns: ${turnsResult.error.message}`);
@@ -98,7 +98,7 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
 export async function createSignedHistoryAudioUrl(studentId: string, audioClipId: string): Promise<{ signedUrl: string } | null> {
   const supabase = createSupabaseServiceClient();
   const clip = await supabase.from("audio_clips").select("id, object_key, processing_status, audio_expires_at, deleted_at, attempt_turns!inner(attempts!inner(id, status, assignment_students!attempts_assignment_student_id_fkey!inner(student_id, status, latest_attempt_id, assignments!inner(canceled_at))))")
-    .eq("id", audioClipId).eq("attempt_turns.attempts.assignment_students.student_id", studentId).eq("attempt_turns.attempts.assignment_students.status", "completed").eq("attempt_turns.attempts.status", "completed").maybeSingle();
+    .eq("id", audioClipId).eq("attempt_turns.attempts.assignment_students.student_id", studentId).in("attempt_turns.attempts.assignment_students.status", ["completed", "teacher_review"]).in("attempt_turns.attempts.status", ["completed", "teacher_review"]).maybeSingle();
   if (clip.error || !clip.data) return null;
   const row = clip.data as unknown as { object_key: string | null; processing_status: string; audio_expires_at: string | null; deleted_at: string | null; attempt_turns: { attempts: { id: string; assignment_students: { latest_attempt_id: string | null; assignments: { canceled_at: string | null } } } } };
   const turn = Array.isArray(row.attempt_turns) ? row.attempt_turns[0] : row.attempt_turns;

@@ -1,6 +1,6 @@
 # Final Coco closing for dynamic conversation missions
 
-**Status:** UAT blocked by pre-existing conversation teacher-review lifecycle bug
+**Status:** Remediation implemented and automated-verified; awaiting conversation-mode UAT
 
 ## Goal
 
@@ -83,6 +83,10 @@ for review at
 Commits:
 - `82b6dd25` feat(conversation): generate final Coco closing (Task 1)
 - `d4e5d185` feat(student): show final Coco closing (Task 2)
+- `15849dcc` feat(missions): configure complete-sentence answers (remediation Task 1)
+- `bf33a090` feat(conversation): apply answer and review context (remediation Task 2)
+- `5055d07f` fix(student): defer conversation teacher review (remediation Task 3)
+- `fix(student): hide internal conversation review` (remediation Task 4 — this commit)
 
 ## Verification evidence (2026-07-23)
 
@@ -95,6 +99,29 @@ Commits:
 - `npm run typecheck` → exit 0, no TypeScript errors.
 - `npm run lint` → exit 0; only the pre-existing unrelated `label` unused-var warning in `scripts/check-student-feedback-states.mjs` remains.
 - `npm run build` → exit 0, all 33 routes compiled, no type or route errors. Run only after the user stopped the checkout's own `next dev -p 3200` process so the build did not share a live `.next` cache.
+
+## Remediation Task 4 verification evidence (2026-07-23)
+
+Task 4 makes reviewed conversation turns and completions look normal on
+student surfaces: the client silently auto-advances a teacher-reviewed
+conversation turn (no review wording, no extra Continue step), and terminal
+`teacher_review` submissions present identically to `completed` on student
+Current/Past tabs, badges, and history/recap ownership + signed-audio
+queries. Teacher surfaces are untouched.
+
+TDD (RED confirmed, then GREEN):
+- RED: `npx vitest run tests/server/student-mission-flow.test.ts tests/server/assignment-list.test.ts tests/server/student-history-ui.test.ts tests/server/student-mission-page.test.ts tests/domain/tts-ui-source.test.ts`
+  → 3 files failed, 2 passed; 3 tests failed, 69 passed (72 total), matching the three new/replaced assertions before implementation.
+- GREEN: same command → 5 files passed, 72 tests passed, 0 failed.
+
+Combined regression matrix (Step 7): `npx vitest run src/domain/mission/schemas.test.ts tests/domain/mission-schemas.test.ts tests/server/teacher-mission-create-source.test.ts tests/server/mission-service.test.ts tests/server/mission-assign.test.ts tests/schema/conversation-answer-policy-schema.test.ts tests/server/turn-evaluator.test.ts src/domain/ai/conversation-generation.test.ts src/server/ai/conversation-generator.test.ts src/server/student-access/mission-flow.test.ts tests/server/student-mission-flow.test.ts tests/server/mission-flow.test.ts tests/schema/complete-attempt-rpc-schema.test.ts src/server/student-access/audio-upload.test.ts tests/server/assignment-list.test.ts tests/server/student-history-ui.test.ts tests/server/student-mission-page.test.ts tests/domain/tts-ui-source.test.ts tests/server/translation-hint-route-source.test.ts`
+→ 19 files passed, 252 tests passed, 0 failed; no provider or live-database calls observed.
+
+Proportionate release verification (Step 8):
+- `npm test -- --run` → initially 1 file failed (`tests/server/student-history.test.ts`, a pre-existing test not in Task 4's file list asserting the now-superseded `.eq("status", "completed")` ownership filter). Updated its assertion to `.in("status", ["completed", "teacher_review"])` to match the required ownership behavior; rerun → **91 test files passed, 939 tests passed, 4 skipped, 0 failed.**
+- `npm run typecheck` → exit 0, no TypeScript errors.
+- `npm run lint` → exit 0 errors; only the pre-existing unrelated `label` unused-var warning in `scripts/check-student-feedback-states.mjs` remains (same warning recorded in the earlier evidence above).
+- `npm run build` was intentionally NOT run for Task 4 — left to the controlling session, which must first check for a `next dev -p 3200` process on this checkout and get user permission before building.
 
 ## Next step
 

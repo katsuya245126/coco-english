@@ -35,12 +35,37 @@ describe("listStudentAssignmentPage", () => {
     expect(eq).toHaveBeenCalledWith("student_id", "student-1");
   });
 
-  it("keeps teacher-review and missed work Current and hides canceled work", async () => {
+  it("keeps missed work Current and hides canceled work", async () => {
     const canceled = row("canceled", "assigned"); canceled.assignments.canceled_at = "2026-07-01T00:00:00Z";
-    rows = [row("review", "teacher_review"), row("missed", "missed", "2026-07-01T00:00:00Z"), canceled, row("done", "completed", null, "2026-07-10T00:00:00Z")];
+    rows = [row("missed", "missed", "2026-07-01T00:00:00Z"), canceled, row("done", "completed", null, "2026-07-10T00:00:00Z")];
     const { listStudentAssignmentPage } = await import("@/server/student-access/assignment-list");
     const page = await listStudentAssignmentPage("student-1", { tab: "current", page: 1 });
-    expect(page.items.map((item) => [item.assignmentStudentId, item.displayStatus])).toEqual([["missed", "late"], ["review", "review"]]);
+    expect(page.items.map((item) => [item.assignmentStudentId, item.displayStatus])).toEqual([["missed", "late"]]);
+  });
+
+  it("presents teacher-reviewed submissions as completed Past work", async () => {
+    rows = [
+      row("review", "teacher_review", null, "2026-07-11T10:00:00Z"),
+      row("done", "completed", null, "2026-07-10T10:00:00Z"),
+    ];
+    const { listStudentAssignmentPage } = await import(
+      "@/server/student-access/assignment-list"
+    );
+
+    const current = await listStudentAssignmentPage("student-1", {
+      tab: "current",
+      page: 1,
+    });
+    const past = await listStudentAssignmentPage("student-1", {
+      tab: "past",
+      page: 1,
+    });
+
+    expect(current.items).toEqual([]);
+    expect(past.items.map((item) => [item.assignmentStudentId, item.displayStatus])).toEqual([
+      ["review", "done"],
+      ["done", "done"],
+    ]);
   });
 
   it("returns completed-only Past newest first with stable id tie-break and five items", async () => {

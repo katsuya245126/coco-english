@@ -111,7 +111,7 @@ describe("student completed mission recap security contracts", () => {
   it("anchors lookup to assignment-student ownership, completion, and latest attempt", () => {
     expect(source).toContain('.eq("id", assignmentStudentId)');
     expect(source).toContain('.eq("student_id", studentId)');
-    expect(source).toContain('.eq("status", "completed")');
+    expect(source).toContain('.in("status", ["completed", "teacher_review"])');
     expect(source).toContain('row.latest_attempt_id');
     expect(source).toContain('.eq("assignment_student_id", row.id)');
     const attemptLookup = source.slice(source.indexOf('from("attempts")'), source.indexOf('from("attempt_turns")'));

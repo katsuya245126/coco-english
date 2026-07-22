@@ -6,8 +6,12 @@ export type AssignmentDisplayStatus =
   | "continue"
   | "retry"
   | "done"
-  | "late"
-  | "review";
+  | "late";
+
+// Both terminal statuses present identically to students — teacher_review
+// is an internal-only distinction surfaced solely on teacher-facing
+// surfaces (evidence queue, review reason, transcript-first presentation).
+const STUDENT_COMPLETED_STATUSES = new Set(["completed", "teacher_review"]);
 
 export type StudentAssignmentTab = "current" | "past";
 
@@ -83,14 +87,14 @@ export async function listStudentAssignmentPage(
       const snapshot = missionSnapshotSchema.safeParse(row.assignments.mission_snapshot);
       if (!snapshot.success) continue;
       const completedAt = row.latest_attempt?.completed_at ?? row.submitted_at;
-      if (input.tab === "past" && row.status !== "completed") continue;
-      if (input.tab === "current" && row.status === "completed") continue;
+      const isStudentCompleted = STUDENT_COMPLETED_STATUSES.has(row.status);
+      if (input.tab === "past" && !isStudentCompleted) continue;
+      if (input.tab === "current" && isStudentCompleted) continue;
 
       const due = timestamp(row.assignments.due_at);
       let displayStatus: AssignmentDisplayStatus;
-      if (row.status === "completed") displayStatus = "done";
+      if (isStudentCompleted) displayStatus = "done";
       else if (row.status === "needs_retry") displayStatus = "retry";
-      else if (row.status === "teacher_review") displayStatus = "review";
       else if (row.status === "started") displayStatus = due !== null && due < now ? "late" : "continue";
       else displayStatus = due !== null && due < now ? "late" : "start";
 
