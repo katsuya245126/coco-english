@@ -115,7 +115,28 @@ export function canGenerateNextDynamicTurn(turnOrder: number): boolean {
   return turnOrder <= HARD_TURN_CAP;
 }
 
-export async function routeAssignmentStudentToTeacherReview(input: {
+/**
+ * Flag an attempt as needing teacher review WITHOUT terminalizing anything
+ * (Task 3, deferred-completion redesign).
+ *
+ * The assignment stays `started` and the attempt stays `in_progress` — a
+ * teacher-review turn is not necessarily the mission's final turn, and the
+ * client must be able to keep advancing the conversation (hints, TTS, the
+ * next recording) against a still-active attempt. The ONLY place that
+ * terminalizes a reviewed conversation is the atomic `complete_student_attempt`
+ * RPC, which inspects `attempts.needs_review_reason` once the mission's
+ * required turn count is reached and atomically chooses `teacher_review` vs
+ * `completed` as the terminal status (see the
+ * 202607230002_deferred_teacher_review_completion.sql migration).
+ *
+ * Never writes assignment_students.status, attempts.status, or an
+ * assignment_status_events row — those are exclusively RPC-owned once this
+ * function returns. Independently verifies both ownership hops (the
+ * assignment_student belongs to the calling student and is `started`, and the
+ * attempt belongs to that assignment_student and is `in_progress`) before
+ * writing anything.
+ */
+export async function flagAttemptForTeacherReview(input: {
   studentId: string;
   assignmentStudentId: string;
   attemptId: string;
@@ -128,78 +149,28 @@ export async function routeAssignmentStudentToTeacherReview(input: {
       input.assignmentStudentId,
       input.studentId,
     );
-    if (!asRow) return { ok: false, error: "not_found" };
+    if (!asRow || asRow.status !== "started") {
+      return { ok: false, error: "not_found" };
+    }
 
-    const { data: attempt, error: attemptError } = await supabase
-      .from("attempts")
-      .select("id, assignment_student_id")
-      .eq("id", input.attemptId)
-      .eq("assignment_student_id", input.assignmentStudentId)
-      .maybeSingle();
+    const attempt = await loadOwnedAttempt(
+      supabase,
+      input.assignmentStudentId,
+      input.attemptId,
+    );
+    if (!attempt.ok) return attempt;
+    if (attempt.attempt.status !== "in_progress") {
+      return { ok: false, error: "not_found" };
+    }
 
-    if (attemptError) return { ok: false, error: "db_error" };
-    if (!attempt) return { ok: false, error: "not_found" };
-
-    const { error: reasonError } = await supabase
+    const { error } = await supabase
       .from("attempts")
       .update({ needs_review_reason: input.reviewReason })
-      .eq("id", input.attemptId);
+      .eq("id", input.attemptId)
+      .eq("assignment_student_id", input.assignmentStudentId)
+      .eq("status", "in_progress");
 
-    if (reasonError) return { ok: false, error: "db_error" };
-
-    if (asRow.status === "completed" || asRow.status === "teacher_review") {
-      return { ok: true };
-    }
-
-    const nowIso = new Date().toISOString();
-    try {
-      assertTransitionRequest({
-        previousStatus: asRow.status,
-        nextStatus: "teacher_review",
-        actorType: "ai_evaluator",
-        reasonCode: input.reviewReason,
-        occurredAt: nowIso,
-      });
-    } catch {
-      return { ok: false, error: "invalid_transition" };
-    }
-
-    const { data: updated, error: updateError } = await supabase
-      .from("assignment_students")
-      .update({
-        status: "teacher_review",
-        latest_attempt_id: input.attemptId,
-      })
-      .eq("id", input.assignmentStudentId)
-      .eq("status", asRow.status)
-      .select("id")
-      .maybeSingle();
-
-    if (updateError) return { ok: false, error: "db_error" };
-    if (!updated) return { ok: true };
-
-    // Stamp the attempt to match the assignment so it no longer looks
-    // in_progress. Leaving it in_progress lets the resume path try to reopen a
-    // submitted mission (mirrors the completed-path stamping in completeAttempt).
-    const { error: attemptUpdateError } = await supabase
-      .from("attempts")
-      .update({ status: "teacher_review" as const })
-      .eq("id", input.attemptId);
-
-    if (attemptUpdateError) return { ok: false, error: "db_error" };
-
-    const { error: eventError } = await supabase
-      .from("assignment_status_events")
-      .insert({
-        assignment_student_id: input.assignmentStudentId,
-        previous_status: asRow.status,
-        next_status: "teacher_review",
-        actor_type: "ai_evaluator",
-        reason_code: input.reviewReason,
-      });
-
-    if (eventError) return { ok: false, error: "db_error" };
-    return { ok: true };
+    return error ? { ok: false, error: "db_error" } : { ok: true };
   } catch {
     return { ok: false, error: "db_error" };
   }

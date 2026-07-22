@@ -900,6 +900,38 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     });
   });
 
+  it("does not return an ephemeral Coco line when persistence fails", async () => {
+    mockSupabase = createMockSupabase({
+      cocoLineUpsertError: { message: "write failed" },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like juice."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: fakeGenerateCocoReply(async () => ({
+        ok: true,
+        reply: { line: "Juice is tasty! What juice do you like?" },
+      })),
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(result).toEqual({ ok: false, error: "db_error", retryable: true });
+    expect(
+      mockSupabase.operations.some(
+        (operation) =>
+          operation.table === "audio_clips" &&
+          operation.action === "update" &&
+          JSON.stringify(operation.payload).includes('"processing_status":"failed"'),
+      ),
+    ).toBe(true);
+  });
+
   it("fails moderation once then passes on regenerate: retried event persisted", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"

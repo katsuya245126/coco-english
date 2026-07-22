@@ -33,6 +33,12 @@ function makeTurn(
     original_transcript: overrides.original_transcript ?? null,
     repeat_transcript: overrides.repeat_transcript ?? null,
     repeat_accepted: overrides.repeat_accepted ?? null,
+    ...(overrides.improved_sentence !== undefined
+      ? { improved_sentence: overrides.improved_sentence }
+      : {}),
+    ...(overrides.evaluation !== undefined
+      ? { evaluation: overrides.evaluation }
+      : {}),
   };
 }
 
@@ -142,6 +148,21 @@ describe("completion helpers: nextUnfinishedTurnOrder (D-06)", () => {
   it("handles out-of-order turn arrays", () => {
     const turns = [makeCompleteTurn(3), makeCompleteTurn(1)];
     expect(nextUnfinishedTurnOrder(3, turns)).toBe(2);
+  });
+
+  it("treats a persisted teacher-review turn as finished for resume", () => {
+    const reviewedTurn = makeTurn(1, {
+      original_transcript: "School.",
+      repeat_transcript: null,
+      repeat_accepted: null,
+      evaluation: {
+        version: "ai-eval-v1",
+        outcome: "teacher_review",
+        requireRepeat: false,
+      },
+    });
+
+    expect(nextUnfinishedTurnOrder(2, [reviewedTurn])).toBe(2);
   });
 });
 

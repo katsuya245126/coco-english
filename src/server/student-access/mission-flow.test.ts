@@ -14,7 +14,7 @@ vi.mock("@/lib/supabase/server", () => ({
 
 type Operation = {
   table: string;
-  action: "select" | "upsert";
+  action: "select" | "upsert" | "update";
   payload?: unknown;
   filters: Array<[string, unknown]>;
 };
@@ -24,13 +24,14 @@ function createMockSupabase(options: {
   attemptFound?: boolean;
   attemptStatus?: string;
   upsertError?: { message: string } | null;
+  updateError?: { message: string } | null;
 } = {}) {
   const operations: Operation[] = [];
 
   function createQuery(table: string) {
     const operation: Operation = { table, action: "select", filters: [] };
 
-    const query = {
+    const query: Record<string, unknown> & PromiseLike<{ error: unknown }> = {
       select: vi.fn(() => query),
       upsert: vi.fn((payload: unknown) => {
         operation.action = "upsert";
@@ -38,10 +39,32 @@ function createMockSupabase(options: {
         operations.push(operation);
         return Promise.resolve({ error: options.upsertError ?? null });
       }),
+      update: vi.fn((payload: unknown) => {
+        operation.action = "update";
+        operation.payload = payload;
+        operations.push(operation);
+        return query;
+      }),
       eq: vi.fn((column: string, value: unknown) => {
         operation.filters.push([column, value]);
         return query;
       }),
+      // Makes `query` itself awaitable so the update().eq().eq().eq() chain
+      // in flagAttemptForTeacherReview (no terminal .select()) resolves.
+      then: (<TResult1, TResult2 = never>(
+        onFulfilled?:
+          | ((value: { error: unknown }) => TResult1 | PromiseLike<TResult1>)
+          | null,
+        onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+      ) => {
+        if (operation.action === "update" && !operations.includes(operation)) {
+          operations.push(operation);
+        }
+        return Promise.resolve({ error: options.updateError ?? null }).then(
+          onFulfilled ?? undefined,
+          onRejected ?? undefined,
+        );
+      }) as PromiseLike<{ error: unknown }>["then"],
       maybeSingle: vi.fn(async () => {
         operations.push(operation);
         if (table === "assignment_students") {
@@ -272,5 +295,56 @@ describe("recordCocoLine (CHAT-06, T-11-11 idempotent upsert + ownership)", () =
     });
 
     expect(result).toEqual({ ok: false, error: "db_error" });
+  });
+});
+
+describe("flagAttemptForTeacherReview", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    mockSupabase = createMockSupabase();
+  });
+
+  it("records an owned review reason without terminalizing assignment or attempt", async () => {
+    const { flagAttemptForTeacherReview } = await import(
+      "@/server/student-access/mission-flow"
+    );
+
+    const result = await flagAttemptForTeacherReview({
+      studentId: "student-1",
+      assignmentStudentId: "as-1",
+      attemptId: "attempt-1",
+      reviewReason: "ambiguous",
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(
+      mockSupabase.operations.find(
+        (operation) =>
+          operation.table === "attempts" && operation.action === "update",
+      )?.payload,
+    ).toEqual({ needs_review_reason: "ambiguous" });
+    expect(
+      mockSupabase.operations.some(
+        (operation) => operation.table === "assignment_students" && operation.action === "update",
+      ),
+    ).toBe(false);
+    expect(JSON.stringify(mockSupabase.operations)).not.toContain(
+      '"status":"teacher_review"',
+    );
+  });
+
+  it("rejects a non-owned or non-active attempt", async () => {
+    mockSupabase = createMockSupabase({ attemptFound: false });
+    const { flagAttemptForTeacherReview } = await import(
+      "@/server/student-access/mission-flow"
+    );
+    await expect(
+      flagAttemptForTeacherReview({
+        studentId: "student-1",
+        assignmentStudentId: "as-1",
+        attemptId: "wrong-attempt",
+        reviewReason: "low_confidence",
+      }),
+    ).resolves.toEqual({ ok: false, error: "not_found" });
   });
 });

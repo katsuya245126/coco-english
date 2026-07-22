@@ -57,8 +57,8 @@ import {
 } from "@/server/ai/turn-evaluator";
 import {
   canGenerateNextDynamicTurn,
+  flagAttemptForTeacherReview,
   recordCocoLine,
-  routeAssignmentStudentToTeacherReview,
   type TeacherReviewReason,
 } from "@/server/student-access/mission-flow";
 import {
@@ -1129,7 +1129,7 @@ export async function uploadAttemptAudioClip(
               return write;
             }
 
-            const routeResult = await routeAssignmentStudentToTeacherReview({
+            const routeResult = await flagAttemptForTeacherReview({
               studentId: input.studentId,
               assignmentStudentId: input.assignmentStudentId,
               attemptId: input.attemptId,
@@ -1193,7 +1193,7 @@ export async function uploadAttemptAudioClip(
               return write;
             }
 
-            const routeResult = await routeAssignmentStudentToTeacherReview({
+            const routeResult = await flagAttemptForTeacherReview({
               studentId: input.studentId,
               assignmentStudentId: input.assignmentStudentId,
               attemptId: input.attemptId,
@@ -1301,32 +1301,41 @@ export async function uploadAttemptAudioClip(
         );
 
         if (!recordResult.ok) {
+          await supabase
+            .from("audio_clips")
+            .update({ processing_status: "failed" })
+            .eq("id", audioClip.id);
           log("warn", "audio.coco_line_persist_failed", {
             assignmentStudentId: input.assignmentStudentId,
             attemptId: input.attemptId,
             turnOrder: input.turnOrder,
             error: recordResult.error,
           });
-        } else {
-          // Kick off TTS for Coco's new line via the existing warm-cache path
-          // used for preset/improved lines — no forked audio pipeline.
-          try {
-            const warm = deps.warmTtsAudioCache ?? warmTtsAudioCache;
-            await timeStage("ttsWarmupCocoLine", () =>
-              warm({
-                characterId: snapshot.characterId,
-                voice: DEFAULT_COCO_TTS_VOICE,
-                texts: [resolvedCocoLine],
-              }),
-            );
-          } catch (error) {
-            log("warn", "audio.tts_coco_line_warmup_failed", {
-              assignmentStudentId: input.assignmentStudentId,
-              attemptId: input.attemptId,
-              turnOrder: input.turnOrder,
-              error: error instanceof Error ? error.message : String(error),
-            });
-          }
+          logTiming("failed", {
+            error: "db_error",
+            step: "coco_line_write",
+          });
+          return { ok: false, error: "db_error", retryable: true };
+        }
+
+        // Kick off TTS for Coco's new line via the existing warm-cache path
+        // used for preset/improved lines — no forked audio pipeline.
+        try {
+          const warm = deps.warmTtsAudioCache ?? warmTtsAudioCache;
+          await timeStage("ttsWarmupCocoLine", () =>
+            warm({
+              characterId: snapshot.characterId,
+              voice: DEFAULT_COCO_TTS_VOICE,
+              texts: [resolvedCocoLine],
+            }),
+          );
+        } catch (error) {
+          log("warn", "audio.tts_coco_line_warmup_failed", {
+            assignmentStudentId: input.assignmentStudentId,
+            attemptId: input.attemptId,
+            turnOrder: input.turnOrder,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       }
     }

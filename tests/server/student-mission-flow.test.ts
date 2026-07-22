@@ -137,21 +137,28 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(repeatAcceptedBranch).toContain("RecordingReview");
   });
 
-  it("review routing is service-owned, audited, and AI-attributed", () => {
+  it("review routing flags the owned attempt without terminalizing anything", () => {
     const missionFlowSource = readFileSync(
       "src/server/student-access/mission-flow.ts",
       "utf8",
     );
 
-    expect(missionFlowSource).toContain("routeAssignmentStudentToTeacherReview");
-    expect(missionFlowSource).toContain("assertTransitionRequest");
-    expect(missionFlowSource).toContain('status: "teacher_review"');
+    const flagStart = missionFlowSource.indexOf(
+      "export async function flagAttemptForTeacherReview",
+    );
+    const flagEnd = missionFlowSource.indexOf(
+      "export async function startOrResumeAttempt",
+      flagStart,
+    );
+    const flagSource = missionFlowSource.slice(flagStart, flagEnd);
+
+    expect(missionFlowSource).toContain("flagAttemptForTeacherReview");
     expect(missionFlowSource).toContain("needs_review_reason");
-    expect(missionFlowSource).toContain('actor_type: "ai_evaluator"');
-    expect(missionFlowSource).toContain("reason_code:");
-    expect(missionFlowSource).toContain('"low_confidence"');
-    expect(missionFlowSource).toContain('"ambiguous"');
-    expect(missionFlowSource).toContain('"failed_schema"');
+    expect(missionFlowSource).not.toContain(
+      "routeAssignmentStudentToTeacherReview",
+    );
+    expect(flagSource).not.toContain('status: "teacher_review"');
+    expect(flagSource).not.toContain("assignment_status_events");
   });
 
   it("service-role mission-flow writes verify attempt ownership before mutation", () => {

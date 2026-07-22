@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const migrationPath = resolve(
   __dirname,
-  "../../supabase/migrations/202607100001_complete_student_attempt_rpc.sql",
+  "../../supabase/migrations/202607230002_deferred_teacher_review_completion.sql",
 );
 
 describe("complete_student_attempt RPC", () => {
@@ -31,5 +31,21 @@ describe("complete_student_attempt RPC", () => {
     expect(sql).toContain("revoke all on function public.complete_student_attempt");
     expect(sql).toContain("grant execute on function public.complete_student_attempt");
     expect(sql).toContain("to service_role");
+  });
+
+  it("counts reviewed turns and selects the final status from the owned attempt flag", () => {
+    expect(sql).toContain("needs_review_reason");
+    expect(sql).toContain("teacher_review");
+    expect(sql).toContain("v_terminal_status");
+    expect(sql).toContain("outcome' = 'teacher_review'");
+    expect(sql).toContain("v_assignment_status = 'teacher_review'");
+    expect(sql).toContain("v_attempt_status = 'teacher_review'");
+  });
+
+  it("writes one matching terminal status event and remains idempotent", () => {
+    expect(sql).toContain("v_terminal_status");
+    expect(sql).toContain("v_reason_code");
+    expect(sql).toContain("mission_completed");
+    expect(sql).toContain("return 'ok'");
   });
 });

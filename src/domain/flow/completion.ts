@@ -99,6 +99,13 @@ function evaluationMinimalEffortMetadata(turn: CompletionTurn) {
   };
 }
 
+/**
+ * Recognizes an original answer as finished when it was either accepted
+ * outright or internally reviewed (teacher_review) — a persisted
+ * teacher-review turn is not necessarily the mission's final turn, so resume
+ * and completion counting must treat it as done rather than re-prompting the
+ * student for the same turn (Task 3, deferred-completion redesign).
+ */
 function originalAnswerAccepted(turn: CompletionTurn): boolean {
   if (
     turn.original_transcript === null ||
@@ -124,7 +131,8 @@ function originalAnswerAccepted(turn: CompletionTurn): boolean {
   return (
     evaluation.version === "ai-eval-v1" &&
     evaluation.requireRepeat === false &&
-    evaluation.outcome === "accepted_original"
+    (evaluation.outcome === "accepted_original" ||
+      evaluation.outcome === "teacher_review")
   );
 }
 
