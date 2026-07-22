@@ -1,6 +1,6 @@
 # Kakao hydration compatibility and conversation scene-card removal
 
-**Status:** Implementation planned; awaiting execution
+**Status:** Implementation in progress
 
 ## Goal
 
@@ -37,4 +37,4 @@ The user approved the recommended design on 2026-07-23.
 
 ## Next step
 
-Execute `docs/superpowers/plans/2026-07-23-kakao-hydration-and-scene-card.md`.
+Implement the Kakao root hydration compatibility contract test-first.
