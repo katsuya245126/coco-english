@@ -62,6 +62,8 @@ export function MissionForm({
   const [scenePremise, setScenePremise] = useState(
     mission?.scenePremise ?? "",
   );
+  const [requireCompleteSentenceAnswers, setRequireCompleteSentenceAnswers] =
+    useState(mission?.requireCompleteSentenceAnswers ?? true);
   const [opener, setOpener] = useState(
     mission?.conversationMode ? mission.turns[0]?.prompt ?? "" : "",
   );
@@ -127,6 +129,10 @@ export function MissionForm({
     );
     formData.set("conversationMode", conversationMode ? "true" : "false");
     formData.set("scenePremise", scenePremise);
+    formData.set(
+      "requireCompleteSentenceAnswers",
+      requireCompleteSentenceAnswers ? "true" : "false",
+    );
 
     const result: MissionActionResult =
       mode === "edit"
@@ -347,6 +353,34 @@ export function MissionForm({
                   {openerError}
                 </p>
               ) : null}
+            </div>
+
+            <div style={{ marginTop: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <input
+                  id="require-complete-sentence-answers"
+                  type="checkbox"
+                  checked={requireCompleteSentenceAnswers}
+                  onChange={(event) =>
+                    setRequireCompleteSentenceAnswers(event.target.checked)
+                  }
+                  aria-describedby="require-complete-sentence-answers-help"
+                  style={toggleInputStyle}
+                />
+                <label
+                  htmlFor="require-complete-sentence-answers"
+                  style={labelStyle}
+                >
+                  Require complete-sentence answers
+                </label>
+              </div>
+              <p
+                id="require-complete-sentence-answers-help"
+                style={helpTextStyle}
+              >
+                When an answer is understandable but incomplete, Coco helps
+                the student say one complete sentence before continuing.
+              </p>
             </div>
           </div>
         ) : null}

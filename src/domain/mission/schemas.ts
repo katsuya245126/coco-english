@@ -62,6 +62,7 @@ export const missionFormSchema = z
       .default(DEFAULT_CHARACTER_ID),
     conversationMode: z.boolean().default(false),
     scenePremise: z.string().trim().nullable().default(null),
+    requireCompleteSentenceAnswers: z.boolean().default(true),
     turns: z.array(missionTurnInputSchema).default([]),
   })
   .refine(
@@ -112,6 +113,7 @@ export const missionSnapshotSchema = z
     characterId: z.string().trim().min(1).default(DEFAULT_CHARACTER_ID),
     conversationMode: z.boolean().default(false),
     scenePremise: z.string().trim().nullable().default(null),
+    requireCompleteSentenceAnswers: z.boolean().default(true),
     turns: z.array(missionSnapshotTurnSchema).default([]),
   })
   .refine(

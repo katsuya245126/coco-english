@@ -155,6 +155,36 @@ describe("missionFormSchema", () => {
 
     expect(result.success).toBe(false);
   });
+
+  it("defaults the dynamic complete-sentence policy on for forms and snapshots", () => {
+    const form = missionFormSchema.parse({
+      ...baseFormFields,
+      requiredTurns: 3,
+      conversationMode: true,
+      turns: makeTurns(1),
+    });
+    const snapshot = missionSnapshotSchema.parse({
+      ...baseSnapshotFields,
+      requiredTurns: 3,
+      conversationMode: true,
+      turns: makeSnapshotTurns(1),
+    });
+
+    expect(form.requireCompleteSentenceAnswers).toBe(true);
+    expect(snapshot.requireCompleteSentenceAnswers).toBe(true);
+  });
+
+  it("preserves an explicitly disabled dynamic complete-sentence policy", () => {
+    const form = missionFormSchema.parse({
+      ...baseFormFields,
+      requiredTurns: 3,
+      conversationMode: true,
+      requireCompleteSentenceAnswers: false,
+      turns: makeTurns(1),
+    });
+
+    expect(form.requireCompleteSentenceAnswers).toBe(false);
+  });
 });
 
 describe("missionSnapshotSchema", () => {

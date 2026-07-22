@@ -59,4 +59,16 @@ describe("manual teacher mission creation", () => {
       /formData\.set\(\s*"turns",\s*JSON\.stringify\(\s*serializeMissionTurns[\s\S]*/,
     );
   });
+
+  it("shows a default-on complete-sentence toggle only with dynamic conversation mode", () => {
+    const form = readSource("src/components/teacher/MissionForm.tsx");
+    const actions = readSource("src/app/teacher/missions/actions.ts");
+
+    expect(form).toContain("Require complete-sentence answers");
+    expect(form).toContain("requireCompleteSentenceAnswers");
+    expect(form).toMatch(
+      /\{conversationMode \? \([\s\S]*Require complete-sentence answers[\s\S]*\) : null\}/,
+    );
+    expect(actions).toContain('formData.get("requireCompleteSentenceAnswers")');
+  });
 });

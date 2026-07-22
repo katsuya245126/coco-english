@@ -28,6 +28,7 @@ const missionRow = {
   character_id: "default-buddy",
   scene_premise: null,
   conversation_mode: false,
+  require_complete_sentence_answers: false,
 };
 
 const turnRows = [
@@ -76,6 +77,7 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
       prompt: "What food do you like?",
       targetExample: "I like apples.",
     });
+    expect(snapshot.requireCompleteSentenceAnswers).toBe(false);
   });
 
   it("calls the RPC with server-built snapshot, optional D-04 due date, and no browser snapshot input", async () => {
@@ -234,6 +236,7 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
       ...missionRow,
       title: "Edited Food Opinions",
       topic: "Cooking",
+      require_complete_sentence_answers: true,
     };
     const editedTurns = [
       {
@@ -262,6 +265,9 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
 
     // Confirm they are structurally different
     expect(storedSnapshot).not.toEqual(freshSnapshot);
+
+    expect(storedSnapshot.requireCompleteSentenceAnswers).toBe(false);
+    expect(freshSnapshot.requireCompleteSentenceAnswers).toBe(true);
   });
 
   it("exposes active assignment count for D-15 edit-after-assign notice", async () => {

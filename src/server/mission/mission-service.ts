@@ -18,6 +18,7 @@ export type TeacherMission = {
   characterId: string;
   conversationMode: boolean;
   scenePremise: string | null;
+  requireCompleteSentenceAnswers: boolean;
   turnCount: number;
   assignmentCount: number;
   activeAssignmentCount: number;
@@ -51,6 +52,7 @@ type MissionRow = {
   character_id: string;
   conversation_mode: boolean;
   scene_premise: string | null;
+  require_complete_sentence_answers: boolean;
   archived_at: string | null;
 };
 
@@ -99,6 +101,7 @@ function mapMission(row: MissionRow, counts?: {
     characterId: row.character_id,
     conversationMode: row.conversation_mode,
     scenePremise: row.scene_premise,
+    requireCompleteSentenceAnswers: row.require_complete_sentence_answers,
     turnCount: counts?.turnCount ?? row.required_turns,
     assignmentCount: counts?.assignmentCount ?? 0,
     activeAssignmentCount: counts?.activeAssignmentCount ?? 0,
@@ -143,6 +146,7 @@ function toMissionInsert(input: MissionFormInput, teacherId: string) {
     character_id: DEFAULT_CHARACTER_ID,
     conversation_mode: input.conversationMode,
     scene_premise: input.scenePremise,
+    require_complete_sentence_answers: input.requireCompleteSentenceAnswers,
   };
 }
 
@@ -221,7 +225,7 @@ export async function createMission(
     .from("missions")
     .insert(toMissionInsert(parsed, input.teacherId))
     .select(
-      "id, title, target_pattern, topic, level, required_turns, character_id, conversation_mode, scene_premise, archived_at",
+      "id, title, target_pattern, topic, level, required_turns, character_id, conversation_mode, scene_premise, require_complete_sentence_answers, archived_at",
     )
     .single();
 
@@ -252,7 +256,7 @@ export async function updateMission(
     .eq("id", input.missionId)
     .eq("teacher_id", input.teacherId)
     .select(
-      "id, title, target_pattern, topic, level, required_turns, character_id, conversation_mode, scene_premise, archived_at",
+      "id, title, target_pattern, topic, level, required_turns, character_id, conversation_mode, scene_premise, require_complete_sentence_answers, archived_at",
     )
     .single();
 
@@ -368,7 +372,7 @@ export async function getMissionForTeacher(input: {
   const mission = await supabase
     .from("missions")
     .select(
-      "id, title, target_pattern, topic, level, required_turns, character_id, conversation_mode, scene_premise, archived_at",
+      "id, title, target_pattern, topic, level, required_turns, character_id, conversation_mode, scene_premise, require_complete_sentence_answers, archived_at",
     )
     .eq("teacher_id", input.teacherId)
     .eq("id", input.missionId)
@@ -416,7 +420,7 @@ export async function listMissionsForTeacher(input: {
   const missions = await supabase
     .from("missions")
     .select(
-      "id, title, target_pattern, topic, level, required_turns, character_id, conversation_mode, scene_premise, archived_at",
+      "id, title, target_pattern, topic, level, required_turns, character_id, conversation_mode, scene_premise, require_complete_sentence_answers, archived_at",
     )
     .eq("teacher_id", input.teacherId)
     .is("archived_at", null)
@@ -437,7 +441,7 @@ export async function listArchivedMissionsForTeacher(input: {
   const missions = await supabase
     .from("missions")
     .select(
-      "id, title, target_pattern, topic, level, required_turns, character_id, conversation_mode, scene_premise, archived_at",
+      "id, title, target_pattern, topic, level, required_turns, character_id, conversation_mode, scene_premise, require_complete_sentence_answers, archived_at",
     )
     .eq("teacher_id", input.teacherId)
     .not("archived_at", "is", null)

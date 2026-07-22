@@ -27,6 +27,7 @@ const completeInput = {
   characterId: "default-buddy",
   conversationMode: false,
   scenePremise: null,
+  requireCompleteSentenceAnswers: true,
   turns: [
     {
       prompt: "What do you do at seven?",
@@ -86,6 +87,9 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
       "mission_turn_templates",
     ]);
     expect(calls.some((call) => call.table === "questions")).toBe(false);
+    expect(calls.find((call) => call.table === "missions")?.payload).toMatchObject({
+      require_complete_sentence_answers: true,
+    });
   });
 
   it("rejects D-02 required turn count mismatch on create and update", async () => {

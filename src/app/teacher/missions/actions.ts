@@ -104,6 +104,14 @@ function parseScenePremise(value: FormDataEntryValue | null): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function parseBooleanSetting(
+  value: FormDataEntryValue | null,
+  defaultValue: boolean,
+): boolean {
+  if (value === null) return defaultValue;
+  return value === "true" || value === "on" || value === "1";
+}
+
 function missionPayloadFromFormData(formData: FormData) {
   return {
     title: formData.get("title"),
@@ -114,6 +122,10 @@ function missionPayloadFromFormData(formData: FormData) {
     turns: parseTurns(formData.get("turns")),
     conversationMode: parseConversationMode(formData.get("conversationMode")),
     scenePremise: parseScenePremise(formData.get("scenePremise")),
+    requireCompleteSentenceAnswers: parseBooleanSetting(
+      formData.get("requireCompleteSentenceAnswers"),
+      true,
+    ),
   };
 }
 

@@ -78,6 +78,7 @@ export type Database = {
           character_id: string;
           scene_premise: string | null;
           conversation_mode: boolean;
+          require_complete_sentence_answers: boolean;
           archived_at: string | null;
           created_at: string;
           updated_at: string;
@@ -93,6 +94,7 @@ export type Database = {
           character_id: string;
           scene_premise?: string | null;
           conversation_mode?: boolean;
+          require_complete_sentence_answers?: boolean;
           archived_at?: string | null;
           created_at?: string;
           updated_at?: string;
