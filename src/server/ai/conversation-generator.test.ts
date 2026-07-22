@@ -22,7 +22,6 @@ const baseInput: GenerateCocoReplyInput = {
   turnOrder: 2,
   requiredTurns: 4,
   hardCap: 8,
-  windDown: false,
   safetyMode: "standard",
   conversationHistory: [
     {
@@ -198,23 +197,26 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     ).toContain("complete, correctly punctuated sentences");
   });
 
-  it("uses a no-question closing policy at the hard cap", async () => {
+  it("uses a no-question closing policy at requiredTurns", async () => {
     const { generateCocoReply } = await import("@/server/ai/conversation-generator");
     const client = createFakeClient(async () => ({
-      output_parsed: { line: "Thanks for talking with me!" },
+      output_parsed: {
+        line: "Sushi sounds delicious! Thanks for talking with me. See you next time!",
+      },
     }));
-    const conversationHistory = Array.from({ length: 8 }, (_, index) => ({
+    const conversationHistory = Array.from({ length: 5 }, (_, index) => ({
       turnOrder: index + 1,
-      cocoLine: index === 7 ? "What did you enjoy today?" : `Question ${index + 1}?`,
-      studentResponse: index === 7 ? "I enjoyed swimming." : `Answer ${index + 1}.`,
+      cocoLine:
+        index === 4 ? "What will you eat?" : `Question ${index + 1}?`,
+      studentResponse:
+        index === 4 ? "I will eat sushi." : `Answer ${index + 1}.`,
     }));
 
     const result = await generateCocoReply(
       {
         ...baseInput,
-        turnOrder: 8,
-        hardCap: 8,
-        windDown: true,
+        turnOrder: 5,
+        requiredTurns: 5,
         conversationHistory,
       },
       { apiKey: "test-key", client },
@@ -222,11 +224,40 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
 
     expect(result).toEqual({
       ok: true,
-      reply: { line: "Thanks for talking with me!" },
+      reply: {
+        line: "Sushi sounds delicious! Thanks for talking with me. See you next time!",
+      },
     });
     const call = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
     const combined = call?.input.map((message) => message.content).join(" ") ?? "";
-    expect(combined).toContain("closing line with no question");
+    expect(combined).toContain("short friendly goodbye");
+    expect(combined).toContain("no question");
+  });
+
+  it("allows an eight-turn mission closing through the hard-cap boundary", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(async () => ({
+      output_parsed: { line: "That was fun! See you next time!" },
+    }));
+    const history = Array.from({ length: 8 }, (_, index) => ({
+      turnOrder: index + 1,
+      cocoLine: `Question ${index + 1}?`,
+      studentResponse: `Answer ${index + 1}.`,
+    }));
+
+    const result = await generateCocoReply(
+      {
+        ...baseInput,
+        turnOrder: 8,
+        requiredTurns: 8,
+        hardCap: 8,
+        conversationHistory: history,
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect(client.responses.parse).toHaveBeenCalledTimes(1);
   });
 
   it("instructs short kid-friendly lines with one new-information follow-up", async () => {

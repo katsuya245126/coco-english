@@ -46,7 +46,6 @@ export const conversationTurnInputSchema = z
     turnOrder: z.number().int().min(1).max(HARD_TURN_CAP),
     requiredTurns: z.number().int().min(3).max(8),
     hardCap: z.literal(HARD_TURN_CAP),
-    windDown: z.boolean(),
     safetyMode: conversationSafetyModeSchema,
     conversationHistory: conversationHistorySchema,
   })
@@ -221,35 +220,54 @@ export function parseGeneratedCocoReply(value: unknown): ParseGeneratedCocoReply
   return { ok: true, reply: parsed.data };
 }
 
+export type ConversationReplyMode = "follow_up" | "closing";
+
+/**
+ * The mission snapshot's requiredTurns owns conversational ending
+ * semantics; HARD_TURN_CAP remains only the absolute safety ceiling
+ * (see docs/superpowers/specs/2026-07-23-final-coco-closing-design.md).
+ */
+export function conversationReplyMode(input: {
+  turnOrder: number;
+  requiredTurns: number;
+}): ConversationReplyMode {
+  return input.turnOrder >= input.requiredTurns ? "closing" : "follow_up";
+}
+
 /**
  * Rebuild the full grounding payload fresh for every generation call
  * (CHAT-04 architectural guardrail — no chat-history blob, no
  * previous_response_id). Pure function, directly unit-testable.
  */
 export function buildConversationPrompt(input: GenerateCocoReplyInput) {
+  const replyMode = conversationReplyMode(input);
+  const turnsRemaining = Math.max(0, input.requiredTurns - input.turnOrder);
+  const windDown = replyMode === "follow_up" && turnsRemaining <= 1;
+
   return {
     scenePremise: input.scenePremise,
     targetPattern: input.targetPattern,
     turnOrder: input.turnOrder,
     requiredTurns: input.requiredTurns,
     hardCap: HARD_TURN_CAP,
-    turnsRemaining: HARD_TURN_CAP - input.turnOrder,
-    windDown: input.windDown,
+    replyMode,
+    turnsRemaining,
+    windDown,
     safetyMode: input.safetyMode,
     conversationHistory: input.conversationHistory,
     instructions: [
       "Speak to a young ESL learner: short, simple sentences with easy everyday words.",
-      input.turnOrder === HARD_TURN_CAP
-        ? "This is the hard-cap turn: write one short closing line with no question."
-        : "Prefer one or two short, simple sentences and ask exactly one question.",
+      replyMode === "closing"
+        ? "Acknowledge the latest studentResponse specifically, then add a short friendly goodbye. Write one or two short complete sentences with no question."
+        : "Acknowledge the latest studentResponse, then ask exactly one relevant question for new information.",
       "Write complete, correctly punctuated sentences. Put sentence-ending punctuation between a reaction and the follow-up question; never join them as a run-on.",
       "Treat every detail in conversationHistory as already known.",
-      "Before the hard-cap turn, acknowledge the latest studentResponse, then ask exactly one question for new information whose answer is not present or directly implied anywhere in conversationHistory.",
-      "Before the hard-cap turn, after a meaningful answer, ask an open question that connects directly to the answer and invites a short phrase or sentence.",
-      "Before the hard-cap turn, treat a short answer as meaningful when it adds a real detail; after 'Inside.', ask an expandable question such as 'What games do you play inside?'.",
+      "Before the closing turn, acknowledge the latest studentResponse, then ask exactly one question for new information whose answer is not present or directly implied anywhere in conversationHistory.",
+      "Before the closing turn, after a meaningful answer, ask an open question that connects directly to the answer and invites a short phrase or sentence.",
+      "Before the closing turn, treat a short answer as meaningful when it adds a real detail; after 'Inside.', ask an expandable question such as 'What games do you play inside?'.",
       "Do not default to yes/no or either/or questions after a meaningful answer.",
       "Treat vague replies such as 'anything', 'something', or 'stuff' as minimally informative; do not echo the vague word as if it were a meaningful detail.",
-      "Before the hard-cap turn, acknowledge lightly, then ask one short scene-relevant narrowing question. Use two concrete child-friendly choices only when the latest response is vague, unclear, or shows the learner is stuck.",
+      "Before the closing turn, acknowledge lightly, then ask one short scene-relevant narrowing question. Use two concrete child-friendly choices only when the latest response is vague, unclear, or shows the learner is stuck.",
       "Do not shame the learner or demand a more specific answer.",
       "Do not mechanically rotate through who, what, where, when, why, or how when that repeats a known person, place, activity, preference, or fact.",
       "If the current subject has no natural unanswered detail, transition gently to a nearby part of the scene.",
@@ -258,7 +276,6 @@ export function buildConversationPrompt(input: GenerateCocoReplyInput) {
       "Treat targetPattern as soft lesson context only, never as a next-line template — do not steer the student back into the targetPattern format.",
       "Reject a follow-up that merely swaps in a new noun or activity to repeat targetPattern; the follow-up must connect to the student's actual answer.",
       "If windDown is true, begin gently wrapping up the scene toward a natural close.",
-      "If turnOrder === hardCap, deliver a closing line — this is the last turn.",
       "Elementary ESL classroom-safe. No student names, PINs, audio keys, or private data.",
     ],
   };

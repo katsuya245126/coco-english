@@ -33,3 +33,10 @@ export function selectFallbackLine(seed?: number): string {
     CANNED_FALLBACK_LINES.length;
   return CANNED_FALLBACK_LINES[index];
 }
+
+export const CANNED_CLOSING_FALLBACK_LINE =
+  "That was fun! Thanks for talking with me. See you next time!" as const;
+
+export function selectClosingFallbackLine(): string {
+  return CANNED_CLOSING_FALLBACK_LINE;
+}

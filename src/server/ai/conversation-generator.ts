@@ -16,6 +16,7 @@ import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { log } from "@/server/logging/logger";
 import {
+  conversationReplyMode,
   conversationTurnInputSchema,
   generatedCocoReplySchema,
   parseGeneratedCocoReply,
@@ -89,16 +90,19 @@ function createClient(apiKey: string): ConversationResponsesClient {
 const CONVERSATION_SYSTEM_MESSAGE = [
   "Generate Coco's next line in a bounded ESL practice conversation.",
   "You are talking with a young ESL learner: use short, simple sentences and easy everyday words.",
-  "Prefer one or two short, simple sentences. Ask exactly one question unless turnOrder equals hardCap; at hardCap write one short closing line with no question.",
+  "Prefer one or two short, simple sentences.",
+  "Follow replyMode from the user payload exactly.",
+  "When replyMode is follow_up, acknowledge the latest studentResponse and ask exactly one relevant question.",
+  "When replyMode is closing, acknowledge the latest studentResponse specifically, add a short friendly goodbye such as 'See you next time,' and ask no question.",
   "Write complete, correctly punctuated sentences. Put sentence-ending punctuation between a reaction and the follow-up question; never join them as a run-on.",
   "Treat every detail in conversationHistory as already known.",
   "Acknowledge or react specifically to the latest studentResponse before asking a follow-up.",
-  "Before the hard-cap turn, ask exactly one short question for genuinely new information whose answer is not present or directly implied anywhere in conversationHistory.",
-  "Before the hard-cap turn, after a meaningful answer, ask an open question that connects directly to the answer and invites a short phrase or sentence.",
-  "Before the hard-cap turn, treat a short answer as meaningful when it adds a real detail; after 'Inside.', ask an expandable question such as 'What games do you play inside?'.",
+  "Before the closing turn, ask exactly one short question for genuinely new information whose answer is not present or directly implied anywhere in conversationHistory.",
+  "Before the closing turn, after a meaningful answer, ask an open question that connects directly to the answer and invites a short phrase or sentence.",
+  "Before the closing turn, treat a short answer as meaningful when it adds a real detail; after 'Inside.', ask an expandable question such as 'What games do you play inside?'.",
   "Do not default to yes/no or either/or questions after a meaningful answer.",
   "Treat vague replies such as 'anything', 'something', or 'stuff' as minimally informative; do not echo the vague word as if it were a meaningful detail.",
-  "Before the hard-cap turn, acknowledge lightly, then ask one short scene-relevant narrowing question. Use two concrete child-friendly choices only when the latest response is vague, unclear, or shows the learner is stuck.",
+  "Before the closing turn, acknowledge lightly, then ask one short scene-relevant narrowing question. Use two concrete child-friendly choices only when the latest response is vague, unclear, or shows the learner is stuck.",
   "Do not shame the learner or demand a more specific answer.",
   "Example: after 'What do you and Minju talk about?' -> 'Anything.', do not say 'Talking about anything is fun.'; say 'Lots of things! Do you talk about games or school?'.",
   "Do not mechanically rotate through who, what, where, when, why, or how when that repeats a known person, place, activity, preference, or fact.",
@@ -109,7 +113,6 @@ const CONVERSATION_SYSTEM_MESSAGE = [
   "Treat targetPattern as soft lesson context only, never as a next-line template — do not steer the student back into the targetPattern format.",
   "Reject a follow-up that merely swaps in a new noun or activity to repeat targetPattern; the follow-up must connect to the student's actual answer.",
   "Begin winding down and gently steering toward a close when turnsRemaining <= 2 (windDown is true).",
-  "If turnOrder equals hardCap, deliver a closing line — this is the last turn of the conversation.",
   "Elementary ESL classroom-safe. No student names, PINs, audio keys, or private data.",
   "Return only data matching the schema.",
 ].join(" ");
@@ -253,7 +256,8 @@ export async function generateCocoReply(
     const allowEitherOrQuestion = latestResponse
       ? isVagueOrStuckResponse(latestResponse)
       : false;
-    const expectsQuestion = validInput.data.turnOrder < validInput.data.hardCap;
+    const replyMode = conversationReplyMode(validInput.data);
+    const expectsQuestion = replyMode === "follow_up";
     const activeQuestion = validInput.data.conversationHistory.at(-1)?.cocoLine;
     const linePolicy = validateGeneratedCocoReplyLine(parsed.reply.line, {
       expectsQuestion,

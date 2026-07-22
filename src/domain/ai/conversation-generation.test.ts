@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   HARD_TURN_CAP,
   buildConversationPrompt,
+  conversationReplyMode,
   conversationTurnInputSchema,
   validateGeneratedCocoReplyLine,
   type GenerateCocoReplyInput,
@@ -26,10 +27,23 @@ const input: GenerateCocoReplyInput = {
   turnOrder: 2,
   requiredTurns: 5,
   hardCap: HARD_TURN_CAP,
-  windDown: false,
   safetyMode: "standard",
   conversationHistory: history,
 };
+
+function historyThrough(turnOrder: number) {
+  return Array.from({ length: turnOrder }, (_, index) => ({
+    turnOrder: index + 1,
+    cocoLine:
+      index === turnOrder - 1
+        ? "What did you enjoy today?"
+        : `Question ${index + 1}?`,
+    studentResponse:
+      index === turnOrder - 1
+        ? "I enjoyed swimming."
+        : `Answer ${index + 1}.`,
+  }));
+}
 
 describe("conversation history generation contract", () => {
   it("accepts ordered history and places the complete history in the prompt", () => {
@@ -311,5 +325,42 @@ describe("conversation history generation contract", () => {
         { expectsQuestion: true, allowEitherOrQuestion: false },
       ),
     ).toEqual({ ok: false, reasons: ["question_format"] });
+  });
+
+  it("derives follow-up and closing roles from requiredTurns", () => {
+    const followUp = buildConversationPrompt({
+      ...input,
+      turnOrder: 4,
+      requiredTurns: 5,
+      conversationHistory: historyThrough(4),
+    });
+    expect(followUp).toMatchObject({
+      replyMode: "follow_up",
+      turnsRemaining: 1,
+      windDown: true,
+    });
+    expect(followUp.instructions.join(" ")).toContain("ask exactly one question");
+
+    const closing = buildConversationPrompt({
+      ...input,
+      turnOrder: 5,
+      requiredTurns: 5,
+      conversationHistory: historyThrough(5),
+    });
+    expect(closing).toMatchObject({
+      replyMode: "closing",
+      turnsRemaining: 0,
+      windDown: false,
+    });
+    const closingInstructions = closing.instructions.join(" ");
+    expect(closingInstructions).toContain("Acknowledge the latest studentResponse");
+    expect(closingInstructions).toContain("short friendly goodbye");
+    expect(closingInstructions).toContain("no question");
+  });
+
+  it("treats turn eight as a closing when requiredTurns is eight", () => {
+    expect(
+      conversationReplyMode({ turnOrder: 8, requiredTurns: 8 }),
+    ).toBe("closing");
   });
 });

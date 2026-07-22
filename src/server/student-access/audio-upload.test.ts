@@ -1081,9 +1081,9 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     });
   });
 
-  it("computes windDown relative to the fixed hard cap (turnOrder >= 6), not required_turns", async () => {
+  it("requests and persists a closing on the final required turn", async () => {
     mockSupabase = createMockSupabase({
-      previousTurns: Array.from({ length: 5 }, (_, index) => ({
+      previousTurns: Array.from({ length: 3 }, (_, index) => ({
         turn_order: index + 1,
         original_transcript: `Answer ${index + 1}.`,
         improved_sentence: null,
@@ -1093,25 +1093,171 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
     );
-
+    const closing =
+      "Sushi sounds delicious! Thanks for talking with me. See you next time!";
     const generate = fakeGenerateCocoReply(async () => ({
       ok: true,
-      reply: { line: "Let's start wrapping up our chat soon." },
+      reply: { line: closing },
     }));
-    const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
 
-    // requiredTurns is 4 on the fixture, but turnOrder=6 should still trigger
-    // windDown relative to the fixed cap of 8 (Pitfall 4), not requiredTurns.
-    await uploadAttemptAudioClip(audioInput({ turnOrder: 6 }), {
-      transcribeAudioFile: successfulTranscriber("More coffee please."),
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 4 }), {
+      transcribeAudioFile: successfulTranscriber("I will eat sushi."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: generate,
-      isContentSafe: moderate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
     });
 
     expect(generate).toHaveBeenCalledWith(
-      expect.objectContaining({ windDown: true, turnOrder: 6, requiredTurns: 4 }),
+      expect.objectContaining({ turnOrder: 4, requiredTurns: 4 }),
     );
+    expect(result).toMatchObject({ ok: true, cocoLine: closing });
+    expect(mockSupabase.operations).toContainEqual(
+      expect.objectContaining({
+        table: "attempt_turns",
+        action: "upsert",
+        payload: expect.objectContaining({ coco_line: closing }),
+      }),
+    );
+  });
+
+  it("uses the static closing fallback for provider, schema, and policy failures", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const failures: Array<{
+      generation: GenerateCocoReplyResult;
+      expectedEvent: Record<string, unknown>;
+    }> = [
+      {
+        generation: { ok: false, error: "provider_failed" },
+        expectedEvent: { kind: "canned_fallback", cause: "provider_failed" },
+      },
+      {
+        generation: { ok: false, error: "schema_failed" },
+        expectedEvent: { kind: "canned_fallback", cause: "schema_failed" },
+      },
+      {
+        generation: {
+          ok: false,
+          error: "reply_policy_failed",
+          violations: ["question_format"],
+        },
+        expectedEvent: {
+          kind: "canned_fallback",
+          cause: "reply_policy_failed",
+          violations: ["question_format"],
+        },
+      },
+    ];
+
+    for (const { generation, expectedEvent } of failures) {
+      mockSupabase = createMockSupabase({
+        previousTurns: Array.from({ length: 3 }, (_, index) => ({
+          turn_order: index + 1,
+          original_transcript: `Answer ${index + 1}.`,
+          improved_sentence: null,
+          coco_line: `Question ${index + 2}?`,
+        })),
+      });
+
+      const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 4 }), {
+        transcribeAudioFile: successfulTranscriber("I will eat sushi."),
+        evaluateOriginalTurn: successfulOriginalEvaluator(),
+        generateCocoReply: fakeGenerateCocoReply(async () => generation),
+        isContentSafe: fakeIsContentSafe(async () => ({
+          safe: true,
+          failedOpen: false,
+        })),
+      });
+
+      expect(result).toMatchObject({
+        ok: true,
+        cocoLine: "That was fun! Thanks for talking with me. See you next time!",
+        cocoLineModerationEvent: expectedEvent,
+      });
+    }
+  });
+
+  it("uses the static closing fallback when output moderation is unavailable", async () => {
+    mockSupabase = createMockSupabase({
+      previousTurns: Array.from({ length: 3 }, (_, index) => ({
+        turn_order: index + 1,
+        original_transcript: `Answer ${index + 1}.`,
+        improved_sentence: null,
+        coco_line: `Question ${index + 2}?`,
+      })),
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    let moderationCall = 0;
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 4 }), {
+      transcribeAudioFile: successfulTranscriber("I will eat sushi."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: fakeGenerateCocoReply(async () => ({
+        ok: true,
+        reply: { line: "Sushi sounds delicious! See you next time!" },
+      })),
+      isContentSafe: fakeIsContentSafe(async () => {
+        moderationCall += 1;
+        return moderationCall === 1
+          ? { safe: true as const, failedOpen: false as const }
+          : { safe: false as const, failedOpen: true as const };
+      }),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      cocoLine: "That was fun! Thanks for talking with me. See you next time!",
+      cocoLineModerationEvent: {
+        kind: "canned_fallback",
+        cause: "output_moderation_unavailable",
+      },
+    });
+  });
+
+  it("generates the closing on turn eight instead of short-circuiting at the hard cap", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        requiredTurns: 8,
+      },
+      previousTurns: Array.from({ length: 7 }, (_, index) => ({
+        turn_order: index + 1,
+        original_transcript: `Answer ${index + 1}.`,
+        improved_sentence: null,
+        coco_line: `Question ${index + 2}?`,
+      })),
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "That was fun! See you next time!" },
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 8 }), {
+      transcribeAudioFile: successfulTranscriber("I enjoyed swimming."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(generate).toHaveBeenCalledWith(
+      expect.objectContaining({ turnOrder: 8, requiredTurns: 8 }),
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      cocoLine: "That was fun! See you next time!",
+    });
   });
 });
 

@@ -67,11 +67,15 @@ import {
   type GenerateCocoReplyResult,
 } from "@/server/ai/conversation-generator";
 import { isContentSafe } from "@/server/ai/content-moderation";
-import { selectFallbackLine } from "@/domain/conversation/fallback-lines";
-import type {
-  ConversationExchange,
-  GenerateCocoReplyInput,
-  GeneratedCocoReplyLineViolation,
+import {
+  selectClosingFallbackLine,
+  selectFallbackLine,
+} from "@/domain/conversation/fallback-lines";
+import {
+  conversationReplyMode,
+  type ConversationExchange,
+  type GenerateCocoReplyInput,
+  type GeneratedCocoReplyLineViolation,
 } from "@/domain/ai/conversation-generation";
 import {
   buildConversationHistory,
@@ -452,6 +456,12 @@ function generationFallbackEvent(
   return { kind: "canned_fallback", cause: failure.error };
 }
 
+function fallbackLineForContext(context: ConversationTurnContext): string {
+  return conversationReplyMode(context) === "closing"
+    ? selectClosingFallbackLine()
+    : selectFallbackLine(context.turnOrder);
+}
+
 /**
  * Conversation-mode orchestration (CHAT-01/03/05/06, D-10/D-11/D-13,
  * RESEARCH.md step a-f pipeline). Runs ONLY for conversationMode missions,
@@ -491,14 +501,12 @@ async function runConversationTurn(
   const studentInputCheck = await deps.isContentSafe(context.studentTranscript);
   if (!studentInputCheck.safe) {
     return {
-      cocoLine: selectFallbackLine(context.turnOrder),
+      cocoLine: fallbackLineForContext(context),
       moderationEvent: studentInputCheck.failedOpen
         ? { kind: "input_moderation_unavailable" }
         : { kind: "flagged_student_input" },
     };
   }
-
-  const windDown = context.turnOrder >= 6; // relative to the fixed hard cap of 8, not required_turns
 
   const generationInput: GenerateCocoReplyInput = {
     scenePremise: context.scenePremise ?? "",
@@ -506,7 +514,6 @@ async function runConversationTurn(
     turnOrder: context.turnOrder,
     requiredTurns: context.requiredTurns,
     hardCap: 8,
-    windDown,
     safetyMode: "standard",
     conversationHistory: context.conversationHistory,
   };
@@ -517,7 +524,7 @@ async function runConversationTurn(
   // (e) PROVIDER/SCHEMA/POLICY FAILURE persists its attributable cause.
   if (!firstAttempt.ok) {
     return {
-      cocoLine: selectFallbackLine(context.turnOrder),
+      cocoLine: fallbackLineForContext(context),
       moderationEvent: generationFallbackEvent(firstAttempt),
     };
   }
@@ -533,7 +540,7 @@ async function runConversationTurn(
   // line was never confirmed unsafe).
   if (firstLineCheck.failedOpen) {
     return {
-      cocoLine: selectFallbackLine(context.turnOrder),
+      cocoLine: fallbackLineForContext(context),
       moderationEvent: {
         kind: "canned_fallback",
         cause: "output_moderation_unavailable",
@@ -550,7 +557,7 @@ async function runConversationTurn(
   });
   if (!retryAttempt.ok) {
     return {
-      cocoLine: selectFallbackLine(context.turnOrder),
+      cocoLine: fallbackLineForContext(context),
       moderationEvent: generationFallbackEvent(retryAttempt),
     };
   }
@@ -564,7 +571,7 @@ async function runConversationTurn(
   }
 
   return {
-    cocoLine: selectFallbackLine(context.turnOrder),
+    cocoLine: fallbackLineForContext(context),
     moderationEvent: retryLineCheck.failedOpen
       ? {
           kind: "canned_fallback",
