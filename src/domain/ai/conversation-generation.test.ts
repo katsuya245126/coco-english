@@ -132,6 +132,41 @@ describe("conversation history generation contract", () => {
     expect(instructions).toContain("What games do you play together?");
   });
 
+  it("treats reply length as a soft preference", () => {
+    expect(
+      validateGeneratedCocoReplyLine(
+        "The beach sounds exciting! What will you play there with your family?",
+        {
+          expectsQuestion: true,
+          allowEitherOrQuestion: false,
+          activeQuestion: "Where will you go with your family?",
+          latestStudentResponse: "We will go to the beach together.",
+        },
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  it("returns every deterministic violation in stable order", () => {
+    expect(
+      validateGeneratedCocoReplyLine(
+        "Do you read books or watch TV? What happens next?",
+        {
+          expectsQuestion: true,
+          allowEitherOrQuestion: false,
+          activeQuestion: "Where do you swim?",
+          latestStudentResponse: "At the pool.",
+        },
+      ),
+    ).toEqual({
+      ok: false,
+      reasons: [
+        "question_format",
+        "either_or_question",
+        "topic_drift",
+      ],
+    });
+  });
+
   it("rejects the UAT run-on and accepts a punctuated on-topic reply", () => {
     expect(
       validateGeneratedCocoReplyLine(
@@ -142,7 +177,7 @@ describe("conversation history generation contract", () => {
           activeQuestion: "Who do you swim with?",
         },
       ),
-    ).toEqual({ ok: false, reason: "run_on_question" });
+    ).toEqual({ ok: false, reasons: ["run_on_question"] });
 
     expect(
       validateGeneratedCocoReplyLine(
@@ -166,7 +201,7 @@ describe("conversation history generation contract", () => {
           activeQuestion: "Who do you swim with?",
         },
       ),
-    ).toEqual({ ok: false, reason: "topic_drift" });
+    ).toEqual({ ok: false, reasons: ["topic_drift"] });
     expect(
       validateGeneratedCocoReplyLine(
         "That sounds fun! What games do you play together?",
@@ -176,7 +211,7 @@ describe("conversation history generation contract", () => {
           activeQuestion: "Who do you swim with?",
         },
       ),
-    ).toEqual({ ok: false, reason: "topic_drift" });
+    ).toEqual({ ok: false, reasons: ["topic_drift"] });
   });
 
   it("allows a nearby transition when the student rejects the active topic", () => {
@@ -203,7 +238,7 @@ describe("conversation history generation contract", () => {
           activeQuestion: "Who do you swim with?",
         },
       ),
-    ).toEqual({ ok: false, reason: "run_on_question" });
+    ).toEqual({ ok: false, reasons: ["run_on_question"] });
   });
 
   it("accepts a complete final closing line and rejects a final question", () => {
@@ -218,27 +253,21 @@ describe("conversation history generation contract", () => {
         expectsQuestion: false,
         allowEitherOrQuestion: false,
       }),
-    ).toEqual({ ok: false, reason: "question_format" });
+    ).toEqual({ ok: false, reasons: ["question_format"] });
   });
 
-  it("requires one correctly punctuated question and the prompt word limit", () => {
+  it("requires exactly one correctly punctuated question", () => {
     expect(
       validateGeneratedCocoReplyLine("That sounds fun", {
         expectsQuestion: true,
         allowEitherOrQuestion: false,
       }),
-    ).toEqual({ ok: false, reason: "question_format" });
+    ).toEqual({ ok: false, reasons: ["question_format"] });
     expect(
       validateGeneratedCocoReplyLine(
         "That sounds fun! Where do you swim? Who teaches you?",
         { expectsQuestion: true, allowEitherOrQuestion: false },
       ),
-    ).toEqual({ ok: false, reason: "question_format" });
-    expect(
-      validateGeneratedCocoReplyLine(
-        "Your best friend from school sounds very fun! Where do you swim together?",
-        { expectsQuestion: true, allowEitherOrQuestion: false },
-      ),
-    ).toEqual({ ok: false, reason: "word_limit" });
+    ).toEqual({ ok: false, reasons: ["question_format"] });
   });
 });

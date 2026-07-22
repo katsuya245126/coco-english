@@ -67,11 +67,14 @@ export type ParseGeneratedCocoReplyResult =
   | { ok: false; error: "schema_failed" };
 
 export type GeneratedCocoReplyLineViolation =
-  | "word_limit"
   | "question_format"
   | "run_on_question"
   | "either_or_question"
   | "topic_drift";
+
+export type GeneratedCocoReplyLinePolicyResult =
+  | { ok: true }
+  | { ok: false; reasons: GeneratedCocoReplyLineViolation[] };
 
 const QUESTION_STARTER_PATTERN =
   /\b(?:who|what|when|where|why|how|(?:do|does|did|can|could|would|will|are|is|have|has)\s+(?:you|your|he|she|they|we|it))\b/iu;
@@ -156,30 +159,25 @@ export function validateGeneratedCocoReplyLine(
     activeQuestion?: string;
     latestStudentResponse?: string;
   },
-): { ok: true } | { ok: false; reason: GeneratedCocoReplyLineViolation } {
+): GeneratedCocoReplyLinePolicyResult {
   const normalized = line.trim();
-  const wordCount = normalized.match(/[\p{L}\p{N}']+/gu)?.length ?? 0;
-
+  const reasons: GeneratedCocoReplyLineViolation[] = [];
   const questionMarks = normalized.match(/\?/gu)?.length ?? 0;
+
   if (
     options.expectsQuestion
       ? questionMarks !== 1 || !normalized.endsWith("?")
       : questionMarks !== 0 || !/[.!]$/u.test(normalized)
   ) {
-    return { ok: false, reason: "question_format" };
+    reasons.push("question_format");
   }
 
   if (options.expectsQuestion && hasRunOnQuestion(normalized)) {
-    return { ok: false, reason: "run_on_question" };
+    reasons.push("run_on_question");
   }
 
-  if (wordCount >= 12) return { ok: false, reason: "word_limit" };
-
-  if (
-    !options.allowEitherOrQuestion &&
-    usesEitherOrQuestion(normalized)
-  ) {
-    return { ok: false, reason: "either_or_question" };
+  if (!options.allowEitherOrQuestion && usesEitherOrQuestion(normalized)) {
+    reasons.push("either_or_question");
   }
 
   if (
@@ -191,10 +189,10 @@ export function validateGeneratedCocoReplyLine(
       options.latestStudentResponse,
     )
   ) {
-    return { ok: false, reason: "topic_drift" };
+    reasons.push("topic_drift");
   }
 
-  return { ok: true };
+  return reasons.length === 0 ? { ok: true } : { ok: false, reasons };
 }
 
 /**
@@ -230,7 +228,7 @@ export function buildConversationPrompt(input: GenerateCocoReplyInput) {
       "Speak to a young ESL learner: short, simple sentences with easy everyday words.",
       input.turnOrder === HARD_TURN_CAP
         ? "This is the hard-cap turn: write one short closing line with no question."
-        : "Keep the whole line under 12 words and ask exactly one question.",
+        : "Prefer one or two short, simple sentences and ask exactly one question.",
       "Write complete, correctly punctuated sentences. Put sentence-ending punctuation between a reaction and the follow-up question; never join them as a run-on.",
       "Treat every detail in conversationHistory as already known.",
       "Before the hard-cap turn, acknowledge the latest studentResponse, then ask exactly one question for new information whose answer is not present or directly implied anywhere in conversationHistory.",
