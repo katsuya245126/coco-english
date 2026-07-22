@@ -37,6 +37,7 @@ type CocoDialogueBoxProps = {
   dialogueText?: string | null;
   voiceControl?: ReactNode;
   translationLine?: TranslatableCocoLine | null;
+  isThinking?: boolean;
 };
 
 type TranslationUiState =
@@ -51,6 +52,7 @@ export function CocoDialogueBox({
   dialogueText,
   voiceControl,
   translationLine,
+  isThinking = false,
 }: CocoDialogueBoxProps) {
   const [translationState, setTranslationState] =
     useState<TranslationUiState>({ kind: "inactive" });
@@ -225,7 +227,12 @@ export function CocoDialogueBox({
             aria-live="polite"
             aria-atomic="true"
           >
-            {segments
+            {isThinking ? (
+              <>
+                {currentPage.text.replace(/\s*\.\.\.$|\s*…$/u, "")}
+                <ThinkingDots />
+              </>
+            ) : segments
               ? segments.map((segment) => {
                   if (segment.kind === "text") return segment.text;
                   const absoluteStart = currentPage.start + segment.phrase.start;
@@ -296,6 +303,26 @@ export function CocoDialogueBox({
         </nav>
       ) : null}
     </div>
+  );
+}
+
+function ThinkingDots() {
+  return (
+    <span aria-hidden="true" style={{ display: "inline-flex", gap: 3, marginLeft: 4 }}>
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="thinking-dot"
+          style={{
+            width: 5,
+            height: 5,
+            borderRadius: "50%",
+            background: "currentColor",
+            animation: `thinking-dot-bounce 1.2s ease-in-out ${i * 0.2}s infinite`,
+          }}
+        />
+      ))}
+    </span>
   );
 }
 

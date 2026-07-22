@@ -40,6 +40,7 @@ type MascotStageProps = ExpressionInput & {
   dialogueText?: string | null;
   voiceControl?: ReactNode;
   translationLine?: TranslatableCocoLine | null;
+  isThinking?: boolean;
   playing: boolean;
   /** Ref updated by MissionFlowShell from CocoSpeechAudio.onAmplitudeFrame. */
   amplitudeRef: RefObject<number>;
@@ -66,6 +67,7 @@ export function MascotStage({
   dialogueText,
   voiceControl,
   translationLine,
+  isThinking,
   playing,
   amplitudeRef,
   expression,
@@ -173,6 +175,7 @@ export function MascotStage({
         dialogueText={dialogueText}
         voiceControl={voiceControl}
         translationLine={translationLine}
+        isThinking={isThinking}
       />
     </div>
   );

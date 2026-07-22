@@ -866,6 +866,7 @@ export function MissionFlowShell({
         assignmentStudentId={assignmentStudentId}
         displayName={characterProfile.displayName}
         dialogueText={mascotDialogue.text}
+        isThinking={flow.step === "cocoThinking"}
         translationLine={
           !actionError &&
           flow.step === "question" &&
