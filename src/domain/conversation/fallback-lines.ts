@@ -23,8 +23,13 @@ export type FollowUpFallbackKind = "meaningful" | "vague_or_stuck" | "uncertain"
 export const FOLLOW_UP_FALLBACK_LINES = {
   meaningful: "Thanks for telling me! What do you like about that?",
   vague_or_stuck: "That's okay! Can you give me one example?",
-  uncertain:
-    "Let's try that question another way. Can you tell me one small detail?",
+  // Reworded 2026-07-24: the previous line ("Let's try that question another
+  // way. Can you tell me one small detail?") failed the child-ESL register.
+  // "another way" refers to a first attempt the child never perceived, and
+  // "one small detail" is an abstract noun a young learner does not parse.
+  // "Hmm..." conveys that Coco didn't catch it without narrating a failure,
+  // and "say it again" is the one action a mumbling student can actually take.
+  uncertain: "Hmm... Can you say it again?",
 } as const satisfies Record<FollowUpFallbackKind, string>;
 
 const VAGUE_OR_STUCK_RESPONSES = new Set([

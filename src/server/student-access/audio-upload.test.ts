@@ -1296,7 +1296,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     expect(result).toMatchObject({
       ok: true,
       cocoLine:
-        "Let's try that question another way. Can you tell me one small detail?",
+        "Hmm... Can you say it again?",
       cocoLineModerationEvent: { kind: "canned_fallback", cause: "provider_failed" },
     });
   });
@@ -1324,7 +1324,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     expect(result).toMatchObject({
       ok: true,
       cocoLine:
-        "Let's try that question another way. Can you tell me one small detail?",
+        "Hmm... Can you say it again?",
       cocoLineModerationEvent: { kind: "flagged_student_input" },
     });
   });
