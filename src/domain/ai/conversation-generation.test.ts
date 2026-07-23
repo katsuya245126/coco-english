@@ -437,9 +437,63 @@ describe("conversation history generation contract", () => {
     const instructions = prompt.instructions.join(" ");
 
     expect(prompt.responseHandling).toBe("review_pending");
-    expect(instructions).toContain("Use the latest studentResponse only when");
     expect(instructions).toContain("most recent earlier studentResponse");
     expect(instructions).toContain("scenePremise");
-    expect(instructions).toContain("do not invent");
+    expect(instructions).toContain("Do not invent");
+    expect(instructions).toContain("has been withheld");
+  });
+
+  it("withholds the unusable transcript from a review_pending payload", () => {
+    const prompt = buildConversationPrompt({
+      ...input,
+      responseHandling: "review_pending",
+      conversationHistory: [
+        {
+          turnOrder: 1,
+          cocoLine: "Who do you play soccer with?",
+          studentResponse: "I play with my friend.",
+        },
+        {
+          turnOrder: 2,
+          cocoLine: "Where do you play soccer?",
+          studentResponse: "playing soccer on the weekend",
+        },
+      ],
+    });
+
+    const latest = prompt.conversationHistory.at(-1);
+    // The garbled decode must not reach the model at all — it reads as a
+    // clean sentence, so any instruction to "use it only if clear" asks the
+    // model to re-decide something the evaluator already ruled unusable.
+    expect(latest?.studentResponse).not.toContain("weekend");
+    expect(JSON.stringify(prompt)).not.toContain("playing soccer on the weekend");
+
+    // The turn itself stays, so history remains contiguous and Coco still
+    // knows the student answered something.
+    expect(latest?.turnOrder).toBe(2);
+    expect(latest?.cocoLine).toBe("Where do you play soccer?");
+
+    // Earlier usable answers are untouched.
+    expect(prompt.conversationHistory[0]?.studentResponse).toBe(
+      "I play with my friend.",
+    );
+  });
+
+  it("leaves history untouched when responseHandling is normal", () => {
+    const prompt = buildConversationPrompt({
+      ...input,
+      responseHandling: "normal",
+      conversationHistory: [
+        {
+          turnOrder: 1,
+          cocoLine: "Where do you play soccer?",
+          studentResponse: "playing soccer on the weekend",
+        },
+      ],
+    });
+
+    expect(prompt.conversationHistory[0]?.studentResponse).toBe(
+      "playing soccer on the weekend",
+    );
   });
 });

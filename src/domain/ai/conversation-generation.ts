@@ -271,6 +271,44 @@ export function conversationReplyMode(input: {
 }
 
 /**
+ * Placeholder substituted for a latest response the evaluator could not
+ * understand. Kept human-readable rather than empty because the schema
+ * requires a non-empty studentResponse and history must stay contiguous —
+ * the turn happened, only its content is unusable.
+ */
+export const WITHHELD_STUDENT_RESPONSE = "(not understood)" as const;
+
+/**
+ * Replace the latest studentResponse with a marker when the evaluator
+ * flagged the turn for review.
+ *
+ * A garbled decode ("playing soccer on the weekend" from an unintelligible
+ * clip) reads as a perfectly clean sentence, so passing it with an
+ * instruction to "use it only when the meaning is clear" asks the model to
+ * re-decide something the evaluator already ruled unusable — with strictly
+ * less information than the evaluator had. Coco then states the invented
+ * detail back as fact.
+ *
+ * Withholding the text removes the material to invent from. Only the latest
+ * turn is affected: earlier responses were evaluated on their own terms and
+ * stay available as grounding.
+ */
+function withheldUnusableLatestResponse(
+  history: ConversationExchange[],
+  responseHandling: ConversationResponseHandling,
+): ConversationExchange[] {
+  if (responseHandling !== "review_pending" || history.length === 0) {
+    return history;
+  }
+
+  return history.map((exchange, index) =>
+    index === history.length - 1
+      ? { ...exchange, studentResponse: WITHHELD_STUDENT_RESPONSE }
+      : exchange,
+  );
+}
+
+/**
  * Rebuild the full grounding payload fresh for every generation call
  * (CHAT-04 architectural guardrail — no chat-history blob, no
  * previous_response_id). Pure function, directly unit-testable.
@@ -282,11 +320,16 @@ export function buildConversationPrompt(input: GenerateCocoReplyInput) {
   const reviewPendingInstructions: string[] =
     input.responseHandling === "review_pending"
       ? [
-          "The latest studentResponse is internally uncertain. Use the latest studentResponse only when its meaning is clear from Coco's active question; do not invent or state guessed details as facts.",
-          "If the latest response is unclear, continue from the most recent earlier studentResponse with understandable meaning.",
+          "The latest studentResponse could not be understood and has been withheld; you are not being shown it. Do not invent, guess, or reconstruct any detail about what the student just said.",
+          "Continue from the most recent earlier studentResponse with understandable meaning.",
           "If no studentResponse is usable, ask one short neutral question grounded in scenePremise.",
         ]
       : [];
+
+  const conversationHistory = withheldUnusableLatestResponse(
+    input.conversationHistory,
+    input.responseHandling,
+  );
 
   return {
     scenePremise: input.scenePremise,
@@ -299,7 +342,7 @@ export function buildConversationPrompt(input: GenerateCocoReplyInput) {
     windDown,
     safetyMode: input.safetyMode,
     responseHandling: input.responseHandling,
-    conversationHistory: input.conversationHistory,
+    conversationHistory,
     instructions: [
       "Speak to a young ESL learner: short, simple sentences with easy everyday words.",
       replyMode === "closing"
