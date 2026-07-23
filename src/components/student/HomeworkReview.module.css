@@ -1,0 +1,177 @@
+.page {
+  display: flex;
+  justify-content: center;
+  padding: 24px 16px 48px;
+}
+
+.panel {
+  width: 100%;
+  max-width: 430px;
+}
+
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 16px;
+}
+
+.exchange {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.identity,
+.studentIdentity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.studentIdentity {
+  justify-content: flex-end;
+}
+
+.studentIdentity span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #1e3a8a;
+  color: white;
+  font-size: 11px;
+}
+
+.cocoMessage {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.cocoBubble {
+  max-width: min(82%, 330px);
+  overflow-wrap: anywhere;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 13px;
+  line-height: 1.5;
+}
+
+.studentMessage {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.attemptRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.studentBubble {
+  max-width: min(82%, 330px);
+  overflow-wrap: anywhere;
+  background: #dbeafe;
+  color: #1e3a8a;
+  border-radius: 12px;
+  padding: 13px;
+  line-height: 1.5;
+}
+
+.studentBubble p {
+  margin: 0;
+}
+
+.retryMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-weight: 800;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.improvedSentence {
+  align-self: flex-end;
+  max-width: min(82%, 330px);
+  overflow-wrap: anywhere;
+  margin: 0;
+  color: #334155;
+  font-style: italic;
+}
+
+.changedWord {
+  color: #b91c1c;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.goodJob {
+  margin: 0;
+  color: #166534;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.pronunciation {
+  background: #f0fdf4;
+  color: #166534;
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+.pronunciation p {
+  margin: 6px 0 0;
+}
+
+.muted {
+  margin: 9px 0 0;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  margin-top: 24px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  background: #2563eb;
+  color: white;
+  font-weight: 700;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
