@@ -1,6 +1,6 @@
 # Evaluation and follow-up quality
 
-**Status:** Implementation in progress (Tasks 1-5 of 8 complete)
+**Status:** Implementation in progress (Tasks 1-6 of 8 complete)
 **Classification:** Consequential
 **Started:** 2026-07-23
 
@@ -241,9 +241,39 @@ Completed:
   pre-existing preset tests unchanged). Full regression suite: 91 files, 971
   passed, 4 skipped. `npx tsc --noEmit` clean across the whole repo.
 
+- **Task 6** (commit `27e9c79a`): Built the dynamic text-message Homework
+  Review. `src/domain/student/homework-review.ts` adds a dependency-free
+  `buildImprovedSentenceParts(original, improved)` word diff (LCS over
+  lexical tokens, preserving spacing/punctuation) that marks only the
+  changed words red, falling back to a whole-sentence highlight when either
+  side has no lexical tokens to align. `src/components/student/
+  HomeworkReview.tsx` (+`.module.css`) renders Coco's chained prompts and
+  the student's bubbles inside a 430px reading column with normal page
+  scroll: accepted/accepted-minor/repeat-accepted turns show green
+  `✓ Good job!`; a repeat-accepted turn shows a 24px red `!` mark beside the
+  original bubble plus screen-reader-only text ("This answer needed another
+  try.") instead of a written label; an accepted-minor turn shows the
+  improved sentence beneath the conversation with only changed words
+  wrapped in `.changedWord`; a neutral (teacher-review) turn shows neither
+  label, exposing no review reason; the final Coco message renders
+  `recap.finalCocoLine` last. Found and fixed a genuine toolchain gap before
+  writing the plan's component test: Vitest's `include` glob only matched
+  `*.test.ts` (no `.tsx`), and no JSX-transform plugin was installed, so a
+  `.test.tsx` file could neither be collected nor compiled. Added
+  `@vitejs/plugin-react@5.2.0` (matches installed `vite@6.4.3`; the latest
+  `^6` release requires `vite@^8` and conflicted), widened `include` to add
+  `src/**/*.test.tsx`, and renamed `vitest.config.ts` -> `.mts` so the
+  ESM-only plugin loads under this package's CommonJS default. Verified the
+  full 92-file suite still passed after the toolchain change before adding
+  new tests. Added the plan's pure-diff tests (3/3) and component-render
+  test plus a CSS-module source-content test (2/2, covering good-job count,
+  changed-word marking, retry screen-reader text, neutral-turn silence, and
+  the CSS module's required selectors). Full regression suite: 93 files, 976
+  passed, 4 skipped. `npx tsc --noEmit` clean.
+
 ## Next step
 
-Task 6: build the dynamic text-message Homework Review
-(`src/domain/student/homework-review.ts` +test,
-`src/components/student/HomeworkReview.tsx` +.module.css +test). Not
-started.
+Task 7: route dynamic mission completion into Homework Review
+(`src/components/student/MissionFlowShell.tsx`,
+`src/app/student/history/[assignmentStudentId]/page.tsx`, +3 test files).
+Not started.
