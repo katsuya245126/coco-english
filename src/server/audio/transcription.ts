@@ -12,6 +12,11 @@ import {
   type HangulSpan,
 } from "@/domain/audio/hangul-romanization";
 import { detectNoSpeech } from "@/domain/audio/no-speech-detection";
+import {
+  isLowConfidenceTranscript,
+  summarizeTranscriptConfidence,
+  type TranscriptLogprob,
+} from "@/domain/audio/transcript-confidence";
 import { log } from "@/server/logging/logger";
 
 const DEFAULT_TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe";
@@ -29,6 +34,13 @@ export type TranscriptionError =
   | "missing_api_key"
   | "empty_transcript"
   | "no_speech"
+  /**
+   * Clean-reading English decoded from audio the model was not confident
+   * about — a hallucination the text itself cannot betray. Callers treat every
+   * failure alike (a retry prompt), so this exists to separate the two in
+   * logs while the threshold is still provisional.
+   */
+  | "low_confidence"
   | "transcription_failed";
 
 export type TranscriptionResult =
@@ -53,7 +65,9 @@ export type TranscriptionClient = {
         model: string;
         language?: string;
         prompt?: string;
-      }): Promise<{ text?: string | null }>;
+        response_format?: string;
+        include?: string[];
+      }): Promise<{ text?: string | null; logprobs?: TranscriptLogprob[] | null }>;
     };
   };
 };
@@ -156,6 +170,12 @@ export async function transcribeAudioFile(
       // known failure mode with code-switched/bilingual audio.
       language: "en",
       prompt: TRANSCRIPTION_PROMPT,
+      // Token logprobs are the only signal that separates a hallucinated
+      // decode from a real answer — see domain/audio/transcript-confidence.
+      // `include` requires response_format "json" on gpt-4o-mini-transcribe;
+      // "verbose_json" is a whisper-1 shape and is rejected with a 400.
+      response_format: "json",
+      include: ["logprobs"],
     });
     const { text, koreanSpans } = normalizeEnglishTranscript(
       response.text ?? "",
@@ -173,6 +193,29 @@ export async function transcribeAudioFile(
         reason: noSpeechReason,
       });
       return { ok: false, error: "no_speech" };
+    }
+
+    const confidence = summarizeTranscriptConfidence(response.logprobs);
+    if (confidence) {
+      // Numbers only, on both branches: the transcript is student content, and
+      // on the rejection path it is very likely not what the child said at all.
+      if (isLowConfidenceTranscript(confidence)) {
+        log("error", "audio.transcription_failed", {
+          error: "low_confidence",
+          minLogprob: confidence.minLogprob,
+          tokenCount: confidence.tokenCount,
+        });
+        return { ok: false, error: "low_confidence" };
+      }
+
+      // The accepted side of the distribution. The threshold was set on six
+      // clips from one adult speaker in a quiet room; these logs are how it
+      // gets re-tuned against real students, and how a false positive on a
+      // quiet or far-from-mic answer would first become visible.
+      log("info", "audio.transcript_confidence", {
+        minLogprob: confidence.minLogprob,
+        tokenCount: confidence.tokenCount,
+      });
     }
 
     if (koreanSpans.length > 0) {
