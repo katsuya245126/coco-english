@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 
-let mockSupabase: ReturnType<typeof createMockSupabase>;
+let mockSupabase: { from: (table: never) => unknown };
 
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServiceClient: () => mockSupabase,
@@ -167,5 +167,184 @@ describe("student completed mission recap pronunciation", () => {
         pronunciation: { starBand: 3, words: [] },
       },
     ]);
+  });
+});
+
+type DynamicAttemptTurnRow = {
+  id: string;
+  turn_order: number;
+  original_transcript: string | null;
+  improved_sentence: string | null;
+  repeat_transcript: string | null;
+  repeat_accepted: boolean;
+  evaluation: unknown;
+  coco_line: string;
+};
+
+function createDynamicMockSupabase(attemptTurnsOverride?: DynamicAttemptTurnRow[]) {
+  const rows = {
+    assignment_students: {
+      data: {
+        id: "assignment-student-1",
+        latest_attempt_id: "attempt-1",
+        submitted_at: "2026-07-14T00:00:00.000Z",
+        assignments: {
+          title: "Weekend plans",
+          canceled_at: null,
+          mission_snapshot: {
+            targetPattern: "I am going to...",
+            characterId: "default-buddy",
+            conversationMode: true,
+            turns: [{ turnOrder: 1, prompt: "Where are you going?" }],
+          },
+        },
+      },
+      error: null,
+    },
+    attempts: {
+      data: { id: "attempt-1", status: "completed", completed_at: "2026-07-14T00:00:00.000Z" },
+      error: null,
+    },
+    attempt_turns: {
+      data:
+        attemptTurnsOverride ??
+        [
+          {
+            id: "turn-correct",
+            turn_order: 1,
+            original_transcript: "I am going to school.",
+            improved_sentence: null,
+            repeat_transcript: null,
+            repeat_accepted: false,
+            evaluation: {
+              outcome: "accepted_original",
+              correctionSeverity: "none",
+            },
+            coco_line: "What do you do at school?",
+          },
+          {
+            id: "turn-minor",
+            turn_order: 2,
+            original_transcript: "I go to library.",
+            improved_sentence: "I go to the library.",
+            repeat_transcript: null,
+            repeat_accepted: false,
+            evaluation: {
+              outcome: "accepted_original",
+              correctionSeverity: "minor",
+            },
+            coco_line: "What books do you read there?",
+          },
+          {
+            id: "turn-repeat",
+            turn_order: 3,
+            original_transcript: "I want read cartoon.",
+            improved_sentence: "I want to read cartoons.",
+            repeat_transcript: "I want to read cartoons.",
+            repeat_accepted: true,
+            evaluation: { outcome: "accepted_repeat" },
+            coco_line:
+              "That was fun! Thanks for talking with me. See you next time!",
+          },
+        ],
+      error: null,
+    },
+    audio_clips: {
+      data: [
+        { id: "clip-correct-original", attempt_turn_id: "turn-correct", clip_kind: "original_answer", object_key: "correct.webm", processing_status: "transcribed", audio_expires_at: null, deleted_at: null },
+        { id: "clip-minor-original", attempt_turn_id: "turn-minor", clip_kind: "original_answer", object_key: "minor.webm", processing_status: "transcribed", audio_expires_at: null, deleted_at: null },
+        { id: "clip-repeat-original", attempt_turn_id: "turn-repeat", clip_kind: "original_answer", object_key: "repeat-original.webm", processing_status: "transcribed", audio_expires_at: null, deleted_at: null },
+        { id: "clip-repeat-repeat", attempt_turn_id: "turn-repeat", clip_kind: "repeat_attempt", object_key: "repeat-repeat.webm", processing_status: "transcribed", audio_expires_at: null, deleted_at: null },
+      ],
+      error: null,
+    },
+    pronunciation_scores: {
+      data: [
+        { audio_clip_id: "clip-correct-original", star_band: 3, word_scores: [] },
+        { audio_clip_id: "clip-minor-original", star_band: 2, word_scores: [] },
+        { audio_clip_id: "clip-repeat-original", star_band: 1, word_scores: [] },
+        { audio_clip_id: "clip-repeat-repeat", star_band: 3, word_scores: [] },
+      ],
+      error: null,
+    },
+  };
+
+  return {
+    from(table: keyof typeof rows) {
+      const result = rows[table];
+      const query = {
+        select: () => query,
+        eq: () => query,
+        maybeSingle: () => Promise.resolve(result),
+        order: () => Promise.resolve(result),
+        in: () => (table === "pronunciation_scores" ? Promise.resolve(result) : query),
+      };
+      return query;
+    },
+  };
+}
+
+describe("student completed mission recap dynamic homework review", () => {
+  it("maps severity and repeat state into a per-turn review state with separated original/repeat evidence", async () => {
+    mockSupabase = createDynamicMockSupabase();
+
+    const recap = await getCompletedMissionRecap("student-1", "assignment-student-1");
+
+    expect(recap).toMatchObject({
+      conversationMode: true,
+      characterId: "default-buddy",
+      finalCocoLine:
+        "That was fun! Thanks for talking with me. See you next time!",
+      turns: [
+        {
+          cocoPrompt: "Where are you going?",
+          reviewState: "accepted",
+          original: { transcript: "I am going to school." },
+          repeat: null,
+        },
+        {
+          cocoPrompt: "What do you do at school?",
+          reviewState: "accepted_minor",
+          original: { transcript: "I go to library." },
+          improvedSentence: "I go to the library.",
+          repeat: null,
+        },
+        {
+          cocoPrompt: "What books do you read there?",
+          reviewState: "repeat_accepted",
+          original: { transcript: "I want read cartoon." },
+          repeat: { transcript: "I want to read cartoons." },
+        },
+      ],
+    });
+
+    expect(recap?.turns[2]?.original.audio?.id).toBe("clip-repeat-original");
+    expect(recap?.turns[2]?.repeat?.audio?.id).toBe("clip-repeat-repeat");
+    expect(recap?.turns[2]?.original.pronunciation?.starBand).toBe(1);
+    expect(recap?.turns[2]?.repeat?.pronunciation?.starBand).toBe(3);
+  });
+
+  it("marks a teacher-reviewed turn as neutral with no review reason exposed", async () => {
+    mockSupabase = createDynamicMockSupabase([
+      {
+        id: "turn-neutral",
+        turn_order: 1,
+        original_transcript: "Something unclear.",
+        improved_sentence: null,
+        repeat_transcript: null,
+        repeat_accepted: false,
+        evaluation: {
+          outcome: "teacher_review",
+          reviewReason: "ambiguous",
+        },
+        coco_line: "Let's try again.",
+      },
+    ]);
+
+    const recap = await getCompletedMissionRecap("student-1", "assignment-student-1");
+
+    expect(recap?.turns[0]?.reviewState).toBe("neutral");
+    expect(JSON.stringify(recap)).not.toContain("ambiguous");
+    expect(JSON.stringify(recap)).not.toContain("evaluation");
   });
 });

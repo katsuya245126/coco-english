@@ -14,6 +14,18 @@ export type StudentRecapAudioClip = {
   playback: "available" | "expired" | "unavailable";
 };
 
+export type StudentRecapAttempt = {
+  transcript: string;
+  audio: StudentRecapAudioClip | null;
+  pronunciation: StudentRecapPronunciation | null;
+};
+
+export type StudentRecapReviewState =
+  | "accepted"
+  | "accepted_minor"
+  | "repeat_accepted"
+  | "neutral";
+
 export type StudentRecapTurn = {
   id: string;
   turnOrder: number;
@@ -21,6 +33,10 @@ export type StudentRecapTurn = {
   transcript: string;
   audio: StudentRecapAudioClip | null;
   pronunciation: StudentRecapPronunciation | null;
+  original: StudentRecapAttempt;
+  improvedSentence: string | null;
+  repeat: StudentRecapAttempt | null;
+  reviewState: StudentRecapReviewState;
 };
 
 export type StudentMissionRecap = {
@@ -28,14 +44,27 @@ export type StudentMissionRecap = {
   title: string;
   targetPattern: string;
   completedAt: string | null;
+  conversationMode: boolean;
+  characterId: string;
+  finalCocoLine: string | null;
   turns: StudentRecapTurn[];
 };
 
-type Snapshot = { targetPattern: string; turns: Array<{ turnOrder?: number; order?: number; prompt: string }> };
+type Snapshot = {
+  targetPattern: string;
+  conversationMode: boolean;
+  characterId: string;
+  turns: Array<{ turnOrder?: number; order?: number; prompt: string }>;
+};
 
 function parseSnapshot(value: unknown): Snapshot | null {
   if (!value || typeof value !== "object") return null;
-  const raw = value as { targetPattern?: unknown; turns?: unknown };
+  const raw = value as {
+    targetPattern?: unknown;
+    turns?: unknown;
+    conversationMode?: unknown;
+    characterId?: unknown;
+  };
   if (typeof raw.targetPattern !== "string" || !raw.targetPattern.trim() || !Array.isArray(raw.turns)) return null;
   const turns = raw.turns.flatMap((item) => {
     if (!item || typeof item !== "object") return [];
@@ -43,7 +72,14 @@ function parseSnapshot(value: unknown): Snapshot | null {
     const turnOrder = typeof turn.turnOrder === "number" ? turn.turnOrder : typeof turn.order === "number" ? turn.order : null;
     return turnOrder !== null && typeof turn.prompt === "string" && turn.prompt.trim() ? [{ turnOrder, prompt: turn.prompt.trim() }] : [];
   });
-  return turns.length ? { targetPattern: raw.targetPattern.trim(), turns } : null;
+  return turns.length
+    ? {
+        targetPattern: raw.targetPattern.trim(),
+        conversationMode: raw.conversationMode === true,
+        characterId: typeof raw.characterId === "string" && raw.characterId.trim() ? raw.characterId.trim() : "default-buddy",
+        turns,
+      }
+    : null;
 }
 
 function playbackFor(clip: { object_key: string | null; processing_status: string; audio_expires_at: string | null; deleted_at: string | null }) {
@@ -52,11 +88,46 @@ function playbackFor(clip: { object_key: string | null; processing_status: strin
   return "available" as const;
 }
 
+function reviewStateFor(turn: {
+  improved_sentence: string | null;
+  repeat_transcript: string | null;
+  repeat_accepted: boolean | null;
+  evaluation: unknown;
+}): StudentRecapReviewState {
+  if (turn.repeat_accepted === true && turn.repeat_transcript?.trim()) {
+    return "repeat_accepted";
+  }
+  const evaluation =
+    turn.evaluation && typeof turn.evaluation === "object"
+      ? (turn.evaluation as {
+          outcome?: unknown;
+          correctionSeverity?: unknown;
+        })
+      : null;
+  if (
+    evaluation?.outcome === "accepted_original" &&
+    evaluation.correctionSeverity === "minor" &&
+    turn.improved_sentence?.trim()
+  ) {
+    return "accepted_minor";
+  }
+  if (
+    evaluation?.outcome === "accepted_original" ||
+    (!turn.improved_sentence && !turn.repeat_transcript && !evaluation)
+  ) {
+    return "accepted";
+  }
+  return "neutral";
+}
+
 export async function getCompletedMissionRecap(studentId: string, assignmentStudentId: string): Promise<StudentMissionRecap | null> {
   const supabase = createSupabaseServiceClient();
   const owned = await supabase.from("assignment_students").select("id, status, latest_attempt_id, submitted_at, assignments!inner(title, mission_snapshot, canceled_at)")
     .eq("id", assignmentStudentId).eq("student_id", studentId).in("status", ["completed", "teacher_review"]).maybeSingle();
-  if (owned.error || !owned.data) return null;
+  if (owned.error) {
+    throw new Error(`Unable to load owned recap: ${owned.error.message}`);
+  }
+  if (!owned.data) return null;
   const row = owned.data as { id: string; latest_attempt_id: string | null; submitted_at: string | null; assignments: { title: string; mission_snapshot: unknown; canceled_at: string | null } | Array<{ title: string; mission_snapshot: unknown; canceled_at: string | null }> };
   const assignment = Array.isArray(row.assignments) ? row.assignments[0] : row.assignments;
   const snapshot = parseSnapshot(assignment?.mission_snapshot);
@@ -64,9 +135,18 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
 
   const attempt = await supabase.from("attempts").select("id, status, completed_at").eq("id", row.latest_attempt_id).eq("assignment_student_id", row.id).in("status", ["completed", "teacher_review"]).maybeSingle();
   if (attempt.error || !attempt.data) return null;
-  const turnsResult = await supabase.from("attempt_turns").select("id, turn_order, original_transcript, repeat_transcript, repeat_accepted").eq("attempt_id", row.latest_attempt_id).order("turn_order", { ascending: true });
+  const turnsResult = await supabase.from("attempt_turns").select("id, turn_order, original_transcript, improved_sentence, repeat_transcript, repeat_accepted, evaluation, coco_line").eq("attempt_id", row.latest_attempt_id).order("turn_order", { ascending: true });
   if (turnsResult.error) throw new Error(`Unable to load recap turns: ${turnsResult.error.message}`);
-  const turnRows = (turnsResult.data ?? []) as Array<{ id: string; turn_order: number; original_transcript: string | null; repeat_transcript: string | null; repeat_accepted: boolean | null }>;
+  const turnRows = (turnsResult.data ?? []) as Array<{
+    id: string;
+    turn_order: number;
+    original_transcript: string | null;
+    improved_sentence: string | null;
+    repeat_transcript: string | null;
+    repeat_accepted: boolean | null;
+    evaluation: unknown;
+    coco_line: string | null;
+  }>;
   const ids = turnRows.map((turn) => turn.id);
   let clips: Array<{ id: string; attempt_turn_id: string; clip_kind: string; object_key: string | null; processing_status: string; audio_expires_at: string | null; deleted_at: string | null }> = [];
   if (ids.length) {
@@ -81,17 +161,61 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
     if (result.error) throw new Error(`Unable to load recap pronunciation: ${result.error.message}`);
     scores = result.data ?? [];
   }
-  const prompts = new Map(snapshot.turns.map((turn) => [turn.turnOrder, turn.prompt]));
+
+  function attemptFor(turnId: string, clipKind: "original_answer" | "repeat_attempt", transcript: string): StudentRecapAttempt {
+    const clip = clips.find((item) => item.attempt_turn_id === turnId && item.clip_kind === clipKind) ?? null;
+    const score = clip ? scores.find((item) => item.audio_clip_id === clip.id) : undefined;
+    return {
+      transcript,
+      audio: clip ? { id: clip.id, playback: playbackFor(clip) } : null,
+      pronunciation: score && [1, 2, 3].includes(score.star_band) ? { starBand: score.star_band as 1 | 2 | 3, words: Array.isArray(score.word_scores) ? wordsToPractice(score.word_scores as WordScore[], transcript) : [] } : null,
+    };
+  }
+
+  const presetPrompts = new Map(snapshot.turns.map((turn) => [turn.turnOrder, turn.prompt]));
+  let nextDynamicPrompt = snapshot.turns[0]?.prompt ?? "Coco's question";
+  let finalCocoLine: string | null = null;
+
+  const turns: StudentRecapTurn[] = turnRows.map((turn) => {
+    const acceptedRepeat = turn.repeat_accepted === true && Boolean(turn.repeat_transcript);
+    const transcript = acceptedRepeat ? turn.repeat_transcript! : turn.original_transcript ?? "";
+    const original = attemptFor(turn.id, "original_answer", turn.original_transcript ?? "");
+    const repeat = turn.repeat_transcript?.trim() ? attemptFor(turn.id, "repeat_attempt", turn.repeat_transcript) : null;
+
+    const cocoPrompt = snapshot.conversationMode
+      ? nextDynamicPrompt
+      : presetPrompts.get(turn.turn_order) ?? "Coco's question";
+
+    if (snapshot.conversationMode) {
+      if (turn.coco_line?.trim()) {
+        nextDynamicPrompt = turn.coco_line.trim();
+        finalCocoLine = turn.coco_line.trim();
+      }
+    }
+
+    return {
+      id: turn.id,
+      turnOrder: turn.turn_order,
+      cocoPrompt,
+      transcript,
+      audio: acceptedRepeat ? repeat!.audio : original.audio,
+      pronunciation: acceptedRepeat ? repeat!.pronunciation : original.pronunciation,
+      original,
+      improvedSentence: turn.improved_sentence?.trim() || null,
+      repeat,
+      reviewState: reviewStateFor(turn),
+    };
+  });
+
   return {
-    assignmentStudentId: row.id, title: assignment.title, targetPattern: snapshot.targetPattern,
+    assignmentStudentId: row.id,
+    title: assignment.title,
+    targetPattern: snapshot.targetPattern,
     completedAt: (attempt.data as { completed_at: string | null }).completed_at ?? row.submitted_at,
-    turns: turnRows.map((turn) => {
-      const acceptedRepeat = turn.repeat_accepted === true && Boolean(turn.repeat_transcript);
-      const transcript = acceptedRepeat ? turn.repeat_transcript! : turn.original_transcript ?? "";
-      const clip = clips.find((item) => item.attempt_turn_id === turn.id && item.clip_kind === (acceptedRepeat ? "repeat_attempt" : "original_answer")) ?? null;
-      const score = clip ? scores.find((item) => item.audio_clip_id === clip.id) : undefined;
-      return { id: turn.id, turnOrder: turn.turn_order, cocoPrompt: prompts.get(turn.turn_order) ?? "Coco's question", transcript, audio: clip ? { id: clip.id, playback: playbackFor(clip) } : null, pronunciation: score && [1,2,3].includes(score.star_band) ? { starBand: score.star_band as 1|2|3, words: Array.isArray(score.word_scores) ? wordsToPractice(score.word_scores as WordScore[], transcript) : [] } : null };
-    }),
+    conversationMode: snapshot.conversationMode,
+    characterId: snapshot.characterId,
+    finalCocoLine: snapshot.conversationMode ? finalCocoLine : null,
+    turns,
   };
 }
 
