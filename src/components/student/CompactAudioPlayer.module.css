@@ -1,0 +1,57 @@
+.player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 82%);
+  padding: 8px;
+  color: #172033;
+}
+
+.player audio {
+  display: none;
+}
+
+.playButton {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: #2563eb;
+  color: white;
+  cursor: pointer;
+}
+
+.playButton svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.playButton:focus-visible,
+.progress:focus-visible {
+  outline: 3px solid #f97316;
+  outline-offset: 2px;
+}
+
+.progress {
+  min-width: 0;
+  flex: 1;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.progress:disabled {
+  cursor: default;
+}
+
+.time {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
