@@ -116,6 +116,25 @@ const conversationGenuineAmbiguityInstructions = [
   "improvedSentence must be one single declarative student answer: never append missionQuestion or any other question to it, and never copy an example sentence from these instructions into it.",
 ];
 
+const correctionSeverityInstructions = [
+  "Always set correctionSeverity. Set it to 'none' when no correction is needed, 'minor' for an accepted local function-word recast, and 'material' when repetition is required.",
+  "Set correctionNeeded to false only for correctionSeverity 'none'. Set correctionNeeded to true for 'minor' and 'material'.",
+  "For 'minor' and 'material', set outcome to 'needs_correction' and provide one non-empty declarative improvedSentence. For 'none', set outcome to 'correct' and improvedSentence to null.",
+];
+
+const conversationSeverityInstructions = [
+  "A correction is minor only when meaning is clear and relevant, content words and their word classes are intact, required clause and verb structure is intact, and only a local function-word detail changes.",
+  "Example: transcript \"I'm going to library\" may be minor with improvedSentence \"I'm going to the library.\" and must not require repetition.",
+  "A correction is material when required clause or verb structure is missing or incorrect, a word has the wrong class or semantic category, content must be invented or replaced, or a complete sentence is required but missing.",
+  "Example: \"I want read cartoon\" is material with \"I want to read cartoons.\" because the infinitive structure is missing.",
+  "Example: \"I will go to the exercise\" is material with \"I will exercise.\" because exercise is used as the wrong destination-noun category.",
+  "Never classify by edit distance, character count, token count, or the short length of an inserted word.",
+];
+
+const presetSeverityInstructions = [
+  "For preset output compatibility, report correctionSeverity 'none' for a correct answer and 'material' for an answer that uses the existing needs_correction path; this field does not change preset acceptance rules.",
+];
+
 function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
   const isConversationMode = input.evaluationMode === "conversation";
   const modeInstructions = isConversationMode
@@ -150,6 +169,10 @@ function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
       ...modeInstructions,
       ...completeSentenceInstructions,
       ...(isConversationMode ? conversationGenuineAmbiguityInstructions : []),
+      ...correctionSeverityInstructions,
+      ...(isConversationMode
+        ? conversationSeverityInstructions
+        : presetSeverityInstructions),
       "Use teacher_review for ambiguity, low confidence, or unsafe uncertainty.",
       "Do not include student names, PINs, audio keys, or private class data.",
     ],

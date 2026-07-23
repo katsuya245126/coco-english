@@ -17,6 +17,7 @@ const correctOriginalProviderResult = {
   meaningUnderstood: true,
   targetPatternAttempted: true,
   correctionNeeded: false,
+  correctionSeverity: "none",
   improvedSentence: null,
   englishLanguage: "english",
   confidence: "high",
@@ -230,6 +231,7 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
         meaningUnderstood: true,
         targetPatternAttempted: false,
         correctionNeeded: true,
+        correctionSeverity: "material",
         improvedSentence: "Wow!",
       },
     });
@@ -318,6 +320,7 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
         outcome: "needs_correction",
         targetPatternAttempted: false,
         correctionNeeded: true,
+        correctionSeverity: "material",
         improvedSentence: "I don't play soccer.",
       },
     });
@@ -365,6 +368,7 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
         outcome: "needs_correction",
         targetPatternAttempted: false,
         correctionNeeded: true,
+        correctionSeverity: "material",
         improvedSentence: "I like to play soccer at school.",
       },
     });
@@ -514,6 +518,106 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
       ]),
     );
   });
+
+  it("teaches the exact minor/material severity boundary with required examples in conversation mode", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    await evaluateOriginalTurn(
+      {
+        evaluationMode: "conversation",
+        missionQuestion: "Where are you going?",
+        transcript: "I'm going to library",
+        targetPattern: "I'm going to _____.",
+        targetExample: null,
+        level: "elementary",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const request = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const userMessage = request?.input.find((message) => message.role === "user");
+    const prompt = JSON.parse(userMessage?.content ?? "{}") as {
+      instructions?: string[];
+    };
+    const instructions = prompt.instructions?.join(" ") ?? "";
+
+    expect(instructions).toContain("Always set correctionSeverity");
+    expect(instructions).toContain("I'm going to library");
+    expect(instructions).toContain("I'm going to the library.");
+    expect(instructions).toContain("I want read cartoon");
+    expect(instructions).toContain("I want to read cartoons.");
+    expect(instructions).toContain("I will go to the exercise");
+    expect(instructions).toContain("I will exercise.");
+    expect(instructions).toContain("wrong destination-noun category");
+    expect(instructions).toContain("Never classify by edit distance");
+  });
+
+  it("reports preset-compatible severity without changing preset acceptance rules", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    await evaluateOriginalTurn(
+      {
+        evaluationMode: "preset",
+        transcript: "I like playing soccer after school.",
+        targetPattern: "I like ___ing.",
+        targetExample: "I like playing soccer after school.",
+        level: "elementary",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const request = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const userMessage = request?.input.find((message) => message.role === "user");
+    const prompt = JSON.parse(userMessage?.content ?? "{}") as {
+      instructions?: string[];
+    };
+    const instructions = prompt.instructions?.join(" ") ?? "";
+
+    expect(instructions).toContain("preset output compatibility");
+    expect(instructions).not.toContain("I'm going to library");
+  });
+
+  it.each([true, false])(
+    "keeps severity instructions present regardless of requireCompleteSentenceAnswers=%s",
+    async (requireCompleteSentenceAnswers) => {
+      const { evaluateOriginalTurn } = await import(
+        "@/server/ai/turn-evaluator"
+      );
+      const client = createFakeClient({
+        output_parsed: correctOriginalProviderResult,
+      });
+
+      await evaluateOriginalTurn(
+        {
+          evaluationMode: "conversation",
+          missionQuestion: "Where do you like to play soccer?",
+          transcript: "School.",
+          targetPattern: "I like to play soccer at _____.",
+          targetExample: null,
+          level: "elementary",
+          requireCompleteSentenceAnswers,
+        },
+        { apiKey: "test-key", client },
+      );
+
+      const request = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+      const userMessage = request?.input.find(
+        (message) => message.role === "user",
+      );
+      const prompt = JSON.parse(userMessage?.content ?? "{}") as {
+        instructions?: string[];
+      };
+      const instructions = prompt.instructions?.join(" ") ?? "";
+
+      expect(instructions).toContain("Always set correctionSeverity");
+    },
+  );
 });
 
 describe("evaluateRepeatTurn server adapter (AI-04, AI-05)", () => {

@@ -22,6 +22,9 @@ export const aiEvaluationReviewReasonSchema = z.enum([
   "provider_failed",
 ]);
 
+export const correctionSeveritySchema = z.enum(["none", "minor", "material"]);
+export type CorrectionSeverity = z.infer<typeof correctionSeveritySchema>;
+
 export const originalTurnEvaluationSchema = z.object({
   version: z.literal(AI_EVALUATION_VERSION),
   outcome: z.enum([
@@ -33,6 +36,7 @@ export const originalTurnEvaluationSchema = z.object({
   meaningUnderstood: z.boolean(),
   targetPatternAttempted: z.boolean(),
   correctionNeeded: z.boolean(),
+  correctionSeverity: correctionSeveritySchema,
   improvedSentence: z.string().trim().min(1).nullable(),
   englishLanguage: aiEvaluationEnglishLanguageSchema,
   confidence: aiEvaluationConfidenceSchema,
@@ -58,7 +62,7 @@ export type OriginalTurnDecision =
   | {
       kind: "accepted_original";
       requireRepeat: false;
-      improvedSentence: null;
+      improvedSentence: string | null;
       reinforcement: "positive";
     }
   | {
@@ -117,8 +121,17 @@ export function originalTurnProviderFailureResult(): OriginalTurnDecision {
   };
 }
 
+function failedOriginalContract(): OriginalTurnDecision {
+  return {
+    kind: "teacher_review",
+    reviewReason: "failed_schema",
+    requireRepeat: false,
+  };
+}
+
 export function decideOriginalTurnOutcome(
   evaluation: OriginalTurnEvaluation,
+  evaluationMode: "preset" | "conversation" = "preset",
 ): OriginalTurnDecision {
   if (
     evaluation.outcome === "teacher_review" ||
@@ -144,26 +157,54 @@ export function decideOriginalTurnOutcome(
     };
   }
 
-  if (evaluation.outcome === "needs_correction" || evaluation.correctionNeeded) {
-    if (evaluation.improvedSentence) {
-      return {
-        kind: "needs_correction",
-        requireRepeat: true,
-        improvedSentence: evaluation.improvedSentence,
-      };
+  if (evaluationMode === "preset") {
+    if (
+      evaluation.outcome === "needs_correction" ||
+      evaluation.correctionNeeded
+    ) {
+      return evaluation.improvedSentence
+        ? {
+            kind: "needs_correction",
+            requireRepeat: true,
+            improvedSentence: evaluation.improvedSentence,
+          }
+        : failedOriginalContract();
     }
 
     return {
-      kind: "teacher_review",
-      reviewReason: "failed_schema",
+      kind: "accepted_original",
       requireRepeat: false,
+      improvedSentence: null,
+      reinforcement: "positive",
+    };
+  }
+
+  const severity = evaluation.correctionSeverity;
+  const improvedSentence = evaluation.improvedSentence?.trim() || null;
+  const expectsCorrection = severity !== "none";
+  const validCombination =
+    evaluation.correctionNeeded === expectsCorrection &&
+    evaluation.outcome ===
+      (expectsCorrection ? "needs_correction" : "correct") &&
+    (expectsCorrection
+      ? improvedSentence !== null
+      : improvedSentence === null) &&
+    !improvedSentence?.includes("?");
+
+  if (!validCombination) return failedOriginalContract();
+
+  if (severity === "material") {
+    return {
+      kind: "needs_correction",
+      requireRepeat: true,
+      improvedSentence: improvedSentence!,
     };
   }
 
   return {
     kind: "accepted_original",
     requireRepeat: false,
-    improvedSentence: null,
+    improvedSentence: severity === "minor" ? improvedSentence : null,
     reinforcement: "positive",
   };
 }
@@ -268,10 +309,22 @@ export function guardParrotedConversationCorrection(
   context: OriginalTurnGuardContext,
 ): OriginalTurnDecision {
   if (context.evaluationMode !== "conversation") return decision;
-  if (decision.kind !== "needs_correction") return decision;
+  if (
+    decision.kind !== "needs_correction" &&
+    !(decision.kind === "accepted_original" && decision.improvedSentence)
+  ) {
+    return decision;
+  }
+
+  const improvedSentence =
+    decision.kind === "needs_correction" ||
+    (decision.kind === "accepted_original" && decision.improvedSentence)
+      ? decision.improvedSentence
+      : null;
+  if (!improvedSentence) return decision;
 
   const question = normalizeForParrotComparison(context.missionQuestion ?? "");
-  const improved = normalizeForParrotComparison(decision.improvedSentence);
+  const improved = normalizeForParrotComparison(improvedSentence);
   if (!question || !improved) return decision;
 
   const containsQuestionSegment = normalizedQuestionSegments(
@@ -285,15 +338,16 @@ export function guardParrotedConversationCorrection(
   const parroted =
     improved === question ||
     containsQuestionSegment ||
-    (decision.improvedSentence.trim().endsWith("?") &&
-      question.includes(improved));
+    (improvedSentence.trim().endsWith("?") && question.includes(improved));
   if (!parroted) return decision;
 
-  return {
-    kind: "retry_original",
-    reason: "parroted_correction",
-    requireRepeat: false,
-  };
+  return decision.kind === "needs_correction"
+    ? {
+        kind: "retry_original",
+        reason: "parroted_correction",
+        requireRepeat: false,
+      }
+    : failedOriginalContract();
 }
 
 export function repeatTurnSchemaFailureResult(): Extract<

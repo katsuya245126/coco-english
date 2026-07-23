@@ -8,6 +8,7 @@ const baseOriginalEvaluation = {
   englishLanguage: "english",
   confidence: "high",
   reviewReason: null,
+  correctionSeverity: "none",
 } as const;
 
 describe("original turn AI evaluation decisions (AI-01, AI-02, AI-03, AI-05)", () => {
@@ -70,6 +71,121 @@ describe("original turn AI evaluation decisions (AI-01, AI-02, AI-03, AI-05)", (
       kind: "retry_original",
       reason: "non_english",
       requireRepeat: false,
+    });
+  });
+
+  it("accepts a minor article recast without a repeat", async () => {
+    const { decideOriginalTurnOutcome } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    expect(
+      decideOriginalTurnOutcome(
+        {
+          ...baseOriginalEvaluation,
+          outcome: "needs_correction",
+          correctionNeeded: true,
+          correctionSeverity: "minor",
+          improvedSentence: "I'm going to the library.",
+        },
+        "conversation",
+      ),
+    ).toEqual({
+      kind: "accepted_original",
+      requireRepeat: false,
+      improvedSentence: "I'm going to the library.",
+      reinforcement: "positive",
+    });
+  });
+
+  it.each([
+    ["I want to read cartoons.", "missing infinitive structure"],
+    ["I will exercise.", "wrong word category"],
+  ])(
+    "requires a repeat for material correction: %s (%s)",
+    async (improvedSentence) => {
+      const { decideOriginalTurnOutcome } = await import(
+        "@/domain/ai/turn-evaluation"
+      );
+
+      expect(
+        decideOriginalTurnOutcome(
+          {
+            ...baseOriginalEvaluation,
+            outcome: "needs_correction",
+            correctionNeeded: true,
+            correctionSeverity: "material",
+            improvedSentence,
+          },
+          "conversation",
+        ),
+      ).toEqual({
+        kind: "needs_correction",
+        requireRepeat: true,
+        improvedSentence,
+      });
+    },
+  );
+
+  it.each([
+    {
+      correctionSeverity: "minor" as const,
+      correctionNeeded: true,
+      improvedSentence: null,
+    },
+    {
+      correctionSeverity: "material" as const,
+      correctionNeeded: true,
+      improvedSentence: "Where do you play soccer?",
+    },
+    {
+      correctionSeverity: "none" as const,
+      correctionNeeded: true,
+      improvedSentence: null,
+    },
+  ])(
+    "routes inconsistent conversation severity to teacher review",
+    async (fields) => {
+      const { decideOriginalTurnOutcome } = await import(
+        "@/domain/ai/turn-evaluation"
+      );
+
+      expect(
+        decideOriginalTurnOutcome(
+          {
+            ...baseOriginalEvaluation,
+            outcome:
+              fields.correctionSeverity === "none"
+                ? "correct"
+                : "needs_correction",
+            ...fields,
+          },
+          "conversation",
+        ),
+      ).toEqual({
+        kind: "teacher_review",
+        reviewReason: "failed_schema",
+        requireRepeat: false,
+      });
+    },
+  );
+
+  it("keeps preset correction behavior independent of conversation severity", async () => {
+    const { decideOriginalTurnOutcome } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+    const evaluation = {
+      ...baseOriginalEvaluation,
+      outcome: "needs_correction" as const,
+      correctionNeeded: true,
+      correctionSeverity: "minor" as const,
+      improvedSentence: "I play soccer.",
+    };
+
+    expect(decideOriginalTurnOutcome(evaluation, "preset")).toEqual({
+      kind: "needs_correction",
+      requireRepeat: true,
+      improvedSentence: "I play soccer.",
     });
   });
 
