@@ -103,7 +103,13 @@ export function HomeworkReviewAttempt({
             }}
           >
             <span className={styles.icon} aria-hidden="true">
-              {expanded ? <CloseIcon /> : <ListenIcon />}
+              {pending ? (
+                <span className={styles.spinner} />
+              ) : expanded ? (
+                <CloseIcon />
+              ) : (
+                <ListenIcon />
+              )}
             </span>
             <span className={styles.srOnly}>
               {pending
@@ -117,9 +123,14 @@ export function HomeworkReviewAttempt({
       </div>
 
       {pending ? (
-        <p className={styles.feedback} role="status" aria-live="polite">
+        <span
+          className={styles.srOnly}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
           Preparing recording…
-        </p>
+        </span>
       ) : null}
 
       {expanded && signedUrl ? (

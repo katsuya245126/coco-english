@@ -42,7 +42,7 @@ afterEach(async () => {
 });
 
 describe("HomeworkReviewAttempt", () => {
-  it("keeps the compact answer and 44px audio control in one narrow row", () => {
+  it("keeps the approved compact bubble and 44px audio control in one narrow row", () => {
     const cssPath = resolve(
       process.cwd(),
       "src/components/student/HomeworkReviewAttempt.module.css",
@@ -50,10 +50,10 @@ describe("HomeworkReviewAttempt", () => {
     const css = readFileSync(cssPath, "utf8");
 
     expect(css).toMatch(
-      /\.bubble\s*\{[^}]*box-sizing:\s*border-box[^}]*width:\s*min\(100%,\s*390px\)/,
+      /\.bubble\s*\{[^}]*box-sizing:\s*border-box[^}]*width:\s*fit-content[^}]*max-width:\s*min\(100%,\s*390px\)[^}]*border-radius:\s*18px 18px 5px 18px/,
     );
     expect(css).toMatch(
-      /\.transcriptRow\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+44px/,
+      /\.transcriptRow\s*\{[^}]*display:\s*flex[^}]*flex-wrap:\s*nowrap/,
     );
     expect(css).toMatch(
       /\.audioButton\s*\{[^}]*min-width:\s*44px[^}]*min-height:\s*44px/,
@@ -89,9 +89,19 @@ describe("HomeworkReviewAttempt", () => {
       'button[aria-label="Preparing this recording"]',
     );
     const status = container.querySelector('[role="status"][aria-live="polite"]');
+    const bubble = container.firstElementChild;
+    const transcriptRow = bubble?.firstElementChild;
+    const spinner = preparingButton?.querySelector('[aria-hidden="true"] span');
 
     expect(preparingButton?.disabled).toBe(true);
+    expect(preparingButton).toBe(listen);
+    expect(spinner?.getAttribute("class")).toMatch(/spinner/);
     expect(status?.textContent).toBe("Preparing recording…");
+    expect(status?.tagName).toBe("SPAN");
+    expect(status?.getAttribute("class")).toMatch(/srOnly/);
+    expect(status?.parentElement).toBe(bubble);
+    expect(transcriptRow?.children).toHaveLength(2);
+    expect(container.querySelector("p[role='status']")).toBeNull();
     expect(container.textContent).toContain("Transcript for clip-pending");
 
     preparingButton?.click();

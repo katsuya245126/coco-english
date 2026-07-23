@@ -96,7 +96,10 @@
 }
 
 .studentName {
+  max-width: calc(100% - 4px);
   margin: 0 4px 5px 0;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 .attemptRow {

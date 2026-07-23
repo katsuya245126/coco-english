@@ -161,6 +161,9 @@ describe("HomeworkReview", () => {
     expect(css).toMatch(/\.changedWord/);
     expect(css).toMatch(/\.goodJob/);
     expect(css).toMatch(/\.srOnly/);
+    expect(css).toMatch(
+      /\.studentName\s*\{[^}]*max-width:\s*calc\(100% - 4px\)[^}]*overflow-wrap:\s*anywhere/,
+    );
     expect(css).not.toMatch(/\.pronunciation/);
   });
 });
