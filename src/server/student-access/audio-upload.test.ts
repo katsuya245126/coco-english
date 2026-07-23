@@ -1212,6 +1212,154 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     });
   });
 
+  it("selects the meaningful follow-up fallback when generation fails after a substantive answer", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: false,
+      error: "provider_failed",
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      transcribeAudioFile: successfulTranscriber("I will eat sushi."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      cocoLine: "Thanks for telling me! What do you like about that?",
+      cocoLineModerationEvent: { kind: "canned_fallback", cause: "provider_failed" },
+    });
+  });
+
+  it("selects the vague_or_stuck follow-up fallback when generation fails after a vague answer", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: false,
+      error: "schema_failed",
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      transcribeAudioFile: successfulTranscriber("Anything."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      cocoLine: "That's okay! Can you give me one example?",
+      cocoLineModerationEvent: { kind: "canned_fallback", cause: "schema_failed" },
+    });
+  });
+
+  it("selects the uncertain follow-up fallback when generation fails on a review-pending answer", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluate = successfulOriginalEvaluator({
+      outcome: "teacher_review",
+      meaningUnderstood: false,
+      targetPatternAttempted: false,
+      confidence: "medium",
+      reviewReason: "ambiguous",
+    });
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: false,
+      error: "provider_failed",
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      transcribeAudioFile: successfulTranscriber("I will eat sushi."),
+      evaluateOriginalTurn: evaluate,
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      cocoLine:
+        "Let's try that question another way. Can you tell me one small detail?",
+      cocoLineModerationEvent: { kind: "canned_fallback", cause: "provider_failed" },
+    });
+  });
+
+  it("selects the uncertain follow-up fallback for unsafe student input regardless of transcript content", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "This must not be generated." },
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      transcribeAudioFile: successfulTranscriber("I will eat sushi."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: false,
+        failedOpen: false,
+      })),
+    });
+
+    expect(generate).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      ok: true,
+      cocoLine:
+        "Let's try that question another way. Can you tell me one small detail?",
+      cocoLineModerationEvent: { kind: "flagged_student_input" },
+    });
+  });
+
+  it("uses the static closing fallback text, not a follow-up fallback, on final-turn generation failure", async () => {
+    mockSupabase = createMockSupabase({
+      previousTurns: Array.from({ length: 3 }, (_, index) => ({
+        turn_order: index + 1,
+        original_transcript: `Answer ${index + 1}.`,
+        improved_sentence: null,
+        coco_line: `Question ${index + 2}?`,
+      })),
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: false,
+      error: "provider_failed",
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 4 }), {
+      transcribeAudioFile: successfulTranscriber("I will eat sushi."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      cocoLine: "That was fun! Thanks for talking with me. See you next time!",
+      cocoLineModerationEvent: { kind: "canned_fallback", cause: "provider_failed" },
+    });
+  });
+
   it("distinguishes unavailable input moderation from flagged input", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"

@@ -68,8 +68,9 @@ import {
 } from "@/server/ai/conversation-generator";
 import { isContentSafe } from "@/server/ai/content-moderation";
 import {
+  classifyFollowUpFallbackKind,
   selectClosingFallbackLine,
-  selectFallbackLine,
+  selectFollowUpFallbackLine,
 } from "@/domain/conversation/fallback-lines";
 import {
   conversationReplyMode,
@@ -469,10 +470,20 @@ function generationFallbackEvent(
   return { kind: "canned_fallback", cause: failure.error };
 }
 
-function fallbackLineForContext(context: ConversationTurnContext): string {
-  return conversationReplyMode(context) === "closing"
-    ? selectClosingFallbackLine()
-    : selectFallbackLine(context.turnOrder);
+function fallbackLineForContext(
+  context: ConversationTurnContext,
+  inputUsable: boolean,
+): string {
+  if (conversationReplyMode(context) === "closing") {
+    return selectClosingFallbackLine();
+  }
+  return selectFollowUpFallbackLine(
+    classifyFollowUpFallbackKind({
+      latestResponse: context.studentTranscript,
+      responseHandling: context.responseHandling,
+      inputUsable,
+    }),
+  );
 }
 
 /**
@@ -514,7 +525,7 @@ async function runConversationTurn(
   const studentInputCheck = await deps.isContentSafe(context.studentTranscript);
   if (!studentInputCheck.safe) {
     return {
-      cocoLine: fallbackLineForContext(context),
+      cocoLine: fallbackLineForContext(context, false),
       moderationEvent: studentInputCheck.failedOpen
         ? { kind: "input_moderation_unavailable" }
         : { kind: "flagged_student_input" },
@@ -538,7 +549,7 @@ async function runConversationTurn(
   // (e) PROVIDER/SCHEMA/POLICY FAILURE persists its attributable cause.
   if (!firstAttempt.ok) {
     return {
-      cocoLine: fallbackLineForContext(context),
+      cocoLine: fallbackLineForContext(context, true),
       moderationEvent: generationFallbackEvent(firstAttempt),
     };
   }
@@ -554,7 +565,7 @@ async function runConversationTurn(
   // line was never confirmed unsafe).
   if (firstLineCheck.failedOpen) {
     return {
-      cocoLine: fallbackLineForContext(context),
+      cocoLine: fallbackLineForContext(context, true),
       moderationEvent: {
         kind: "canned_fallback",
         cause: "output_moderation_unavailable",
@@ -571,7 +582,7 @@ async function runConversationTurn(
   });
   if (!retryAttempt.ok) {
     return {
-      cocoLine: fallbackLineForContext(context),
+      cocoLine: fallbackLineForContext(context, true),
       moderationEvent: generationFallbackEvent(retryAttempt),
     };
   }
@@ -585,7 +596,7 @@ async function runConversationTurn(
   }
 
   return {
-    cocoLine: fallbackLineForContext(context),
+    cocoLine: fallbackLineForContext(context, true),
     moderationEvent: retryLineCheck.failedOpen
       ? {
           kind: "canned_fallback",
