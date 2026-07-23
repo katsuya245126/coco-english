@@ -82,11 +82,35 @@ export type TranscribeAudioFileDeps = {
   apiKey?: string;
   model?: string;
   client?: TranscriptionClient;
+  /** Overrides REJECT_LOW_CONFIDENCE_TRANSCRIPTS. See `rejectsLowConfidence`. */
+  rejectLowConfidence?: boolean;
 };
 
 function resolveApiKey(deps?: TranscribeAudioFileDeps) {
   if (deps && "apiKey" in deps) return deps.apiKey?.trim() ?? "";
   return process.env.OPENAI_API_KEY?.trim() ?? "";
+}
+
+/**
+ * Whether a low-confidence transcript is actually rejected, or merely logged.
+ *
+ * **Defaults to shadow mode (log only).** Enabling rejection on 2026-07-24
+ * blocked real students from progressing: good answers were repeatedly told
+ * "Hmm... Can you say it again?" with no way past. The -0.1 threshold had been
+ * measured on six clips from one adult in a quiet room, and real classroom
+ * audio does not resemble that.
+ *
+ * Shadow mode keeps the measurement running — every clip still logs its
+ * confidence and whether it *would* have been blocked — so the threshold can
+ * be re-set on real data before anything is turned back on. Do not flip this
+ * default; set REJECT_LOW_CONFIDENCE_TRANSCRIPTS=true once the logged
+ * distribution justifies a specific threshold.
+ */
+function rejectsLowConfidence(deps?: TranscribeAudioFileDeps) {
+  if (deps && "rejectLowConfidence" in deps) {
+    return deps.rejectLowConfidence === true;
+  }
+  return process.env.REJECT_LOW_CONFIDENCE_TRANSCRIPTS?.trim() === "true";
 }
 
 function resolveModel(input: TranscribeAudioFileInput, deps?: TranscribeAudioFileDeps) {
@@ -197,9 +221,20 @@ export async function transcribeAudioFile(
 
     const confidence = summarizeTranscriptConfidence(response.logprobs);
     if (confidence) {
-      // Numbers only, on both branches: the transcript is student content, and
-      // on the rejection path it is very likely not what the child said at all.
-      if (isLowConfidenceTranscript(confidence)) {
+      const lowConfidence = isLowConfidenceTranscript(confidence);
+
+      // Numbers only: the transcript is student content, and on the
+      // low-confidence path it is quite possibly not what the child said.
+      // `blocked` distinguishes a real rejection from a shadow-mode hit, so
+      // the two are countable separately in the logs.
+      log(lowConfidence ? "warn" : "info", "audio.transcript_confidence", {
+        minLogprob: confidence.minLogprob,
+        tokenCount: confidence.tokenCount,
+        lowConfidence,
+        blocked: lowConfidence && rejectsLowConfidence(deps),
+      });
+
+      if (lowConfidence && rejectsLowConfidence(deps)) {
         log("error", "audio.transcription_failed", {
           error: "low_confidence",
           minLogprob: confidence.minLogprob,
@@ -207,15 +242,6 @@ export async function transcribeAudioFile(
         });
         return { ok: false, error: "low_confidence" };
       }
-
-      // The accepted side of the distribution. The threshold was set on six
-      // clips from one adult speaker in a quiet room; these logs are how it
-      // gets re-tuned against real students, and how a false positive on a
-      // quiet or far-from-mic answer would first become visible.
-      log("info", "audio.transcript_confidence", {
-        minLogprob: confidence.minLogprob,
-        tokenCount: confidence.tokenCount,
-      });
     }
 
     if (koreanSpans.length > 0) {

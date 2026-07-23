@@ -230,10 +230,65 @@ describe("transcribeAudioFile", () => {
     );
   });
 
-  it("rejects a confident-sounding transcript decoded from unintelligible audio", async () => {
+  it("does NOT reject a low-confidence transcript by default", async () => {
+    // Regression pin for the 2026-07-24 production incident. Rejecting on the
+    // -0.1 threshold blocked real students on good answers with no way past.
+    // Shadow mode is the default and must stay the default until the logged
+    // production distribution justifies a specific threshold.
+    const { transcribeAudioFile } = await import("@/server/audio/transcription");
+    const client = createFakeClient({
+      text: "I will play soccer.",
+      logprobs: [{ logprob: -0.0001 }, { logprob: -2.424 }],
+    });
+
+    const result = await transcribeAudioFile(
+      {
+        file: new Blob(["quiet"], { type: "audio/webm" }),
+        mimeType: "audio/webm",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      text: "I will play soccer.",
+      koreanSpans: [],
+    });
+  });
+
+  it("records what it would have blocked while in shadow mode", async () => {
+    // Shadow mode is only worth running if the would-have-blocked clips are
+    // countable afterwards — that count is what re-sets the threshold.
+    const { transcribeAudioFile } = await import("@/server/audio/transcription");
+    const client = createFakeClient({
+      text: "All right, guys",
+      logprobs: [{ logprob: -0.0001 }, { logprob: -2.424 }],
+    });
+
+    await transcribeAudioFile(
+      {
+        file: new Blob(["mumble"], { type: "audio/webm" }),
+        mimeType: "audio/webm",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(mockLog).toHaveBeenCalledWith("warn", "audio.transcript_confidence", {
+      minLogprob: -2.424,
+      tokenCount: 2,
+      lowConfidence: true,
+      blocked: false,
+    });
+    // Student content stays out of the logs on every path.
+    const logged = mockLog.mock.calls.flat();
+    expect(JSON.stringify(logged)).not.toContain("All right");
+  });
+
+  it("rejects a low-confidence transcript only when rejection is explicitly enabled", async () => {
     // The 2026-07-24 UAT failure: a deliberate mumble transcribed as
     // "All right, guys". Nothing in the text gives it away — only the
-    // token-level uncertainty does.
+    // token-level uncertainty does. The detection still works; it is the
+    // threshold that is not yet trustworthy enough to act on.
     const { transcribeAudioFile } = await import("@/server/audio/transcription");
     const client = createFakeClient({
       text: "All right, guys",
@@ -249,37 +304,15 @@ describe("transcribeAudioFile", () => {
         file: new Blob(["mumble"], { type: "audio/webm" }),
         mimeType: "audio/webm",
       },
-      { apiKey: "test-key", client },
+      { apiKey: "test-key", client, rejectLowConfidence: true },
     );
 
     expect(result).toEqual({ ok: false, error: "low_confidence" });
-  });
-
-  it("logs the measured confidence on rejection so the production distribution can be reviewed", async () => {
-    // The threshold rests on six clips from one speaker. These logs are how
-    // it gets re-tuned against real students; the transcript text itself is
-    // student content and stays out of them.
-    const { transcribeAudioFile } = await import("@/server/audio/transcription");
-    const client = createFakeClient({
-      text: "All right, guys",
-      logprobs: [{ logprob: -0.0001 }, { logprob: -2.424 }],
-    });
-
-    await transcribeAudioFile(
-      {
-        file: new Blob(["mumble"], { type: "audio/webm" }),
-        mimeType: "audio/webm",
-      },
-      { apiKey: "test-key", client },
-    );
-
     expect(mockLog).toHaveBeenCalledWith("error", "audio.transcription_failed", {
       error: "low_confidence",
-      minLogprob: -2.424,
-      tokenCount: 2,
+      minLogprob: -0.174,
+      tokenCount: 3,
     });
-    const logged = mockLog.mock.calls.flat();
-    expect(JSON.stringify(logged)).not.toContain("All right");
   });
 
   it("logs confidence for accepted transcripts too, so the pass side of the distribution is visible", async () => {
@@ -304,6 +337,8 @@ describe("transcribeAudioFile", () => {
     expect(mockLog).toHaveBeenCalledWith("info", "audio.transcript_confidence", {
       minLogprob: -0.02,
       tokenCount: 2,
+      lowConfidence: false,
+      blocked: false,
     });
   });
 
