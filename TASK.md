@@ -1,6 +1,6 @@
 # Evaluation and follow-up quality
 
-**Status:** Implementation in progress (Tasks 1-7 of 8 complete)
+**Status:** Implementation complete (Tasks 1-8 of 8); local visual UAT pending
 **Classification:** Consequential
 **Started:** 2026-07-23
 
@@ -296,10 +296,59 @@ Completed:
   `STUDENT_HISTORY_ASSIGNMENT_STUDENT_ID`. Full regression suite: 93 files,
   977 passed, 4 skipped. `npx tsc --noEmit` clean.
 
+- **Task 8** (commit pending): Ran the full quality gate.
+  - Focused Task-1-7 matrix (13 files):
+    `npm test -- --run tests/domain/turn-evaluation.test.ts
+    tests/server/turn-evaluator.test.ts
+    src/server/student-access/audio-upload.test.ts
+    tests/server/audio-upload.test.ts
+    src/server/student-access/conversation-history.test.ts
+    src/domain/ai/conversation-generation.test.ts
+    src/server/ai/conversation-generator.test.ts
+    src/domain/conversation/fallback-lines.test.ts
+    tests/server/student-history.test.ts
+    src/domain/student/homework-review.test.ts
+    src/components/student/HomeworkReview.test.tsx
+    tests/server/student-history-ui.test.ts
+    tests/server/student-mission-flow.test.ts` — 13 files, 236 tests, all
+    passed, no paid provider calls (mocked/fake-client fixtures only).
+  - Full suite: `npm test -- --run` — 93 files, 977 passed, 4 skipped
+    (pre-existing skips, unrelated to this plan).
+  - `npm run typecheck` (`tsc --noEmit`) — exit 0.
+  - `npm run lint` (`eslint .`) — exit 0; one pre-existing warning in
+    `scripts/check-student-feedback-states.mjs:435` (unused `label` arg),
+    outside this plan's file set, not a regression.
+  - Pre-build check: `pgrep -af "next (dev|start)"` and
+    `lsof +D .next` both returned nothing — no dev server was using this
+    checkout's `.next`.
+  - `npm run build` — Next.js 15.5.19 production build compiled
+    successfully; all routes generated, including
+    `/student/history/[assignmentStudentId]` (dynamic, 1.2 kB).
+  - `npx playwright test tests/e2e/student-history.spec.ts` — 1 SKIPPED
+    (`STUDENT_HISTORY_ASSIGNMENT_STUDENT_ID` is not set locally). This is
+    not visual UAT evidence.
+
+Commits this plan (Tasks 1-8, on `main`):
+- Task 1: prior session (explicit correction severity).
+- Task 2: `c3948938` — accepted-minor persistence without live repeat.
+- Task 3: `9e003805` — deterministic follow-up policy repair.
+- Task 4: `0fde89bb` — response-state-aware follow-up fallback selection.
+- Task 5: `0fc16dae` — owned dynamic homework review data model.
+- Task 6: `27e9c79a` — dynamic text-message Homework Review component
+  (+ `@vitejs/plugin-react` toolchain addition for `.tsx` Vitest tests).
+- Task 7: `9399cb56` — dynamic closing now opens Homework Review.
+- Docs commits recording each task's completion:
+  `05ca5356`, `9bf1a251`, `63c70259`, `67919675`.
+
+## Current position
+
+Runtime implementation is complete and automated verification is recorded
+above. No push, deploy, production mutation, or Supabase mutation was
+performed.
+
 ## Next step
 
-Task 8: run the complete regression and quality gate (typecheck, lint, full
-tests, build — confirm no dev server is sharing this checkout's `.next`
-before building), update TASK.md with final factual evidence, commit. Not
-started. Local visual UAT on localhost remains a separate manual step after
-Task 8.
+Run a local dynamic-mission visual UAT with a real owned completed attempt,
+label any screenshot as localhost evidence, and confirm mobile wrapping,
+left-side retry marker placement, red changed-word emphasis, green Good job
+placement, final-goodbye ordering, and both audio replay controls.
