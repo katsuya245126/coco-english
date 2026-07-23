@@ -1,6 +1,6 @@
 # Evaluation and follow-up quality
 
-**Status:** Implementation in progress (Tasks 1-4 of 8 complete)
+**Status:** Implementation in progress (Tasks 1-5 of 8 complete)
 **Classification:** Consequential
 **Started:** 2026-07-23
 
@@ -213,8 +213,37 @@ Completed:
   `moderationEvent`/truthiness or the static closing string, so none
   needed edits. Full regression suite: 91 files, 969 passed, 4 skipped.
   `npx tsc --noEmit` clean.
+- **Task 5** (commit `0fc16dae`): Extended
+  `src/server/student-access/student-history.ts`'s owned recap model for
+  dynamic missions. New `StudentRecapAttempt` (transcript/audio/pronunciation)
+  is built separately for each turn's original and repeat clips/scores, so
+  each attempt only ever surfaces its own matching evidence. Added
+  `StudentRecapReviewState = "accepted" | "accepted_minor" |
+  "repeat_accepted" | "neutral"`, derived by a pure `reviewStateFor` helper
+  from `repeat_accepted`/`improved_sentence`/`evaluation.outcome`/
+  `evaluation.correctionSeverity`; teacher-review turns resolve to `neutral`
+  with no review reason exposed in the returned recap. `StudentMissionRecap`
+  gained `conversationMode`, `characterId`, and `finalCocoLine`. For dynamic
+  (`conversationMode: true`) missions, each row's displayed Coco prompt is
+  chained forward from the previous row's non-empty `coco_line`, starting at
+  `snapshot.turns[0].prompt`; the last row's `coco_line` becomes
+  `finalCocoLine`. Preset missions keep the authored `turnOrder -> prompt`
+  map unchanged and `finalCocoLine: null`. The initial ownership lookup now
+  throws on a genuine Supabase error instead of silently treating it as "not
+  found"; a clean-but-empty lookup still returns `null`. Legacy `transcript`/
+  `audio`/`pronunciation` fields are preserved unchanged for the existing
+  preset `StudentMissionRecap.tsx`/history page, which were read and confirmed
+  to use only those legacy fields — no changes needed there; Task 7 will wire
+  dynamic missions to the new Homework Review component instead. Added the
+  plan's dynamic-recap tests (severity/repeat-state mapping with separated
+  original/repeat evidence, neutral teacher-review turn with no leaked review
+  reason) to `tests/server/student-history.test.ts`: 6/6 passing (4
+  pre-existing preset tests unchanged). Full regression suite: 91 files, 971
+  passed, 4 skipped. `npx tsc --noEmit` clean across the whole repo.
 
 ## Next step
 
-Task 5: extend the owned completed-history review model
-(`src/server/student-access/student-history.ts`, plus tests). Not started.
+Task 6: build the dynamic text-message Homework Review
+(`src/domain/student/homework-review.ts` +test,
+`src/components/student/HomeworkReview.tsx` +.module.css +test). Not
+started.
