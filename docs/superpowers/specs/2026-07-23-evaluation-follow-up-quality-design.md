@@ -1,7 +1,7 @@
 # Evaluation, Follow-up Quality, and Homework Review
 
 **Date:** 2026-07-23
-**Status:** Proposed — awaiting written-spec approval
+**Status:** Approved — implementation plan requested 2026-07-23
 
 ## Goal
 

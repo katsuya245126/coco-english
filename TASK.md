@@ -1,6 +1,6 @@
 # Evaluation and follow-up quality
 
-**Status:** Awaiting specification approval
+**Status:** Awaiting implementation plan approval
 **Classification:** Consequential
 **Started:** 2026-07-23
 
@@ -148,17 +148,21 @@ naturalized wording used to ground later Coco replies.
 2. Record the approved student-presentation decision.
 3. Compare design approaches and select the smallest sufficient architecture.
 4. Write and self-review the dedicated design specification.
-5. Obtain explicit written-spec approval.
-6. Only then write and self-review a test-first implementation plan and obtain
-   explicit plan approval.
+5. Obtain explicit written-spec approval. ✅ Approved by the user's request to
+   write the implementation plan on 2026-07-23.
+6. Write and self-review a test-first implementation plan and obtain explicit
+   plan approval.
 
 ## Current position
 
-The dedicated design specification has been written and self-reviewed at
+The dedicated design specification has been written, self-reviewed, and
+approved at
 `docs/superpowers/specs/2026-07-23-evaluation-follow-up-quality-design.md`.
+The test-first implementation plan has been written and self-reviewed at
+`docs/superpowers/plans/2026-07-23-evaluation-follow-up-homework-review.md`.
 Runtime implementation has not started.
 
 ## Next step
 
-Obtain explicit written-spec approval before writing the separate test-first
-implementation plan.
+Obtain explicit approval for the test-first implementation plan before runtime
+implementation.
