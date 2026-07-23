@@ -115,13 +115,44 @@ now has **no production caller** — `detectHangulSpans` replaced it.
 `romanizeHangulRun` is still live underneath it. Left in place with a NOTE;
 deleting it is a call for the next session.
 
+## Probe 4 — the shipped in-evaluator classifier, live API. 16/16.
+
+`probe-inevaluator.mjs` (archived with the others) runs the same 16 spans
+through the **real `evaluateOriginalTurn`**, embedded in sentences a child
+would say, 3 runs each, scoring the student-facing decision rather than a
+label. Copy it to the repo root to run; its relative imports need that.
+
+The first version of the shipped prompt scored **14/16**, confirming the
+15/16 standalone figure did not transfer. Two rounds of refinement, each
+measured:
+
+1. Naming categories in the NAME definition ("a specific place, a person, **a
+   school**") let 초등학교 and 선생님 match as instances of those categories.
+   Rewriting the test as "does this word name one particular thing, or is it
+   the ordinary word for a whole category" fixed both — but broke 제주도
+   (unstable) and 서울초등학교, the *same* geographic-suffix failure that sank
+   the discarded decompose approach at 13/16.
+2. Pinning the suffixes explicitly (도/강/산/시 stay part of the place name;
+   never split a name-plus-institution compound) fixed those without
+   regressing the category rule.
+
+Final: **16/16 correct and stable**, reproduced on a second independent run
+(96 classifications, zero errors). This also clears the 서울초등학교 miss the
+user had agreed to accept.
+
+Both rules are load-bearing and pinned by a unit test ("pins the classifier
+rules a live probe proved load-bearing") so a future prompt edit that drops
+either one fails fast. **If you change the classifier instructions, re-run
+probe-inevaluator.mjs — the unit test pins the strings, not the accuracy.**
+
 ## Not yet done
 
-- **No live-API re-verification of the classifier.** Probe 2 measured 15/16
-  on the allow/teach prompt in isolation; the reworked prompt is folded into
-  the real evaluator call and has only been verified against fake clients.
-  Re-run a probe against the real API before trusting the 15/16 figure.
-- The 서울초등학교 → `allow` miss is expected to persist (user accepted it).
+- **The transcription half was not re-probed.** Decision 1 (`language: "en"`)
+  is unchanged, but `TRANSCRIPTION_PROMPT` now asks for Hangul instead of
+  romanized letters. Probe 1's 3-of-6 Hangul-survival rate was measured under
+  the old prompt; the new one should raise it, which is the desired
+  direction, but it is unmeasured. `probe-codeswitch.mjs` covers this.
+- No end-to-end run on real device audio.
 
 ## Gotcha discovered
 

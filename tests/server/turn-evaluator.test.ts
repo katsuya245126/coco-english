@@ -98,6 +98,44 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
     );
   });
 
+  it("pins the classifier rules a live probe proved load-bearing", async () => {
+    // Measured 2026-07-24 against the real API, 3 runs x 16 spans. Dropping
+    // either rule regressed the probe to 14/16:
+    //  - without the category rule, 초등학교/선생님 were read as a school and
+    //    a person and wrongly accepted;
+    //  - without the geographic-suffix rule, 제주도 went unstable and
+    //    서울초등학교 got split into a name plus a common noun — the same
+    //    failure that sank the discarded decompose approach at 13/16.
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    await evaluateOriginalTurn(
+      {
+        evaluationMode: "conversation",
+        missionQuestion: "Where are you going this summer vacation?",
+        transcript: "I'm going to 제주도 this summer vacation.",
+        targetPattern: "I'm going to _____.",
+        targetExample: null,
+        level: "elementary",
+        koreanSpans: [{ hangul: "제주도", romanized: "Jejudo" }],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const instructions = promptFor(client).instructions ?? [];
+
+    expect(instructions).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("name one particular thing"),
+        expect.stringContaining("keeps its Korean geographic ending"),
+        expect.stringContaining("Do not split such a word"),
+        expect.stringContaining("ordinary institution word"),
+      ]),
+    );
+  });
+
   it("stops a code-switched answer from being judged non_english wholesale", async () => {
     // The transcript now legitimately contains Hangul, so the blanket
     // non_english rule would discard a valid answer via retry_original.
