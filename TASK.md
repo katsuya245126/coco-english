@@ -1,6 +1,6 @@
 # Compact Homework Review
 
-**Status:** Written specification approved; implementation plan ready for review
+**Status:** Implemented and verified
 **Classification:** Normal
 **Started:** 2026-07-23
 
@@ -68,11 +68,21 @@ each left-aligned message.
 
 ## Current position
 
-The conversational design, tracked preview, and written specification were
-approved by the user on 2026-07-23. The test-first implementation plan is at
-`docs/superpowers/plans/2026-07-23-compact-homework-review.md`. No runtime
-implementation has started.
+Implementation is complete at feature HEAD `4353e267`, including compact audio
+controls, on-demand signed playback URL loading, and the compact dynamic
+Homework Review. Fresh verification after stopping checkout Next process PID
+69805 passed the 7-file focused matrix (46 tests), typecheck, lint with one
+pre-existing warning, build on Next 15.5.19, and the full test suite (95 files,
+985 tests passed, 4 skipped).
+
+Authenticated localhost UAT confirmed the dynamic review contract at mobile
+390x844 and desktop 1440x1200, including independent original/repeat players,
+all eight available recording controls, circular Coco avatars, retry markers,
+blue answer bubbles, and the final Back to homework link. The preset Read-only
+recap remained unchanged with pronunciation content present. The saved
+screenshots are localhost application evidence and were qualitatively compared
+with the tracked synthetic preview.
 
 ## Next step
 
-Obtain user approval of the implementation plan, then execute it task by task.
+No implementation or verification work remains within the approved scope.
