@@ -9,6 +9,7 @@ const item = fs.readFileSync(path.join(root, "src/components/student/AssignmentL
 const styles = fs.readFileSync(path.join(root, "src/app/student/home/student-home.css"), "utf8");
 const recapPage = fs.readFileSync(path.join(root, "src/app/student/history/[assignmentStudentId]/page.tsx"), "utf8");
 const recap = fs.readFileSync(path.join(root, "src/components/student/StudentMissionRecap.tsx"), "utf8");
+const homeworkReview = fs.readFileSync(path.join(root, "src/components/student/HomeworkReview.tsx"), "utf8");
 const recapMapper = fs.readFileSync(path.join(root, "src/server/student-access/student-history.ts"), "utf8");
 
 describe("student history UI source contracts", () => {
@@ -60,5 +61,18 @@ describe("student history UI source contracts", () => {
     expect(recapMapper).not.toContain(
       '.eq("status", "completed")',
     );
+  });
+  it("branches the owned history route between dynamic and preset review components", () => {
+    expect(recapPage).toContain("import { HomeworkReview }");
+    expect(recapPage).toContain("import { StudentMissionRecap }");
+    expect(recapPage).toContain("recap.conversationMode");
+    expect(recapPage).toContain(
+      'studentDisplayName={unlock.displayName}',
+    );
+    expect(homeworkReview).toContain("Homework Review");
+    expect(homeworkReview).toContain("Back to homework");
+    expect(homeworkReview).not.toContain("Read-only recap");
+    expect(recap).toContain("Read-only recap");
+    expect(recap).toContain("You said");
   });
 });

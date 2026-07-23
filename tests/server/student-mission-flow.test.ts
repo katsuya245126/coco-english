@@ -348,7 +348,10 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
       "continueAcceptedConversationTurn(aid, flow.cocoLine)",
     );
     expect(shellSource).toMatch(
-      /function finishConversationClosing\(\) \{\s*setFlow\(\(prev\) => \(\{ \.\.\.prev, step: "complete" \}\)\);\s*\}/,
+      /function finishConversationClosing\(\) \{\s*router\.push\(`\/student\/history\/\$\{assignmentStudentId\}`\);\s*\}/,
+    );
+    expect(shellSource).toContain(
+      'flow.step === "complete" && !conversationMode',
     );
     expect(closingSource).toContain("Finish mission");
     expect(closingSource).toContain("onFinish");

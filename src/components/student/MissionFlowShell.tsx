@@ -530,7 +530,7 @@ export function MissionFlowShell({
   }
 
   function finishConversationClosing() {
-    setFlow((prev) => ({ ...prev, step: "complete" }));
+    router.push(`/student/history/${assignmentStudentId}`);
   }
 
   async function handleSubmitOriginalVoice(recording: RecordedVoiceClip) {
@@ -1067,7 +1067,7 @@ export function MissionFlowShell({
           <StepConversationClosing onFinish={finishConversationClosing} />
         )}
 
-        {flow.step === "complete" && (
+        {flow.step === "complete" && !conversationMode && (
           <StepMissionComplete
             assignmentStudentId={assignmentStudentId}
             completionHeading={characterProfile.completionHeading}

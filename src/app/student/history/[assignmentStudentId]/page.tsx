@@ -1,9 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { readStudentUnlock } from "@/app/join/actions";
+import { HomeworkReview } from "@/components/student/HomeworkReview";
 import { StudentMissionRecap } from "@/components/student/StudentMissionRecap";
 import { pageStyle, panelStyle, primaryButtonStyle } from "@/components/student/styles";
-import { getCompletedMissionRecap } from "@/server/student-access/student-history";
+import {
+  getCompletedMissionRecap,
+  type StudentMissionRecap as Recap,
+} from "@/server/student-access/student-history";
 
 const backLinkStyle = {
   ...primaryButtonStyle,
@@ -23,8 +27,23 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
   const unlock = await readStudentUnlock();
   if (!unlock) redirect("/join");
   const { assignmentStudentId } = await params;
-  const recap = await getCompletedMissionRecap(unlock.studentId, assignmentStudentId);
+
+  let recap: Recap | null;
+  try {
+    recap = await getCompletedMissionRecap(unlock.studentId, assignmentStudentId);
+  } catch {
+    return <main style={pageStyle}><div style={{ ...panelStyle, maxWidth: 430 }}>
+      <h1>Homework Review</h1>
+      <p>Your homework is complete, but the review could not load.</p>
+      <Link href="/student/home" style={primaryButtonStyle}>Back to homework</Link>
+    </div></main>;
+  }
   if (!recap) notFound();
+
+  if (recap.conversationMode) {
+    return <HomeworkReview recap={recap} studentDisplayName={unlock.displayName} />;
+  }
+
   return <main style={pageStyle}><div style={{ ...panelStyle, maxWidth: 430 }}>
     <style>{".recap-back-btn:hover { background: #1D4ED8 !important; } .recap-back-btn:active { background: #1E40AF !important; }"}</style>
     <Link href="/student/home?tab=past" className="recap-back-btn" style={backLinkStyle} aria-label="Back to past missions" title="Back to past missions">←</Link>
