@@ -928,7 +928,9 @@ export async function uploadAttemptAudioClip(
       };
     }
 
-    const transcript = normalizeEnglishTranscript(transcription.text);
+    const { text: transcript, koreanSpans } = normalizeEnglishTranscript(
+      transcription.text,
+    );
     if (!transcript || !hasEnglishTranscript(transcript)) {
       await timeStage("failedClipUpdate", () =>
         supabase
@@ -1122,6 +1124,7 @@ export async function uploadAttemptAudioClip(
                     transcript,
                     requireCompleteSentenceAnswers:
                       snapshot.requireCompleteSentenceAnswers,
+                    koreanSpans,
                   });
                 });
             const decision = applyOriginalTurnEvaluation(evaluationResult, {

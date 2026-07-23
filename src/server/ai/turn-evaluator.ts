@@ -6,6 +6,7 @@
  */
 
 import OpenAI from "openai";
+import type { HangulSpan } from "@/domain/audio/hangul-romanization";
 import { log } from "@/server/logging/logger";
 import { zodTextFormat } from "openai/helpers/zod";
 import {
@@ -55,6 +56,12 @@ export type EvaluateOriginalTurnInput = {
   turnOrder?: number;
   transcript: string;
   requireCompleteSentenceAnswers?: boolean;
+  /**
+   * Korean words the student code-switched, kept verbatim in `transcript`.
+   * The evaluator classifies each as a proper noun to accept or ordinary
+   * vocabulary to teach. Empty for an all-English answer.
+   */
+  koreanSpans?: HangulSpan[];
 };
 
 export type EvaluateRepeatTurnInput = {
@@ -153,6 +160,28 @@ function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
         ]
     : [];
 
+  // A Korean learner who names a local place or friend is answering the
+  // question; one who says 축구 for "soccer" is reaching for vocabulary they
+  // have not learned yet. Those need opposite responses, so the evaluator
+  // classifies each span rather than blanket-accepting it. Spans arrive in
+  // Hangul because the transcript stores what the child actually said (see
+  // src/domain/audio/hangul-romanization.ts).
+  const koreanSpans = input.koreanSpans ?? [];
+  const koreanSpanInstructions =
+    koreanSpans.length > 0
+      ? [
+          `The student spoke ${koreanSpans.length === 1 ? "one Korean word" : `${koreanSpans.length} Korean words`} inside an otherwise English answer: ${koreanSpans
+            .map((span) => `"${span.hangul}" (romanized: ${span.romanized})`)
+            .join(", ")}.`,
+          "Classify each Korean word before judging the answer. A word is a NAME if it is a proper noun with no English equivalent a child would be expected to know — a specific place, a person, a school, or a Korean dish (거제도, 민준, 김밥). A word is VOCABULARY if it is ordinary English the student simply did not retrieve (축구 = soccer, 학교 = school, 사과 = apple).",
+          "If every Korean word is a NAME, the student answered the question. Judge only the surrounding English grammar, and treat the Korean name as correct content. Never mark it a spelling error, a mistake, or non_english. If the surrounding grammar is correct, outcome is correct with improvedSentence null.",
+          "If any Korean word is VOCABULARY, use needs_correction with correctionSeverity 'material'. Write improvedSentence as the student's own sentence with the English word substituted for the Korean one, so the student hears and repeats the word they were missing.",
+          'Example: transcript "I like 축구 after school." becomes improvedSentence "I like soccer after school."',
+          'Example: transcript "I\'m going to 거제도 this summer." is correct as-is, because 거제도 is a place name; improvedSentence is null.',
+          "When a NAME appears in an improvedSentence you write for some other reason, keep the Korean word exactly as the student said it. Never swap in a different name.",
+        ]
+      : [];
+
   return {
     evaluationMode: input.evaluationMode,
     missionQuestion: input.missionQuestion ?? null,
@@ -162,10 +191,17 @@ function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
     turnOrder: input.turnOrder ?? null,
     transcript: input.transcript,
     requireCompleteSentenceAnswers,
+    koreanSpans,
     instructions: [
       "Evaluate only this transcript against the assigned ESL turn.",
-      "Treat non-English transcripts as non_english and not successful practice.",
+      koreanSpans.length > 0
+        ? // The transcript deliberately keeps the student's Korean words, so
+          // the blanket non_english rule would discard a valid code-switched
+          // answer. Only a wholly Korean answer is non_english.
+          "Treat a transcript as non_english only when the whole answer is in another language. This answer has an English sentence frame with some Korean words inside it, so it is NOT non_english; classify those words as instructed below."
+        : "Treat non-English transcripts as non_english and not successful practice.",
       "Common English phrasing variants (contractions like 'I am' vs 'I'm', minor word-order or article differences that preserve the same meaning) are equivalent and should not cause needs_correction.",
+      ...koreanSpanInstructions,
       ...modeInstructions,
       ...completeSentenceInstructions,
       ...(isConversationMode ? conversationGenuineAmbiguityInstructions : []),

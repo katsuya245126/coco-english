@@ -37,7 +37,11 @@ describe("transcribeAudioFile", () => {
       { apiKey: "test-key", client },
     );
 
-    expect(result).toEqual({ ok: true, text: "I like apples." });
+    expect(result).toEqual({
+      ok: true,
+      text: "I like apples.",
+      koreanSpans: [],
+    });
     expect(client.audio.transcriptions.create).toHaveBeenCalledWith(
       expect.objectContaining({
         model: "test-transcribe",
@@ -65,7 +69,11 @@ describe("transcribeAudioFile", () => {
     );
   });
 
-  it("removes Korean script from provider output before returning a transcript", async () => {
+  it("keeps Korean script verbatim instead of deleting the student's answer", async () => {
+    // Deleting the span used to yield "I like after school." — fluent, and
+    // missing the actual answer, with nothing downstream able to tell.
+    // Romanizing it in place was rejected too: the transcript is the evidence
+    // record a teacher reads, so it must say what the child actually said.
     const { transcribeAudioFile } = await import("@/server/audio/transcription");
     const client = createFakeClient({ text: "I like 축구 after school." });
 
@@ -77,7 +85,33 @@ describe("transcribeAudioFile", () => {
       { apiKey: "test-key", client },
     );
 
-    expect(result).toEqual({ ok: true, text: "I like after school." });
+    expect(result).toEqual({
+      ok: true,
+      text: "I like 축구 after school.",
+      koreanSpans: [{ hangul: "축구", romanized: "Chukgu" }],
+    });
+  });
+
+  it("keeps a code-switched place name in the transcript", async () => {
+    // The 2026-07-23 probe case: 거제도 survived the English language pin.
+    const { transcribeAudioFile } = await import("@/server/audio/transcription");
+    const client = createFakeClient({
+      text: "I'm going to 거제도 this summer vacation.",
+    });
+
+    const result = await transcribeAudioFile(
+      {
+        file: new Blob(["voice"], { type: "audio/webm" }),
+        mimeType: "audio/webm",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      text: "I'm going to 거제도 this summer vacation.",
+      koreanSpans: [{ hangul: "거제도", romanized: "Geojedo" }],
+    });
   });
 
   it("rejects Korean-only provider output instead of storing it as the answer", async () => {
@@ -150,7 +184,7 @@ describe("transcribeAudioFile", () => {
       "@/server/audio/transcription"
     );
     const expectedPrompt =
-      "The student is a Korean ESL learner speaking English. Transcribe only the English words spoken.";
+      "The student is a Korean ESL learner speaking English. Transcribe the English words spoken. If the student says a Korean word, write it in Hangul exactly as spoken.";
     const client = createFakeClient({
       text: `Context: ${expectedPrompt}`,
     });

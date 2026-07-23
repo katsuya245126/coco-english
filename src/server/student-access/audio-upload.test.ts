@@ -48,8 +48,11 @@ function audioInput(overrides: {
   };
 }
 
-function successfulTranscriber(text: string) {
-  return vi.fn(async () => ({ ok: true as const, text }));
+function successfulTranscriber(
+  text: string,
+  koreanSpans: Array<{ hangul: string; romanized: string }> = [],
+) {
+  return vi.fn(async () => ({ ok: true as const, text, koreanSpans }));
 }
 
 function successfulOriginalEvaluator(overrides = {}) {

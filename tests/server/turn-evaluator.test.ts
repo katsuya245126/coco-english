@@ -51,6 +51,118 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
     );
   });
 
+  function promptFor(client: ReturnType<typeof createFakeClient>) {
+    const request = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const userMessage = request?.input.find((message) => message.role === "user");
+    return JSON.parse(userMessage?.content ?? "{}") as {
+      instructions?: string[];
+      koreanSpans?: Array<{ hangul: string; romanized: string }>;
+    };
+  }
+
+  it("asks the evaluator to classify each Korean word as a name or vocabulary", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    const result = await evaluateOriginalTurn(
+      {
+        evaluationMode: "conversation",
+        missionQuestion: "Where are you going this summer vacation?",
+        transcript: "I'm going to 거제도 this summer vacation.",
+        targetPattern: "I'm going to _____.",
+        targetExample: null,
+        level: "elementary",
+        koreanSpans: [{ hangul: "거제도", romanized: "Geojedo" }],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result.ok).toBe(true);
+    const prompt = promptFor(client);
+
+    expect(prompt.koreanSpans).toEqual([
+      { hangul: "거제도", romanized: "Geojedo" },
+    ]);
+    expect(prompt.instructions).toEqual(
+      expect.arrayContaining([
+        // Both scripts reach the model: Hangul to match the transcript, the
+        // romanization so it can be read aloud.
+        expect.stringContaining("거제도"),
+        expect.stringContaining("Geojedo"),
+        expect.stringContaining("Classify each Korean word"),
+        expect.stringContaining("NAME"),
+        expect.stringContaining("VOCABULARY"),
+      ]),
+    );
+  });
+
+  it("stops a code-switched answer from being judged non_english wholesale", async () => {
+    // The transcript now legitimately contains Hangul, so the blanket
+    // non_english rule would discard a valid answer via retry_original.
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    await evaluateOriginalTurn(
+      {
+        evaluationMode: "conversation",
+        missionQuestion: "Where are you going this summer vacation?",
+        transcript: "I'm going to 거제도 this summer vacation.",
+        targetPattern: "I'm going to _____.",
+        targetExample: null,
+        level: "elementary",
+        koreanSpans: [{ hangul: "거제도", romanized: "Geojedo" }],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const instructions = promptFor(client).instructions ?? [];
+
+    expect(instructions).toEqual(
+      expect.arrayContaining([expect.stringContaining("it is NOT non_english")]),
+    );
+    expect(instructions).not.toEqual(
+      expect.arrayContaining([
+        "Treat non-English transcripts as non_english and not successful practice.",
+      ]),
+    );
+  });
+
+  it("omits the Korean-span instructions for an all-English answer", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    await evaluateOriginalTurn(
+      {
+        evaluationMode: "conversation",
+        missionQuestion: "Where are you going this summer vacation?",
+        transcript: "I'm going to the beach.",
+        targetPattern: "I'm going to _____.",
+        targetExample: null,
+        level: "elementary",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const prompt = promptFor(client);
+
+    expect(prompt.koreanSpans).toEqual([]);
+    expect(prompt.instructions).not.toEqual(
+      expect.arrayContaining([expect.stringContaining("Classify each Korean word")]),
+    );
+    // The plain non_english rule stays in force for all-English answers.
+    expect(prompt.instructions).toEqual(
+      expect.arrayContaining([
+        "Treat non-English transcripts as non_english and not successful practice.",
+      ]),
+    );
+  });
+
   it("treats an open-ended target example as one valid slot answer, not the required content", async () => {
     const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
     const client = createFakeClient({
