@@ -1,6 +1,6 @@
 # Compact Homework Review
 
-**Status:** Implemented; final saved-mobile evidence conditional
+**Status:** Implemented; final evidence complete
 **Classification:** Normal
 **Started:** 2026-07-23
 
@@ -89,18 +89,21 @@ to homework link. The live 390x844 localhost application check specifically
 confirmed an overflow-free layout and 44px controls. The preset Read-only recap
 remained unchanged with pronunciation content present.
 
-The saved file
-`/private/tmp/compact-homework-review-localhost-application-mobile.png` is
-actually a 1440x1987 full-page localhost application capture, not a saved
-390x844 mobile screenshot. The saved desktop-width localhost application
-evidence is
+The saved mobile localhost application evidence,
+`/private/tmp/compact-homework-review-localhost-application-mobile.png`, is a
+real authenticated application capture from
+`http://localhost:3000/student/history/cb087fc4-9d41-4788-a99b-3ce18166bb0b`
+at an actual 390x844 Chrome viewport. The saved file is a 390x844 PNG with no
+resizing or synthetic rendering. The saved desktop-width localhost application
+evidence remains
 `/private/tmp/compact-homework-review-localhost-application-desktop.png`, a
-1440x2059 full-page capture. These localhost application checks and captures
-are distinct from the tracked synthetic preview used for qualitative
-comparison.
+1440x2059 capture.
+
+The approved plan's localhost mobile and desktop screenshot comparison with
+the tracked preview is complete. These real localhost application checks and
+captures remain distinct from the tracked synthetic preview used for
+qualitative comparison.
 
 ## Next step
 
-If the approved plan requires a persisted mobile screenshot, replace the
-mislabeled mobile artifact with a true 390x844 localhost application capture.
-No further code work is indicated.
+No remaining work in the approved scope.
