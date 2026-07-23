@@ -40,6 +40,57 @@ afterEach(async () => {
 });
 
 describe("HomeworkReviewAttempt", () => {
+  it("shows and announces which recording is being prepared while loading", async () => {
+    let resolveLoad:
+      | ((value: { ok: true; signedUrl: string }) => void)
+      | undefined;
+    loadHistoryAudioActionMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveLoad = resolve;
+      }),
+    );
+
+    await act(async () => {
+      root.render(
+        <HomeworkReviewAttempt attempt={availableAttempt("clip-pending")} />,
+      );
+    });
+
+    const listen = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Listen to this recording"]',
+    );
+
+    await act(async () => {
+      listen?.click();
+      await Promise.resolve();
+    });
+
+    const preparingButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Preparing this recording"]',
+    );
+    const status = container.querySelector('[role="status"][aria-live="polite"]');
+
+    expect(preparingButton?.disabled).toBe(true);
+    expect(status?.textContent).toBe("Preparing recording…");
+    expect(container.textContent).toContain("Transcript for clip-pending");
+
+    preparingButton?.click();
+    expect(loadHistoryAudioActionMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveLoad?.({
+        ok: true,
+        signedUrl: "https://signed.test/pending.mp3",
+      });
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[role="status"]')).toBeNull();
+    expect(container.querySelector("audio")?.getAttribute("src")).toBe(
+      "https://signed.test/pending.mp3",
+    );
+  });
+
   it("loads its exact clip once, then collapses and reopens the cached player", async () => {
     loadHistoryAudioActionMock.mockResolvedValue({
       ok: true,

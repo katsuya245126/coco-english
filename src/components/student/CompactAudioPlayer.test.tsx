@@ -25,6 +25,37 @@ afterEach(async () => {
 });
 
 describe("CompactAudioPlayer", () => {
+  it("returns to the play control when the audio is paused externally", async () => {
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+
+    await act(async () => {
+      root.render(<CompactAudioPlayer src="https://signed.test/clip.mp3" />);
+    });
+
+    const audio = container.querySelector("audio");
+    const playButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Play recording"]',
+    );
+    if (!audio) throw new Error("Expected the audio element to render.");
+
+    await act(async () => {
+      playButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector('button[aria-label="Pause recording"]'),
+    ).not.toBeNull();
+
+    await act(async () => {
+      audio.dispatchEvent(new Event("pause", { bubbles: true }));
+    });
+
+    expect(
+      container.querySelector('button[aria-label="Play recording"]'),
+    ).not.toBeNull();
+  });
+
   it("plays, pauses, and reports progress with semantic controls", async () => {
     const play = vi
       .spyOn(HTMLMediaElement.prototype, "play")

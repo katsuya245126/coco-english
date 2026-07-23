@@ -66,6 +66,7 @@ export function CompactAudioPlayer({ src }: { src: string }) {
         preload="metadata"
         onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
         onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+        onPause={() => setPlaying(false)}
         onEnded={() => setPlaying(false)}
       >
         Audio unavailable

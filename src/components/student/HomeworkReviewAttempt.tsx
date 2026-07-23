@@ -91,7 +91,7 @@ export function HomeworkReviewAttempt({
             type="button"
             aria-label={
               pending
-                ? "Loading recording"
+                ? "Preparing this recording"
                 : expanded
                   ? "Hide this recording"
                   : "Listen to this recording"
@@ -106,11 +106,21 @@ export function HomeworkReviewAttempt({
               {expanded ? <CloseIcon /> : <ListenIcon />}
             </span>
             <span className={styles.srOnly}>
-              {pending ? "Loading recording" : expanded ? "Hide recording" : "Listen to recording"}
+              {pending
+                ? "Preparing this recording"
+                : expanded
+                  ? "Hide recording"
+                  : "Listen to recording"}
             </span>
           </button>
         ) : null}
       </div>
+
+      {pending ? (
+        <p className={styles.feedback} role="status" aria-live="polite">
+          Preparing recording…
+        </p>
+      ) : null}
 
       {expanded && signedUrl ? (
         <div className={styles.player}>
