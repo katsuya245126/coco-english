@@ -164,6 +164,33 @@ describe("completion helpers: nextUnfinishedTurnOrder (D-06)", () => {
 
     expect(nextUnfinishedTurnOrder(2, [reviewedTurn])).toBe(2);
   });
+
+  it("treats a persisted repeat-path teacher-review turn as finished for resume", () => {
+    // Mirrors the StoredRepeatTurnEvaluation shape written by
+    // applyRepeatTurnEvaluation for a teacher_review outcome.
+    const reviewedRepeatTurn = makeTurn(1, {
+      original_transcript: "I no play soccer.",
+      repeat_transcript: "I no play soccer again.",
+      repeat_accepted: null,
+      evaluation: {
+        version: "ai-eval-v1",
+        outcome: "teacher_review",
+        confidence: "low",
+        reviewReason: "ambiguous",
+        englishLanguage: "english",
+        repeatCloseEnough: false,
+        repeatAccepted: null,
+        requireRepeat: false,
+      },
+    });
+
+    expect(
+      nextUnfinishedTurnOrder(2, [reviewedRepeatTurn, makeCompleteTurn(2)]),
+    ).toBe(3);
+    expect(
+      isAttemptComplete(2, [reviewedRepeatTurn, makeCompleteTurn(2)]),
+    ).toBe(true);
+  });
 });
 
 describe("completion helpers: persisted feedback resume", () => {

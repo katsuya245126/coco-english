@@ -136,6 +136,44 @@ function originalAnswerAccepted(turn: CompletionTurn): boolean {
   );
 }
 
+/**
+ * Recognizes a repeat turn as finished when it was either accepted outright
+ * (repeat_accepted === true, handled by the caller) or internally reviewed
+ * (teacher_review) — a persisted repeat-path teacher-review turn is not
+ * necessarily the mission's final turn, so resume and completion counting
+ * must treat it as done rather than stranding the student on an
+ * unreachable turn (mirrors originalAnswerAccepted's pattern for the
+ * original-turn path).
+ */
+function repeatAnswerReviewed(turn: CompletionTurn): boolean {
+  if (
+    turn.repeat_transcript === null ||
+    turn.repeat_transcript.trim().length === 0
+  ) {
+    return false;
+  }
+
+  if (
+    typeof turn.evaluation !== "object" ||
+    turn.evaluation === null ||
+    Array.isArray(turn.evaluation)
+  ) {
+    return false;
+  }
+
+  const evaluation = turn.evaluation as {
+    version?: unknown;
+    outcome?: unknown;
+    requireRepeat?: unknown;
+  };
+
+  return (
+    evaluation.version === "ai-eval-v1" &&
+    evaluation.outcome === "teacher_review" &&
+    evaluation.requireRepeat === false
+  );
+}
+
 /** Rebuild the feedback card that immediately followed the latest recording. */
 export function getPendingTurnReview(
   turn: CompletionTurn,
@@ -204,7 +242,11 @@ function isTurnFinished(turn: CompletionTurn): boolean {
     turn.repeat_transcript !== null &&
     turn.repeat_transcript.trim().length > 0;
   const repeatAccepted = turn.repeat_accepted === true;
-  return (hasAnswer && hasRepeat && repeatAccepted) || originalAnswerAccepted(turn);
+  return (
+    (hasAnswer && hasRepeat && repeatAccepted) ||
+    (hasAnswer && hasRepeat && repeatAnswerReviewed(turn)) ||
+    originalAnswerAccepted(turn)
+  );
 }
 
 /**

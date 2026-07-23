@@ -88,6 +88,7 @@ export type RepeatTurnDecision =
       kind: "teacher_review";
       repeatAccepted: null;
       reviewReason: z.infer<typeof aiEvaluationReviewReasonSchema>;
+      requireRepeat: false;
     };
 
 function reviewReasonFromEvaluation(
@@ -295,19 +296,27 @@ export function guardParrotedConversationCorrection(
   };
 }
 
-export function repeatTurnSchemaFailureResult(): RepeatTurnDecision {
+export function repeatTurnSchemaFailureResult(): Extract<
+  RepeatTurnDecision,
+  { kind: "teacher_review" }
+> {
   return {
     kind: "teacher_review",
     repeatAccepted: null,
     reviewReason: "failed_schema",
+    requireRepeat: false,
   };
 }
 
-export function repeatTurnProviderFailureResult(): RepeatTurnDecision {
+export function repeatTurnProviderFailureResult(): Extract<
+  RepeatTurnDecision,
+  { kind: "teacher_review" }
+> {
   return {
     kind: "teacher_review",
     repeatAccepted: null,
     reviewReason: "provider_failed",
+    requireRepeat: false,
   };
 }
 
@@ -324,6 +333,7 @@ export function decideRepeatTurnOutcome(
       kind: "teacher_review",
       repeatAccepted: null,
       reviewReason: reviewReasonFromEvaluation(evaluation),
+      requireRepeat: false,
     };
   }
 

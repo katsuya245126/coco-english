@@ -172,6 +172,7 @@ describe("repeat turn AI evaluation decisions (AI-04, AI-05)", () => {
       kind: "teacher_review",
       repeatAccepted: null,
       reviewReason: "low_confidence",
+      requireRepeat: false,
     });
   });
 });

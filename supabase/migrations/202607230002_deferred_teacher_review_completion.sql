@@ -9,6 +9,12 @@
 -- terminal status for both assignment_students and attempts plus the single
 -- matching assignment_status_events row. The idempotence gate now accepts
 -- either terminal outcome as already-done.
+--
+-- Amended (still unapplied, edited in place): the repeat-turn path had no
+-- branch analogous to the original-turn teacher_review branch, so a
+-- persisted teacher_review outcome on a repeat turn (requireRepeat: false)
+-- never satisfied v_finished_turns and the mission could never reach a
+-- terminal status. Added a parallel OR-branch for the repeat-turn case.
 
 create or replace function public.complete_student_attempt(
   p_student_id uuid,
@@ -92,6 +98,12 @@ begin
       )
       or (
         turn_row.evaluation ->> 'version' = 'ai-eval-v1'
+        and turn_row.evaluation ->> 'outcome' = 'teacher_review'
+        and turn_row.evaluation ->> 'requireRepeat' = 'false'
+      )
+      or (
+        nullif(btrim(turn_row.repeat_transcript), '') is not null
+        and turn_row.evaluation ->> 'version' = 'ai-eval-v1'
         and turn_row.evaluation ->> 'outcome' = 'teacher_review'
         and turn_row.evaluation ->> 'requireRepeat' = 'false'
       )

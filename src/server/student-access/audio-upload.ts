@@ -198,6 +198,7 @@ type StoredRepeatTurnEvaluation = {
   englishLanguage: RepeatTurnEvaluation["englishLanguage"];
   repeatCloseEnough: RepeatTurnEvaluation["repeatCloseEnough"];
   repeatAccepted: boolean | null;
+  requireRepeat: boolean;
 };
 
 export function applyOriginalTurnEvaluation(
@@ -288,6 +289,7 @@ export function applyRepeatTurnEvaluation(
       englishLanguage: "uncertain",
       repeatCloseEnough: false,
       repeatAccepted: decision.repeatAccepted,
+      requireRepeat: decision.requireRepeat,
     };
   }
 
@@ -301,6 +303,7 @@ export function applyRepeatTurnEvaluation(
     englishLanguage: result.evaluation.englishLanguage,
     repeatCloseEnough: result.evaluation.repeatCloseEnough,
     repeatAccepted: decision.repeatAccepted,
+    requireRepeat: decision.kind === "retry_repeat" ? true : false,
   };
 }
 

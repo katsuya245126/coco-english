@@ -42,6 +42,16 @@ describe("complete_student_attempt RPC", () => {
     expect(sql).toContain("v_attempt_status = 'teacher_review'");
   });
 
+  it("counts a persisted repeat-path teacher-review turn as finished, matching the original-turn branch", () => {
+    const teacherReviewBranches = sql.match(/outcome' = 'teacher_review'/g);
+    // One branch for the original-turn path (existing) and one for the
+    // repeat-turn path (this fix) — a repeat-path teacher_review outcome
+    // must count toward v_finished_turns just like the original-turn one.
+    expect(teacherReviewBranches?.length).toBeGreaterThanOrEqual(2);
+    expect(sql).toContain("repeat_transcript), '') is not null");
+    expect(sql).toContain("requirerepeat' = 'false'");
+  });
+
   it("writes one matching terminal status event and remains idempotent", () => {
     expect(sql).toContain("v_terminal_status");
     expect(sql).toContain("v_reason_code");
