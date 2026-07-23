@@ -72,7 +72,11 @@ describe("student history UI source contracts", () => {
     expect(homeworkReview).toContain("Homework Review");
     expect(homeworkReview).toContain("Back to homework");
     expect(homeworkReview).not.toContain("Read-only recap");
+    expect(homeworkReview).not.toContain("Pronunciation");
+    expect(homeworkReview).not.toContain("Great job!");
     expect(recap).toContain("Read-only recap");
     expect(recap).toContain("You said");
+    expect(recap).toContain("Pronunciation</strong>");
+    expect(recap).toContain("Great job!");
   });
 });

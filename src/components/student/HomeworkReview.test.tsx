@@ -67,15 +67,73 @@ const recap: StudentMissionRecap = {
 
 describe("HomeworkReview", () => {
   it("renders the text-message recap with per-turn review states", () => {
+    const availableAudio = (id: string) => ({
+      id,
+      playback: "available" as const,
+    });
+
+    const recapWithEvidence: StudentMissionRecap = {
+      ...recap,
+      turns: recap.turns.map((turn) => {
+        if (turn.id === "turn-accepted") {
+          return {
+            ...turn,
+            original: {
+              transcript: "I am going to the park.",
+              audio: availableAudio("clip-accepted"),
+              pronunciation: { starBand: 3, words: [] },
+            },
+          };
+        }
+
+        if (turn.id === "turn-minor") {
+          return {
+            ...turn,
+            original: {
+              transcript: "I go to library.",
+              audio: availableAudio("clip-minor"),
+              pronunciation: {
+                starBand: 2,
+                words: [{ word: "library", label: "Needs practice" }],
+              },
+            },
+          };
+        }
+
+        if (turn.id === "turn-repeat") {
+          return {
+            ...turn,
+            original: {
+              transcript: "I want read cartoon.",
+              audio: availableAudio("clip-original"),
+              pronunciation: { starBand: 1, words: [] },
+            },
+            repeat: {
+              transcript: "I want to read cartoons.",
+              audio: availableAudio("clip-repeat"),
+              pronunciation: { starBand: 3, words: [] },
+            },
+          };
+        }
+
+        return turn;
+      }),
+    };
+
     const html = renderToStaticMarkup(
-      <HomeworkReview recap={recap} studentDisplayName="Kyle" />,
+      <HomeworkReview recap={recapWithEvidence} studentDisplayName="Kyle" />,
     );
 
     expect(html).toContain("Homework Review");
     expect(html).not.toContain("Read-only recap");
     expect(html).toContain("Coco");
     expect(html).toContain("Kyle");
-    expect(html).toContain(">K<");
+    expect(html).not.toContain(">K<");
+    expect(html).toContain("Look back at your conversation with Coco.");
+    expect(html.match(/Listen to this recording/g)).toHaveLength(4);
+    expect(html).not.toContain("Pronunciation");
+    expect(html).not.toContain("Words to practice");
+    expect(html).not.toContain("Great job!");
     expect(html).toContain("I go to library.");
     expect(html).toMatch(/class="[^"]*changedWord[^"]*"[^>]*>the</);
     expect(html).toContain("This answer needed another try.");
@@ -95,10 +153,14 @@ describe("HomeworkReview", () => {
     );
     const css = readFileSync(cssPath, "utf8");
     expect(css).toMatch(/overflow-wrap:\s*anywhere/);
-    expect(css).toMatch(/max-width/);
+    expect(css).toMatch(/max-width:\s*590px/);
+    expect(css).toMatch(/grid-template-columns:\s*42px\s+minmax\(0,\s*1fr\)/);
+    expect(css).toMatch(/border-radius:\s*999px/);
+    expect(css).toMatch(/text-decoration:\s*underline/);
     expect(css).toMatch(/\.retryMark/);
     expect(css).toMatch(/\.changedWord/);
     expect(css).toMatch(/\.goodJob/);
     expect(css).toMatch(/\.srOnly/);
+    expect(css).not.toMatch(/\.pronunciation/);
   });
 });

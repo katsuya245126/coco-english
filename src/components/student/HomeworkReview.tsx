@@ -1,54 +1,25 @@
 import Image from "next/image";
 import Link from "next/link";
-import type {
-  StudentMissionRecap,
-  StudentRecapAttempt,
-} from "@/server/student-access/student-history";
+import type { StudentMissionRecap } from "@/server/student-access/student-history";
 import { buildImprovedSentenceParts } from "@/domain/student/homework-review";
-import { StudentHistoryAudioPlayer } from "./StudentHistoryAudioPlayer";
+import { HomeworkReviewAttempt } from "./HomeworkReviewAttempt";
 import styles from "./HomeworkReview.module.css";
-
-function AttemptEvidence({ attempt }: { attempt: StudentRecapAttempt }) {
-  return (
-    <>
-      {attempt.audio?.playback === "available" ? (
-        <StudentHistoryAudioPlayer audioClipId={attempt.audio.id} />
-      ) : attempt.audio?.playback === "expired" ? (
-        <p className={styles.muted}>Recording expired</p>
-      ) : attempt.audio ? (
-        <p className={styles.muted}>Recording unavailable</p>
-      ) : null}
-      {attempt.pronunciation ? (
-        <div className={styles.pronunciation}>
-          <strong>
-            {"★".repeat(attempt.pronunciation.starBand)} Pronunciation
-          </strong>
-          <p>
-            {attempt.pronunciation.words.length
-              ? `Words to practice: ${attempt.pronunciation.words
-                  .map((word) => word.word)
-                  .join(" · ")}`
-              : "Great job!"}
-          </p>
-        </div>
-      ) : null}
-    </>
-  );
-}
 
 function CocoMessage({ children }: { children: string }) {
   return (
     <div className={styles.cocoMessage}>
-      <div className={styles.identity}>
+      <div className={styles.cocoPortrait}>
         <Image
           src="/images/coco-happy-alpha.png"
           alt=""
-          width={36}
-          height={36}
+          width={42}
+          height={42}
         />
-        <strong>Coco</strong>
       </div>
-      <div className={styles.cocoBubble}>{children}</div>
+      <div className={styles.cocoContent}>
+        <strong className={styles.cocoName}>Coco</strong>
+        <div className={styles.cocoBubble}>{children}</div>
+      </div>
     </div>
   );
 }
@@ -60,13 +31,13 @@ export function HomeworkReview({
   recap: StudentMissionRecap;
   studentDisplayName: string;
 }) {
-  const initial =
-    studentDisplayName.trim().slice(0, 1).toLocaleUpperCase("en-US") || "S";
-
   return (
     <main className={styles.page}>
       <section className={styles.panel}>
-        <h1>Homework Review</h1>
+        <header className={styles.header}>
+          <h1>Homework Review</h1>
+          <p>Look back at your conversation with Coco.</p>
+        </header>
         <div className={styles.messages}>
           {recap.turns.map((turn) => {
             const showGoodJob =
@@ -77,10 +48,9 @@ export function HomeworkReview({
               <div className={styles.exchange} key={turn.id}>
                 <CocoMessage>{turn.cocoPrompt}</CocoMessage>
                 <div className={styles.studentMessage}>
-                  <div className={styles.studentIdentity}>
-                    <strong>{studentDisplayName}</strong>
-                    <span aria-hidden="true">{initial}</span>
-                  </div>
+                  <strong className={styles.studentName}>
+                    {studentDisplayName}
+                  </strong>
                   <div className={styles.attemptRow}>
                     {turn.reviewState === "repeat_accepted" ? (
                       <span className={styles.retryMark} aria-hidden="true">
@@ -92,10 +62,7 @@ export function HomeworkReview({
                         This answer needed another try.
                       </span>
                     ) : null}
-                    <div className={styles.studentBubble}>
-                      <p>{turn.original.transcript}</p>
-                      <AttemptEvidence attempt={turn.original} />
-                    </div>
+                    <HomeworkReviewAttempt attempt={turn.original} />
                   </div>
                   {turn.reviewState === "accepted_minor" &&
                   turn.improvedSentence ? (
@@ -114,9 +81,8 @@ export function HomeworkReview({
                     </p>
                   ) : null}
                   {turn.repeat ? (
-                    <div className={styles.studentBubble}>
-                      <p>{turn.repeat.transcript}</p>
-                      <AttemptEvidence attempt={turn.repeat} />
+                    <div className={styles.repeatAttempt}>
+                      <HomeworkReviewAttempt attempt={turn.repeat} />
                     </div>
                   ) : null}
                   {showGoodJob ? (
