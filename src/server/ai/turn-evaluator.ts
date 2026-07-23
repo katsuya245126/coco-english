@@ -6,6 +6,7 @@
  */
 
 import OpenAI from "openai";
+import type { HangulSpan } from "@/domain/audio/hangul-romanization";
 import { log } from "@/server/logging/logger";
 import { zodTextFormat } from "openai/helpers/zod";
 import {
@@ -55,6 +56,12 @@ export type EvaluateOriginalTurnInput = {
   turnOrder?: number;
   transcript: string;
   requireCompleteSentenceAnswers?: boolean;
+  /**
+   * Korean words the student code-switched, kept verbatim in `transcript`.
+   * The evaluator classifies each as a proper noun to accept or ordinary
+   * vocabulary to teach. Empty for an all-English answer.
+   */
+  koreanSpans?: HangulSpan[];
 };
 
 export type EvaluateRepeatTurnInput = {
@@ -153,6 +160,33 @@ function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
         ]
     : [];
 
+  // A Korean learner who names a local place or friend is answering the
+  // question; one who says 축구 for "soccer" is reaching for vocabulary they
+  // have not learned yet. Those need opposite responses, so the evaluator
+  // classifies each span rather than blanket-accepting it. Spans arrive in
+  // Hangul because the transcript stores what the child actually said (see
+  // src/domain/audio/hangul-romanization.ts).
+  const koreanSpans = input.koreanSpans ?? [];
+  const koreanSpanInstructions =
+    koreanSpans.length > 0
+      ? [
+          `The student spoke ${koreanSpans.length === 1 ? "one Korean word" : `${koreanSpans.length} Korean words`} inside an otherwise English answer: ${koreanSpans
+            .map((span) => `"${span.hangul}" (romanized: ${span.romanized})`)
+            .join(", ")}.`,
+          "Classify each Korean word before judging the answer. Ask: does this word name one particular thing, or is it the ordinary word for a whole category?",
+          "A word is a NAME only if it identifies one specific thing and an English speaker would use the Korean word for it too: a particular place (거제도, 부산, 한강), a particular person's name (민준), or a Korean dish English has no word for (김밥, 떡볶이).",
+          "A place name keeps its Korean geographic ending — 도 (island), 강 (river), 산 (mountain), 시 (city). 제주도, 거제도, 한강 and 남산 are each one place name and are always NAME, never VOCABULARY. Do not split such a word into a name plus a common noun.",
+          "A word that begins with a place name but ends in an ordinary institution word (서울초등학교 = Seoul + elementary school) still names one specific school the child attends. Treat it as a NAME.",
+          "A word is VOCABULARY if it is the everyday word for a category of things, even when the category is a place, a building, or a kind of person. 초등학교 = elementary school, 선생님 = teacher, 학교 = school, 도서관 = library, 병원 = hospital, 축구 = soccer, 강아지 = puppy are all VOCABULARY: they name a kind of thing, not one particular thing, and each has a plain English word the student should learn.",
+          "A title or role a child uses for someone (선생님 = teacher, 엄마 = mom) is VOCABULARY, not a personal name, unless it appears as part of a specific person's name.",
+          "If every Korean word is a NAME, the student answered the question. Judge only the surrounding English grammar, and treat the Korean name as correct content. Never mark it a spelling error, a mistake, or non_english. If the surrounding grammar is correct, outcome is correct with improvedSentence null.",
+          "If any Korean word is VOCABULARY, use needs_correction with correctionSeverity 'material'. Write improvedSentence as the student's own sentence with the English word substituted for the Korean one, so the student hears and repeats the word they were missing.",
+          'Example: transcript "I like 축구 after school." becomes improvedSentence "I like soccer after school."',
+          'Example: transcript "I\'m going to 거제도 this summer." is correct as-is, because 거제도 is a place name; improvedSentence is null.',
+          "When a NAME appears in an improvedSentence you write for some other reason, keep the Korean word exactly as the student said it. Never swap in a different name.",
+        ]
+      : [];
+
   return {
     evaluationMode: input.evaluationMode,
     missionQuestion: input.missionQuestion ?? null,
@@ -162,10 +196,17 @@ function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
     turnOrder: input.turnOrder ?? null,
     transcript: input.transcript,
     requireCompleteSentenceAnswers,
+    koreanSpans,
     instructions: [
       "Evaluate only this transcript against the assigned ESL turn.",
-      "Treat non-English transcripts as non_english and not successful practice.",
+      koreanSpans.length > 0
+        ? // The transcript deliberately keeps the student's Korean words, so
+          // the blanket non_english rule would discard a valid code-switched
+          // answer. Only a wholly Korean answer is non_english.
+          "Treat a transcript as non_english only when the whole answer is in another language. This answer has an English sentence frame with some Korean words inside it, so it is NOT non_english; classify those words as instructed below."
+        : "Treat non-English transcripts as non_english and not successful practice.",
       "Common English phrasing variants (contractions like 'I am' vs 'I'm', minor word-order or article differences that preserve the same meaning) are equivalent and should not cause needs_correction.",
+      ...koreanSpanInstructions,
       ...modeInstructions,
       ...completeSentenceInstructions,
       ...(isConversationMode ? conversationGenuineAmbiguityInstructions : []),

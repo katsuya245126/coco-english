@@ -6,13 +6,23 @@
  */
 
 import OpenAI from "openai";
+import {
+  detectHangulSpans,
+  isEntirelyNonEnglish,
+  type HangulSpan,
+} from "@/domain/audio/hangul-romanization";
 import { detectNoSpeech } from "@/domain/audio/no-speech-detection";
 import { log } from "@/server/logging/logger";
 
 const DEFAULT_TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe";
+/**
+ * NOTE: this string is also the reference input to `detectNoSpeech`, which
+ * catches the transcriber echoing the prompt back on a silent recording.
+ * Changing it silently weakens that guard — update the pinned assertion in
+ * tests/server/transcription.test.ts in the same edit.
+ */
 export const TRANSCRIPTION_PROMPT =
-  "The student is a Korean ESL learner speaking English. Transcribe only the English words spoken.";
-const HANGUL_SCRIPT = /[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7AF]+/gu;
+  "The student is a Korean ESL learner speaking English. Transcribe the English words spoken. If the student says a Korean word, write it in Hangul exactly as spoken.";
 const ENGLISH_LETTER = /[A-Za-z]/;
 
 export type TranscriptionError =
@@ -22,7 +32,17 @@ export type TranscriptionError =
   | "transcription_failed";
 
 export type TranscriptionResult =
-  | { ok: true; text: string }
+  | {
+      ok: true;
+      text: string;
+      /**
+       * Korean words the learner code-switched, with romanizations, reported
+       * alongside a transcript that still contains them verbatim. Non-empty
+       * means the evaluator must classify each span as a proper noun to
+       * accept or ordinary vocabulary to teach.
+       */
+      koreanSpans: HangulSpan[];
+    }
   | { ok: false; error: TranscriptionError };
 
 export type TranscriptionClient = {
@@ -76,12 +96,38 @@ function createClient(apiKey: string): TranscriptionClient {
   return new OpenAI({ apiKey }) as TranscriptionClient;
 }
 
-export function normalizeEnglishTranscript(text: string) {
-  return text
-    .replace(HANGUL_SCRIPT, " ")
+export type NormalizedTranscript = {
+  text: string;
+  koreanSpans: HangulSpan[];
+};
+
+/**
+ * Normalize provider text for storage and evaluation.
+ *
+ * Korean spans are **kept verbatim** and reported separately. Two earlier
+ * approaches were rejected:
+ *
+ * - Deleting them yielded a fluent sentence with the answer missing ("I'm
+ *   going to this summer vacation") that nothing downstream could detect as
+ *   damaged.
+ * - Romanizing them in place wrote English the child never said into
+ *   `original_transcript`, fabricating the evidence record a teacher reads
+ *   and erasing the chance to teach the word.
+ *
+ * A fully Korean answer is left for the caller's `hasEnglishTranscript` check
+ * to reject, so "the student answered in Korean" still routes to a retry.
+ */
+export function normalizeEnglishTranscript(text: string): NormalizedTranscript {
+  if (isEntirelyNonEnglish(text)) {
+    return { text: "", koreanSpans: [] };
+  }
+
+  const normalized = text
     .replace(/\s+([.,!?;:])/g, "$1")
     .replace(/\s+/g, " ")
     .trim();
+
+  return { text: normalized, koreanSpans: detectHangulSpans(normalized) };
 }
 
 export function hasEnglishTranscript(text: string) {
@@ -111,7 +157,9 @@ export async function transcribeAudioFile(
       language: "en",
       prompt: TRANSCRIPTION_PROMPT,
     });
-    const text = normalizeEnglishTranscript(response.text ?? "");
+    const { text, koreanSpans } = normalizeEnglishTranscript(
+      response.text ?? "",
+    );
 
     if (!text || !hasEnglishTranscript(text)) {
       log("error", "audio.transcription_failed", { error: "empty_transcript" });
@@ -127,7 +175,15 @@ export async function transcribeAudioFile(
       return { ok: false, error: "no_speech" };
     }
 
-    return { ok: true, text };
+    if (koreanSpans.length > 0) {
+      // Span count only: the words themselves are student content and stay
+      // out of logs.
+      log("info", "audio.transcript_code_switched", {
+        spanCount: koreanSpans.length,
+      });
+    }
+
+    return { ok: true, text, koreanSpans };
   } catch {
     log("error", "audio.transcription_failed", { error: "transcription_failed" });
     return { ok: false, error: "transcription_failed" };

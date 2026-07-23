@@ -292,6 +292,55 @@ describe("conversation history generation contract", () => {
     ).toEqual({ ok: true });
   });
 
+  it("rejects echoing the student's vague word back as a real detail", () => {
+    expect(
+      validateGeneratedCocoReplyLine(
+        "Talking about anything is fun! Do you talk about games or school?",
+        {
+          expectsQuestion: true,
+          activeQuestion: "What do you and Minju talk about?",
+          latestStudentResponse: "Anything.",
+        },
+      ),
+    ).toEqual({ ok: false, reasons: ["vague_echo"] });
+    expect(
+      validateGeneratedCocoReplyLine(
+        "Eating something sounds tasty! What do you eat at lunch?",
+        {
+          expectsQuestion: true,
+          activeQuestion: "What do you eat for lunch?",
+          latestStudentResponse: "Something.",
+        },
+      ),
+    ).toEqual({ ok: false, reasons: ["vague_echo"] });
+  });
+
+  it("allows the recommended recovery from a vague answer", () => {
+    expect(
+      validateGeneratedCocoReplyLine(
+        "Lots of things! Do you talk about games or school?",
+        {
+          expectsQuestion: true,
+          activeQuestion: "What do you and Minju talk about?",
+          latestStudentResponse: "Anything.",
+        },
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  it("allows a vague word Coco introduces when the student was not vague", () => {
+    expect(
+      validateGeneratedCocoReplyLine(
+        "Soccer is fun! Do you play anything else after school?",
+        {
+          expectsQuestion: true,
+          activeQuestion: "What do you do after school?",
+          latestStudentResponse: "I play soccer.",
+        },
+      ),
+    ).toEqual({ ok: true });
+  });
+
   it("rejects an auxiliary-question run-on independently of topic drift", () => {
     expect(
       validateGeneratedCocoReplyLine(

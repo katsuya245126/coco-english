@@ -51,8 +51,11 @@ function audioInput(overrides: {
   };
 }
 
-function successfulTranscriber(text: string) {
-  return vi.fn(async () => ({ ok: true as const, text }));
+function successfulTranscriber(
+  text: string,
+  koreanSpans: Array<{ hangul: string; romanized: string }> = [],
+) {
+  return vi.fn(async () => ({ ok: true as const, text, koreanSpans }));
 }
 
 function failedTranscriber() {
@@ -878,7 +881,7 @@ describe("uploadAttemptAudioClip", () => {
     ).toBe(false);
   });
 
-  it("cleans mixed English and Korean transcripts before evaluation and writes", async () => {
+  it("stores a code-switched transcript verbatim and gives the evaluator its Korean spans", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
     );
@@ -891,11 +894,12 @@ describe("uploadAttemptAudioClip", () => {
 
     expect(result).toMatchObject({
       ok: true,
-      transcript: "I like after school.",
+      transcript: "I like 축구 after school.",
     });
     expect(evaluateOriginal).toHaveBeenCalledWith(
       expect.objectContaining({
-        transcript: "I like after school.",
+        transcript: "I like 축구 after school.",
+        koreanSpans: [{ hangul: "축구", romanized: "Chukgu" }],
       }),
     );
 
@@ -908,8 +912,53 @@ describe("uploadAttemptAudioClip", () => {
         "original_transcript" in operation.payload,
     );
 
+    // The stored transcript is the evidence a teacher reads. It must record
+    // what the child said, never English they did not produce.
     expect(transcriptWrite?.payload).toMatchObject({
-      original_transcript: "I like after school.",
+      original_transcript: "I like 축구 after school.",
+    });
+  });
+
+  it("turns a Korean vocabulary word into a correction the student repeats", async () => {
+    // The teach half of the allow/teach split: 축구 is ordinary vocabulary,
+    // so the student hears "soccer" and says the sentence again. The stored
+    // transcript still records the Korean they actually said.
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like 축구 after school.", [
+        { hangul: "축구", romanized: "Chukgu" },
+      ]),
+      evaluateOriginalTurn: successfulOriginalEvaluator({
+        outcome: "needs_correction",
+        correctionNeeded: true,
+        correctionSeverity: "material",
+        improvedSentence: "I like soccer after school.",
+      }),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      transcript: "I like 축구 after school.",
+      evaluation: {
+        outcome: "needs_correction",
+        improvedSentence: "I like soccer after school.",
+      },
+    });
+
+    const transcriptWrite = mockSupabase.operations.find(
+      (operation) =>
+        operation.table === "attempt_turns" &&
+        operation.action === "upsert" &&
+        typeof operation.payload === "object" &&
+        operation.payload !== null &&
+        "original_transcript" in operation.payload,
+    );
+
+    expect(transcriptWrite?.payload).toMatchObject({
+      original_transcript: "I like 축구 after school.",
     });
   });
 
