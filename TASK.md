@@ -1,6 +1,6 @@
 # Compact Homework Review
 
-**Status:** Design approved; written specification ready for user review
+**Status:** Written specification approved; implementation plan ready for review
 **Classification:** Normal
 **Started:** 2026-07-23
 
@@ -44,8 +44,8 @@ each left-aligned message.
   `docs/superpowers/specs/previews/2026-07-23-homework-review-compact-chat.html`
 - The preview is synthetic planning evidence, not an application screenshot.
 - The preview is the visual source of truth for hierarchy, alignment, relative
-  spacing, bubble/avatar treatment, collapsed audio placement, and correction
-  emphasis.
+  spacing, bubble/avatar treatment, collapsed and expanded audio placement,
+  and correction emphasis.
 - Intentional visual deviations require updating the preview and obtaining
   user approval before implementation continues.
 
@@ -68,11 +68,11 @@ each left-aligned message.
 
 ## Current position
 
-The conversational design and tracked preview were approved by the user on
-2026-07-23. The written specification is ready for review. No runtime
+The conversational design, tracked preview, and written specification were
+approved by the user on 2026-07-23. The test-first implementation plan is at
+`docs/superpowers/plans/2026-07-23-compact-homework-review.md`. No runtime
 implementation has started.
 
 ## Next step
 
-Obtain user approval of the written specification, then write a test-first
-implementation plan.
+Obtain user approval of the implementation plan, then execute it task by task.

@@ -1,7 +1,7 @@
 # Compact Homework Review Design
 
 **Date:** 2026-07-23
-**Status:** Approved conversationally; awaiting written-spec review
+**Status:** Approved
 **Scope:** Dynamic Homework Review only
 
 ## Goal
