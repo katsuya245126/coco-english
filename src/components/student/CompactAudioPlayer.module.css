@@ -55,3 +55,9 @@
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
+
+.error {
+  flex: 0 0 auto;
+  color: #b91c1c;
+  font-size: 12px;
+}

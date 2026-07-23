@@ -30,17 +30,25 @@ export function CompactAudioPlayer({ src }: { src: string }) {
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   async function togglePlayback() {
     const audio = audioRef.current;
     if (!audio) return;
     if (!playing) {
-      await audio.play();
-      setPlaying(true);
+      setError(null);
+      try {
+        await audio.play();
+        setPlaying(true);
+      } catch {
+        setPlaying(false);
+        setError("Playback failed. Try again.");
+      }
       return;
     }
     audio.pause();
     setPlaying(false);
+    setError(null);
   }
 
   function seek(value: number) {
@@ -75,6 +83,11 @@ export function CompactAudioPlayer({ src }: { src: string }) {
       <span className={styles.time} aria-live="off">
         {formatTime(currentTime)}
       </span>
+      {error ? (
+        <span className={styles.error} role="alert">
+          {error}
+        </span>
+      ) : null}
       <input
         className={styles.progress}
         type="range"
@@ -84,6 +97,7 @@ export function CompactAudioPlayer({ src }: { src: string }) {
         step={0.1}
         value={Math.min(currentTime, duration || 0)}
         disabled={!duration}
+        onInput={(event) => seek(Number(event.currentTarget.value))}
         onChange={(event) => seek(Number(event.currentTarget.value))}
       />
       <span className={styles.time}>{formatTime(duration)}</span>
