@@ -27,12 +27,21 @@ export function HomeworkReviewAttempt({
 }: {
   attempt: StudentRecapAttempt;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [signedUrl, setSignedUrl] = useState<string | null>(null);
-  const [loadFailed, setLoadFailed] = useState(false);
   const audio = attempt.audio;
+  const clipId = audio?.id ?? null;
   const audioAvailable = audio?.playback === "available";
+  const [expandedClipId, setExpandedClipId] = useState<string | null>(null);
+  const [pendingClipId, setPendingClipId] = useState<string | null>(null);
+  const [signedAudio, setSignedAudio] = useState<{
+    clipId: string;
+    signedUrl: string;
+  } | null>(null);
+  const [failedClipId, setFailedClipId] = useState<string | null>(null);
+  const expanded = clipId !== null && expandedClipId === clipId;
+  const pending = clipId !== null && pendingClipId === clipId;
+  const signedUrl =
+    clipId !== null && signedAudio?.clipId === clipId ? signedAudio.signedUrl : null;
+  const loadFailed = clipId !== null && failedClipId === clipId;
 
   async function handleToggle() {
     if (pending || !audioAvailable || !audio) {
@@ -40,28 +49,36 @@ export function HomeworkReviewAttempt({
     }
 
     if (expanded) {
-      setExpanded(false);
+      setExpandedClipId(null);
       return;
     }
 
     if (signedUrl) {
-      setLoadFailed(false);
-      setExpanded(true);
+      setFailedClipId(null);
+      setExpandedClipId(audio.id);
       return;
     }
 
-    setPending(true);
-    setLoadFailed(false);
-    const result = await loadHistoryAudioAction(audio.id);
-    setPending(false);
+    setPendingClipId(audio.id);
+    setFailedClipId(null);
 
-    if (!result.ok) {
-      setLoadFailed(true);
-      return;
+    try {
+      const result = await loadHistoryAudioAction(audio.id);
+
+      if (!result.ok) {
+        setFailedClipId(audio.id);
+        return;
+      }
+
+      setSignedAudio({ clipId: audio.id, signedUrl: result.signedUrl });
+      setExpandedClipId(audio.id);
+    } catch {
+      setFailedClipId(audio.id);
+    } finally {
+      setPendingClipId((currentClipId) =>
+        currentClipId === audio.id ? null : currentClipId,
+      );
     }
-
-    setSignedUrl(result.signedUrl);
-    setExpanded(true);
   }
 
   return (

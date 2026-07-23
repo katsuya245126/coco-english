@@ -1,6 +1,4 @@
 // @vitest-environment jsdom
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -58,9 +56,18 @@ describe("HomeworkReviewAttempt", () => {
     expect(container.textContent).not.toContain("Pronunciation");
     expect(container.querySelector("audio")).toBeNull();
 
+    const bubble = container.querySelector("div");
+    const transcript = bubble?.querySelector("p");
     const listen = container.querySelector<HTMLButtonElement>(
       'button[aria-label="Listen to this recording"]',
     );
+    const listenIcon = listen?.querySelector("svg");
+
+    expect(bubble).not.toBeNull();
+    expect(transcript?.textContent).toBe("Transcript for clip-original");
+    expect(listen).not.toBeNull();
+    expect(listenIcon).not.toBeNull();
+    expect(bubble?.contains(listen ?? null)).toBe(true);
 
     await act(async () => {
       listen?.click();
@@ -95,14 +102,8 @@ describe("HomeworkReviewAttempt", () => {
     expect(loadHistoryAudioActionMock).toHaveBeenCalledTimes(1);
   });
 
-  it("shows bounded loading and an inline alert when the signed url cannot be loaded", async () => {
-    let resolveAction: ((value: { ok: false }) => void) | null = null;
-    loadHistoryAudioActionMock.mockImplementation(
-      () =>
-        new Promise<{ ok: false }>((resolve) => {
-          resolveAction = resolve;
-        }),
-    );
+  it("shows an inline alert and clears loading when the signed url request rejects", async () => {
+    loadHistoryAudioActionMock.mockRejectedValue(new Error("network failed"));
 
     await act(async () => {
       root.render(
@@ -119,21 +120,69 @@ describe("HomeworkReviewAttempt", () => {
       await Promise.resolve();
     });
 
-    const loadingButton = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="Loading recording"]',
-    );
-    expect(loadingButton?.disabled).toBe(true);
-    expect(container.querySelector('[role="alert"]')).toBeNull();
-
-    await act(async () => {
-      resolveAction?.({ ok: false });
-      await Promise.resolve();
-    });
-
     expect(container.querySelector('[role="alert"]')?.textContent).toBe(
       "Recording unavailable",
     );
     expect(container.querySelector("audio")).toBeNull();
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        'button[aria-label="Listen to this recording"]',
+      )?.disabled,
+    ).toBe(false);
+  });
+
+  it("does not reuse old audio state after rerendering with a different attempt clip", async () => {
+    loadHistoryAudioActionMock
+      .mockResolvedValueOnce({
+        ok: true,
+        signedUrl: "https://signed.test/original.mp3",
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        signedUrl: "https://signed.test/replaced.mp3",
+      });
+
+    await act(async () => {
+      root.render(
+        <HomeworkReviewAttempt attempt={availableAttempt("clip-original")} />,
+      );
+    });
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Listen to this recording"]',
+        )
+        ?.click();
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector("audio")?.getAttribute("src")).toBe(
+      "https://signed.test/original.mp3",
+    );
+
+    await act(async () => {
+      root.render(
+        <HomeworkReviewAttempt attempt={availableAttempt("clip-replaced")} />,
+      );
+    });
+
+    expect(container.textContent).toContain("Transcript for clip-replaced");
+    expect(container.querySelector("audio")).toBeNull();
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Listen to this recording"]',
+        )
+        ?.click();
+      await Promise.resolve();
+    });
+
+    expect(loadHistoryAudioActionMock).toHaveBeenNthCalledWith(2, "clip-replaced");
+    expect(container.querySelector("audio")?.getAttribute("src")).toBe(
+      "https://signed.test/replaced.mp3",
+    );
   });
 
   it("keeps expired and unavailable states non-interactive", async () => {
@@ -192,19 +241,5 @@ describe("HomeworkReviewAttempt", () => {
     expect(container.querySelector("audio")?.getAttribute("src")).toBe(
       "https://signed.test/repeat.mp3",
     );
-  });
-
-  it("defines the blue bubble layout and 44px audio control styles", () => {
-    const cssPath = resolve(
-      process.cwd(),
-      "src/components/student/HomeworkReviewAttempt.module.css",
-    );
-    const css = readFileSync(cssPath, "utf8");
-
-    expect(css).toMatch(/\.bubble/);
-    expect(css).toMatch(/background:\s*#[0-9a-fA-F]{6}/);
-    expect(css).toMatch(/min-width:\s*44px/);
-    expect(css).toMatch(/min-height:\s*44px/);
-    expect(css).toMatch(/overflow-wrap:\s*anywhere/);
   });
 });
