@@ -1,6 +1,6 @@
 # Evaluation and follow-up quality
 
-**Status:** Implementation in progress (Tasks 1-6 of 8 complete)
+**Status:** Implementation in progress (Tasks 1-7 of 8 complete)
 **Classification:** Consequential
 **Started:** 2026-07-23
 
@@ -271,9 +271,35 @@ Completed:
   the CSS module's required selectors). Full regression suite: 93 files, 976
   passed, 4 skipped. `npx tsc --noEmit` clean.
 
+- **Task 7** (commit `9399cb56`): Routed dynamic mission completion into
+  Homework Review. `MissionFlowShell.tsx`'s `finishConversationClosing` now
+  navigates to `/student/history/${assignmentStudentId}` via `router.push`
+  instead of setting local `step: "complete"`; the generic `StepMissionComplete`
+  screen is now gated with `!conversationMode`, so it renders only for preset
+  missions — dynamic missions never reach a local "complete" step. The owned
+  history route (`page.tsx`) now loads the recap inside a `try/catch`: a
+  thrown internal load failure (after the student's homework is already
+  recorded complete) renders a bounded "Homework Review ... could not load"
+  screen with a **Back to homework** link rather than an error page or a
+  reopened attempt; a clean `null` (unauthorized/not-found) still calls
+  `notFound()` unchanged. On success, `recap.conversationMode` branches
+  between the new `HomeworkReview` (passing `unlock.displayName`) and the
+  unchanged preset `StudentMissionRecap`. Updated
+  `tests/server/student-mission-flow.test.ts`'s closing-source assertion to
+  match the new `router.push` body and the `!conversationMode` guard;
+  `tests/server/student-history-ui.test.ts` gained a source-contract test
+  asserting the route imports and branches on both components, and that
+  `HomeworkReview` never contains "Read-only recap" while the preset
+  component still does; `tests/e2e/student-history.spec.ts`'s
+  environment-gated live check now branches on the visible heading
+  ("Homework Review" vs. "Read-only recap") — still skipped without
+  `STUDENT_HISTORY_ASSIGNMENT_STUDENT_ID`. Full regression suite: 93 files,
+  977 passed, 4 skipped. `npx tsc --noEmit` clean.
+
 ## Next step
 
-Task 7: route dynamic mission completion into Homework Review
-(`src/components/student/MissionFlowShell.tsx`,
-`src/app/student/history/[assignmentStudentId]/page.tsx`, +3 test files).
-Not started.
+Task 8: run the complete regression and quality gate (typecheck, lint, full
+tests, build — confirm no dev server is sharing this checkout's `.next`
+before building), update TASK.md with final factual evidence, commit. Not
+started. Local visual UAT on localhost remains a separate manual step after
+Task 8.
