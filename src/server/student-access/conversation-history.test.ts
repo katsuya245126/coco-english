@@ -34,6 +34,30 @@ describe("buildConversationHistory", () => {
     });
   });
 
+  it("grounds later Coco turns in a persisted accepted minor recast", () => {
+    expect(
+      buildConversationHistory({
+        openerLine: "Where are you going?",
+        currentTurnOrder: 2,
+        currentStudentResponse: "I want a comic book.",
+        priorTurns: [
+          {
+            turn_order: 1,
+            original_transcript: "I'm going to library",
+            improved_sentence: "I'm going to the library.",
+            coco_line: "What do you want to read there?",
+          },
+        ],
+      }),
+    ).toMatchObject({
+      ok: true,
+      history: [
+        { studentResponse: "I'm going to the library." },
+        { studentResponse: "I want a comic book." },
+      ],
+    });
+  });
+
   it("builds turn one with no persisted rows", () => {
     expect(
       buildConversationHistory({

@@ -176,6 +176,7 @@ type StoredOriginalTurnEvaluation = {
   targetPatternAttempted: OriginalTurnEvaluation["targetPatternAttempted"];
   englishLanguage: OriginalTurnEvaluation["englishLanguage"];
   correctionNeeded: OriginalTurnEvaluation["correctionNeeded"];
+  correctionSeverity: OriginalTurnEvaluation["correctionSeverity"] | null;
   improvedSentence: string | null;
   requireRepeat: boolean;
   retryReason?: "minimal_effort";
@@ -225,6 +226,7 @@ export function applyOriginalTurnEvaluation(
         targetPatternAttempted: false,
         englishLanguage: "uncertain",
         correctionNeeded: false,
+        correctionSeverity: null,
         improvedSentence: null,
         requireRepeat: decision.requireRepeat,
       },
@@ -239,13 +241,19 @@ export function applyOriginalTurnEvaluation(
   };
   const decision = guardNonsensicalMinimalEffortCorrection(
     guardParrotedConversationCorrection(
-      decideOriginalTurnOutcome(result.evaluation),
+      decideOriginalTurnOutcome(
+        result.evaluation,
+        resolvedGuardContext.evaluationMode,
+        resolvedGuardContext.missionQuestion,
+      ),
       resolvedGuardContext,
     ),
     resolvedGuardContext,
   );
   const improvedSentence =
-    decision.kind === "needs_correction" ? decision.improvedSentence : null;
+    decision.kind === "needs_correction" || decision.kind === "accepted_original"
+      ? decision.improvedSentence
+      : null;
 
   return {
     evaluation: {
@@ -260,6 +268,7 @@ export function applyOriginalTurnEvaluation(
       targetPatternAttempted: result.evaluation.targetPatternAttempted,
       englishLanguage: result.evaluation.englishLanguage,
       correctionNeeded: result.evaluation.correctionNeeded,
+      correctionSeverity: result.evaluation.correctionSeverity,
       improvedSentence,
       requireRepeat: decision.requireRepeat,
     },
@@ -972,6 +981,7 @@ export async function uploadAttemptAudioClip(
           targetPatternAttempted: false,
           englishLanguage: "english",
           correctionNeeded: false,
+          correctionSeverity: null,
           improvedSentence: null,
           requireRepeat: false,
           retryReason: "minimal_effort",
@@ -1079,6 +1089,7 @@ export async function uploadAttemptAudioClip(
                     meaningUnderstood: true,
                     targetPatternAttempted: true,
                     correctionNeeded: false,
+                    correctionSeverity: "none",
                     improvedSentence: null,
                     englishLanguage: "english",
                     confidence: "high",
@@ -1403,7 +1414,10 @@ export async function uploadAttemptAudioClip(
     // via the outer Promise.all/allSettled.
     const improvedSentenceForWarmup = originalEvaluation?.improvedSentence;
     const shouldWarmTts =
-      input.clipKind === "original_answer" && !!improvedSentenceForWarmup;
+      input.clipKind === "original_answer" &&
+      originalEvaluation?.outcome === "needs_correction" &&
+      originalEvaluation.requireRepeat &&
+      !!improvedSentenceForWarmup;
 
     const ttsWarmupPromise = shouldWarmTts
       ? timeStage("ttsWarmup", async () => {

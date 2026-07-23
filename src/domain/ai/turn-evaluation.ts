@@ -132,6 +132,7 @@ function failedOriginalContract(): OriginalTurnDecision {
 export function decideOriginalTurnOutcome(
   evaluation: OriginalTurnEvaluation,
   evaluationMode: "preset" | "conversation" = "preset",
+  missionQuestion: string | null = null,
 ): OriginalTurnDecision {
   if (
     evaluation.outcome === "teacher_review" ||
@@ -182,6 +183,9 @@ export function decideOriginalTurnOutcome(
   const severity = evaluation.correctionSeverity;
   const improvedSentence = evaluation.improvedSentence?.trim() || null;
   const expectsCorrection = severity !== "none";
+  const isParrotedQuestion =
+    improvedSentence !== null &&
+    isParrotedMissionQuestion(improvedSentence, missionQuestion);
   const validCombination =
     evaluation.correctionNeeded === expectsCorrection &&
     evaluation.outcome ===
@@ -189,7 +193,7 @@ export function decideOriginalTurnOutcome(
     (expectsCorrection
       ? improvedSentence !== null
       : improvedSentence === null) &&
-    !improvedSentence?.includes("?");
+    (isParrotedQuestion || !improvedSentence?.includes("?"));
 
   if (!validCombination) return failedOriginalContract();
 
@@ -293,16 +297,43 @@ function normalizedQuestionSegments(missionQuestion: string): string[] {
 }
 
 /**
+ * Shared detector behind the "never use the missionQuestion as
+ * improvedSentence" backstop (UAT 2026-07-16). Matches a correction that
+ * normalizes to the whole missionQuestion, contains one of its
+ * question-shaped sentences as a whole-word phrase (UAT 2026-07-20: a
+ * declarative answer with the full question appended), or is a
+ * question-shaped sentence contained in a multi-sentence opener.
+ */
+function isParrotedMissionQuestion(
+  improvedSentence: string,
+  missionQuestion: string | null,
+): boolean {
+  const question = normalizeForParrotComparison(missionQuestion ?? "");
+  const improved = normalizeForParrotComparison(improvedSentence);
+  if (!question || !improved) return false;
+
+  const containsQuestionSegment = normalizedQuestionSegments(
+    missionQuestion ?? "",
+  ).some(
+    (segment) =>
+      segment.split(" ").length >= MIN_CONTAINMENT_QUESTION_WORDS &&
+      ` ${improved} `.includes(` ${segment} `),
+  );
+
+  return (
+    improved === question ||
+    containsQuestionSegment ||
+    (improvedSentence.trim().endsWith("?") && question.includes(improved))
+  );
+}
+
+/**
  * Deterministic backstop for the conversation-mode prompt rule "never use
  * the missionQuestion as improvedSentence" (UAT 2026-07-16: the provider
  * corrected "I don't" to the opener question itself despite that
  * instruction). A parroted correction would make the child repeat Coco's
  * question as their answer, so downgrade it to retry_original — the student
  * simply re-records and the parroted sentence is never shown or spoken.
- * Flags a correction that normalizes to the whole missionQuestion, contains
- * one of its question-shaped sentences as a whole-word phrase (UAT
- * 2026-07-20: a declarative answer with the full question appended), or is a
- * question-shaped sentence contained in a multi-sentence opener.
  */
 export function guardParrotedConversationCorrection(
   decision: OriginalTurnDecision,
@@ -323,23 +354,9 @@ export function guardParrotedConversationCorrection(
       : null;
   if (!improvedSentence) return decision;
 
-  const question = normalizeForParrotComparison(context.missionQuestion ?? "");
-  const improved = normalizeForParrotComparison(improvedSentence);
-  if (!question || !improved) return decision;
-
-  const containsQuestionSegment = normalizedQuestionSegments(
-    context.missionQuestion ?? "",
-  ).some(
-    (segment) =>
-      segment.split(" ").length >= MIN_CONTAINMENT_QUESTION_WORDS &&
-      ` ${improved} `.includes(` ${segment} `),
-  );
-
-  const parroted =
-    improved === question ||
-    containsQuestionSegment ||
-    (improvedSentence.trim().endsWith("?") && question.includes(improved));
-  if (!parroted) return decision;
+  if (!isParrotedMissionQuestion(improvedSentence, context.missionQuestion)) {
+    return decision;
+  }
 
   return decision.kind === "needs_correction"
     ? {

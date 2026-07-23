@@ -93,6 +93,7 @@ function successfulOriginalEvaluator(overrides = {}) {
       meaningUnderstood: true,
       targetPatternAttempted: true,
       correctionNeeded: false,
+      correctionSeverity: "none" as const,
       improvedSentence: null,
       englishLanguage: "english" as const,
       confidence: "high" as const,
@@ -451,6 +452,7 @@ describe("uploadAttemptAudioClip", () => {
       meaningUnderstood: false,
       targetPatternAttempted: true,
       correctionNeeded: true,
+      correctionSeverity: "material" as const,
       improvedSentence: "I'm going to do my homework.",
     });
     const result = await uploadAttemptAudioClip(audioInput(), {
@@ -618,6 +620,7 @@ describe("uploadAttemptAudioClip", () => {
       evaluateOriginalTurn: successfulOriginalEvaluator({
         outcome: "needs_correction",
         correctionNeeded: true,
+        correctionSeverity: "material",
         improvedSentence: "I like playing soccer after school.",
       }),
       warmTtsAudioCache,
@@ -640,6 +643,7 @@ describe("uploadAttemptAudioClip", () => {
       evaluateOriginalTurn: successfulOriginalEvaluator({
         outcome: "needs_correction",
         correctionNeeded: true,
+        correctionSeverity: "material",
         improvedSentence: "I like playing soccer after school.",
       }),
       warmTtsAudioCache: vi.fn(async () => {
@@ -1412,6 +1416,7 @@ describe("uploadAttemptAudioClip", () => {
         meaningUnderstood: true,
         targetPatternAttempted: true,
         correctionNeeded: false,
+        correctionSeverity: "none" as const,
         improvedSentence: null,
         englishLanguage: "english" as const,
         confidence: "high" as const,
@@ -1545,6 +1550,7 @@ describe("minimal-effort answer guard", () => {
     const evaluate = successfulOriginalEvaluator({
       outcome: "needs_correction",
       correctionNeeded: true,
+      correctionSeverity: "material",
       improvedSentence: "Yes, I like pizza.",
     });
 

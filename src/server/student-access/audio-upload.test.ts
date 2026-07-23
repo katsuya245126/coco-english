@@ -61,6 +61,7 @@ function successfulOriginalEvaluator(overrides = {}) {
       meaningUnderstood: true,
       targetPatternAttempted: true,
       correctionNeeded: false,
+      correctionSeverity: "none" as const,
       improvedSentence: null,
       englishLanguage: "english" as const,
       confidence: "high" as const,
@@ -387,6 +388,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     const evaluateOriginal = successfulOriginalEvaluator({
       outcome: "needs_correction",
       correctionNeeded: true,
+      correctionSeverity: "material",
       improvedSentence: "I don't play soccer.",
     });
     const generate = fakeGenerateCocoReply(async () => ({
@@ -435,6 +437,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     const evaluateOriginal = successfulOriginalEvaluator({
       outcome: "needs_correction",
       correctionNeeded: true,
+      correctionSeverity: "material",
       improvedSentence: "How often do you play soccer?",
     });
     const generate = fakeGenerateCocoReply(async () => ({
@@ -458,6 +461,119 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         requireRepeat: false,
       },
     });
+  });
+
+  it("persists an accepted minor recast, grounds Coco with it, and does not warm correction TTS", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: soccerConversationSnapshot as unknown as typeof conversationMissionSnapshotFixture,
+    });
+
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const evaluateOriginal = successfulOriginalEvaluator({
+      outcome: "needs_correction",
+      correctionNeeded: true,
+      correctionSeverity: "minor",
+      improvedSentence: "I don't play soccer often.",
+    });
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "Oh, what do you like to do instead?" },
+    }));
+    const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
+    const warmTtsAudioCache = vi.fn(async () => ({
+      ok: true as const,
+      warmed: 1,
+      skipped: 0,
+      failed: 0,
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      transcribeAudioFile: successfulTranscriber("I no play soccer much."),
+      evaluateOriginalTurn: evaluateOriginal,
+      generateCocoReply: generate,
+      isContentSafe: moderate,
+      warmTtsAudioCache,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "accepted_original",
+        correctionSeverity: "minor",
+        improvedSentence: "I don't play soccer often.",
+        requireRepeat: false,
+      },
+      cocoLine: "Oh, what do you like to do instead?",
+    });
+    // TTS is warmed once for Coco's generated reply line, but never for the
+    // accepted minor recast's improved sentence — only material corrections
+    // warm live correction TTS.
+    expect(warmTtsAudioCache).toHaveBeenCalledTimes(1);
+    expect(warmTtsAudioCache).toHaveBeenCalledWith(
+      expect.objectContaining({ texts: ["Oh, what do you like to do instead?"] }),
+    );
+    expect(mockSupabase.operations).toContainEqual(
+      expect.objectContaining({
+        table: "attempt_turns",
+        action: "upsert",
+        payload: expect.objectContaining({
+          original_transcript: "I no play soccer much.",
+          improved_sentence: "I don't play soccer often.",
+        }),
+      }),
+    );
+  });
+
+  it("still warms correction TTS for a material conversation-mode correction", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: soccerConversationSnapshot as unknown as typeof conversationMissionSnapshotFixture,
+    });
+
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const evaluateOriginal = successfulOriginalEvaluator({
+      outcome: "needs_correction",
+      correctionNeeded: true,
+      correctionSeverity: "material",
+      improvedSentence: "I don't play soccer.",
+    });
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "Oh, what do you like to do instead?" },
+    }));
+    const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
+    const warmTtsAudioCache = vi.fn(async () => ({
+      ok: true as const,
+      warmed: 1,
+      skipped: 0,
+      failed: 0,
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      transcribeAudioFile: successfulTranscriber("I no play soccer."),
+      evaluateOriginalTurn: evaluateOriginal,
+      generateCocoReply: generate,
+      isContentSafe: moderate,
+      warmTtsAudioCache,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "needs_correction",
+        correctionSeverity: "material",
+        improvedSentence: "I don't play soccer.",
+        requireRepeat: true,
+      },
+    });
+    expect(warmTtsAudioCache).toHaveBeenCalledWith(
+      expect.objectContaining({ texts: ["I don't play soccer."] }),
+    );
   });
 
   it("passes the snapshotted answer policy and review disposition to owned AI adapters", async () => {
@@ -1400,6 +1516,7 @@ describe("minimal-effort answer guard (conversation mode)", () => {
       meaningUnderstood: false,
       targetPatternAttempted: false,
       correctionNeeded: true,
+      correctionSeverity: "material",
       improvedSentence: "Yes, I do.",
     });
 
