@@ -32,20 +32,43 @@ It's green and measured. The project's tool-handoff convention (see memory
 merged branches before switching tools — this branch is currently the
 exception. **Merging needs the user's approval; it is not implied by "continue."**
 
-### 2. Re-probe the transcription half — the one real gap
+### 2. Re-probe the transcription half — MEASURED 2026-07-24, gap closed
 
 `TRANSCRIPTION_PROMPT` changed to ask for Hangul instead of romanized letters.
-Probe 1's "3 of 6 code-switched samples returned Hangul" was measured under
-the *old* prompt. The change should raise that rate, which is the desired
-direction, but **it is unmeasured**. Everything verified so far is either
-synthetic audio or text.
+Probe 1's "3 of 6 code-switched samples returned Hangul" was measured under the
+*old* prompt. Re-measured with `probe-prompt-compare.mjs` (both prompts, same
+cached audio, 3 runs each to separate a real shift from sampling noise):
 
-Use `~/Desktop/coco-probes-2026-07-24/probe-codeswitch.mjs`. Probes must be
-copied to the repo root to run (relative imports resolve against the script,
-not cwd) and **deleted afterward** — checked-in tests never call the paid API,
-a convention stated in the `src/server/audio/transcription.ts` header.
+| sample | spoken | OLD | NEW |
+|---|---|---|---|
+| gojedo | 거제도 | 1/3 | 3/3 |
+| kimbap | 김밥 | 0/3 | 3/3 |
+| friend | 민준 | 0/3 | 0/3 |
+| school | 서울초등학교 | 2/3 | 3/3 |
 
-Also unmeasured: no end-to-end run on real device audio.
+**Code-switched totals: 2/12 old → 9/12 new**, the intended direction. Controls
+unchanged (korean-only 3/3 both, english-only 0/3 both), so the prompt did not
+make the model Hangul-happy in general.
+
+One sample never retains: **민준 (a person's name) transcribes as "Minjun" /
+"Min-jun" under both prompts, 0/6.** Place names and dish names retain; a
+personal name does not. This is not a defect — "Minjun" is a faithful rendering
+of what the child said, and the NAME/VOCABULARY classifier accepts it. Worth
+knowing because it means the Hangul path is not the only path a proper noun
+takes, and any future test asserting "code-switched ⇒ Hangul span present"
+would be wrong for personal names.
+
+The new probe imports `TRANSCRIPTION_PROMPT` from source instead of hardcoding
+it — the old `probe-codeswitch.mjs` hardcoded the prompt at line 39 and silently
+went stale when the prompt changed. Prefer the new one.
+
+Probes live in `~/Desktop/coco-probes-2026-07-24/`, must be copied to the repo
+root to run (relative imports resolve against the script, not cwd), and
+**deleted afterward** — checked-in tests never call the paid API, a convention
+stated in the `src/server/audio/transcription.ts` header.
+
+Still unmeasured: no end-to-end run on real device audio (all of the above is
+synthetic TTS).
 
 ### 3. The unnatural-Coco half — untouched, larger
 
