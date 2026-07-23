@@ -1,6 +1,6 @@
 # Compact Homework Review
 
-**Status:** Implemented and verified
+**Status:** Implemented; final saved-mobile evidence conditional
 **Classification:** Normal
 **Started:** 2026-07-23
 
@@ -68,21 +68,39 @@ each left-aligned message.
 
 ## Current position
 
-Implementation is complete at feature HEAD `4353e267`, including compact audio
+Implementation is complete at current HEAD `a357641c`, including compact audio
 controls, on-demand signed playback URL loading, and the compact dynamic
-Homework Review. Fresh verification after stopping checkout Next process PID
-69805 passed the 7-file focused matrix (46 tests), typecheck, lint with one
-pre-existing warning, build on Next 15.5.19, and the full test suite (95 files,
-985 tests passed, 4 skipped).
+Homework Review. The final review fix added a visible polite
+`Preparing recording…` status during on-demand loading, disabled duplicate
+activation while loading, and synchronized an external audio pause back to
+`Play recording`.
 
-Authenticated localhost UAT confirmed the dynamic review contract at mobile
-390x844 and desktop 1440x1200, including independent original/repeat players,
-all eight available recording controls, circular Coco avatars, retry markers,
-blue answer bubbles, and the final Back to homework link. The preset Read-only
-recap remained unchanged with pronunciation content present. The saved
-screenshots are localhost application evidence and were qualitatively compared
-with the tracked synthetic preview.
+The previously verified automated baseline, recorded before the final review
+fix, passed the 7-file focused matrix (46 tests), typecheck, lint with one
+pre-existing warning, build on Next 15.5.19, and the full test suite (95 files,
+985 tests passed, 4 skipped). These remain verified historical facts; this
+record does not claim a fresh final rerun after `a357641c`.
+
+Authenticated localhost application UAT confirmed the dynamic review contract
+at a live 390x844 mobile viewport and 1440x1200 desktop viewport, including
+independent original/repeat players, all eight available recording controls,
+circular Coco avatars, retry markers, blue answer bubbles, and the final Back
+to homework link. The live 390x844 localhost application check specifically
+confirmed an overflow-free layout and 44px controls. The preset Read-only recap
+remained unchanged with pronunciation content present.
+
+The saved file
+`/private/tmp/compact-homework-review-localhost-application-mobile.png` is
+actually a 1440x1987 full-page localhost application capture, not a saved
+390x844 mobile screenshot. The saved desktop-width localhost application
+evidence is
+`/private/tmp/compact-homework-review-localhost-application-desktop.png`, a
+1440x2059 full-page capture. These localhost application checks and captures
+are distinct from the tracked synthetic preview used for qualitative
+comparison.
 
 ## Next step
 
-No implementation or verification work remains within the approved scope.
+If the approved plan requires a persisted mobile screenshot, replace the
+mislabeled mobile artifact with a true 390x844 localhost application capture.
+No further code work is indicated.
