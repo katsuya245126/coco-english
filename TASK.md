@@ -1,6 +1,6 @@
 # Evaluation and follow-up quality
 
-**Status:** Awaiting implementation plan approval
+**Status:** Implementation in progress (Tasks 1-3 of 8 complete)
 **Classification:** Consequential
 **Started:** 2026-07-23
 
@@ -155,14 +155,46 @@ naturalized wording used to ground later Coco replies.
 
 ## Current position
 
-The dedicated design specification has been written, self-reviewed, and
-approved at
+The dedicated design specification is approved at
 `docs/superpowers/specs/2026-07-23-evaluation-follow-up-quality-design.md`.
-The test-first implementation plan has been written and self-reviewed at
-`docs/superpowers/plans/2026-07-23-evaluation-follow-up-homework-review.md`.
-Runtime implementation has not started.
+The test-first implementation plan is approved at
+`docs/superpowers/plans/2026-07-23-evaluation-follow-up-homework-review.md`
+(planning commit `bf4d38fa`). Runtime implementation is underway on `main`,
+task-by-task with TDD, per that plan.
+
+Completed:
+
+- **Task 1** (prior session): Added the explicit three-way conversation
+  correction severity (`none | minor | material`) to `decideOriginalTurnOutcome`.
+- **Task 2** (commit `c3948938`): Minor recasts persist as `accepted_original`
+  with an optional `improvedSentence` and no live repeat. While implementing,
+  found and fixed a genuine contradiction between Task 1's `validCombination`
+  `?`-rejection and the pre-existing parrot-guard regression test (UAT
+  2026-07-16); resolved per explicit user choice by reordering so the parrot
+  guard's `isParrotedMissionQuestion` check exempts that one case, via a new
+  shared helper in `src/domain/ai/turn-evaluation.ts`. Full suite (134 tests
+  at the time) passed after the fix.
+- **Task 3** (commit `9e003805`): Repaired the deterministic follow-up line
+  policy in `src/domain/ai/conversation-generation.ts` and
+  `src/server/ai/conversation-generator.ts` — either-or questions are no
+  longer blanket-rejected; they're accepted when relevant to the active
+  topic and rejected only via the same `topic_drift` check used for any
+  other reply. Run-on detection no longer treats a comma as an acceptable
+  boundary before a question starter. Removed the vagueness-gated
+  `allowEitherOrQuestion` coupling and its `VAGUE_OR_STUCK_*` server-adapter
+  constants entirely. `either_or_question` remains in the
+  `GeneratedCocoReplyLineViolation` union only so historical stored
+  moderation events stay type-readable; the validator never produces it now.
+  Rewrote ~10 existing server-adapter tests whose fixtures assumed the old
+  vagueness-gated either-or model once each fixture line was re-checked
+  against the new validator (several either-or lines that used to be
+  rejected are now correctly accepted as relevant); added the plan's two
+  required new tests (comma-run-on regeneration, single-call relevant
+  either-or). Full regression suite: 91 files, 958 passed, 4 skipped.
+  `npx tsc --noEmit` clean.
 
 ## Next step
 
-Obtain explicit approval for the test-first implementation plan before runtime
-implementation.
+Task 4: select bounded follow-up fallbacks by response state
+(`src/domain/conversation/fallback-lines.ts`,
+`src/server/student-access/audio-upload.ts`, plus tests). Not started.
