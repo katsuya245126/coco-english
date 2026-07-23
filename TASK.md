@@ -1,6 +1,6 @@
 # Evaluation and follow-up quality
 
-**Status:** Implementation in progress (Tasks 1-3 of 8 complete)
+**Status:** Implementation in progress (Tasks 1-4 of 8 complete)
 **Classification:** Consequential
 **Started:** 2026-07-23
 
@@ -192,9 +192,29 @@ Completed:
   required new tests (comma-run-on regeneration, single-call relevant
   either-or). Full regression suite: 91 files, 958 passed, 4 skipped.
   `npx tsc --noEmit` clean.
+- **Task 4** (commit `0fde89bb`): Replaced the turn-order-rotated
+  `selectFallbackLine`/`CANNED_FALLBACK_LINES` mechanism in
+  `src/domain/conversation/fallback-lines.ts` with response-state-aware
+  selection: `FollowUpFallbackKind = "meaningful" | "vague_or_stuck" |
+  "uncertain"`, `classifyFollowUpFallbackKind`, `selectFollowUpFallbackLine`.
+  Both rejected UAT lines (`I hear you! Let's keep going.`,
+  `Nice! What happens next?`) are gone. `selectClosingFallbackLine`/
+  `CANNED_CLOSING_FALLBACK_LINE` preserved byte-for-byte. Wired
+  `src/server/student-access/audio-upload.ts`'s `fallbackLineForContext`
+  (now `(context, inputUsable)`) through all 5 `runConversationTurn`
+  call sites: `inputUsable: false` only on flagged/unavailable student
+  input, `true` on every provider/schema/policy/output-moderation failure
+  path (already-moderated input remains usable there); closing calls are
+  unaffected by the flag. Added the plan's 4 required
+  `fallback-lines.test.ts` tests plus 5 new orchestration tests in
+  `audio-upload.test.ts` covering meaningful/vague/review-pending
+  generation failure, unsafe input, and final-turn closing failure: all
+  33 pre-existing `audio-upload.test.ts` tests only asserted
+  `moderationEvent`/truthiness or the static closing string, so none
+  needed edits. Full regression suite: 91 files, 969 passed, 4 skipped.
+  `npx tsc --noEmit` clean.
 
 ## Next step
 
-Task 4: select bounded follow-up fallbacks by response state
-(`src/domain/conversation/fallback-lines.ts`,
-`src/server/student-access/audio-upload.ts`, plus tests). Not started.
+Task 5: extend the owned completed-history review model
+(`src/server/student-access/student-history.ts`, plus tests). Not started.
