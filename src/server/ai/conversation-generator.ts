@@ -138,6 +138,8 @@ const VIOLATION_CORRECTION_HINTS: Record<
     "The previous candidate used an invalid either/or question after a meaningful student detail. Ask a single open question instead — do not offer a choice with \"or\".",
   topic_drift:
     "The previous candidate drifted away from the active topic (the student's latest answer and Coco's last question). Ask about a detail directly connected to what the student just said.",
+  vague_echo:
+    "The previous candidate echoed the student's vague word (such as \"anything\" or \"something\") back as if it were a real detail. Acknowledge without repeating that word — say something like \"Lots of things!\" — then ask one short question offering two concrete child-friendly choices.",
 };
 
 function replyPolicyCorrection(

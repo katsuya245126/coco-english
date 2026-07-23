@@ -86,7 +86,8 @@ export type GeneratedCocoReplyLineViolation =
   // Retained only so historical stored moderation events remain type-readable;
   // the validator no longer produces this reason (see Task 3 policy repair).
   | "either_or_question"
-  | "topic_drift";
+  | "topic_drift"
+  | "vague_echo";
 
 export type GeneratedCocoReplyLinePolicyResult =
   | { ok: true }
@@ -113,6 +114,40 @@ function hasRunOnQuestion(line: string) {
 
 function normalizedWords(text: string) {
   return text.toLocaleLowerCase("en-US").match(/[\p{L}\p{N}']+/gu) ?? [];
+}
+
+/**
+ * Words a learner reaches for when they have nothing specific to say. Echoing
+ * one back ("Talking about anything is fun!") treats a non-answer as a real
+ * detail, which reads as Coco not listening.
+ */
+const VAGUE_RESPONSE_WORDS = new Set([
+  "anything", "something", "everything", "nothing",
+  "stuff", "things", "whatever", "anywhere", "somewhere",
+]);
+
+/**
+ * True when Coco's reaction repeats a vague word the student just used.
+ *
+ * Only the reaction is examined — the text before the question. A vague word
+ * inside the question itself is fine and often the recommended recovery
+ * ("Do you talk about games or anything else?"), and Coco may freely introduce
+ * such a word when the student did not use one. The violation is specifically
+ * mirroring the learner's non-answer back as though it were information.
+ */
+function echoesVagueResponse(line: string, latestStudentResponse?: string) {
+  if (!latestStudentResponse) return false;
+
+  const studentVagueWords = normalizedWords(latestStudentResponse).filter(
+    (word) => VAGUE_RESPONSE_WORDS.has(word),
+  );
+  if (studentVagueWords.length === 0) return false;
+
+  const questionIndex = line.search(QUESTION_STARTER_PATTERN);
+  const reaction = questionIndex > 0 ? line.slice(0, questionIndex) : line;
+
+  const reactionWords = new Set(normalizedWords(reaction));
+  return studentVagueWords.some((word) => reactionWords.has(word));
 }
 
 function latestQuestionText(text: string) {
@@ -195,6 +230,13 @@ export function validateGeneratedCocoReplyLine(
     )
   ) {
     reasons.push("topic_drift");
+  }
+
+  if (
+    options.expectsQuestion &&
+    echoesVagueResponse(normalized, options.latestStudentResponse)
+  ) {
+    reasons.push("vague_echo");
   }
 
   return reasons.length === 0 ? { ok: true } : { ok: false, reasons };
