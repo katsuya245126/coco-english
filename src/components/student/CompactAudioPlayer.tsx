@@ -71,37 +71,39 @@ export function CompactAudioPlayer({ src }: { src: string }) {
       >
         Audio unavailable
       </audio>
-      <button
-        className={styles.playButton}
-        type="button"
-        aria-label={playing ? "Pause recording" : "Play recording"}
-        onClick={() => {
-          void togglePlayback();
-        }}
-      >
-        {playing ? <PauseIcon /> : <PlayIcon />}
-      </button>
-      <span className={styles.time} aria-live="off">
-        {formatTime(currentTime)}
-      </span>
+      <div className={styles.controls}>
+        <button
+          className={styles.playButton}
+          type="button"
+          aria-label={playing ? "Pause recording" : "Play recording"}
+          onClick={() => {
+            void togglePlayback();
+          }}
+        >
+          {playing ? <PauseIcon /> : <PlayIcon />}
+        </button>
+        <span className={styles.time} aria-live="off">
+          {formatTime(currentTime)}
+        </span>
+        <input
+          className={styles.progress}
+          type="range"
+          aria-label="Recording position"
+          min={0}
+          max={duration || 0}
+          step={0.1}
+          value={Math.min(currentTime, duration || 0)}
+          disabled={!duration}
+          onInput={(event) => seek(Number(event.currentTarget.value))}
+          onChange={(event) => seek(Number(event.currentTarget.value))}
+        />
+        <span className={styles.time}>{formatTime(duration)}</span>
+      </div>
       {error ? (
         <span className={styles.error} role="alert">
           {error}
         </span>
       ) : null}
-      <input
-        className={styles.progress}
-        type="range"
-        aria-label="Recording position"
-        min={0}
-        max={duration || 0}
-        step={0.1}
-        value={Math.min(currentTime, duration || 0)}
-        disabled={!duration}
-        onInput={(event) => seek(Number(event.currentTarget.value))}
-        onChange={(event) => seek(Number(event.currentTarget.value))}
-      />
-      <span className={styles.time}>{formatTime(duration)}</span>
     </div>
   );
 }

@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -112,7 +114,7 @@ describe("CompactAudioPlayer", () => {
     expect(pause).toHaveBeenCalledTimes(1);
   });
 
-  it("shows an inline error when playback fails", async () => {
+  it("shows a playback error below controls that preserve progress width", async () => {
     vi.spyOn(HTMLMediaElement.prototype, "play").mockRejectedValue(
       new Error("Playback blocked"),
     );
@@ -128,13 +130,30 @@ describe("CompactAudioPlayer", () => {
       await Promise.resolve();
     });
 
-    expect(
-      container.querySelector('[role="alert"]'),
-    ).not.toBeNull();
+    const alert = container.querySelector('[role="alert"]');
+    const range = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Recording position"]',
+    );
+    const controls = range?.parentElement;
+
+    expect(alert).not.toBeNull();
     expect(container.textContent).toContain("Playback failed");
     expect(
       container.querySelector<HTMLButtonElement>('button[aria-label="Play recording"]'),
     ).not.toBeNull();
+    expect(controls).not.toBeNull();
+    expect(alert?.parentElement).toBe(controls?.parentElement);
+    expect(alert?.previousElementSibling).toBe(controls);
+    expect(controls?.contains(alert)).toBe(false);
+
+    const cssPath = resolve(
+      process.cwd(),
+      "src/components/student/CompactAudioPlayer.module.css",
+    );
+    const css = readFileSync(cssPath, "utf8");
+    expect(css).toMatch(/\.player\s*\{[^}]*display:\s*grid/);
+    expect(css).toMatch(/\.controls\s*\{[^}]*display:\s*flex/);
+    expect(css).toMatch(/\.progress\s*\{[^}]*min-width:\s*3rem/);
   });
 
   it("updates the current time when seeking", async () => {

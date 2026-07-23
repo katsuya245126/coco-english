@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -40,6 +42,24 @@ afterEach(async () => {
 });
 
 describe("HomeworkReviewAttempt", () => {
+  it("keeps the compact answer and 44px audio control in one narrow row", () => {
+    const cssPath = resolve(
+      process.cwd(),
+      "src/components/student/HomeworkReviewAttempt.module.css",
+    );
+    const css = readFileSync(cssPath, "utf8");
+
+    expect(css).toMatch(
+      /\.bubble\s*\{[^}]*box-sizing:\s*border-box[^}]*width:\s*min\(100%,\s*390px\)/,
+    );
+    expect(css).toMatch(
+      /\.transcriptRow\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+44px/,
+    );
+    expect(css).toMatch(
+      /\.audioButton\s*\{[^}]*min-width:\s*44px[^}]*min-height:\s*44px/,
+    );
+  });
+
   it("shows and announces which recording is being prepared while loading", async () => {
     let resolveLoad:
       | ((value: { ok: true; signedUrl: string }) => void)
