@@ -68,7 +68,7 @@ each left-aligned message.
 
 ## Current position
 
-Implementation is complete at current HEAD `a357641c`, including compact audio
+Implementation is complete at HEAD `748d860c`, including compact audio
 controls, on-demand signed playback URL loading, and the compact dynamic
 Homework Review. The final review fix added a visible polite
 `Preparing recording…` status during on-demand loading, disabled duplicate
@@ -78,8 +78,7 @@ activation while loading, and synchronized an external audio pause back to
 The previously verified automated baseline, recorded before the final review
 fix, passed the 7-file focused matrix (46 tests), typecheck, lint with one
 pre-existing warning, build on Next 15.5.19, and the full test suite (95 files,
-985 tests passed, 4 skipped). These remain verified historical facts; this
-record does not claim a fresh final rerun after `a357641c`.
+985 tests passed, 4 skipped). These remain verified historical facts.
 
 Authenticated localhost application UAT confirmed the dynamic review contract
 at a live 390x844 mobile viewport and 1440x1200 desktop viewport, including
@@ -103,6 +102,25 @@ The approved plan's localhost mobile and desktop screenshot comparison with
 the tracked preview is complete. These real localhost application checks and
 captures remain distinct from the tracked synthetic preview used for
 qualitative comparison.
+
+## Follow-up fix (commit `748d860c`)
+
+A narrow-layout audio pass (`f12acd2e`) plus a second round fixed three
+remaining issues:
+
+- The compact audio control's loading state now shows a spinner icon inside
+  the 44px button instead of visible `Preparing recording…` body text; the
+  text remains for screen readers via a visually-hidden `aria-live="polite"`
+  status span.
+- The answer bubble uses `width: fit-content` with a chat-style asymmetric
+  border-radius (tail toward the sender) instead of a fixed-width block.
+- The student name label wraps and constrains its width so long names no
+  longer overflow next to the avatar.
+
+Verified: focused tests (9/9), full suite (95 files, 988 passed, 4 skipped),
+typecheck clean, lint clean (0 errors, 1 pre-existing warning), production
+build succeeds (9/9 pages). User manually confirmed the spinner and long-name
+wrap behave correctly on the authenticated localhost app.
 
 ## Next step
 
