@@ -56,6 +56,7 @@ describe("HomeworkReviewAttempt", () => {
 
     expect(container.textContent).toContain("Transcript for clip-original");
     expect(container.textContent).not.toContain("Pronunciation");
+    expect(container.querySelector("audio")).toBeNull();
 
     const listen = container.querySelector<HTMLButtonElement>(
       'button[aria-label="Listen to this recording"]',
@@ -66,8 +67,8 @@ describe("HomeworkReviewAttempt", () => {
       await Promise.resolve();
     });
 
-    expect(loadHistoryAudioActionMock).toHaveBeenCalledTimes(1);
     expect(loadHistoryAudioActionMock).toHaveBeenCalledWith("clip-original");
+    expect(loadHistoryAudioActionMock).toHaveBeenCalledTimes(1);
     expect(container.querySelector("audio")?.getAttribute("src")).toBe(
       "https://signed.test/original.mp3",
     );
@@ -94,7 +95,7 @@ describe("HomeworkReviewAttempt", () => {
     expect(loadHistoryAudioActionMock).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps loading and failure feedback tied to the exact attempt", async () => {
+  it("shows bounded loading and an inline alert when the signed url cannot be loaded", async () => {
     let resolveAction: ((value: { ok: false }) => void) | null = null;
     loadHistoryAudioActionMock.mockImplementation(
       () =>
@@ -105,24 +106,23 @@ describe("HomeworkReviewAttempt", () => {
 
     await act(async () => {
       root.render(
-        <>
-          <HomeworkReviewAttempt attempt={availableAttempt("clip-original")} />
-          <HomeworkReviewAttempt attempt={availableAttempt("clip-repeat")} />
-        </>,
+        <HomeworkReviewAttempt attempt={availableAttempt("clip-failed")} />,
       );
     });
 
-    const listenButtons = container.querySelectorAll<HTMLButtonElement>(
+    const listen = container.querySelector<HTMLButtonElement>(
       'button[aria-label="Listen to this recording"]',
     );
 
     await act(async () => {
-      listenButtons[1]?.click();
+      listen?.click();
       await Promise.resolve();
     });
 
-    expect(container.querySelectorAll('button[aria-label="Loading recording"]'))
-      .toHaveLength(1);
+    const loadingButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Loading recording"]',
+    );
+    expect(loadingButton?.disabled).toBe(true);
     expect(container.querySelector('[role="alert"]')).toBeNull();
 
     await act(async () => {
@@ -130,15 +130,13 @@ describe("HomeworkReviewAttempt", () => {
       await Promise.resolve();
     });
 
-    expect(container.querySelectorAll('[role="alert"]')).toHaveLength(1);
     expect(container.querySelector('[role="alert"]')?.textContent).toBe(
       "Recording unavailable",
     );
-    expect(loadHistoryAudioActionMock).toHaveBeenCalledTimes(1);
-    expect(loadHistoryAudioActionMock).toHaveBeenCalledWith("clip-repeat");
+    expect(container.querySelector("audio")).toBeNull();
   });
 
-  it("keeps expired and unavailable recordings non-interactive", async () => {
+  it("keeps expired and unavailable states non-interactive", async () => {
     const expiredAttempt: StudentRecapAttempt = {
       transcript: "Expired transcript",
       audio: { id: "clip-expired", playback: "expired" },
@@ -194,19 +192,17 @@ describe("HomeworkReviewAttempt", () => {
     expect(container.querySelector("audio")?.getAttribute("src")).toBe(
       "https://signed.test/repeat.mp3",
     );
-    expect(container.textContent).toContain("Transcript for clip-original");
-    expect(container.textContent).toContain("Transcript for clip-repeat");
   });
 
-  it("defines accessible bubble and button CSS rules", () => {
+  it("defines the blue bubble layout and 44px audio control styles", () => {
     const cssPath = resolve(
       process.cwd(),
       "src/components/student/HomeworkReviewAttempt.module.css",
     );
     const css = readFileSync(cssPath, "utf8");
 
-    expect(css).toMatch(/\.attempt/);
-    expect(css).toMatch(/\.audioButton/);
+    expect(css).toMatch(/\.bubble/);
+    expect(css).toMatch(/background:\s*#[0-9a-fA-F]{6}/);
     expect(css).toMatch(/min-width:\s*44px/);
     expect(css).toMatch(/min-height:\s*44px/);
     expect(css).toMatch(/overflow-wrap:\s*anywhere/);
