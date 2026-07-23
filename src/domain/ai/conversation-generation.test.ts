@@ -154,7 +154,6 @@ describe("conversation history generation contract", () => {
         "The beach sounds exciting! What will you play there with your family?",
         {
           expectsQuestion: true,
-          allowEitherOrQuestion: false,
           activeQuestion: "Where will you go with your family?",
           latestStudentResponse: "We will go to the beach together.",
         },
@@ -162,25 +161,41 @@ describe("conversation history generation contract", () => {
     ).toEqual({ ok: true });
   });
 
-  it("returns every deterministic violation in stable order", () => {
+  it("accepts one relevant either-or question and still rejects either-or drift", () => {
     expect(
       validateGeneratedCocoReplyLine(
-        "Do you read books or watch TV? What happens next?",
+        "Soccer sounds fun! Do you play inside or outside?",
         {
           expectsQuestion: true,
-          allowEitherOrQuestion: false,
-          activeQuestion: "Where do you swim?",
-          latestStudentResponse: "At the pool.",
+          activeQuestion: "Where do you play soccer?",
+          latestStudentResponse: "I play soccer at school.",
         },
       ),
-    ).toEqual({
-      ok: false,
-      reasons: [
-        "question_format",
-        "either_or_question",
-        "topic_drift",
-      ],
-    });
+    ).toEqual({ ok: true });
+
+    expect(
+      validateGeneratedCocoReplyLine(
+        "That sounds fun! Do you eat pizza or noodles?",
+        {
+          expectsQuestion: true,
+          activeQuestion: "Where do you play soccer?",
+          latestStudentResponse: "I play soccer at school.",
+        },
+      ),
+    ).toEqual({ ok: false, reasons: ["topic_drift"] });
+  });
+
+  it("rejects a comma before a new question clause as a run-on", () => {
+    expect(
+      validateGeneratedCocoReplyLine(
+        "Swimming with your friend is fun, what do you like about it?",
+        {
+          expectsQuestion: true,
+          activeQuestion: "Who do you swim with?",
+          latestStudentResponse: "I swim with my friend.",
+        },
+      ),
+    ).toEqual({ ok: false, reasons: ["run_on_question"] });
   });
 
   it("rejects the UAT run-on and accepts a punctuated on-topic reply", () => {
@@ -189,7 +204,6 @@ describe("conversation history generation contract", () => {
         "Your friend is fun to swim with what games do you play together?",
         {
           expectsQuestion: true,
-          allowEitherOrQuestion: false,
           activeQuestion: "Who do you swim with?",
         },
       ),
@@ -200,7 +214,6 @@ describe("conversation history generation contract", () => {
         "Swimming together is fun! What do you like about it?",
         {
           expectsQuestion: true,
-          allowEitherOrQuestion: false,
           activeQuestion: "Who do you swim with?",
         },
       ),
@@ -213,7 +226,6 @@ describe("conversation history generation contract", () => {
         "Your friend sounds fun! What games do you play together?",
         {
           expectsQuestion: true,
-          allowEitherOrQuestion: false,
           activeQuestion: "Who do you swim with?",
         },
       ),
@@ -223,7 +235,6 @@ describe("conversation history generation contract", () => {
         "That sounds fun! What games do you play together?",
         {
           expectsQuestion: true,
-          allowEitherOrQuestion: false,
           activeQuestion: "Who do you swim with?",
         },
       ),
@@ -236,7 +247,6 @@ describe("conversation history generation contract", () => {
         "Minecraft is fun! What do you like to build?",
         {
           expectsQuestion: true,
-          allowEitherOrQuestion: false,
           activeQuestion: "What are you going to do during summer vacation?",
           latestStudentResponse: "I like minecraft.",
         },
@@ -248,7 +258,6 @@ describe("conversation history generation contract", () => {
         "The beach sounds fun! Who do you go with?",
         {
           expectsQuestion: true,
-          allowEitherOrQuestion: false,
           activeQuestion: "What happens next?",
           latestStudentResponse:
             "I will go to the beach with my family and play video games.",
@@ -263,7 +272,6 @@ describe("conversation history generation contract", () => {
         "Pizza is great! What toppings do you like?",
         {
           expectsQuestion: true,
-          allowEitherOrQuestion: false,
           activeQuestion: "What are you going to do during summer vacation?",
           latestStudentResponse: "I like minecraft.",
         },
@@ -277,7 +285,6 @@ describe("conversation history generation contract", () => {
         "Okay! What do you like to do instead?",
         {
           expectsQuestion: true,
-          allowEitherOrQuestion: false,
           activeQuestion: "How often do you play soccer?",
           latestStudentResponse: "I don't play soccer.",
         },
@@ -291,7 +298,6 @@ describe("conversation history generation contract", () => {
         "Swimming is fun do you swim every day?",
         {
           expectsQuestion: true,
-          allowEitherOrQuestion: false,
           activeQuestion: "Who do you swim with?",
         },
       ),
@@ -302,13 +308,11 @@ describe("conversation history generation contract", () => {
     expect(
       validateGeneratedCocoReplyLine("Thanks for talking with me!", {
         expectsQuestion: false,
-        allowEitherOrQuestion: false,
       }),
     ).toEqual({ ok: true });
     expect(
       validateGeneratedCocoReplyLine("What will you do next?", {
         expectsQuestion: false,
-        allowEitherOrQuestion: false,
       }),
     ).toEqual({ ok: false, reasons: ["question_format"] });
   });
@@ -317,13 +321,12 @@ describe("conversation history generation contract", () => {
     expect(
       validateGeneratedCocoReplyLine("That sounds fun", {
         expectsQuestion: true,
-        allowEitherOrQuestion: false,
       }),
     ).toEqual({ ok: false, reasons: ["question_format"] });
     expect(
       validateGeneratedCocoReplyLine(
         "That sounds fun! Where do you swim? Who teaches you?",
-        { expectsQuestion: true, allowEitherOrQuestion: false },
+        { expectsQuestion: true },
       ),
     ).toEqual({ ok: false, reasons: ["question_format"] });
   });

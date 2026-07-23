@@ -83,6 +83,8 @@ export type ParseGeneratedCocoReplyResult =
 export type GeneratedCocoReplyLineViolation =
   | "question_format"
   | "run_on_question"
+  // Retained only so historical stored moderation events remain type-readable;
+  // the validator no longer produces this reason (see Task 3 policy repair).
   | "either_or_question"
   | "topic_drift";
 
@@ -100,24 +102,13 @@ const TOPIC_STOP_WORDS = new Set([
   "a", "an", "and", "or", "often", "like", "want",
 ]);
 
-function usesEitherOrQuestion(line: string) {
-  return line
-    .split("?")
-    .slice(0, -1)
-    .some((question) => {
-      const questionStart =
-        Math.max(question.lastIndexOf("."), question.lastIndexOf("!")) + 1;
-      return /\b(?:either|or)\b/iu.test(question.slice(questionStart));
-    });
-}
-
 function hasRunOnQuestion(line: string) {
   const match = line.match(QUESTION_STARTER_PATTERN);
   const index = match?.index ?? 0;
   if (!match || index === 0) return false;
 
   const prefix = line.slice(0, index).trimEnd();
-  return !/[.!?,]$/u.test(prefix);
+  return !/[.!?]$/u.test(prefix);
 }
 
 function normalizedWords(text: string) {
@@ -175,7 +166,6 @@ export function validateGeneratedCocoReplyLine(
   line: string,
   options: {
     expectsQuestion: boolean;
-    allowEitherOrQuestion: boolean;
     activeQuestion?: string;
     latestStudentResponse?: string;
   },
@@ -196,13 +186,8 @@ export function validateGeneratedCocoReplyLine(
     reasons.push("run_on_question");
   }
 
-  if (!options.allowEitherOrQuestion && usesEitherOrQuestion(normalized)) {
-    reasons.push("either_or_question");
-  }
-
   if (
     options.expectsQuestion &&
-    !options.allowEitherOrQuestion &&
     !staysOnActiveTopic(
       normalized,
       options.activeQuestion,

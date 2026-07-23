@@ -100,7 +100,7 @@ const CONVERSATION_SYSTEM_MESSAGE = [
   "Before the closing turn, ask exactly one short question for genuinely new information whose answer is not present or directly implied anywhere in conversationHistory.",
   "Before the closing turn, after a meaningful answer, ask an open question that connects directly to the answer and invites a short phrase or sentence.",
   "Before the closing turn, treat a short answer as meaningful when it adds a real detail; after 'Inside.', ask an expandable question such as 'What games do you play inside?'.",
-  "Do not default to yes/no or either/or questions after a meaningful answer.",
+  "Prefer an open question after a meaningful answer. A single either-or question is allowed when both choices are relevant and child-friendly.",
   "Treat vague replies such as 'anything', 'something', or 'stuff' as minimally informative; do not echo the vague word as if it were a meaningful detail.",
   "Before the closing turn, acknowledge lightly, then ask one short scene-relevant narrowing question. Use two concrete child-friendly choices only when the latest response is vague, unclear, or shows the learner is stuck.",
   "Do not shame the learner or demand a more specific answer.",
@@ -126,40 +126,6 @@ function systemMessageFor(safetyMode: ConversationSafetyMode): string {
     : CONVERSATION_SYSTEM_MESSAGE;
 }
 
-const VAGUE_OR_STUCK_RESPONSES = new Set([
-  "i don't know",
-  "don't know",
-  "i do not know",
-  "do not know",
-  "not sure",
-  "i'm not sure",
-  "no idea",
-  "i have no idea",
-  "idk",
-  "anything",
-  "something",
-  "stuff",
-  "whatever",
-  "nothing",
-  "um",
-  "uh",
-  "hmm",
-  "yes",
-  "no",
-]);
-
-const VAGUE_OR_STUCK_PREFIXES = [
-  "i don't know",
-  "don't know",
-  "i do not know",
-  "do not know",
-  "i'm not sure",
-  "i am not sure",
-  "not sure",
-  "i have no idea",
-  "no idea",
-] as const;
-
 const VIOLATION_CORRECTION_HINTS: Record<
   GeneratedCocoReplyLineViolation,
   string
@@ -183,25 +149,9 @@ function replyPolicyCorrection(
     expectsQuestion
       ? "Regenerate the full line once with complete, correctly punctuated sentences and one open question that stays on the active activity."
       : "Regenerate the full line once as one complete, correctly punctuated closing line with no question.",
-    "Prefer one or two short, simple sentences. Do not use a yes/no or either/or question unless the learner is vague or stuck.",
+    "Prefer one or two short, simple sentences and an open question. A single either-or question is allowed when both choices are relevant and child-friendly.",
     "Return only data matching the schema.",
   ].join(" ");
-}
-
-function isVagueOrStuckResponse(response: string): boolean {
-  const normalized = response
-    .trim()
-    .toLocaleLowerCase("en-US")
-    .replace(/[’‘]/gu, "'")
-    .replace(/[.!?]+$/u, "");
-
-  return (
-    VAGUE_OR_STUCK_RESPONSES.has(normalized) ||
-    VAGUE_OR_STUCK_PREFIXES.some(
-      (prefix) =>
-        normalized === prefix || normalized.startsWith(`${prefix} `),
-    )
-  );
 }
 
 /**
@@ -253,15 +203,11 @@ export async function generateCocoReply(
     }
 
     const latestResponse = validInput.data.conversationHistory.at(-1)?.studentResponse;
-    const allowEitherOrQuestion = latestResponse
-      ? isVagueOrStuckResponse(latestResponse)
-      : false;
     const replyMode = conversationReplyMode(validInput.data);
     const expectsQuestion = replyMode === "follow_up";
     const activeQuestion = validInput.data.conversationHistory.at(-1)?.cocoLine;
     const linePolicy = validateGeneratedCocoReplyLine(parsed.reply.line, {
       expectsQuestion,
-      allowEitherOrQuestion,
       activeQuestion,
       latestStudentResponse: latestResponse,
     });
@@ -295,7 +241,6 @@ export async function generateCocoReply(
           corrected.reply.line,
           {
             expectsQuestion,
-            allowEitherOrQuestion,
             activeQuestion,
             latestStudentResponse: latestResponse,
           },
