@@ -10,6 +10,9 @@ export const missionLevelSchema = z.enum([
 
 export type MissionLevel = z.infer<typeof missionLevelSchema>;
 
+export const answerShapeSchema = z.enum(["fixed", "open"]);
+export type AnswerShape = z.infer<typeof answerShapeSchema>;
+
 export const hintLadderSchema = z.object({
   tier1: z
     .string()
@@ -28,6 +31,7 @@ export const missionTurnInputSchema = z.object({
     .trim()
     .min(1, "Example answer is required."),
   hintLadder: hintLadderSchema,
+  answerShape: answerShapeSchema.default("open"),
 });
 
 export type MissionTurnInput = z.infer<typeof missionTurnInputSchema>;
