@@ -15,7 +15,11 @@ import {
   type OriginalTurnEvaluation,
   type RepeatTurnEvaluation,
 } from "@/domain/ai/turn-evaluation";
-import { missionLevelSchema, type MissionLevel } from "@/domain/mission/schemas";
+import {
+  missionLevelSchema,
+  type AnswerShape,
+  type MissionLevel,
+} from "@/domain/mission/schemas";
 
 const DEFAULT_EVALUATION_MODEL = "gpt-4.1-mini";
 
@@ -62,6 +66,8 @@ export type EvaluateOriginalTurnInput = {
    * vocabulary to teach. Empty for an all-English answer.
    */
   koreanSpans?: HangulSpan[];
+  /** Fixed = match the target; open = enforce only the frame, never the choice. */
+  answerShape?: AnswerShape;
 };
 
 export type EvaluateRepeatTurnInput = {
@@ -97,20 +103,23 @@ function createClient(apiKey: string): TurnEvaluationResponsesClient {
   return new OpenAI({ apiKey }) as TurnEvaluationResponsesClient;
 }
 
-const presetInstructions = [
+const fixedPresetInstructions = [
   "Mark as correct (outcome: 'correct') if the target pattern appears anywhere in the answer — extra words, greetings, or extensions are fine and should not cause needs_correction.",
   "The targetExample is only one possible answer, not required content. For an open-ended question, accept any relevant answer that fills the target grammatical frame; the student's nouns, verbs, or details may differ from the example.",
   "Example: for 'What are you going to do after school?' with target pattern 'I'm going to _____', 'I am going to play games' is correct even if the targetExample says 'I'm going to do my homework.' Never replace a correct slot answer merely because its slot content differs.",
   "Use needs_correction only when the target pattern is missing or the sentence is unclear, not when the student adds extra correct English.",
   "If the transcript only repeats or echoes the missionQuestion back instead of answering it, that is NOT correct — use needs_correction with the assigned targetExample as the improvedSentence. This applies only when the target pattern itself is absent; a correct answer that also asks a question back (e.g. 'I'm fine, and you?' when the target is 'I'm fine.') still contains the target and must be marked correct, not treated as an echo.",
   "A clear off-topic English answer or answer to a different question is NOT teacher_review; use needs_correction and provide the assigned targetExample as the improvedSentence.",
-  // UAT 2026-07-24: a child answered "I think chocolate is best." to "vanilla,
-  // strawberry, or chocolate?" and was made to repeat the vanilla
-  // targetExample. Preference, opinion and personal-fact questions have no
-  // wrong answer, so disagreeing with the example is not an error to correct.
-  "An opinion, preference, or personal-fact question (favourite, best, like, want, feel, or a choice among options offered in the question) has no wrong answer. When the student picks a different option than the targetExample, or states a different preference, that is correct — never use needs_correction to replace the student's choice with the example's choice.",
-  "Example: missionQuestion 'Which ice cream is the best: vanilla, strawberry, or chocolate?' with targetExample 'I think vanilla ice cream is the best.' — 'I think chocolate is best.' is correct, because the child chose an option the question offered and used the target frame. Only correct such an answer when its English is genuinely wrong.",
   "Short target examples such as 'Wow!' are valid complete answers; if the transcript is clear English but does not say the short target, use needs_correction with that short targetExample.",
+];
+
+const openPresetInstructions = [
+  "This turn has NO single correct answer (opinion, preference, or a choice among options the question offers). The targetExample is scaffolding, not an answer key.",
+  "The child's choice, preference, or opinion is always acceptable. Never use needs_correction to replace the child's choice with the example's choice.",
+  "Accept (outcome: 'correct') when the answer is a relevant, valid-English response that uses the taught frame (targetPattern). Extra words are fine.",
+  "If the answer is relevant and valid English but does NOT use the taught frame (e.g. 'Chocolate.'), use needs_correction with an improvedSentence that puts the CHILD'S OWN choice into the frame — e.g. 'I think chocolate is the best.' — never the example's choice.",
+  "If the English itself is genuinely wrong (grammar or structure), use needs_correction and write one natural improvedSentence that preserves the child's intended meaning and choice.",
+  "Never copy the missionQuestion or the targetExample's choice into improvedSentence.",
 ];
 
 const conversationInstructions = [
@@ -150,9 +159,13 @@ const presetSeverityInstructions = [
 
 function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
   const isConversationMode = input.evaluationMode === "conversation";
+  const isOpenPreset =
+    !isConversationMode && (input.answerShape ?? "open") === "open";
   const modeInstructions = isConversationMode
     ? conversationInstructions
-    : presetInstructions;
+    : isOpenPreset
+      ? openPresetInstructions
+      : fixedPresetInstructions;
   const requireCompleteSentenceAnswers =
     isConversationMode && input.requireCompleteSentenceAnswers !== false;
   const completeSentenceInstructions = isConversationMode
@@ -215,6 +228,7 @@ function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
     transcript: input.transcript,
     requireCompleteSentenceAnswers,
     koreanSpans,
+    answerShape: input.answerShape ?? "open",
     instructions: [
       "Evaluate only this transcript against the assigned ESL turn.",
       koreanSpans.length > 0
