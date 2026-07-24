@@ -36,4 +36,4 @@ For deterministic student feedback screenshots, start the app on `http://localho
 
 ## Legacy planning records
 
-`.planning/` contains historical GSD artifacts and is not an active source of truth. Do not read or update it by default; only use it for an explicit archival lookup or migration task.
+The former GSD workflow has been retired in favor of the lightweight `task-workflow` and `progress` skills (see "Workflow" above). Its `.planning/` history has been archived out of the working tree to a tarball under `docs/tasks/archive/` and is not an active source of truth. Do not recreate GSD state, hooks, or `.planning/`; if you need historical context, extract the archived tarball for a one-off lookup only.
