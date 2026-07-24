@@ -103,7 +103,13 @@ const presetInstructions = [
   "Example: for 'What are you going to do after school?' with target pattern 'I'm going to _____', 'I am going to play games' is correct even if the targetExample says 'I'm going to do my homework.' Never replace a correct slot answer merely because its slot content differs.",
   "Use needs_correction only when the target pattern is missing or the sentence is unclear, not when the student adds extra correct English.",
   "If the transcript only repeats or echoes the missionQuestion back instead of answering it, that is NOT correct — use needs_correction with the assigned targetExample as the improvedSentence. This applies only when the target pattern itself is absent; a correct answer that also asks a question back (e.g. 'I'm fine, and you?' when the target is 'I'm fine.') still contains the target and must be marked correct, not treated as an echo.",
-  "A clear off-topic English answer, wrong answer, or answer to a different question is NOT teacher_review; use needs_correction and provide the assigned targetExample as the improvedSentence.",
+  "A clear off-topic English answer or answer to a different question is NOT teacher_review; use needs_correction and provide the assigned targetExample as the improvedSentence.",
+  // UAT 2026-07-24: a child answered "I think chocolate is best." to "vanilla,
+  // strawberry, or chocolate?" and was made to repeat the vanilla
+  // targetExample. Preference, opinion and personal-fact questions have no
+  // wrong answer, so disagreeing with the example is not an error to correct.
+  "An opinion, preference, or personal-fact question (favourite, best, like, want, feel, or a choice among options offered in the question) has no wrong answer. When the student picks a different option than the targetExample, or states a different preference, that is correct — never use needs_correction to replace the student's choice with the example's choice.",
+  "Example: missionQuestion 'Which ice cream is the best: vanilla, strawberry, or chocolate?' with targetExample 'I think vanilla ice cream is the best.' — 'I think chocolate is best.' is correct, because the child chose an option the question offered and used the target frame. Only correct such an answer when its English is genuinely wrong.",
   "Short target examples such as 'Wow!' are valid complete answers; if the transcript is clear English but does not say the short target, use needs_correction with that short targetExample.",
 ];
 
@@ -167,13 +173,25 @@ function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
   // Hangul because the transcript stores what the child actually said (see
   // src/domain/audio/hangul-romanization.ts).
   const koreanSpans = input.koreanSpans ?? [];
+
   const koreanSpanInstructions =
     koreanSpans.length > 0
       ? [
           `The student spoke ${koreanSpans.length === 1 ? "one Korean word" : `${koreanSpans.length} Korean words`} inside an otherwise English answer: ${koreanSpans
             .map((span) => `"${span.hangul}" (romanized: ${span.romanized})`)
             .join(", ")}.`,
-          "Classify each Korean word before judging the answer. Ask: does this word name one particular thing, or is it the ordinary word for a whole category?",
+          // The romanization is a phonetic sounding-out of what the child said.
+          // gpt-4o-mini-transcribe writes accented English in Hangul, so if the
+          // romanization sounds like an English word, the child said that
+          // English word (UAT 2026-07-24: 초콜릿→"Chokolrit"≈chocolate,
+          // 바닐라→"Banilra"≈vanilla). This replaced a hardcoded loanword list:
+          // the model can hear the resemblance, and 딸기→"Ttalgi" correctly does
+          // NOT sound like "strawberry", so a phonetic test generalises where a
+          // list only covers what someone remembered to add.
+          "First, for each Korean word, say its romanization aloud in your head. If it clearly sounds like an English word (Chokolrit -> chocolate, Banilra -> vanilla, Pija -> pizza, Keompyuteo -> computer), the child SAID that English word with a Korean accent and the transcriber wrote it in Hangul. Treat it as that English word: correct content, never non_english, never a spelling error, never VOCABULARY to teach. Read the answer with the English word in place of the Hangul, then judge the grammar normally.",
+          'Example: "초콜릿 is better than 바닐라." — the romanizations sound like "chocolate" and "vanilla", so it reads as "Chocolate is better than vanilla.", a correct answer; outcome correct, improvedSentence null.',
+          "Only if the romanization does NOT sound like an English word (Ttalgi does not sound like strawberry; Chukgu does not sound like soccer; Hakgyo does not sound like school), classify it as NAME or VOCABULARY below.",
+          "Classify each remaining Korean word. Ask: does this word name one particular thing, or is it the ordinary word for a whole category?",
           "A word is a NAME only if it identifies one specific thing and an English speaker would use the Korean word for it too: a particular place (거제도, 부산, 한강), a particular person's name (민준), or a Korean dish English has no word for (김밥, 떡볶이).",
           "A place name keeps its Korean geographic ending — 도 (island), 강 (river), 산 (mountain), 시 (city). 제주도, 거제도, 한강 and 남산 are each one place name and are always NAME, never VOCABULARY. Do not split such a word into a name plus a common noun.",
           "A word that begins with a place name but ends in an ordinary institution word (서울초등학교 = Seoul + elementary school) still names one specific school the child attends. Treat it as a NAME.",
@@ -200,10 +218,15 @@ function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
     instructions: [
       "Evaluate only this transcript against the assigned ESL turn.",
       koreanSpans.length > 0
-        ? // The transcript deliberately keeps the student's Korean words, so
-          // the blanket non_english rule would discard a valid code-switched
-          // answer. Only a wholly Korean answer is non_english.
-          "Treat a transcript as non_english only when the whole answer is in another language. This answer has an English sentence frame with some Korean words inside it, so it is NOT non_english; classify those words as instructed below."
+        ? // The transcript keeps the student's Korean words, so a blanket
+          // non_english rule would discard a valid answer. But asserting the
+          // answer is NOT non_english (an earlier fix) removed the judgement
+          // entirely. Whether Korean fills a slot or carries the whole answer
+          // is a syntactic call only the evaluator can make — EXCEPT for spans
+          // whose romanization sounds like an English word, which are English
+          // the child accented and must never be counted as the Korean side
+          // (UAT 2026-07-24).
+          "This transcript mixes Korean and English. First, any Korean span whose romanization sounds like an English word (per the rule above) IS that English word — count it as English, not Korean. Then decide which of two cases the rest is. (a) Code-switch: the student built an English sentence and used Korean for one or two remaining words inside it, as in \"I'm going to 거제도 this summer\" or \"I like 축구\". This is NOT non_english — classify those Korean words as instructed below. (b) Korean answer in an English frame: the remaining Korean words carry the answer's meaning and the English words are only connective scaffolding such as a copula, article, conjunction or comparative, as in \"불고기 is 맛있어요\" (only \"is\" is English). Set englishLanguage to non_english; the student needs to try again in English. Judge by whether the English words — accented-English spans included — would still express an answer, not by counting words."
         : "Treat non-English transcripts as non_english and not successful practice.",
       "Common English phrasing variants (contractions like 'I am' vs 'I'm', minor word-order or article differences that preserve the same meaning) are equivalent and should not cause needs_correction.",
       ...koreanSpanInstructions,

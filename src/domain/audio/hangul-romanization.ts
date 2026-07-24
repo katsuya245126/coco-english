@@ -193,3 +193,15 @@ export function detectHangulSpans(text: string): HangulSpan[] {
 export function isEntirelyNonEnglish(text: string): boolean {
   return HANGUL_PATTERN.test(text) && !/[A-Za-z]/u.test(text);
 }
+
+/**
+ * NOTE (UAT 2026-07-24): a string heuristic that decided code-switch vs
+ * "Korean answer in an English frame" was tried here and abandoned.
+ * "바닐라 is good." (a Korean answer) and "I like 축구." (a valid code-switch)
+ * have identical word-class and Korean/English-ratio profiles — they differ
+ * only in whether Korean fills the subject or the object slot. Separating them
+ * is a syntactic judgement, so it belongs to the evaluator, which sees the
+ * whole sentence. See the mixed-language instruction in
+ * `src/server/ai/turn-evaluator.ts`. Don't reintroduce a word-list or
+ * ratio-based gate at this layer.
+ */

@@ -129,6 +129,33 @@ describe("transcribeAudioFile", () => {
     expect(result).toEqual({ ok: false, error: "empty_transcript" });
   });
 
+  it("passes a Korean answer in an English frame to the evaluator to judge (UAT 2026-07-24)", async () => {
+    // "초콜릿 is better than 바닐라." has every content word in Korean and only
+    // a comparative frame in English. Transcription deliberately does NOT
+    // decide this case: it is syntactically indistinguishable from a valid
+    // code-switch ("I like 축구.") by any string heuristic, so the transcript
+    // and its spans reach the evaluator, which owns the non_english call.
+    const { transcribeAudioFile } = await import("@/server/audio/transcription");
+    const client = createFakeClient({ text: "초콜릿 is better than 바닐라." });
+
+    const result = await transcribeAudioFile(
+      {
+        file: new Blob(["voice"], { type: "audio/webm" }),
+        mimeType: "audio/webm",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      text: "초콜릿 is better than 바닐라.",
+      koreanSpans: [
+        { hangul: "초콜릿", romanized: "Chokolrit" },
+        { hangul: "바닐라", romanized: "Banilra" },
+      ],
+    });
+  });
+
   it("uses the configured transcription model when none is provided", async () => {
     const { transcribeAudioFile } = await import("@/server/audio/transcription");
     const client = createFakeClient({ text: "Hello Coco." });

@@ -133,3 +133,37 @@ describe("isEntirelyNonEnglish", () => {
     expect(isEntirelyNonEnglish("12345")).toBe(false);
   });
 });
+
+describe("romanization exposes the phonetic cue the evaluator judges (UAT 2026-07-24)", () => {
+  // There is no hardcoded loanword list. The evaluator decides whether an
+  // accented-English word was mis-scripted to Hangul by sounding out the
+  // romanization, so the only thing this layer must guarantee is that the
+  // romanization carries the resemblance: 초콜릿 must sound like "chocolate",
+  // and 딸기 must NOT sound like "strawberry".
+  it("romanizes accented-English loanwords close to their English sound", () => {
+    expect(romanizeHangulRun("초콜릿")).toBe("Chokolrit");
+    expect(romanizeHangulRun("바닐라")).toBe("Banilra");
+    expect(romanizeHangulRun("피자")).toBe("Pija");
+    expect(romanizeHangulRun("아이스크림")).toBe("Aiseukeurim");
+  });
+
+  it("romanizes native Korean vocabulary to a sound unlike its English word", () => {
+    // 딸기 sounds nothing like "strawberry"; 축구 nothing like "soccer".
+    // These must NOT be read as accented English — they are words to teach.
+    expect(romanizeHangulRun("딸기")).toBe("Ttalgi");
+    expect(romanizeHangulRun("축구")).toBe("Chukgu");
+    expect(romanizeHangulRun("학교")).toBe("Hakgyo");
+  });
+});
+
+describe("Korean answer in an English frame (UAT 2026-07-24)", () => {
+  it("still reports spans for an answer whose English is only scaffolding", () => {
+    // "초콜릿 is better than 바닐라." reaches the evaluator intact rather than
+    // being gated here; deciding it is a syntactic call, not a string one.
+    expect(detectHangulSpans("초콜릿 is better than 바닐라.")).toEqual([
+      { hangul: "초콜릿", romanized: "Chokolrit" },
+      { hangul: "바닐라", romanized: "Banilra" },
+    ]);
+    expect(isEntirelyNonEnglish("초콜릿 is better than 바닐라.")).toBe(false);
+  });
+});

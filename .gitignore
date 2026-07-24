@@ -40,6 +40,7 @@ scripts/list-recent-assignments.mjs
 scripts/inspect-attempts.mjs
 scripts/dry-run-cleanup-fixture-classes.mjs
 scripts/delete-fixture-classes.mjs
+scripts/output/
 
 # Personal DB-management migration (resets test-class data); not applied to prod, kept local only
 supabase/migrations/202607200001_reset_class_assignments.sql

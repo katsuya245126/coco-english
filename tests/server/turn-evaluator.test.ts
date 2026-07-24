@@ -91,7 +91,7 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
         // romanization so it can be read aloud.
         expect.stringContaining("거제도"),
         expect.stringContaining("Geojedo"),
-        expect.stringContaining("Classify each Korean word"),
+        expect.stringContaining("Classify each remaining Korean word"),
         expect.stringContaining("NAME"),
         expect.stringContaining("VOCABULARY"),
       ]),
@@ -136,9 +136,13 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
     );
   });
 
-  it("stops a code-switched answer from being judged non_english wholesale", async () => {
-    // The transcript now legitimately contains Hangul, so the blanket
-    // non_english rule would discard a valid answer via retry_original.
+  it("lets the evaluator decide code-switch vs Korean-answer instead of asserting either (UAT 2026-07-24)", async () => {
+    // The transcript legitimately contains Hangul, so the blanket non_english
+    // rule would discard a valid answer via retry_original. The first fix
+    // over-corrected: it asserted the answer was NOT non_english, which let
+    // "초콜릿 is better than 바닐라." — every content word Korean — be graded as
+    // English practice. The prompt must offer BOTH readings and let the
+    // evaluator judge, since no string heuristic separates them.
     const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
     const client = createFakeClient({
       output_parsed: correctOriginalProviderResult,
@@ -159,13 +163,103 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
 
     const instructions = promptFor(client).instructions ?? [];
 
-    expect(instructions).toEqual(
-      expect.arrayContaining([expect.stringContaining("it is NOT non_english")]),
+    const mixedLanguageInstruction = instructions.find((instruction) =>
+      instruction.includes("mixes Korean and English"),
+    );
+
+    // Both readings must be on the table: the code-switch escape hatch AND
+    // the Korean-answer-in-an-English-frame verdict.
+    expect(mixedLanguageInstruction).toBeDefined();
+    expect(mixedLanguageInstruction).toContain("is NOT non_english");
+    expect(mixedLanguageInstruction).toContain(
+      "Set englishLanguage to non_english",
+    );
+    // The decision rule must be semantic, not a word count.
+    expect(mixedLanguageInstruction).toContain(
+      "not by counting words",
     );
     expect(instructions).not.toEqual(
       expect.arrayContaining([
         "Treat non-English transcripts as non_english and not successful practice.",
       ]),
+    );
+  });
+
+  it("tells the evaluator to read accented-English spans by phonetic resemblance, not from a list (UAT 2026-07-24)", async () => {
+    // A Korean-accented "chocolate"/"vanilla" is transcribed in Hangul, but
+    // the child said English. There is deliberately NO hardcoded map: the
+    // prompt hands the evaluator the romanization and tells it to sound the
+    // word out — if it resembles an English word, that IS the word the child
+    // said, correct content and never Korean to teach or retry.
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    await evaluateOriginalTurn(
+      {
+        evaluationMode: "conversation",
+        missionQuestion:
+          "Which ice cream is the best: vanilla, strawberry, or chocolate?",
+        transcript: "초콜릿 is better than 바닐라.",
+        targetPattern: "I think _____ is the best.",
+        targetExample: null,
+        level: "elementary",
+        koreanSpans: [
+          { hangul: "초콜릿", romanized: "Chokolrit" },
+          { hangul: "바닐라", romanized: "Banilra" },
+        ],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const instructions = promptFor(client).instructions ?? [];
+    const phoneticInstruction = instructions.find((instruction) =>
+      instruction.includes("say its romanization aloud"),
+    );
+
+    expect(phoneticInstruction).toBeDefined();
+    // The rule is phonetic resemblance, not a fixed lookup table.
+    expect(phoneticInstruction).toContain("sounds like an English word");
+    // And it must frame such a span as correct English content, never a
+    // Korean word to teach or retry.
+    expect(phoneticInstruction).toContain("never non_english");
+    expect(phoneticInstruction).toContain("never VOCABULARY to teach");
+  });
+
+  it("keeps the vocabulary path open for a span that does not sound like English", async () => {
+    // The phonetic instruction is always present when spans exist, but it must
+    // route a native word like 축구/Chukgu (which sounds nothing like "soccer")
+    // to the NAME/VOCABULARY classifier rather than accepting it as English.
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    await evaluateOriginalTurn(
+      {
+        evaluationMode: "conversation",
+        missionQuestion: "What do you like after school?",
+        transcript: "I like 축구.",
+        targetPattern: "I like _____.",
+        targetExample: null,
+        level: "elementary",
+        koreanSpans: [{ hangul: "축구", romanized: "Chukgu" }],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const instructions = promptFor(client).instructions ?? [];
+    const fallbackInstruction = instructions.find((instruction) =>
+      instruction.includes("does NOT sound like an English word"),
+    );
+
+    expect(fallbackInstruction).toBeDefined();
+    // The fallback must name the classifier the non-loanword span falls through
+    // to, and cite a native word that must NOT be read as accented English.
+    expect(fallbackInstruction).toContain("classify it as NAME or VOCABULARY");
+    expect(fallbackInstruction).toContain(
+      "Chukgu does not sound like soccer",
     );
   });
 
