@@ -1,11 +1,13 @@
 import { DEFAULT_CHARACTER_ID, missionFormSchema } from "@/domain/mission/schemas";
 import type {
+  AnswerShape,
   HintLadder,
   MissionFormInput,
   MissionLevel,
   MissionTurnInput,
 } from "@/domain/mission/schemas";
 import { createSupabaseServerClient } from "@/lib/supabase/server-auth";
+import { classifyTurnAnswerShapes } from "@/server/ai/answer-shape-classifier";
 import type { Json } from "@/lib/db/types";
 
 export type TeacherMission = {
@@ -152,6 +154,14 @@ function toMissionInsert(input: MissionFormInput, teacherId: string) {
   };
 }
 
+export function applyAnswerShapes(
+  turns: MissionTurnInput[],
+  shapes: AnswerShape[],
+): MissionTurnInput[] {
+  if (shapes.length !== turns.length) return turns;
+  return turns.map((turn, i) => ({ ...turn, answerShape: shapes[i] }));
+}
+
 export function toTurnRows(missionId: string, turns: MissionTurnInput[]) {
   return turns.map((turn, index) => ({
     mission_id: missionId,
@@ -236,9 +246,14 @@ export async function createMission(
     throw new Error(`Unable to create mission: ${inserted.error.message}`);
   }
 
+  const shapes = await classifyTurnAnswerShapes({
+    turns: parsed.turns.map((t) => ({ prompt: t.prompt, targetExample: t.targetExample })),
+  });
+  const shapedTurns = applyAnswerShapes(parsed.turns, shapes);
+
   const turns = await supabase
     .from("mission_turn_templates")
-    .insert(toTurnRows(inserted.data.id, parsed.turns));
+    .insert(toTurnRows(inserted.data.id, shapedTurns));
 
   if (turns.error) {
     throw new Error(`Unable to create mission turns: ${turns.error.message}`);
@@ -276,9 +291,14 @@ export async function updateMission(
     throw new Error(`Unable to replace mission turns: ${removed.error.message}`);
   }
 
+  const shapes = await classifyTurnAnswerShapes({
+    turns: parsed.turns.map((t) => ({ prompt: t.prompt, targetExample: t.targetExample })),
+  });
+  const shapedTurns = applyAnswerShapes(parsed.turns, shapes);
+
   const turns = await supabase
     .from("mission_turn_templates")
-    .insert(toTurnRows(input.missionId, parsed.turns));
+    .insert(toTurnRows(input.missionId, shapedTurns));
 
   if (turns.error) {
     throw new Error(`Unable to update mission turns: ${turns.error.message}`);

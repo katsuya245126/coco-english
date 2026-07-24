@@ -7,6 +7,7 @@ vi.mock("@/lib/supabase/server-auth", () => ({
 }));
 
 const {
+  applyAnswerShapes,
   archiveMission,
   cancelMissionAssignment,
   createMission,
@@ -396,5 +397,22 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
       answer_shape: "fixed",
     } as never);
     expect(mapped.answerShape).toBe("fixed");
+  });
+
+  it("applies classified shapes to turns in order", () => {
+    const turns = [
+      { prompt: "q1", targetExample: "a1", hintLadder: { tier1: "x", tier2: "y", tier3: "z" }, answerShape: "open" as const },
+      { prompt: "q2", targetExample: "a2", hintLadder: { tier1: "x", tier2: "y", tier3: "z" }, answerShape: "open" as const },
+    ];
+    const result = applyAnswerShapes(turns, ["fixed", "open"]);
+    expect(result.map((t) => t.answerShape)).toEqual(["fixed", "open"]);
+  });
+
+  it("leaves turns unchanged when shape count mismatches", () => {
+    const turns = [
+      { prompt: "q1", targetExample: "a1", hintLadder: { tier1: "x", tier2: "y", tier3: "z" }, answerShape: "open" as const },
+    ];
+    const result = applyAnswerShapes(turns, []);
+    expect(result.map((t) => t.answerShape)).toEqual(["open"]);
   });
 });
