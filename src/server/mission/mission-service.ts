@@ -74,6 +74,7 @@ type TurnRow = {
   prompt: string;
   target_example: string;
   hint_ladder: Json;
+  answer_shape: string;
 };
 
 function parseMissionInput(input: MissionFormInput): MissionFormInput {
@@ -125,13 +126,14 @@ function normalizeHintLadder(value: Json): HintLadder {
   };
 }
 
-function mapTurn(row: TurnRow): MissionTurn {
+export function mapTurn(row: TurnRow): MissionTurn {
   return {
     id: row.id,
     turnOrder: row.turn_order,
     prompt: row.prompt,
     targetExample: row.target_example,
     hintLadder: normalizeHintLadder(row.hint_ladder),
+    answerShape: row.answer_shape === "fixed" ? "fixed" : "open",
   };
 }
 
@@ -150,13 +152,14 @@ function toMissionInsert(input: MissionFormInput, teacherId: string) {
   };
 }
 
-function toTurnRows(missionId: string, turns: MissionTurnInput[]) {
+export function toTurnRows(missionId: string, turns: MissionTurnInput[]) {
   return turns.map((turn, index) => ({
     mission_id: missionId,
     turn_order: index + 1,
     prompt: turn.prompt,
     target_example: turn.targetExample,
     hint_ladder: turn.hintLadder as unknown as Json,
+    answer_shape: turn.answerShape,
   }));
 }
 
@@ -388,7 +391,7 @@ export async function getMissionForTeacher(input: {
 
   const turns = await supabase
     .from("mission_turn_templates")
-    .select("id, turn_order, prompt, target_example, hint_ladder")
+    .select("id, turn_order, prompt, target_example, hint_ladder, answer_shape")
     .eq("mission_id", input.missionId)
     .order("turn_order", { ascending: true });
 
