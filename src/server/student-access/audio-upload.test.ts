@@ -467,6 +467,82 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     });
   });
 
+  // Wiring check for guardNoOpCorrection (UAT 2026-07-25, attempt 103fa68e
+// turn 2). The unit tests in tests/domain/turn-evaluation.test.ts cover the
+  // comparison itself; this drives the whole upload path to prove the guard is
+  // actually in the chain and that the live transcript reaches it. It replaces
+  // a live UAT that could not be reproduced on demand — the defect depends on
+  // the provider returning a vacuous correction, which is not triggerable.
+  it("never demands a repeat when the correction is identical to what the student said (UAT 2026-07-25)", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: soccerConversationSnapshot as unknown as typeof conversationMissionSnapshotFixture,
+    });
+
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    // The recorded defect: provider echoes the student's own sentence back as
+    // a "material" correction and demands a repeat.
+    const evaluateOriginal = successfulOriginalEvaluator({
+      outcome: "needs_correction",
+      correctionNeeded: true,
+      correctionSeverity: "material",
+      improvedSentence: "I want to read many cartoons.",
+    });
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "Which cartoon is your favourite?" },
+    }));
+    const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
+    const warmTtsAudioCache = vi.fn(async () => ({
+      ok: true as const,
+      warmed: 1,
+      skipped: 0,
+      failed: 0,
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      transcribeAudioFile: successfulTranscriber("I want to read many cartoons."),
+      evaluateOriginalTurn: evaluateOriginal,
+      generateCocoReply: generate,
+      isContentSafe: moderate,
+      warmTtsAudioCache,
+    });
+
+    // The child is accepted and the conversation continues — no re-record.
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "accepted_original",
+        improvedSentence: null,
+        requireRepeat: false,
+      },
+      cocoLine: "Which cartoon is your favourite?",
+    });
+
+    // The vacuous correction is never persisted, so it can never be shown or
+    // spoken back to the student.
+    const turnUpsert = mockSupabase.operations.find(
+      (operation) =>
+        operation.table === "attempt_turns" &&
+        operation.action === "upsert" &&
+        (operation.payload as { original_transcript?: unknown })
+          .original_transcript !== undefined,
+    );
+    if (!turnUpsert) throw new Error("expected an original turn upsert");
+    expect(turnUpsert.payload).toMatchObject({
+      original_transcript: "I want to read many cartoons.",
+      improved_sentence: null,
+    });
+
+    // TTS is warmed for Coco's reply only — never for the discarded correction.
+    expect(warmTtsAudioCache).toHaveBeenCalledTimes(1);
+    expect(warmTtsAudioCache).toHaveBeenCalledWith(
+      expect.objectContaining({ texts: ["Which cartoon is your favourite?"] }),
+    );
+  });
+
   it("persists an accepted minor recast, grounds Coco with it, and does not warm correction TTS", async () => {
     mockSupabase = createMockSupabase({
       missionSnapshot: soccerConversationSnapshot as unknown as typeof conversationMissionSnapshotFixture,
