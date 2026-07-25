@@ -51,6 +51,39 @@ export default async function AssignmentStudentPage({
           <SummaryItem label="Attempts" value={evidence.attemptCount} />
           <SummaryItem label="Highest hint used" value={evidence.highestHintLabel} />
         </section>
+
+        <section style={missionStyle} aria-label="Mission content">
+          <h2 style={sectionTitleStyle}>What this mission asked for</h2>
+          <p style={missionNoteStyle}>
+            {evidence.status === "missed"
+              ? `${evidence.studentName} did not open this mission before it was due, so there is no recording to review.`
+              : `${evidence.studentName} has not started this mission yet, so there is no recording to review.`}{" "}
+            This is the work that was assigned.
+          </p>
+
+          {(evidence.targetPattern || evidence.topic) && (
+            <div style={missionMetaStyle}>
+              {evidence.topic && <SummaryItem label="Topic" value={evidence.topic} />}
+              {evidence.targetPattern && (
+                <SummaryItem label="Target pattern" value={evidence.targetPattern} />
+              )}
+            </div>
+          )}
+
+          {evidence.turns.length === 0 ? (
+            <p style={missionNoteStyle}>Mission details are unavailable for this assignment.</p>
+          ) : (
+            <ol style={turnListStyle}>
+              {evidence.turns.map((turn) => (
+                <li key={turn.turnOrder} style={turnItemStyle}>
+                  <p style={labelStyle}>Turn {turn.turnOrder}</p>
+                  <p style={turnPromptStyle}>{turn.prompt}</p>
+                  <p style={turnExampleStyle}>Example answer: {turn.targetExample}</p>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
       </main>
     </div>
   );
@@ -98,6 +131,62 @@ const summaryStyle: React.CSSProperties = {
   border: "1px solid #D1D5DB",
   borderRadius: 8,
   background: "#FFFFFF",
+};
+
+const missionStyle: React.CSSProperties = {
+  marginTop: 24,
+  padding: 20,
+  border: "1px solid #D1D5DB",
+  borderRadius: 8,
+  background: "#FFFFFF",
+};
+
+const sectionTitleStyle: React.CSSProperties = {
+  margin: "0 0 8px",
+  fontSize: 20,
+  fontWeight: 600,
+};
+
+const missionNoteStyle: React.CSSProperties = {
+  margin: "0 0 16px",
+  fontSize: 14,
+  color: "#4B5563",
+  lineHeight: 1.5,
+};
+
+const missionMetaStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 20,
+  marginBottom: 20,
+};
+
+const turnListStyle: React.CSSProperties = {
+  listStyle: "none",
+  display: "grid",
+  gap: 12,
+  margin: 0,
+  padding: 0,
+};
+
+const turnItemStyle: React.CSSProperties = {
+  padding: 16,
+  border: "1px solid #E5E7EB",
+  borderRadius: 8,
+  background: "#F9FAFB",
+};
+
+const turnPromptStyle: React.CSSProperties = {
+  margin: "0 0 6px",
+  fontSize: 15,
+  fontWeight: 600,
+  color: "#111827",
+};
+
+const turnExampleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 14,
+  color: "#4B5563",
 };
 
 const labelStyle: React.CSSProperties = {

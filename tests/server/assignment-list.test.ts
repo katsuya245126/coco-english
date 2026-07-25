@@ -40,7 +40,22 @@ describe("listStudentAssignmentPage", () => {
     rows = [row("missed", "missed", "2026-07-01T00:00:00Z"), canceled, row("done", "completed", null, "2026-07-10T00:00:00Z")];
     const { listStudentAssignmentPage } = await import("@/server/student-access/assignment-list");
     const page = await listStudentAssignmentPage("student-1", { tab: "current", page: 1 });
-    expect(page.items.map((item) => [item.assignmentStudentId, item.displayStatus])).toEqual([["missed", "late"]]);
+    // Overdue and never started reports 'late_start' (action: "Start mission"),
+    // not 'late' (action: "Continue mission") — a missed row has no attempt to
+    // continue, and the old label wrongly implied the student had begun.
+    expect(page.items.map((item) => [item.assignmentStudentId, item.displayStatus])).toEqual([["missed", "late_start"]]);
+  });
+
+  it("distinguishes overdue started work from overdue never-started work", async () => {
+    rows = [
+      row("started-late", "started", "2026-07-01T00:00:00Z"),
+      row("never-opened", "assigned", "2026-07-01T00:00:00Z"),
+    ];
+    const { listStudentAssignmentPage } = await import("@/server/student-access/assignment-list");
+    const page = await listStudentAssignmentPage("student-1", { tab: "current", page: 1 });
+    const byId = new Map(page.items.map((item) => [item.assignmentStudentId, item.displayStatus]));
+    expect(byId.get("started-late")).toBe("late");
+    expect(byId.get("never-opened")).toBe("late_start");
   });
 
   it("presents teacher-reviewed submissions as completed Past work", async () => {

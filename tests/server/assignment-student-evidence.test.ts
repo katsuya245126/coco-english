@@ -45,6 +45,10 @@ describe("assignment student evidence", () => {
       status: "assigned", statusLabel: "Not started", submittedLabel: "Not yet submitted",
       attemptCount: 0, highestHintLabel: "No hints used", classId: "class-1",
       className: "Test class", assignmentId: "assignment-1", dismissedAt: null,
+      // Mission content is carried through so a no-attempt row can show the
+      // assigned work instead of a grid of empty stats.
+      targetPattern: "I like ...", topic: "favorites",
+      turns: [{ turnOrder: 1, prompt: "What do you like?", targetExample: "I like apples." }],
     });
     expect(filters).toContainEqual(["assignments.classes.teacher_id", "teacher-1"]);
   });

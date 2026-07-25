@@ -6,7 +6,12 @@ export type AssignmentDisplayStatus =
   | "continue"
   | "retry"
   | "done"
-  | "late";
+  // Two overdue variants: 'late' is work the student has already begun,
+  // 'late_start' is overdue work never opened. Both badge as "Late"; they
+  // differ only in the call to action ("Continue" vs "Start"), which
+  // previously collapsed into a misleading "Continue mission".
+  | "late"
+  | "late_start";
 
 // Both terminal statuses present identically to students — teacher_review
 // is an internal-only distinction surfaced solely on teacher-facing
@@ -96,7 +101,7 @@ export async function listStudentAssignmentPage(
       if (isStudentCompleted) displayStatus = "done";
       else if (row.status === "needs_retry") displayStatus = "retry";
       else if (row.status === "started") displayStatus = due !== null && due < now ? "late" : "continue";
-      else displayStatus = due !== null && due < now ? "late" : "start";
+      else displayStatus = due !== null && due < now ? "late_start" : "start";
 
       items.push({
         assignmentStudentId: row.id,

@@ -11,6 +11,12 @@ function one(value: RawValue | undefined): RawRow {
   return item && typeof item === "object" ? item as RawRow : {};
 }
 
+export type AssignmentStudentMissionTurn = {
+  turnOrder: number;
+  prompt: string;
+  targetExample: string;
+};
+
 export type AssignmentStudentEvidence = {
   assignmentStudentId: string;
   studentName: string;
@@ -24,6 +30,12 @@ export type AssignmentStudentEvidence = {
   className: string;
   assignmentId: string;
   dismissedAt: string | null;
+  // Mission content the student was assigned but never opened. Without an
+  // attempt there is no evidence to show, so the page shows the work itself
+  // rather than a grid of empty stats.
+  targetPattern: string | null;
+  topic: string | null;
+  turns: AssignmentStudentMissionTurn[];
 };
 
 export async function getAssignmentStudentEvidenceForTeacher(
@@ -65,5 +77,14 @@ export async function getAssignmentStudentEvidenceForTeacher(
     className: String(klass.name),
     assignmentId: String(assignment.id),
     dismissedAt: row.dismissed_at ? String(row.dismissed_at) : null,
+    targetPattern: snapshot.success ? snapshot.data.targetPattern : null,
+    topic: snapshot.success ? snapshot.data.topic : null,
+    turns: snapshot.success
+      ? snapshot.data.turns.map((turn) => ({
+          turnOrder: turn.turnOrder,
+          prompt: turn.prompt,
+          targetExample: turn.targetExample,
+        }))
+      : [],
   };
 }
