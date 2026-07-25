@@ -616,3 +616,103 @@ describe("post-cap minimal-effort correction guard (phone UAT 2026-07-21)", () =
     ).toEqual(meaningfulCorrection);
   });
 });
+
+describe("no-op correction guard (attempt 103fa68e turn 2 regression)", () => {
+  const context = {
+    evaluationMode: "conversation",
+    missionQuestion: "What books do you want to read there?",
+  } as const;
+
+  it("accepts the original when the correction is identical to the transcript", async () => {
+    const { guardNoOpCorrection } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    const outcome = guardNoOpCorrection(
+      {
+        kind: "needs_correction",
+        requireRepeat: true,
+        improvedSentence: "I want to read many cartoons.",
+      },
+      { ...context, transcript: "I want to read many cartoons." },
+    );
+
+    expect(outcome).toEqual({
+      kind: "accepted_original",
+      requireRepeat: false,
+      improvedSentence: null,
+      reinforcement: "positive",
+    });
+  });
+
+  it("treats case and punctuation differences as a no-op", async () => {
+    const { guardNoOpCorrection } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    const outcome = guardNoOpCorrection(
+      {
+        kind: "needs_correction",
+        requireRepeat: true,
+        improvedSentence: "I want to read many cartoons.",
+      },
+      { ...context, transcript: "i want to read many cartoons" },
+    );
+
+    expect(outcome.kind).toBe("accepted_original");
+  });
+
+  it("leaves a genuine correction untouched", async () => {
+    const { guardNoOpCorrection } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    const decision = {
+      kind: "needs_correction",
+      requireRepeat: true,
+      improvedSentence: "I like adventure cartoons.",
+    } as const;
+
+    const outcome = guardNoOpCorrection(decision, {
+      ...context,
+      transcript: "I like adventure cartoon.",
+    });
+
+    expect(outcome).toEqual(decision);
+  });
+
+  it("applies in preset mode too", async () => {
+    const { guardNoOpCorrection } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    const outcome = guardNoOpCorrection(
+      {
+        kind: "needs_correction",
+        requireRepeat: true,
+        improvedSentence: "I think chocolate ice cream is the best.",
+      },
+      {
+        evaluationMode: "preset",
+        missionQuestion: null,
+        transcript: "I think chocolate ice cream is the best.",
+      },
+    );
+
+    expect(outcome.kind).toBe("accepted_original");
+  });
+
+  it("leaves non-correction decisions untouched when no transcript is supplied", async () => {
+    const { guardNoOpCorrection } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    const decision = {
+      kind: "needs_correction",
+      requireRepeat: true,
+      improvedSentence: "I want to read many cartoons.",
+    } as const;
+
+    expect(guardNoOpCorrection(decision, context)).toEqual(decision);
+  });
+});

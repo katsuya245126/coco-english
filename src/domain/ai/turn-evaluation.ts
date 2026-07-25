@@ -367,6 +367,39 @@ export function guardParrotedConversationCorrection(
     : failedOriginalContract();
 }
 
+/**
+ * Deterministic backstop for a vacuous correction. UAT 2026-07-25 (attempt
+ * 103fa68e turn 2): the evaluator returned an improvedSentence byte-identical
+ * to the student's transcript and still demanded a repeat, so the child
+ * re-recorded the same words and was then accepted. A correction that changes
+ * nothing cannot be material, so accept the original instead of taxing the
+ * student with a repeat.
+ *
+ * Downgrades to accepted_original rather than teacher_review on purpose: the
+ * student's sentence was already correct, so there is nothing for a teacher to
+ * adjudicate and flagging would fill the review queue with non-problems.
+ */
+export function guardNoOpCorrection(
+  decision: OriginalTurnDecision,
+  context: OriginalTurnGuardContext,
+): OriginalTurnDecision {
+  if (decision.kind !== "needs_correction") return decision;
+
+  const transcript = context.transcript?.trim();
+  if (!transcript) return decision;
+
+  const improved = normalizeForParrotComparison(decision.improvedSentence);
+  const said = normalizeForParrotComparison(transcript);
+  if (!improved || !said || improved !== said) return decision;
+
+  return {
+    kind: "accepted_original",
+    requireRepeat: false,
+    improvedSentence: null,
+    reinforcement: "positive",
+  };
+}
+
 export function repeatTurnSchemaFailureResult(): Extract<
   RepeatTurnDecision,
   { kind: "teacher_review" }

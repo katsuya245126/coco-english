@@ -24,6 +24,7 @@ import {
   AI_EVALUATION_VERSION,
   decideOriginalTurnOutcome,
   guardNonsensicalMinimalEffortCorrection,
+  guardNoOpCorrection,
   guardParrotedConversationCorrection,
   type OriginalTurnGuardContext,
   decideRepeatTurnOutcome,
@@ -240,12 +241,15 @@ export function applyOriginalTurnEvaluation(
     evaluationMode: "preset",
     missionQuestion: null,
   };
-  const decision = guardNonsensicalMinimalEffortCorrection(
-    guardParrotedConversationCorrection(
-      decideOriginalTurnOutcome(
-        result.evaluation,
-        resolvedGuardContext.evaluationMode,
-        resolvedGuardContext.missionQuestion,
+  const decision = guardNoOpCorrection(
+    guardNonsensicalMinimalEffortCorrection(
+      guardParrotedConversationCorrection(
+        decideOriginalTurnOutcome(
+          result.evaluation,
+          resolvedGuardContext.evaluationMode,
+          resolvedGuardContext.missionQuestion,
+        ),
+        resolvedGuardContext,
       ),
       resolvedGuardContext,
     ),
