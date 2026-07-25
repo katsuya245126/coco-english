@@ -24,7 +24,7 @@ reply. This UAT is the only thing that tests the real model.
 |---|---|
 | URL | http://localhost:3000/join/SHAPE1 |
 | Class | Answer Shape UAT |
-| Student | `Test Student` |
+| Student | `Test Student` (stored normalized as `test student`) |
 | PIN | `1234` |
 | Mission | Favorites and Opinions (4 turns) |
 

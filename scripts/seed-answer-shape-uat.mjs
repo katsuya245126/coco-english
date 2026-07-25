@@ -47,7 +47,10 @@ const CONTAINER = "supabase_db_english-speaking-practice";
 
 const CLASS_NAME = "Answer Shape UAT";
 const JOIN_CODE = "SHAPE1";
-const STUDENT_NAME = "Test Student";
+// Stored display_name must be the NORMALIZED form (trim + collapse spaces +
+// lowercase), because unlock.ts looks the student up by normalizeRosterName()
+// of whatever is typed. Storing "Test Student" here would never match.
+const STUDENT_NAME = "test student";
 const STUDENT_PIN = "1234";
 const MISSION_TITLE = "Favorites and Opinions";
 const TARGET_PATTERN = "I think ___ is the best.";
