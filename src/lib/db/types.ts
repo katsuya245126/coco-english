@@ -110,6 +110,7 @@ export type Database = {
           prompt: string;
           target_example: string;
           hint_ladder: Json;
+          answer_shape: "fixed" | "open";
           created_at: string;
           updated_at: string;
         };
@@ -120,6 +121,7 @@ export type Database = {
           prompt: string;
           target_example: string;
           hint_ladder?: Json;
+          answer_shape?: "fixed" | "open";
           created_at?: string;
           updated_at?: string;
         };
