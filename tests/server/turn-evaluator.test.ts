@@ -1009,4 +1009,30 @@ describe("buildOriginalPrompt answerShape branch", () => {
       "Never use needs_correction to replace the child's choice",
     );
   });
+
+  // Guards the 2026-07-24 UAT bug: a child answered "chocolate" and the
+  // evaluator rewrote it to the authored example's "vanilla". A prompt-only
+  // fix (b9a165cb) did not hold — attempt 038f325a coerced again hours later.
+  it("regression: chocolate answer is never coerced toward the vanilla example (open turn)", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    await evaluateOriginalTurn(
+      { ...base, answerShape: "open" },
+      { apiKey: "test-key", client },
+    );
+
+    const body = bodyFor(client);
+    // Open branch must forbid swapping in the example's choice.
+    expect(body).toContain(
+      "Never use needs_correction to replace the child's choice",
+    );
+    // The fixed-mode "wrong answer -> targetExample" band-aid must NOT appear
+    // on the open branch.
+    expect(body).not.toContain(
+      "provide the assigned targetExample as the improvedSentence",
+    );
+  });
 });
