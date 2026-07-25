@@ -1,8 +1,11 @@
 // Seeds LOCAL Supabase with a preset mission for the answer-shape UAT.
 //
-// Two turns, deliberately one of each shape:
-//   turn 1 = "open"  -> the ice-cream opinion question from the 2026-07-24 bug
-//   turn 2 = "fixed" -> a repeat-after-me drill that must STILL be corrected
+// Four turns, one per UAT case, so a single run-through covers everything and
+// no case needs a re-seed to retry:
+//   turn 1 = "open"  -> the ice-cream question from the 2026-07-24 bug
+//   turn 2 = "open"  -> answer bare ("Bananas.") to test frame-adding
+//   turn 3 = "open"  -> a third choice, different frame
+//   turn 4 = "fixed" -> a repeat-after-me drill that must STILL be corrected
 //
 // Local only. Refuses to run against a non-local database.
 //
@@ -46,7 +49,7 @@ const CLASS_NAME = "Answer Shape UAT";
 const JOIN_CODE = "SHAPE1";
 const STUDENT_NAME = "Test Student";
 const STUDENT_PIN = "1234";
-const MISSION_TITLE = "Ice Cream Opinions";
+const MISSION_TITLE = "Favorites and Opinions";
 const TARGET_PATTERN = "I think ___ is the best.";
 
 function sql(statement) {
@@ -85,20 +88,43 @@ if (port !== "5432") {
   throw new Error(`Refusing to run: unexpected port ${port}`);
 }
 
+// One turn per UAT case, so a single run-through covers everything and no
+// case requires re-seeding to retry. Turns 1-3 are open (each with a target
+// example naming a choice the student will NOT pick); turn 4 is fixed.
+const openHintLadder = {
+  tier1: "Try using: I think ___ is the best.",
+  tier2: "Choose your own words for: I think ___ is the best.",
+  tier3: "Use this sentence frame: I think ___ is the best.",
+};
+
 const turns = [
   {
     turnOrder: 1,
     prompt: "Which ice cream is the best: vanilla, strawberry, or chocolate?",
     targetExample: "I think vanilla ice cream is the best.",
     answerShape: "open",
-    hintLadder: {
-      tier1: "Try using: I think ___ is the best.",
-      tier2: "Choose your own words for: I think ___ is the best.",
-      tier3: "Use this sentence frame: I think ___ is the best.",
-    },
+    hintLadder: openHintLadder,
   },
   {
     turnOrder: 2,
+    prompt: "Which fruit is the best: apples, bananas, or grapes?",
+    targetExample: "I think apples are the best.",
+    answerShape: "open",
+    hintLadder: openHintLadder,
+  },
+  {
+    turnOrder: 3,
+    prompt: "Which animal is the best pet: a dog, a cat, or a bird?",
+    targetExample: "I think a dog is the best pet.",
+    answerShape: "open",
+    hintLadder: {
+      tier1: "Try using: I think ___ is the best pet.",
+      tier2: "Choose your own words for: I think ___ is the best pet.",
+      tier3: "Use this sentence frame: I think ___ is the best pet.",
+    },
+  },
+  {
+    turnOrder: 4,
     prompt: 'Say this: "Nice to meet you."',
     targetExample: "Nice to meet you.",
     answerShape: "fixed",

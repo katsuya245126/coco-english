@@ -26,48 +26,61 @@ reply. This UAT is the only thing that tests the real model.
 | Class | Answer Shape UAT |
 | Student | `Test Student` |
 | PIN | `1234` |
-| Mission | Ice Cream Opinions (2 turns) |
+| Mission | Favorites and Opinions (4 turns) |
 
-Turn 1 is `open`, turn 2 is `fixed` — the point is to check both branches.
+Turns 1–3 are `open`, turn 4 is `fixed`. **One turn per test case**, so a single
+straight run-through covers everything — passing a turn advances to the next
+case rather than ending the mission. No re-running needed.
+
+In every open turn the authored example names a choice you will deliberately
+**not** pick, so each turn independently tests for coercion.
 
 ## Say these exact lines
 
-Speak them aloud; this is a microphone flow.
+Speak them aloud; this is a microphone flow. Just go straight through turns
+1 → 4.
 
-### Turn 1 — the actual bug (open turn)
+### Turn 1 — the actual bug (open)
 
-Question on screen: *"Which ice cream is the best: vanilla, strawberry, or
-chocolate?"*
-The authored example says **vanilla**. You will say **chocolate**.
+On screen: *"Which ice cream is the best: vanilla, strawberry, or chocolate?"*
+Example says **vanilla**. You say **chocolate**.
 
-**1a. Say:**
 > **"I think chocolate ice cream is the best."**
 
-**PASS:** accepted / moves on. No correction, no repeat-after-me, no hint.
-**FAIL:** anything that pushes you toward *vanilla*, or asks you to repeat a
+**PASS:** accepted, moves to turn 2. No correction, no repeat, no hint.
+**FAIL:** anything pushing you toward *vanilla*, or asking you to repeat a
 sentence containing "vanilla". **That is the original bug, still alive.**
 
-**1b. Re-run the mission and this time say just:**
-> **"Chocolate."**
+### Turn 2 — bare answer, the sharpest case (open)
 
-**PASS:** a gentle correction to **"I think chocolate is the best."** — your own
-choice, placed into the taught frame. You then repeat that and it is accepted.
-**FAIL:** the correction says *vanilla*, or any flavour you did not say.
+On screen: *"Which fruit is the best: apples, bananas, or grapes?"*
+Example says **apples**. You say **bananas**, with no frame at all.
 
-This is the sharpest case. A bare "Chocolate." is the one most likely to get
-coerced, because it does not use the frame — the fix must add the frame while
-keeping *your* flavour.
+> **"Bananas."**
 
-**1c. (optional, worth doing) Say a different valid option:**
-> **"I think strawberry is the best."**
+**PASS:** a gentle correction to **"I think bananas are the best."** — your own
+choice, placed into the taught frame. Repeat it and it is accepted.
+**FAIL:** the correction says *apples*, or any fruit you did not say.
 
-**PASS:** accepted. Any of the three offered options must be fine.
+This is the most likely one to break. A bare answer doesn't use the frame, so
+the fix has to add the frame **while keeping your choice**. If coercion survives
+anywhere, expect it here.
 
-### Turn 2 — the fixed turn must NOT have gone soft
+### Turn 3 — a third choice, different frame (open)
 
-Prompt on screen: *Say this: "Nice to meet you."*
+On screen: *"Which animal is the best pet: a dog, a cat, or a bird?"*
+Example says **a dog**. You say **a cat**.
 
-**2a. Say something wrong on purpose:**
+> **"I think a cat is the best pet."**
+
+**PASS:** accepted.
+**FAIL:** pushed toward *a dog*.
+
+### Turn 4 — the fixed turn must NOT have gone soft
+
+On screen: *Say this: "Nice to meet you."*
+
+**4a. Say something wrong on purpose:**
 > **"I like pizza."**
 
 **PASS:** corrected toward **"Nice to meet you."** — repeat-after-me still
@@ -75,18 +88,19 @@ enforces the target.
 **FAIL:** accepted. That means `fixed` turns lost their strictness and the fix
 over-corrected in the other direction.
 
-**2b. Then say it properly:**
+**4b. Then say it properly:**
 > **"Nice to meet you."**
 
-**PASS:** accepted.
+**PASS:** accepted, mission complete.
 
 ## What each result means
 
 | Result | Meaning |
 |---|---|
-| 1a, 1b, 1c pass **and** 2a, 2b pass | Fix works. Ready to discuss merge. |
-| 1a or 1b still pushes vanilla | Structural fix did not take. Do **not** merge — tell me which line and what it said back. |
-| 2a accepted "I like pizza" | Open branch is leaking into fixed turns. Real regression. |
+| Turns 1–3 accepted with **your** choice **and** 4a corrected, 4b accepted | Fix works. Ready to discuss merge. |
+| Any open turn pushes the example's choice | Structural fix did not take. Do **not** merge — tell me which turn and what it said back. |
+| Turn 2 corrects to *apples* | The frame-adding path still coerces. This is the case most likely to fail. |
+| 4a accepted "I like pizza" | Open branch is leaking into fixed turns. Real regression. |
 
 ## If something fails
 
