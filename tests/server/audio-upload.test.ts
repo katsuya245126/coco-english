@@ -916,7 +916,15 @@ describe("uploadAttemptAudioClip", () => {
     ).toBe(false);
   });
 
-  it("rejects Korean-only transcripts before evaluation or transcript writes", async () => {
+  // Superseded 2026-07-25 (UAT blocker). This previously asserted that an
+  // all-Hangul transcript was rejected here, before the evaluator ran. That
+  // treated "no Latin letter" as proof the child answered in Korean, but the
+  // transcriber also writes accented English in Hangul ("바나나스" for
+  // *bananas*) — so a child who answered correctly in English was told "I
+  // didn't hear you. Try again." with no way past. The evaluator owns this
+  // call; it must be reached. A genuinely Korean answer still routes to a
+  // retry, now via the evaluator's non_english outcome.
+  it("passes a Korean-only transcript through to the evaluator to judge", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
     );
@@ -941,23 +949,18 @@ describe("uploadAttemptAudioClip", () => {
       scorePronunciation,
     });
 
-    expect(result).toEqual({
-      ok: false,
-      error: "transcription_failed_retryable",
-      retryable: true,
-    });
-    expect(evaluateOriginal).not.toHaveBeenCalled();
-    expect(scorePronunciation).not.toHaveBeenCalled();
-    expect(
-      mockSupabase.operations.some(
-        (operation) =>
-          operation.table === "attempt_turns" &&
-          typeof operation.payload === "object" &&
-          operation.payload !== null &&
-          ("original_transcript" in operation.payload ||
-            "repeat_transcript" in operation.payload),
-      ),
-    ).toBe(false);
+    expect(result).toMatchObject({ ok: true });
+    expect(evaluateOriginal).toHaveBeenCalled();
+    // The evaluator receives the answer verbatim, with the spans it needs to
+    // sound out — the two inputs its non_english / phonetic rules run on.
+    expect(evaluateOriginal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transcript: "나는 방과 후에 축구를 좋아해요.",
+        koreanSpans: expect.arrayContaining([
+          expect.objectContaining({ hangul: "축구를" }),
+        ]),
+      }),
+    );
   });
 
   it("stores a code-switched transcript verbatim and gives the evaluator its Korean spans", async () => {
