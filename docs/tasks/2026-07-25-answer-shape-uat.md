@@ -1,66 +1,129 @@
 # Answer Shape UAT — 2026-07-25
 
 Manual verification for the per-turn answer-shape fix (branch
-`design/per-turn-answer-shape`). Guards the 2026-07-24 bug where a child
-answered "chocolate" and the evaluator rewrote it to the authored example's
-"vanilla". A prompt-only fix (`b9a165cb`) did **not** hold — attempt
-`038f325a` coerced again hours later, which is why this fix is structural.
+`design/per-turn-answer-shape`).
 
-## Preconditions
+Guards the 2026-07-24 bug: a child answered **"chocolate"** and the evaluator
+rewrote it to the authored example's **"vanilla"**. A prompt-only fix
+(`b9a165cb`) did **not** hold — attempt `038f325a` coerced again hours later.
+That is why this fix is structural, and why this manual check matters: every
+automated test asserts on the *prompt payload*, never on the model's actual
+reply. This UAT is the only thing that tests the real model.
 
-1. **Apply the migration** `supabase/migrations/202607250001_turn_answer_shape.sql`
-   on a named environment. This has NOT been applied yet — it requires
-   explicit approval per `AGENTS.md`. Until it is applied, 4 typecheck errors
-   remain in `mission-service.ts`/`assign-service.ts` (stale generated
-   `Database` types).
-2. **Regenerate Supabase types** after applying, then re-run
-   `npm run typecheck` — expect 0 errors.
-3. **Re-save one mission that has an opinion turn** (open it, edit, save) so
-   the save-time classifier runs on it. Existing missions default to `open`
-   until re-saved, which is also correct behaviour — backfill is deliberately
-   out of scope.
+## Environment (already set up)
 
-## Steps
+- **Local** Supabase, migration `202607250001` applied. Your real student data
+  was never touched.
+- Dev server on `http://localhost:3000`, started with local-Supabase env
+  overrides for this session only — no files were modified. Note your
+  `.env.local` still points at the remote project, so a plain `npm run dev`
+  will NOT see this data.
+- Seeded by `scripts/seed-answer-shape-uat.mjs` (re-runnable).
 
-1. Open a mission with an opinion turn, e.g. "Which ice cream is the best:
-   vanilla, strawberry, or chocolate?" whose target example mentions vanilla.
-2. As a student, answer with a **different valid choice** using the frame:
-   "I think chocolate ice cream is the best."
-   **EXPECT:** accepted immediately. No hint, no repeat, no coercion to
-   vanilla.
-3. Answer the same turn with just "Chocolate."
-   **EXPECT:** gentle correction to "I think chocolate is the best." — the
-   child's *own* choice placed into the taught frame, **not** vanilla.
-4. Open a **fixed** turn (e.g. a "how do you say ___" drill or a
-   repeat-after-me turn) and give a wrong answer.
-   **EXPECT:** still corrected toward the target as before — the fixed path
-   must not have regressed.
+| | |
+|---|---|
+| URL | http://localhost:3000/join/SHAPE1 |
+| Class | Answer Shape UAT |
+| Student | `Test Student` |
+| PIN | `1234` |
+| Mission | Ice Cream Opinions (2 turns) |
 
-Log the attempt with the inspect-attempts tool and confirm turn 1 shows
-outcome accepted without a repeat.
+Turn 1 is `open`, turn 2 is `fixed` — the point is to check both branches.
 
-## What is already covered by automated tests
+## Say these exact lines
 
-These do **not** need manual checking:
+Speak them aloud; this is a microphone flow.
+
+### Turn 1 — the actual bug (open turn)
+
+Question on screen: *"Which ice cream is the best: vanilla, strawberry, or
+chocolate?"*
+The authored example says **vanilla**. You will say **chocolate**.
+
+**1a. Say:**
+> **"I think chocolate ice cream is the best."**
+
+**PASS:** accepted / moves on. No correction, no repeat-after-me, no hint.
+**FAIL:** anything that pushes you toward *vanilla*, or asks you to repeat a
+sentence containing "vanilla". **That is the original bug, still alive.**
+
+**1b. Re-run the mission and this time say just:**
+> **"Chocolate."**
+
+**PASS:** a gentle correction to **"I think chocolate is the best."** — your own
+choice, placed into the taught frame. You then repeat that and it is accepted.
+**FAIL:** the correction says *vanilla*, or any flavour you did not say.
+
+This is the sharpest case. A bare "Chocolate." is the one most likely to get
+coerced, because it does not use the frame — the fix must add the frame while
+keeping *your* flavour.
+
+**1c. (optional, worth doing) Say a different valid option:**
+> **"I think strawberry is the best."**
+
+**PASS:** accepted. Any of the three offered options must be fine.
+
+### Turn 2 — the fixed turn must NOT have gone soft
+
+Prompt on screen: *Say this: "Nice to meet you."*
+
+**2a. Say something wrong on purpose:**
+> **"I like pizza."**
+
+**PASS:** corrected toward **"Nice to meet you."** — repeat-after-me still
+enforces the target.
+**FAIL:** accepted. That means `fixed` turns lost their strictness and the fix
+over-corrected in the other direction.
+
+**2b. Then say it properly:**
+> **"Nice to meet you."**
+
+**PASS:** accepted.
+
+## What each result means
+
+| Result | Meaning |
+|---|---|
+| 1a, 1b, 1c pass **and** 2a, 2b pass | Fix works. Ready to discuss merge. |
+| 1a or 1b still pushes vanilla | Structural fix did not take. Do **not** merge — tell me which line and what it said back. |
+| 2a accepted "I like pizza" | Open branch is leaking into fixed turns. Real regression. |
+
+## If something fails
+
+Tell me the exact turn (1a/1b/2a), what you said, and what came back verbatim.
+The verbatim reply is what matters — the difference between "I think chocolate
+is the best" and "I think vanilla is the best" is the entire bug.
+
+To inspect what was stored:
+
+```bash
+node scripts/inspect-attempts.mjs
+```
+
+To reset and start clean:
+
+```bash
+node scripts/seed-answer-shape-uat.mjs
+```
+
+## Already covered by automated tests (do not re-check by hand)
 
 - `tests/server/turn-evaluator.test.ts` — the open/fixed prompt branch, the
-  default-to-open fallback, and a named regression guard
-  ("regression: chocolate answer is never coerced toward the vanilla example").
-  The guard was mutation-verified: forcing `isOpenPreset = false` makes it
-  fail.
+  default-to-open fallback, and a named regression guard for the
+  chocolate/vanilla scenario. Mutation-verified: forcing `isOpenPreset = false`
+  makes it fail.
 - `tests/server/audio-upload.test.ts` — `answerShape` propagates from the
-  assignment mission snapshot into the live evaluation call, for both `open`
-  and `fixed`.
+  assignment snapshot into the live evaluation call, for both shapes.
 - `src/server/ai/answer-shape-classifier.test.ts` — the save-time classifier,
   including its fail-safe (falls back to `open` on any provider error).
 
-Full suite at the time of writing: 98 files, 1062 passed / 4 skipped.
+Gates at time of writing: vitest 98 files / 1062 passed, typecheck 0 errors,
+lint 0 errors.
 
-## Known gaps
+## Still open after this UAT
 
-- **End-to-end behaviour against the live model is unverified.** Every
-  automated test asserts on the *prompt payload* sent to the model, not on
-  the model's actual response. Steps 2–4 above are the only real check that
-  the instruction wording actually changes model behaviour — this is the
-  point of this UAT.
-- Legacy turns stay `open` until their mission is next saved (intended).
+- Migration applied **locally only**. Remote/production still needs it, as a
+  separate approval.
+- Branch `design/per-turn-answer-shape` is unmerged.
+- Legacy turns stay `open` until their mission is next saved (intended; no
+  backfill).
