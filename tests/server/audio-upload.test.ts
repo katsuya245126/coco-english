@@ -121,7 +121,22 @@ function successfulRepeatEvaluator(overrides = {}) {
   }));
 }
 
-const missionSnapshotFixture = {
+const missionSnapshotFixture: {
+  missionId: string;
+  title: string;
+  targetPattern: string;
+  topic: string;
+  level: string;
+  requiredTurns: number;
+  characterId: string;
+  turns: Array<{
+    turnOrder: number;
+    prompt: string;
+    targetExample: string;
+    hintLadder: { tier1: string; tier2: string; tier3: string };
+    answerShape?: "fixed" | "open";
+  }>;
+} = {
   missionId: "11111111-1111-4111-8111-111111111111",
   title: "After school",
   targetPattern: "I like ___ing.",
@@ -428,6 +443,70 @@ describe("uploadAttemptAudioClip", () => {
         missionQuestion: "What are you going to do after school?",
         transcript: "I am going to play games.",
       }),
+    );
+  });
+
+  it("passes the snapshot turn's answerShape to the evaluator", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...missionSnapshotFixture,
+        targetPattern: "I like _____.",
+        turns: [
+          {
+            ...missionSnapshotFixture.turns[0],
+            prompt: "What ice cream do you like?",
+            targetExample: "I like vanilla ice cream.",
+            answerShape: "open",
+          },
+          missionSnapshotFixture.turns[1],
+        ],
+      },
+    });
+
+    const evaluateOriginal = successfulOriginalEvaluator();
+    await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like chocolate ice cream."),
+      evaluateOriginalTurn: evaluateOriginal,
+    });
+
+    expect(evaluateOriginal).toHaveBeenCalledTimes(1);
+    expect(evaluateOriginal).toHaveBeenCalledWith(
+      expect.objectContaining({ answerShape: "open" }),
+    );
+  });
+
+  it("passes a fixed answerShape through to the evaluator", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...missionSnapshotFixture,
+        targetPattern: "The capital of Korea is _____.",
+        turns: [
+          {
+            ...missionSnapshotFixture.turns[0],
+            prompt: "What is the capital of Korea?",
+            targetExample: "The capital of Korea is Seoul.",
+            answerShape: "fixed",
+          },
+          missionSnapshotFixture.turns[1],
+        ],
+      },
+    });
+
+    const evaluateOriginal = successfulOriginalEvaluator();
+    await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("The capital of Korea is Busan."),
+      evaluateOriginalTurn: evaluateOriginal,
+    });
+
+    expect(evaluateOriginal).toHaveBeenCalledTimes(1);
+    expect(evaluateOriginal).toHaveBeenCalledWith(
+      expect.objectContaining({ answerShape: "fixed" }),
     );
   });
 

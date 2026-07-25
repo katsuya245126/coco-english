@@ -787,6 +787,8 @@ export async function uploadAttemptAudioClip(
       snapshot.conversationMode === true
         ? null
         : snapshotTurn?.targetExample ?? null;
+    // Dynamic chat turns have no authored shape; treat them as open-ended.
+    const answerShape = snapshotTurn?.answerShape ?? "open";
 
     const audioBytes = await timeStage("readAudio", () => input.file.arrayBuffer());
     const createAudioBlob = () => new Blob([audioBytes], { type: input.mimeType });
@@ -1125,6 +1127,7 @@ export async function uploadAttemptAudioClip(
                     requireCompleteSentenceAnswers:
                       snapshot.requireCompleteSentenceAnswers,
                     koreanSpans,
+                    answerShape,
                   });
                 });
             const decision = applyOriginalTurnEvaluation(evaluationResult, {
