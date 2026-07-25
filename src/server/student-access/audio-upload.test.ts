@@ -128,6 +128,7 @@ function createMockSupabase(options: {
   historyLookupError?: { message: string } | null;
   cocoLineUpsertError?: { message: string } | null;
   turnEvaluation?: unknown;
+  turnImprovedSentence?: string | null;
 } = {}) {
   const operations: Operation[] = [];
   const upload = vi.fn(async () => ({ error: options.uploadError ?? null }));
@@ -252,7 +253,7 @@ function createMockSupabase(options: {
             data: {
               id: "turn-1",
               original_transcript: null,
-              improved_sentence: null,
+              improved_sentence: options.turnImprovedSentence ?? null,
               evaluation: options.turnEvaluation ?? null,
             },
             error: null,
@@ -1687,5 +1688,102 @@ describe("minimal-effort answer guard (conversation mode)", () => {
         minimalEffortBlocks: 2,
       },
     });
+  });
+});
+
+describe("repeat write preserves the original evaluation (2026-07-25)", () => {
+  const storedOriginalEvaluation = {
+    version: "ai-eval-v1",
+    outcome: "needs_correction",
+    confidence: "high",
+    reviewReason: null,
+    meaningUnderstood: true,
+    targetPatternAttempted: true,
+    englishLanguage: "english",
+    correctionNeeded: true,
+    correctionSeverity: "material",
+    improvedSentence: "I like adventure cartoons.",
+    requireRepeat: true,
+  };
+
+  const repeatEvaluator = () =>
+    vi.fn(async () => ({
+      ok: true as const,
+      evaluation: {
+        version: "ai-eval-v1" as const,
+        outcome: "repeat_accepted" as const,
+        repeatCloseEnough: true,
+        englishLanguage: "english" as const,
+        confidence: "high" as const,
+        reviewReason: null,
+      },
+    }));
+
+  function findRepeatTurnUpdate() {
+    const turnUpdate = mockSupabase.operations.find(
+      (operation) =>
+        operation.table === "attempt_turns" &&
+        operation.action === "update" &&
+        (operation.payload as { repeat_transcript?: unknown })
+          .repeat_transcript !== undefined,
+    );
+    if (!turnUpdate) throw new Error("expected a repeat turn update");
+    return (turnUpdate.payload as { evaluation: Record<string, unknown> })
+      .evaluation;
+  }
+
+  beforeEach(() => {
+    vi.resetModules();
+    mockLog.mockClear();
+    process.env.STUDENT_AUDIO_BUCKET = "student-audio";
+  });
+
+  it("nests the prior original evaluation under originalEvaluation", async () => {
+    mockSupabase = createMockSupabase({
+      turnEvaluation: storedOriginalEvaluation,
+      turnImprovedSentence: "I like adventure cartoons.",
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const result = await uploadAttemptAudioClip(
+      { ...audioInput({ turnOrder: 1 }), clipKind: "repeat_attempt" as const },
+      {
+        transcribeAudioFile: successfulTranscriber("I like adventure cartoons."),
+        evaluateRepeatTurn: repeatEvaluator(),
+      },
+    );
+
+    expect(result.ok).toBe(true);
+
+    const written = findRepeatTurnUpdate();
+
+    // Repeat fields stay at the top level so existing readers keep working.
+    expect(written).toMatchObject({ repeatCloseEnough: true });
+    // The evaluation that caused the repeat survives.
+    expect(written.originalEvaluation).toMatchObject({
+      correctionSeverity: "material",
+      improvedSentence: "I like adventure cartoons.",
+    });
+  });
+
+  it("omits originalEvaluation when no prior evaluation exists", async () => {
+    mockSupabase = createMockSupabase({
+      turnImprovedSentence: "I like adventure cartoons.",
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    await uploadAttemptAudioClip(
+      { ...audioInput({ turnOrder: 1 }), clipKind: "repeat_attempt" as const },
+      {
+        transcribeAudioFile: successfulTranscriber("I like adventure cartoons."),
+        evaluateRepeatTurn: repeatEvaluator(),
+      },
+    );
+
+    expect(findRepeatTurnUpdate()).not.toHaveProperty("originalEvaluation");
   });
 });

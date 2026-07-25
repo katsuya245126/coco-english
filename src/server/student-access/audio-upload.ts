@@ -202,6 +202,7 @@ type StoredRepeatTurnEvaluation = {
   repeatCloseEnough: RepeatTurnEvaluation["repeatCloseEnough"];
   repeatAccepted: boolean | null;
   requireRepeat: boolean;
+  originalEvaluation?: StoredOriginalTurnEvaluation;
 };
 
 export function applyOriginalTurnEvaluation(
@@ -386,6 +387,24 @@ function toJson(
   value: StoredOriginalTurnEvaluation | StoredRepeatTurnEvaluation,
 ): Json {
   return value as unknown as Json;
+}
+
+/**
+ * `attempt_turns.evaluation` holds either an original or a repeat evaluation.
+ * `repeatCloseEnough` appears only on repeat evaluations and
+ * `correctionSeverity` only on originals, so the pair distinguishes them
+ * without a version bump. Guards against re-nesting an already-nested repeat
+ * evaluation if a turn is written twice.
+ */
+function isStoredOriginalEvaluation(
+  value: unknown,
+): value is StoredOriginalTurnEvaluation {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "correctionSeverity" in value &&
+    !("repeatCloseEnough" in value)
+  );
 }
 
 function priorMinimalEffortBlocks(evaluation: unknown): number {
@@ -1213,13 +1232,28 @@ export async function uploadAttemptAudioClip(
             const decision = applyRepeatTurnEvaluation(evaluationResult);
             repeatEvaluation = decision;
 
+            // The original and the repeat arrive as separate uploads, so the
+            // in-memory value is normally undefined here; the row is the
+            // durable source. Preserving it keeps correctionSeverity — the
+            // reason the repeat was demanded — from being overwritten.
+            const priorOriginalEvaluation =
+              originalEvaluation ??
+              (isStoredOriginalEvaluation(turn.evaluation)
+                ? turn.evaluation
+                : undefined);
+
             const write = await timeStage("turnWrite", () =>
               supabase
                 .from("attempt_turns")
                 .update({
                   repeat_transcript: transcript,
                   repeat_accepted: decision.repeatAccepted,
-                  evaluation: toJson(decision),
+                  evaluation: toJson({
+                    ...decision,
+                    ...(priorOriginalEvaluation
+                      ? { originalEvaluation: priorOriginalEvaluation }
+                      : {}),
+                  }),
                 })
                 .eq("id", turn.id),
             );
