@@ -183,6 +183,13 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
         "Treat non-English transcripts as non_english and not successful practice.",
       ]),
     );
+    // Case (c), added 2026-07-25. Once all-Hangul transcripts stopped being
+    // rejected at the transcription layer, they started arriving here — and
+    // an instruction opening "This transcript mixes Korean and English" has
+    // no branch for a transcript with no English in it at all. Live-probed:
+    // without this, "나는 방과 후에 축구를 좋아해요." came back englishLanguage
+    // "english" with a silent rewrite instead of non_english.
+    expect(mixedLanguageInstruction).toContain("entirely Korean");
   });
 
   it("tells the evaluator to read accented-English spans by phonetic resemblance, not from a list (UAT 2026-07-24)", async () => {
