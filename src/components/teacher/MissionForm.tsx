@@ -51,6 +51,7 @@ export function MissionForm({
       prompt: turn.prompt,
       targetExample: turn.targetExample,
       hintLadder: turn.hintLadder,
+      answerShape: turn.answerShape,
     })) ?? [createEmptyTurn()],
   );
   const [conversationMode, setConversationMode] = useState(
