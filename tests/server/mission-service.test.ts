@@ -7,13 +7,16 @@ vi.mock("@/lib/supabase/server-auth", () => ({
 }));
 
 const {
+  applyAnswerShapes,
   archiveMission,
   cancelMissionAssignment,
   createMission,
   deleteMission,
   listArchivedMissionsForTeacher,
   listMissionsForTeacher,
+  mapTurn,
   restoreMission,
+  toTurnRows,
   updateMission,
 } = await import("@/server/mission/mission-service");
 
@@ -37,6 +40,7 @@ const completeInput = {
         tier2: "wake up, eat, sleep",
         tier3: "I wake up at seven.",
       },
+      answerShape: "fixed" as const,
     },
   ],
 };
@@ -370,5 +374,45 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
       ],
     });
     expect(calls[0].payload).toHaveProperty("canceled_at");
+  });
+
+  // toTurnRows must emit answer_shape; mapTurn must read it back.
+  it("round-trips answerShape through toTurnRows and mapTurn", () => {
+    const rows = toTurnRows("mission-1", [
+      {
+        prompt: "Which is best?",
+        targetExample: "I think vanilla is the best.",
+        hintLadder: { tier1: "a", tier2: "b", tier3: "c" },
+        answerShape: "fixed",
+      },
+    ]);
+    expect(rows[0].answer_shape).toBe("fixed");
+
+    const mapped = mapTurn({
+      id: "t1",
+      turn_order: 1,
+      prompt: "Which is best?",
+      target_example: "I think vanilla is the best.",
+      hint_ladder: { tier1: "a", tier2: "b", tier3: "c" },
+      answer_shape: "fixed",
+    } as never);
+    expect(mapped.answerShape).toBe("fixed");
+  });
+
+  it("applies classified shapes to turns in order", () => {
+    const turns = [
+      { prompt: "q1", targetExample: "a1", hintLadder: { tier1: "x", tier2: "y", tier3: "z" }, answerShape: "open" as const },
+      { prompt: "q2", targetExample: "a2", hintLadder: { tier1: "x", tier2: "y", tier3: "z" }, answerShape: "open" as const },
+    ];
+    const result = applyAnswerShapes(turns, ["fixed", "open"]);
+    expect(result.map((t) => t.answerShape)).toEqual(["fixed", "open"]);
+  });
+
+  it("leaves turns unchanged when shape count mismatches", () => {
+    const turns = [
+      { prompt: "q1", targetExample: "a1", hintLadder: { tier1: "x", tier2: "y", tier3: "z" }, answerShape: "open" as const },
+    ];
+    const result = applyAnswerShapes(turns, []);
+    expect(result.map((t) => t.answerShape)).toEqual(["open"]);
   });
 });

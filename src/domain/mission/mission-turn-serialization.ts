@@ -15,6 +15,7 @@ export function buildChatOpeningTurn(
       tier2: `Choose your own words for: ${pattern}`,
       tier3: `Use this sentence frame: ${pattern}`,
     },
+    answerShape: "open",
   };
 }
 

@@ -16,6 +16,7 @@ const opener: MissionSnapshotTurn = {
     tier2: "play soccer",
     tier3: "I like to play soccer after school.",
   },
+  answerShape: "open",
 };
 
 describe("student question state", () => {

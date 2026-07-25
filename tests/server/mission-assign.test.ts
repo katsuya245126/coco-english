@@ -42,6 +42,7 @@ const turnRows = [
       tier2: "like, apples",
       tier3: "I like apples.",
     },
+    answer_shape: "open",
   },
 ];
 
@@ -78,6 +79,24 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
       targetExample: "I like apples.",
     });
     expect(snapshot.requireCompleteSentenceAnswers).toBe(false);
+  });
+
+  it("carries answer_shape into snapshot turns", () => {
+    const snapshot = buildMissionSnapshot({
+      mission: missionRow,
+      turns: [
+        {
+          id: "t1",
+          turn_order: 1,
+          prompt: "q",
+          target_example: "a",
+          hint_ladder: { tier1: "x", tier2: "y", tier3: "z" },
+          answer_shape: "fixed",
+        },
+      ],
+    } as never);
+
+    expect(snapshot.turns[0].answerShape).toBe("fixed");
   });
 
   it("calls the RPC with server-built snapshot, optional D-04 due date, and no browser snapshot input", async () => {

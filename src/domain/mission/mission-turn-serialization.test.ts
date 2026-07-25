@@ -13,6 +13,7 @@ const tailTurn: MissionTurnInput = {
     tier2: "Choose your own words for: I like...",
     tier3: "Use this sentence frame: I like...",
   },
+  answerShape: "open",
 };
 
 describe("buildChatOpeningTurn", () => {
@@ -27,6 +28,7 @@ describe("buildChatOpeningTurn", () => {
         tier2: "Choose your own words for: Can I have a...?",
         tier3: "Use this sentence frame: Can I have a...?",
       },
+      answerShape: "open",
     });
   });
 });

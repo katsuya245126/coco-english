@@ -3,6 +3,9 @@ import {
   missionFormSchema,
   missionSnapshotSchema,
   DEFAULT_CHARACTER_ID,
+  missionTurnInputSchema,
+  missionSnapshotTurnSchema,
+  type AnswerShape,
 } from "@/domain/mission/schemas";
 
 const baseFormFields = {
@@ -248,5 +251,35 @@ describe("missionSnapshotSchema", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+});
+
+describe("answerShape on turns", () => {
+  const baseTurn = {
+    prompt: "Which is best?",
+    targetExample: "I think vanilla is the best.",
+    hintLadder: { tier1: "a", tier2: "b", tier3: "c" },
+  };
+
+  it("defaults answerShape to open when omitted", () => {
+    const parsed = missionTurnInputSchema.parse(baseTurn);
+    expect(parsed.answerShape).toBe("open");
+  });
+
+  it("accepts an explicit fixed answerShape", () => {
+    const parsed = missionTurnInputSchema.parse({ ...baseTurn, answerShape: "fixed" });
+    expect(parsed.answerShape).toBe("fixed");
+  });
+
+  it("rejects an unknown answerShape", () => {
+    expect(() =>
+      missionTurnInputSchema.parse({ ...baseTurn, answerShape: "maybe" }),
+    ).toThrow();
+  });
+
+  it("defaults answerShape on snapshot turns", () => {
+    const parsed = missionSnapshotTurnSchema.parse({ ...baseTurn, turnOrder: 1 });
+    const shape: AnswerShape = parsed.answerShape;
+    expect(shape).toBe("open");
   });
 });

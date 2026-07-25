@@ -114,7 +114,14 @@ describe("transcribeAudioFile", () => {
     });
   });
 
-  it("rejects Korean-only provider output instead of storing it as the answer", async () => {
+  it("passes Korean-only provider output to the evaluator rather than rejecting it here", async () => {
+    // Superseded 2026-07-25. This previously expected `empty_transcript`, on
+    // the assumption that all-Hangul output always means "the student answered
+    // in Korean". It can equally mean accented English the transcriber
+    // mis-scripted ("바나나스" for *bananas*), and that blanket rejection left a
+    // child permanently stuck on a turn. Telling the two apart is the
+    // evaluator's job — it has both the phonetic rule and the non_english
+    // path — so the transcript now reaches it verbatim, spans attached.
     const { transcribeAudioFile } = await import("@/server/audio/transcription");
     const client = createFakeClient({ text: "나는 방과 후에 축구를 좋아해요." });
 
@@ -126,7 +133,8 @@ describe("transcribeAudioFile", () => {
       { apiKey: "test-key", client },
     );
 
-    expect(result).toEqual({ ok: false, error: "empty_transcript" });
+    expect(result.ok).toBe(true);
+    expect(result).toMatchObject({ text: "나는 방과 후에 축구를 좋아해요." });
   });
 
   it("passes a Korean answer in an English frame to the evaluator to judge (UAT 2026-07-24)", async () => {
@@ -462,5 +470,80 @@ describe("transcribeAudioFile", () => {
     );
 
     expect(result).toEqual({ ok: false, error: "transcription_failed" });
+  });
+});
+
+/**
+ * Guards the 2026-07-25 UAT blocker. A child answered the bare English word
+ * "Bananas." and the transcriber, biased by TRANSCRIPTION_PROMPT's "Korean ESL
+ * learner" framing, wrote it as "바나나스" — all Hangul, no Latin letter. The
+ * transcript was then blanked here and rejected as `empty_transcript`, so the
+ * student saw "I didn't hear you. Try again." forever with no way past.
+ *
+ * Prompt rewording was measured and rejected: across four real clips it never
+ * fixed "바나나스", and every candidate that softened the Korean framing broke
+ * code-switch retention (김밥 -> "kimbap", 민준 -> "Min-jun").
+ *
+ * The romanization already carries the cue the evaluator needs
+ * ("바나나스" -> "Bananaseu" ~ bananas), and the evaluator already owns this
+ * judgement — it has both the phonetic accented-English rule and the
+ * non_english path for a genuinely Korean answer. So an all-Hangul transcript
+ * must reach it with its spans intact instead of dying at this gate.
+ */
+describe("all-Hangul transcripts reach the evaluator (UAT 2026-07-25)", () => {
+  beforeEach(() => {
+    mockLog.mockClear();
+  });
+
+  it("returns accented English written in Hangul instead of rejecting it as empty", async () => {
+    const { transcribeAudioFile } = await import("@/server/audio/transcription");
+    const client = createFakeClient({ text: "바나나스" });
+
+    const result = await transcribeAudioFile(
+      {
+        file: new Blob(["voice"], { type: "audio/webm" }),
+        mimeType: "audio/webm",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      text: "바나나스",
+      koreanSpans: [{ hangul: "바나나스", romanized: "Bananaseu" }],
+    });
+  });
+
+  it("still returns a genuinely Korean answer so the evaluator can call it non_english", async () => {
+    // Not rejected here either: deciding code-switch vs Korean-answer is a
+    // syntactic judgement that belongs to the evaluator, per the NOTE in
+    // hangul-romanization.ts. This layer must not re-litigate it.
+    const { transcribeAudioFile } = await import("@/server/audio/transcription");
+    const client = createFakeClient({ text: "나는 방과 후에 축구를 좋아해요." });
+
+    const result = await transcribeAudioFile(
+      {
+        file: new Blob(["voice"], { type: "audio/webm" }),
+        mimeType: "audio/webm",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("still rejects a genuinely empty transcript", async () => {
+    const { transcribeAudioFile } = await import("@/server/audio/transcription");
+    const client = createFakeClient({ text: "   " });
+
+    const result = await transcribeAudioFile(
+      {
+        file: new Blob(["voice"], { type: "audio/webm" }),
+        mimeType: "audio/webm",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toEqual({ ok: false, error: "empty_transcript" });
   });
 });

@@ -8,7 +8,7 @@
 import OpenAI from "openai";
 import {
   detectHangulSpans,
-  isEntirelyNonEnglish,
+  HANGUL_PATTERN,
   type HangulSpan,
 } from "@/domain/audio/hangul-romanization";
 import { detectNoSpeech } from "@/domain/audio/no-speech-detection";
@@ -152,14 +152,24 @@ export type NormalizedTranscript = {
  *   `original_transcript`, fabricating the evidence record a teacher reads
  *   and erasing the chance to teach the word.
  *
- * A fully Korean answer is left for the caller's `hasEnglishTranscript` check
- * to reject, so "the student answered in Korean" still routes to a retry.
+ * An all-Hangul transcript is **also** kept verbatim (UAT 2026-07-25). Blanking
+ * it here was the third rejected approach: a child answering the bare English
+ * word "Bananas." is transcribed "바나나스", which has no Latin letter, so the
+ * blank turned into `empty_transcript` and the student was told "I didn't hear
+ * you. Try again." with no way past.
+ *
+ * Rewording TRANSCRIPTION_PROMPT was measured and rejected as the fix — across
+ * four real clips it never stopped producing "바나나스", and every candidate
+ * that softened the Korean framing broke code-switch retention (김밥 became
+ * "kimbap", 민준 became "Min-jun").
+ *
+ * Whether all-Hangul text is accented English or a genuinely Korean answer is
+ * the syntactic judgement the NOTE in `hangul-romanization.ts` assigns to the
+ * evaluator, which already owns both halves: the phonetic rule that reads
+ * "Bananaseu" as *bananas*, and the `non_english` path that sends a real
+ * Korean answer back for a retry. This layer must not pre-empt either.
  */
 export function normalizeEnglishTranscript(text: string): NormalizedTranscript {
-  if (isEntirelyNonEnglish(text)) {
-    return { text: "", koreanSpans: [] };
-  }
-
   const normalized = text
     .replace(/\s+([.,!?;:])/g, "$1")
     .replace(/\s+/g, " ")
@@ -168,8 +178,16 @@ export function normalizeEnglishTranscript(text: string): NormalizedTranscript {
   return { text: normalized, koreanSpans: detectHangulSpans(normalized) };
 }
 
+/**
+ * Whether a transcript carries any content worth evaluating.
+ *
+ * Latin letters OR Hangul both count. This deliberately no longer means "has
+ * English": an all-Hangul transcript may be accented English the transcriber
+ * mis-scripted ("바나나스" for *bananas*), and only the evaluator can tell that
+ * apart from a genuinely Korean answer. See `normalizeEnglishTranscript`.
+ */
 export function hasEnglishTranscript(text: string) {
-  return ENGLISH_LETTER.test(text);
+  return ENGLISH_LETTER.test(text) || HANGUL_PATTERN.test(text);
 }
 
 export async function transcribeAudioFile(

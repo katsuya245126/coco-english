@@ -183,6 +183,13 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
         "Treat non-English transcripts as non_english and not successful practice.",
       ]),
     );
+    // Case (c), added 2026-07-25. Once all-Hangul transcripts stopped being
+    // rejected at the transcription layer, they started arriving here — and
+    // an instruction opening "This transcript mixes Korean and English" has
+    // no branch for a transcript with no English in it at all. Live-probed:
+    // without this, "나는 방과 후에 축구를 좋아해요." came back englishLanguage
+    // "english" with a silent rewrite instead of non_english.
+    expect(mixedLanguageInstruction).toContain("entirely Korean");
   });
 
   it("tells the evaluator to read accented-English spans by phonetic resemblance, not from a list (UAT 2026-07-24)", async () => {
@@ -304,6 +311,7 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
     const result = await evaluateOriginalTurn(
       {
         evaluationMode: "preset",
+        answerShape: "fixed",
         missionQuestion: "What are you going to do after school?",
         transcript: "I am going to play games.",
         targetPattern: "I'm going to _____.",
@@ -483,6 +491,7 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
     const result = await evaluateOriginalTurn(
       {
         evaluationMode: "preset",
+        answerShape: "fixed",
         missionQuestion: "Say wow.",
         transcript: "There was once a man.",
         targetPattern: "wow",
@@ -933,5 +942,104 @@ describe("evaluateRepeatTurn server adapter (AI-04, AI-05)", () => {
         reviewReason: "low_confidence",
       },
     });
+  });
+});
+
+describe("buildOriginalPrompt answerShape branch", () => {
+  const base = {
+    evaluationMode: "preset" as const,
+    missionQuestion:
+      "Which ice cream is the best: vanilla, strawberry, or chocolate?",
+    targetPattern: "I think ___ is the best.",
+    targetExample: "I think vanilla ice cream is the best.",
+    level: "elementary" as const,
+    transcript: "I think chocolate ice cream is the best.",
+  };
+
+  function bodyFor(client: ReturnType<typeof createFakeClient>) {
+    const request = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    return JSON.stringify(request);
+  }
+
+  it("open turn sends scaffolding-only instructions (never replace the child's choice)", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    await evaluateOriginalTurn(
+      { ...base, answerShape: "open" },
+      { apiKey: "test-key", client },
+    );
+
+    const body = bodyFor(client);
+    expect(body).toContain(
+      "Never use needs_correction to replace the child's choice",
+    );
+    expect(body).toContain("frame");
+    // must NOT tell the model the example is required content
+    expect(body).not.toContain(
+      "Mark as correct (outcome: 'correct') if the target pattern appears",
+    );
+  });
+
+  it("fixed turn sends target-matching instructions", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    await evaluateOriginalTurn(
+      {
+        ...base,
+        answerShape: "fixed",
+        targetExample: "Hello.",
+        missionQuestion: "How do you say hello?",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const body = bodyFor(client);
+    expect(body).toContain("target pattern appears anywhere");
+  });
+
+  it("missing answerShape defaults to the open branch", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    await evaluateOriginalTurn(base, { apiKey: "test-key", client });
+
+    const body = bodyFor(client);
+    expect(body).toContain(
+      "Never use needs_correction to replace the child's choice",
+    );
+  });
+
+  // Guards the 2026-07-24 UAT bug: a child answered "chocolate" and the
+  // evaluator rewrote it to the authored example's "vanilla". A prompt-only
+  // fix (b9a165cb) did not hold — attempt 038f325a coerced again hours later.
+  it("regression: chocolate answer is never coerced toward the vanilla example (open turn)", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    await evaluateOriginalTurn(
+      { ...base, answerShape: "open" },
+      { apiKey: "test-key", client },
+    );
+
+    const body = bodyFor(client);
+    // Open branch must forbid swapping in the example's choice.
+    expect(body).toContain(
+      "Never use needs_correction to replace the child's choice",
+    );
+    // The fixed-mode "wrong answer -> targetExample" band-aid must NOT appear
+    // on the open branch.
+    expect(body).not.toContain(
+      "provide the assigned targetExample as the improvedSentence",
+    );
   });
 });

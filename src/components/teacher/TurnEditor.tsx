@@ -14,6 +14,7 @@ const emptyTurn: MissionTurnInput = {
   prompt: "",
   targetExample: "",
   hintLadder: { tier1: "", tier2: "", tier3: "" },
+  answerShape: "open",
 };
 
 export function createEmptyTurn(): MissionTurnInput {
@@ -21,6 +22,7 @@ export function createEmptyTurn(): MissionTurnInput {
     prompt: "",
     targetExample: "",
     hintLadder: { tier1: "", tier2: "", tier3: "" },
+    answerShape: "open",
   };
 }
 
