@@ -66,6 +66,12 @@ This is the most likely one to break. A bare answer doesn't use the frame, so
 the fix has to add the frame **while keeping your choice**. If coercion survives
 anywhere, expect it here.
 
+> **Run 1 (2026-07-25) died here** with "I didn't hear you. Try again." on every
+> retry. Cause was unrelated to answer shape: "Bananas." transcribes to the
+> all-Hangul "바나나스", which the transcript gate read as an empty transcript.
+> Fixed in `9800adee` + `1da87f77`. Live-probed after the fix, this exact turn
+> now returns **"I think bananas are the best."**
+
 ### Turn 3 — a third choice, different frame (open)
 
 On screen: *"Which animal is the best pet: a dog, a cat, or a bird?"*
