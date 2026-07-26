@@ -103,7 +103,8 @@ export type OriginalTurnDecision =
         | "non_english"
         | "parroted_correction"
         | "minimal_effort"
-        | "incomplete_recording";
+        | "incomplete_recording"
+        | "unclear_meaning";
       requireRepeat: false;
     }
   | {
@@ -164,7 +165,22 @@ export function decideOriginalTurnOutcome(
   evaluation: OriginalTurnEvaluation,
   evaluationMode: "preset" | "conversation" = "preset",
   missionQuestion: string | null = null,
+  priorAmbiguityRetries = 0,
 ): OriginalTurnDecision {
+  if (
+    evaluationMode === "conversation" &&
+    evaluation.outcome === "teacher_review" &&
+    (evaluation.reviewReason === "ambiguous" ||
+      evaluation.reviewReason === "low_confidence") &&
+    priorAmbiguityRetries === 0
+  ) {
+    return {
+      kind: "retry_original",
+      reason: "unclear_meaning",
+      requireRepeat: false,
+    };
+  }
+
   if (
     evaluation.outcome === "teacher_review" ||
     evaluation.confidence === "low" ||
@@ -259,6 +275,7 @@ export type OriginalTurnGuardContext = {
   missionQuestion: string | null;
   transcript?: string;
   priorMinimalEffortBlocks?: number;
+  priorAmbiguityRetries?: number;
 };
 
 const INFORMATION_QUESTION_PATTERN = /^(?:who|what|when|where|why|how)\b/iu;

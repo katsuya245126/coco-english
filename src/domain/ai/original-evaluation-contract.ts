@@ -88,7 +88,8 @@ export function validateOriginalEvaluationContract(
     }
   } else if (evaluation.outcome === "needs_correction") {
     if (
-      !evaluation.meaningUnderstood ||
+      (input.evaluationMode === "conversation" &&
+        !evaluation.meaningUnderstood) ||
       !evaluation.correctionNeeded ||
       evaluation.correctionSeverity === "none" ||
       evaluation.correctionReason === "none" ||

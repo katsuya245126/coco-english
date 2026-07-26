@@ -14,8 +14,10 @@ import { isExactTargetMatch } from "@/domain/ai/fast-path";
 import { isIncompleteUtterance } from "@/domain/ai/incomplete-utterance";
 import { matchesOpenAnswerFrame } from "@/domain/ai/open-answer-frame";
 import {
-  validateImprovedSentencePolicy,
-} from "@/domain/ai/correction-policy";
+  canonicalizeNoOpOriginalEvaluation,
+  validateOriginalEvaluationContract,
+  type OriginalEvaluationViolation,
+} from "@/domain/ai/original-evaluation-contract";
 import {
   isMinimalEffortAnswer,
   MAX_MINIMAL_EFFORT_BLOCKS,
@@ -201,10 +203,17 @@ type StoredOriginalTurnEvaluation = StoredEvaluationProvenance & {
   correctionReason: OriginalTurnEvaluation["correctionReason"];
   improvedSentence: string | null;
   requireRepeat: boolean;
-  retryReason?: "minimal_effort" | "incomplete_recording";
+  retryReason?: "minimal_effort" | "incomplete_recording" | "unclear_meaning";
   minimalEffortBlocks?: number;
   minimalEffortKind?: MinimalEffortKind;
   retryExample?: string | null;
+  ambiguityRetries?: number;
+  ambiguityHistory?: Array<{
+    transcript: string;
+    audioClipId: string;
+    evaluation: OriginalTurnEvaluation;
+  }>;
+  contractViolations?: OriginalEvaluationViolation[];
 };
 
 type OriginalTurnWriteDecision = {
@@ -290,6 +299,7 @@ export function applyOriginalTurnEvaluation(
           result.evaluation,
           resolvedGuardContext.evaluationMode,
           resolvedGuardContext.missionQuestion,
+          resolvedGuardContext.priorAmbiguityRetries ?? 0,
         ),
         resolvedGuardContext,
       ),
@@ -465,6 +475,31 @@ function priorMinimalEffortBlocks(evaluation: unknown): number {
     Number.isFinite(stored.minimalEffortBlocks)
     ? Math.max(0, Math.floor(stored.minimalEffortBlocks))
     : 0;
+}
+
+function priorAmbiguityState(evaluation: unknown): Pick<
+  StoredOriginalTurnEvaluation,
+  "ambiguityRetries" | "ambiguityHistory"
+> {
+  if (
+    typeof evaluation !== "object" ||
+    evaluation === null ||
+    Array.isArray(evaluation)
+  ) {
+    return { ambiguityRetries: 0, ambiguityHistory: [] };
+  }
+
+  const stored = evaluation as Partial<StoredOriginalTurnEvaluation>;
+  return {
+    ambiguityRetries:
+      typeof stored.ambiguityRetries === "number" &&
+      Number.isFinite(stored.ambiguityRetries)
+        ? Math.max(0, Math.floor(stored.ambiguityRetries))
+        : 0,
+    ambiguityHistory: Array.isArray(stored.ambiguityHistory)
+      ? stored.ambiguityHistory
+      : [],
+  };
 }
 
 function reviewReasonOrDefault(
@@ -1131,6 +1166,9 @@ export async function uploadAttemptAudioClip(
     const minimalEffortBlocks = priorMinimalEffortBlocks(
       (turn as { evaluation?: unknown }).evaluation,
     );
+    const ambiguityState = priorAmbiguityState(
+      (turn as { evaluation?: unknown }).evaluation,
+    );
 
     if (
       input.clipKind === "original_answer" &&
@@ -1293,70 +1331,66 @@ export async function uploadAttemptAudioClip(
                 }
               : await timeStage("evaluation", () => evaluate(evaluationInput));
 
-            if (evaluationResult.ok && evaluationResult.evaluation.improvedSentence) {
-              const firstPolicy = validateImprovedSentencePolicy({
+            let contractViolations: OriginalEvaluationViolation[] = [];
+            if (evaluationResult.ok) {
+              const canonicalEvaluation = canonicalizeNoOpOriginalEvaluation(
+                evaluationResult.evaluation,
+                transcript,
+              );
+              const firstContract = validateOriginalEvaluationContract({
+                evaluation: canonicalEvaluation,
                 evaluationMode: evaluationInput.evaluationMode,
                 answerShape,
                 missionQuestion: missionQuestion ?? null,
                 targetPattern: snapshot.targetPattern,
                 transcript,
-                correctionReason: evaluationResult.evaluation.correctionReason,
-                improvedSentence: evaluationResult.evaluation.improvedSentence,
               });
 
-              const handledByExistingGuard =
-                !firstPolicy.ok &&
-                firstPolicy.violations.every(
-                  (violation) => violation === "no_op",
-                );
-
-              if (!firstPolicy.ok && !handledByExistingGuard) {
+              if (firstContract.ok) {
+                evaluationResult = {
+                  ok: true,
+                  evaluation: canonicalEvaluation,
+                };
+              } else {
+                contractViolations = firstContract.violations;
                 const repaired = await timeStage("evaluationRepair", () =>
                   evaluate({
                     ...evaluationInput,
-                    policyRepair: { violations: firstPolicy.violations },
+                    policyRepair: { violations: firstContract.violations },
                   }),
                 );
 
                 if (!repaired.ok) {
-                  evaluationResult = {
-                    ok: true,
-                    evaluation: {
-                      ...evaluationResult.evaluation,
-                      outcome: "teacher_review",
-                      correctionNeeded: false,
-                      correctionSeverity: "none",
-                      correctionReason: "none",
-                      improvedSentence: null,
-                      reviewReason: "ambiguous",
-                    },
-                  };
-                } else if (repaired.evaluation.improvedSentence) {
-                  const repairedPolicy = validateImprovedSentencePolicy({
+                  evaluationResult = repaired;
+                } else {
+                  const canonicalRepair = canonicalizeNoOpOriginalEvaluation(
+                    repaired.evaluation,
+                    transcript,
+                  );
+                  const repairedContract = validateOriginalEvaluationContract({
+                    evaluation: canonicalRepair,
                     evaluationMode: evaluationInput.evaluationMode,
                     answerShape,
                     missionQuestion: missionQuestion ?? null,
                     targetPattern: snapshot.targetPattern,
                     transcript,
-                    correctionReason: repaired.evaluation.correctionReason,
-                    improvedSentence: repaired.evaluation.improvedSentence,
                   });
-                  evaluationResult = repairedPolicy.ok
-                    ? repaired
-                    : {
-                        ok: true,
-                        evaluation: {
-                          ...repaired.evaluation,
-                          outcome: "teacher_review",
-                          correctionNeeded: false,
-                          correctionSeverity: "none",
-                          correctionReason: "none",
-                          improvedSentence: null,
-                          reviewReason: "ambiguous",
-                        },
-                      };
-                } else {
-                  evaluationResult = repaired;
+                  if (repairedContract.ok) {
+                    evaluationResult = {
+                      ok: true,
+                      evaluation: canonicalRepair,
+                    };
+                    contractViolations = [];
+                  } else {
+                    contractViolations = repairedContract.violations;
+                    log("warn", "ai.original_evaluation_contract_rejected", {
+                      violations: repairedContract.violations,
+                    });
+                    evaluationResult = {
+                      ok: false,
+                      error: "schema_failed",
+                    };
+                  }
                 }
               }
             }
@@ -1367,9 +1401,35 @@ export async function uploadAttemptAudioClip(
               missionQuestion: missionQuestion ?? null,
               transcript,
               priorMinimalEffortBlocks: minimalEffortBlocks,
+              priorAmbiguityRetries: ambiguityState.ambiguityRetries,
             }, fallbackProvenance);
             if (minimalEffortBlocks > 0) {
               decision.evaluation.minimalEffortBlocks = minimalEffortBlocks;
+            }
+            if (contractViolations.length > 0) {
+              decision.evaluation.contractViolations = contractViolations;
+            }
+            if (
+              decision.evaluation.outcome === "retry_original" &&
+              decision.evaluation.retryReason === undefined &&
+              evaluationResult.ok &&
+              evaluationResult.evaluation.outcome === "teacher_review"
+            ) {
+              decision.evaluation.retryReason = "unclear_meaning";
+              decision.evaluation.ambiguityRetries = 1;
+              decision.evaluation.ambiguityHistory = [
+                ...(ambiguityState.ambiguityHistory ?? []),
+                {
+                  transcript,
+                  audioClipId: audioClip.id,
+                  evaluation: evaluationResult.evaluation,
+                },
+              ];
+            } else if ((ambiguityState.ambiguityRetries ?? 0) > 0) {
+              decision.evaluation.ambiguityRetries =
+                ambiguityState.ambiguityRetries;
+              decision.evaluation.ambiguityHistory =
+                ambiguityState.ambiguityHistory;
             }
             originalEvaluation = decision.evaluation;
 
@@ -1519,7 +1579,11 @@ export async function uploadAttemptAudioClip(
     let cocoLine: string | null = null;
     let cocoLineModerationEvent: CocoLineModerationEvent | null = null;
 
-    if (snapshot.conversationMode === true && input.clipKind === "original_answer") {
+    if (
+      snapshot.conversationMode === true &&
+      input.clipKind === "original_answer" &&
+      originalEvaluation?.retryReason !== "unclear_meaning"
+    ) {
       const currentStudentResponse =
         originalEvaluation?.improvedSentence?.trim() || transcript;
       const historyResult = buildConversationHistory({
