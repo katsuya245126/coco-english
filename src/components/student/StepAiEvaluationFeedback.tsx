@@ -20,6 +20,7 @@ type OriginalOutcome =
   | "acceptedOriginal"
   | "needsCorrection"
   | "retryOriginal"
+  | "retryUnclearMeaning"
   | "retryIncompleteRecording"
   | "retryMinimalEffort"
   | "teacherReview";
@@ -157,6 +158,15 @@ export function StepAiEvaluationFeedback({
             <h2 style={headingInlineStyle}>Try again.</h2>
           </div>
         ) : null}
+        <RecordingReview onRetry={onRetry} />
+      </div>
+    );
+  }
+
+  if (outcome === "retryUnclearMeaning") {
+    return (
+      <div style={stepCardStyle} aria-live="polite" role="alert">
+        <Transcript transcript={transcript} audioUrl={audioUrl} />
         <RecordingReview onRetry={onRetry} />
       </div>
     );

@@ -308,6 +308,29 @@ describe("completion helpers: persisted feedback resume", () => {
     });
   });
 
+  it("restores unclear meaning as a required same-turn retry", () => {
+    expect(
+      getPendingTurnReview({
+        ...makeTurn(2, {
+          original_transcript: "swimming and eat good food.",
+          repeat_transcript: null,
+          repeat_accepted: null,
+        }),
+        evaluation: {
+          version: "ai-eval-v1",
+          outcome: "retry_original",
+          retryReason: "unclear_meaning",
+          ambiguityRetries: 1,
+          requireRepeat: false,
+        },
+      }),
+    ).toMatchObject({
+      step: "aiFeedback",
+      outcome: "retryUnclearMeaning",
+      transcript: "swimming and eat good food.",
+    });
+  });
+
   it("resumes I don't know with distinct unsure guidance", () => {
     const review = getPendingTurnReview({
       ...makeTurn(1, {

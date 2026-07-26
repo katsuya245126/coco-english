@@ -86,6 +86,12 @@ type OriginalFeedback = (
       wordsToPractice?: WordHighlight[];
     }
   | {
+      kind: "retryUnclearMeaning";
+      transcript: string;
+      starBand?: PronunciationStarBand | null;
+      wordsToPractice?: WordHighlight[];
+    }
+  | {
       kind: "retryIncompleteRecording";
       transcript: string;
       starBand?: PronunciationStarBand | null;
@@ -462,6 +468,14 @@ export function MissionFlowShell({
       };
     }
     if (evaluation?.outcome === "retry_original") {
+      if (evaluation.retryReason === "unclear_meaning") {
+        return {
+          kind: "retryUnclearMeaning",
+          transcript,
+          starBand,
+          wordsToPractice,
+        };
+      }
       if (evaluation.retryReason === "incomplete_recording") {
         return {
           kind: "retryIncompleteRecording",
@@ -1001,6 +1015,8 @@ export function MissionFlowShell({
                 ? continueToRepeat
                 : flow.originalFeedback.kind === "teacherReview"
                   ? finishTeacherReviewFeedback
+                  : flow.originalFeedback.kind === "retryUnclearMeaning"
+                    ? undefined
                   : finishAcceptedOriginal
             }
             onRetry={
@@ -1178,6 +1194,19 @@ function getMascotDialogue({
     return {
       text: "Try again.",
       line: { lineKind: "coco_feedback", feedbackVariant: "retry_original" },
+    };
+  }
+
+  if (
+    flow.step === "aiFeedback" &&
+    flow.originalFeedback?.kind === "retryUnclearMeaning"
+  ) {
+    return {
+      text: "Hmm... Try again",
+      line: {
+        lineKind: "coco_feedback",
+        feedbackVariant: "retry_unclear_meaning",
+      },
     };
   }
 

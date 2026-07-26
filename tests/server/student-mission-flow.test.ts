@@ -141,6 +141,39 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(shellSource).toContain("line: null");
   });
 
+  it("shows the transcript and requires a retry when Coco is unsure", () => {
+    const shellSource = readFileSync(
+      "src/components/student/MissionFlowShell.tsx",
+      "utf8",
+    );
+    const feedbackSource = readFileSync(
+      "src/components/student/StepAiEvaluationFeedback.tsx",
+      "utf8",
+    );
+    const ttsSource = readFileSync(
+      "src/app/student/missions/[assignmentStudentId]/tts/route.ts",
+      "utf8",
+    );
+    const branch = feedbackSource.slice(
+      feedbackSource.indexOf('if (outcome === "retryUnclearMeaning")'),
+      feedbackSource.indexOf('if (outcome === "retryIncompleteRecording")'),
+    );
+
+    expect(shellSource).toContain('retryReason === "unclear_meaning"');
+    expect(shellSource).toContain('kind: "retryUnclearMeaning"');
+    expect(shellSource).toContain('text: "Hmm... Try again"');
+    expect(shellSource).toContain(
+      'feedbackVariant: "retry_unclear_meaning"',
+    );
+    expect(branch).toContain(
+      "<Transcript transcript={transcript} audioUrl={audioUrl} />",
+    );
+    expect(branch).toContain("<RecordingReview onRetry={onRetry} />");
+    expect(branch).not.toContain("onContinue");
+    expect(ttsSource).toContain('case "retry_unclear_meaning":');
+    expect(ttsSource).toContain('return "Hmm... Try again";');
+  });
+
   it("repeat-accepted feedback lets the student review or record again before continuing", () => {
     const feedbackSource = readFileSync(
       "src/components/student/StepAiEvaluationFeedback.tsx",

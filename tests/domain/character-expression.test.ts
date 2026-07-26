@@ -9,6 +9,7 @@ type OriginalFeedbackKind =
   | "acceptedOriginal"
   | "needsCorrection"
   | "retryOriginal"
+  | "retryUnclearMeaning"
   | "retryIncompleteRecording"
   | "retryMinimalEffort"
   | "teacherReview";
@@ -32,6 +33,7 @@ const originalFeedbackKinds: Array<OriginalFeedbackKind | undefined> = [
   "acceptedOriginal",
   "needsCorrection",
   "retryOriginal",
+  "retryUnclearMeaning",
   "retryIncompleteRecording",
   "retryMinimalEffort",
   "teacherReview",
@@ -124,6 +126,15 @@ describe("deriveExpression (MASCOT-03)", () => {
       deriveExpression({
         step: "aiFeedback",
         originalFeedbackKind: "retryIncompleteRecording",
+      }),
+    ).toBe("encouraging");
+  });
+
+  it("keeps unclear-meaning recovery encouraging", () => {
+    expect(
+      deriveExpression({
+        step: "aiFeedback",
+        originalFeedbackKind: "retryUnclearMeaning",
       }),
     ).toBe("encouraging");
   });
