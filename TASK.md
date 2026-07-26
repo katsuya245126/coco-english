@@ -1,6 +1,6 @@
 # Dynamic Conversation Evaluation and Recovery Repair
 
-**Status:** Design specification written; awaiting written-spec review
+**Status:** Implementation approved; detailed plan written
 **Classification:** Consequential
 **Started:** 2026-07-26
 
@@ -125,9 +125,9 @@ text that failed `focus_mismatch` cannot be reconstructed from this artifact.
 - [x] Compare prompt-only, contract-first, and larger state-machine designs.
 - [x] Obtain approval for the presented contract-first hybrid design.
 - [x] Write and self-review the design specification.
-- [ ] Obtain written-spec approval.
-- [ ] Write and self-review the definitive test-first implementation plan.
-- [ ] Obtain plan approval before runtime implementation.
+- [x] Obtain written-spec approval.
+- [x] Write and self-review the definitive test-first implementation plan.
+- [x] Obtain plan approval before runtime implementation.
 
 ## Current position
 
@@ -140,10 +140,16 @@ and exact `Hmm... Try again` copy with no Continue action, distinct internal
 failure behavior, question-owned focus validation, closing grounding,
 diagnostic evidence, and corrected inspector semantics.
 
-The specification has been self-reviewed for placeholders, contradictions,
-scope, and ambiguous requirements. The next gate is user review of the written
-specification. Runtime implementation and the detailed implementation plan
-remain unapproved.
+The user approved the written specification and instructed Codex to start
+implementing on 2026-07-27. The exact unclear-speech copy was then refined to
+`Hmm... Try again`, with the transcript visible and no Continue action. That
+amendment is committed in `d248969f`.
+
+The self-reviewed test-first implementation plan is at
+`docs/superpowers/plans/2026-07-27-dynamic-conversation-evaluation-recovery.md`.
+The user's instruction to start implementing authorizes inline execution of
+that matching plan. The next step is Task 1: add failing evaluation-contract
+regressions before runtime code.
 
 The unrelated pre-existing working-tree modification at
 `.superpowers/sdd/task-1-report.md` remains untouched.
