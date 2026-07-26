@@ -8,6 +8,7 @@ import { z } from "zod";
  */
 
 export const AI_EVALUATION_VERSION = "ai-eval-v1" as const;
+export const CORRECTION_POLICY_VERSION = "natural-conversation-v1" as const;
 
 export const aiEvaluationConfidenceSchema = z.enum(["high", "medium", "low"]);
 export const aiEvaluationEnglishLanguageSchema = z.enum([
@@ -25,7 +26,17 @@ export const aiEvaluationReviewReasonSchema = z.enum([
 export const correctionSeveritySchema = z.enum(["none", "minor", "material"]);
 export type CorrectionSeverity = z.infer<typeof correctionSeveritySchema>;
 
-export const originalTurnEvaluationSchema = z.object({
+export const correctionReasonSchema = z.enum([
+  "none",
+  "fragment_completion",
+  "grammar",
+  "vocabulary",
+]);
+export type CorrectionReason = z.infer<typeof correctionReasonSchema>;
+
+export const evaluationSourceSchema = z.enum(["model", "deterministic"]);
+
+export const originalTurnProviderEvaluationSchema = z.object({
   version: z.literal(AI_EVALUATION_VERSION),
   outcome: z.enum([
     "correct",
@@ -37,11 +48,27 @@ export const originalTurnEvaluationSchema = z.object({
   targetPatternAttempted: z.boolean(),
   correctionNeeded: z.boolean(),
   correctionSeverity: correctionSeveritySchema,
+  correctionReason: correctionReasonSchema,
   improvedSentence: z.string().trim().min(1).nullable(),
   englishLanguage: aiEvaluationEnglishLanguageSchema,
   confidence: aiEvaluationConfidenceSchema,
   reviewReason: aiEvaluationReviewReasonSchema.nullable(),
 });
+
+export const originalTurnEvaluationSchema =
+  originalTurnProviderEvaluationSchema.extend({
+    policyVersion: z.literal(CORRECTION_POLICY_VERSION),
+    evaluationModel: z.string().trim().min(1),
+    evaluationSource: evaluationSourceSchema,
+    transcriptionModel: z.string().trim().min(1),
+    transcriptionConfidence: z
+      .object({
+        minLogprob: z.number().finite(),
+        tokenCount: z.number().int().nonnegative(),
+      })
+      .nullable(),
+    runtimeVersion: z.string().trim().min(1),
+  });
 
 export type OriginalTurnEvaluation = z.infer<
   typeof originalTurnEvaluationSchema
@@ -72,7 +99,11 @@ export type OriginalTurnDecision =
     }
   | {
       kind: "retry_original";
-      reason: "non_english" | "parroted_correction" | "minimal_effort";
+      reason:
+        | "non_english"
+        | "parroted_correction"
+        | "minimal_effort"
+        | "incomplete_recording";
       requireRepeat: false;
     }
   | {
@@ -157,6 +188,16 @@ export function decideOriginalTurnOutcome(
       requireRepeat: false,
     };
   }
+
+  const validReasonCombination =
+    (evaluation.correctionSeverity === "none" &&
+      evaluation.correctionReason === "none" &&
+      evaluation.improvedSentence === null) ||
+    (evaluation.correctionSeverity !== "none" &&
+      evaluation.correctionReason !== "none" &&
+      evaluation.improvedSentence !== null);
+
+  if (!validReasonCombination) return failedOriginalContract();
 
   if (evaluationMode === "preset") {
     if (
@@ -304,7 +345,7 @@ function normalizedQuestionSegments(missionQuestion: string): string[] {
  * declarative answer with the full question appended), or is a
  * question-shaped sentence contained in a multi-sentence opener.
  */
-function isParrotedMissionQuestion(
+export function isParrotedMissionQuestion(
   improvedSentence: string,
   missionQuestion: string | null,
 ): boolean {

@@ -9,7 +9,71 @@ const baseOriginalEvaluation = {
   confidence: "high",
   reviewReason: null,
   correctionSeverity: "none",
+  correctionReason: "none",
+  policyVersion: "natural-conversation-v1",
+  evaluationModel: "gpt-4.1-mini",
+  evaluationSource: "model",
+  transcriptionModel: "gpt-4o-mini-transcribe",
+  transcriptionConfidence: null,
+  runtimeVersion: "test-runtime",
 } as const;
+
+describe("original evaluation schema and correction intent", () => {
+  it("requires a typed correction reason and provenance", async () => {
+    const { AI_EVALUATION_VERSION, originalTurnEvaluationSchema } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    const result = originalTurnEvaluationSchema.safeParse({
+      version: AI_EVALUATION_VERSION,
+      outcome: "correct",
+      meaningUnderstood: true,
+      targetPatternAttempted: false,
+      correctionNeeded: false,
+      correctionSeverity: "none",
+      correctionReason: "none",
+      improvedSentence: null,
+      englishLanguage: "english",
+      confidence: "high",
+      reviewReason: null,
+      policyVersion: "natural-conversation-v1",
+      evaluationModel: "gpt-4.1-mini",
+      evaluationSource: "model",
+      transcriptionModel: "gpt-4o-mini-transcribe",
+      transcriptionConfidence: { minLogprob: -0.01, tokenCount: 4 },
+      runtimeVersion: "local-dev",
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toMatchObject({
+        correctionReason: "none",
+        policyVersion: "natural-conversation-v1",
+        evaluationModel: "gpt-4.1-mini",
+        evaluationSource: "model",
+        transcriptionModel: "gpt-4o-mini-transcribe",
+        transcriptionConfidence: { minLogprob: -0.01, tokenCount: 4 },
+        runtimeVersion: "local-dev",
+      });
+    }
+  });
+
+  it("rejects none with an improved sentence", async () => {
+    const { decideOriginalTurnOutcome } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    expect(
+      decideOriginalTurnOutcome(
+        {
+          ...baseOriginalEvaluation,
+          improvedSentence: "I like Jenga when we swim.",
+        },
+        "conversation",
+      ).kind,
+    ).toBe("teacher_review");
+  });
+});
 
 describe("original turn AI evaluation decisions (AI-01, AI-02, AI-03, AI-05)", () => {
   it("accepts correct English target responses with positive reinforcement and no repeat tax (D-01, D-02, D-03)", async () => {
@@ -41,6 +105,8 @@ describe("original turn AI evaluation decisions (AI-01, AI-02, AI-03, AI-05)", (
       ...baseOriginalEvaluation,
       outcome: "needs_correction",
       correctionNeeded: true,
+      correctionSeverity: "material",
+      correctionReason: "grammar",
       improvedSentence: "I like playing soccer after school.",
       targetPatternAttempted: false,
     });
@@ -86,6 +152,7 @@ describe("original turn AI evaluation decisions (AI-01, AI-02, AI-03, AI-05)", (
           outcome: "needs_correction",
           correctionNeeded: true,
           correctionSeverity: "minor",
+          correctionReason: "grammar",
           improvedSentence: "I'm going to the library.",
         },
         "conversation",
@@ -115,6 +182,7 @@ describe("original turn AI evaluation decisions (AI-01, AI-02, AI-03, AI-05)", (
             outcome: "needs_correction",
             correctionNeeded: true,
             correctionSeverity: "material",
+            correctionReason: "grammar",
             improvedSentence,
           },
           "conversation",
@@ -130,16 +198,19 @@ describe("original turn AI evaluation decisions (AI-01, AI-02, AI-03, AI-05)", (
   it.each([
     {
       correctionSeverity: "minor" as const,
+      correctionReason: "none" as const,
       correctionNeeded: true,
       improvedSentence: null,
     },
     {
       correctionSeverity: "material" as const,
+      correctionReason: "none" as const,
       correctionNeeded: true,
       improvedSentence: "Where do you play soccer?",
     },
     {
       correctionSeverity: "none" as const,
+      correctionReason: "none" as const,
       correctionNeeded: true,
       improvedSentence: null,
     },
@@ -179,6 +250,7 @@ describe("original turn AI evaluation decisions (AI-01, AI-02, AI-03, AI-05)", (
       outcome: "needs_correction" as const,
       correctionNeeded: true,
       correctionSeverity: "minor" as const,
+      correctionReason: "grammar" as const,
       improvedSentence: "I play soccer.",
     };
 
