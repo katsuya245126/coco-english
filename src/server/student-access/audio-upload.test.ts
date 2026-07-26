@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/lib/db/types";
 import type { GenerateCocoReplyResult } from "@/server/ai/conversation-generator";
-import type { GenerateCocoReplyInput } from "@/domain/ai/conversation-generation";
+import type {
+  GeneratedCocoReply,
+  GenerateCocoReplyInput,
+} from "@/domain/ai/conversation-generation";
 
 // Conversation-mode orchestration in audio-upload.ts (CHAT-01/03/05/06,
 // D-10/D-11/D-13). Mirrors the mocking shape of tests/server/audio-upload.test.ts
@@ -89,6 +92,15 @@ function successfulOriginalEvaluator(overrides = {}) {
     ok: true as const,
     evaluation: originalEvaluation(overrides),
   }));
+}
+
+function generatedReply(line: string): GeneratedCocoReply {
+  return {
+    reaction: null,
+    focus: null,
+    question: null,
+    line,
+  };
 }
 
 // Chat missions have one teacher-authored opener. Every later turn is dynamic
@@ -295,9 +307,20 @@ function createMockSupabase(options: {
 }
 
 function fakeGenerateCocoReply(
-  impl: (input: GenerateCocoReplyInput) => Promise<GenerateCocoReplyResult>,
+  impl: (
+    input: GenerateCocoReplyInput,
+  ) => Promise<
+    | GenerateCocoReplyResult
+    | { ok: true; reply: { line: string } }
+  >,
 ) {
-  return vi.fn(impl);
+  return vi.fn(async (input: GenerateCocoReplyInput): Promise<GenerateCocoReplyResult> => {
+    const result = await impl(input);
+    if (result.ok && "line" in result.reply && !("reaction" in result.reply)) {
+      return { ...result, reply: generatedReply(result.reply.line) };
+    }
+    return result as GenerateCocoReplyResult;
+  });
 }
 
 function fakeIsContentSafe(

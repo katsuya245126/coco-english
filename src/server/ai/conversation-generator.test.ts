@@ -9,9 +9,35 @@ function createFakeClient(
     text: { format: unknown };
   }) => Promise<{ output_parsed?: unknown }>,
 ): ConversationResponsesClient {
+  const legacyLineQuestionPattern =
+    /\b(?:who|what|when|where|why|how|anything|(?:do|does|did|can|could|would|will|are|is|have|has)\s+(?:you|your|he|she|they|we|it))\b/iu;
+
   return {
     responses: {
-      parse: vi.fn(impl) as ConversationResponsesClient["responses"]["parse"],
+      parse: vi.fn(async (input) => {
+        const result = await impl(input);
+        const value = result.output_parsed;
+        if (
+          typeof value === "object" &&
+          value !== null &&
+          "line" in value &&
+          typeof value.line === "string" &&
+          !("reaction" in value)
+        ) {
+          const match = value.line.match(legacyLineQuestionPattern);
+          return {
+            ...result,
+            output_parsed: match
+              ? {
+                  reaction: value.line.slice(0, match.index).trim() || null,
+                  focus: null,
+                  question: value.line.slice(match.index).trim() || null,
+                }
+              : { reaction: value.line, focus: null, question: null },
+          };
+        }
+        return result;
+      }) as ConversationResponsesClient["responses"]["parse"],
     },
   };
 }
@@ -61,7 +87,7 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
       model: "test-conversation-model",
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
       reply: {
         line: "Eating with Minju is fun! What do you talk about?",
@@ -70,6 +96,90 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     expect(client.responses.parse).toHaveBeenCalledWith(
       expect.objectContaining({ model: "test-conversation-model" }),
     );
+  });
+
+  it("returns structured reply parts while preserving the assembled line", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(async () => ({
+      output_parsed: {
+        reaction: "Nice plans!",
+        focus: "swim",
+        question: "Who will you swim with?",
+      },
+    }));
+
+    const result = await generateCocoReply(
+      {
+        ...baseInput,
+        turnOrder: 1,
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "What will you do at the beach?",
+            studentResponse: "I will swim.",
+          },
+        ],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      reply: {
+        reaction: "Nice plans!",
+        focus: "swim",
+        question: "Who will you swim with?",
+        line: "Nice plans! Who will you swim with?",
+      },
+    });
+  });
+
+  it("repairs a multi-detail echo with the exact policy reason", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          output_parsed: {
+            reaction: "Eating watermelon, swimming, and eating chicken sounds fun!",
+            focus: "swimming",
+            question: "Who will you swim with?",
+          },
+        })
+        .mockResolvedValueOnce({
+          output_parsed: {
+            reaction: "Nice plans!",
+            focus: "swim",
+            question: "Who will you swim with?",
+          },
+        }),
+    );
+
+    const result = await generateCocoReply(
+      {
+        ...baseInput,
+        turnOrder: 1,
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "What will you do in the valley?",
+            studentResponse: "I will eat watermelon, swim, and eat chicken.",
+          },
+        ],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      reply: { line: "Nice plans! Who will you swim with?" },
+    });
+    expect(client.responses.parse).toHaveBeenCalledTimes(2);
+    const secondSystemMessage = vi
+      .mocked(client.responses.parse)
+      .mock.calls[1]?.[0].input.find((message) => message.role === "system")
+      ?.content;
+    expect(secondSystemMessage).toContain("multi_detail_echo");
   });
 
   it("returns schema_failed when the fake client's output_parsed fails the schema", async () => {
@@ -188,7 +298,7 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
       { apiKey: "test-key", client },
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
       reply: { line: "Swimming together is fun! What do you like about it?" },
     });
@@ -230,7 +340,7 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
       { apiKey: "test-key", client },
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
       reply: { line: "Swimming together is fun! What do you like about it?" },
     });
@@ -260,7 +370,7 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
       { apiKey: "test-key", client },
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
       reply: { line: "Soccer sounds fun! Do you play inside or outside?" },
     });
@@ -292,7 +402,7 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
       { apiKey: "test-key", client },
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
       reply: {
         line: "Sushi sounds delicious! Thanks for talking with me. See you next time!",
@@ -423,7 +533,7 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
       { apiKey: "test-key", client },
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
       reply: { line: "Nice! What games do you play inside?" },
     });
@@ -463,7 +573,7 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
       { apiKey: "test-key", client },
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
       reply: { line: "Fun! What do you enjoy after school?" },
     });
@@ -533,7 +643,7 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
       { apiKey: "test-key", client },
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
       reply: { line: "No problem! Do you play games or read books?" },
     });
@@ -563,7 +673,7 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
       { apiKey: "test-key", client },
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
       reply: { line: "No problem! Do you play Minecraft or soccer?" },
     });
@@ -702,7 +812,7 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
       { apiKey: "test-key", client },
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
       reply: { line: "You can play tag or hide. What game do you play?" },
     });
@@ -774,7 +884,7 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
       { apiKey: "test-key", client },
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
       reply: { line: "Soccer is fun! Who do you play soccer with?" },
     });

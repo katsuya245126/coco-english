@@ -70,11 +70,19 @@ export const conversationTurnInputSchema = z
 
 export type GenerateCocoReplyInput = z.infer<typeof conversationTurnInputSchema>;
 
-export const generatedCocoReplySchema = z.object({
-  line: z.string().trim().min(1),
+export const generatedCocoReplyPartsSchema = z.object({
+  reaction: z.string().trim().min(1).nullable(),
+  focus: z.string().trim().min(1).nullable(),
+  question: z.string().trim().min(1).nullable(),
 });
 
-export type GeneratedCocoReply = z.infer<typeof generatedCocoReplySchema>;
+export type GeneratedCocoReplyParts = z.infer<
+  typeof generatedCocoReplyPartsSchema
+>;
+
+export type GeneratedCocoReply = GeneratedCocoReplyParts & {
+  line: string;
+};
 
 export type ParseGeneratedCocoReplyResult =
   | { ok: true; reply: GeneratedCocoReply }
@@ -87,7 +95,11 @@ export type GeneratedCocoReplyLineViolation =
   // the validator no longer produces this reason (see Task 3 policy repair).
   | "either_or_question"
   | "topic_drift"
-  | "vague_echo";
+  | "vague_echo"
+  | "multi_detail_echo"
+  | "response_summary"
+  | "stacked_generic_reaction"
+  | "focus_mismatch";
 
 export type GeneratedCocoReplyLinePolicyResult =
   | { ok: true }
@@ -114,6 +126,39 @@ function hasRunOnQuestion(line: string) {
 
 function normalizedWords(text: string) {
   return text.toLocaleLowerCase("en-US").match(/[\p{L}\p{N}']+/gu) ?? [];
+}
+
+const RESPONSE_STOP_WORDS = new Set([
+  ...TOPIC_STOP_WORDS,
+  "i", "me", "my", "mine", "we", "our", "ours", "they", "them",
+  "their", "this", "that", "it", "myself", "will", "would", "be",
+  "been", "being", "am", "was", "were", "very", "just", "also",
+  "eat", "eating", "ate",
+]);
+
+function contentWords(text: string) {
+  return normalizedWords(text).filter(
+    (word) => !RESPONSE_STOP_WORDS.has(word),
+  );
+}
+
+function contentStem(word: string) {
+  const stem = word
+    .replace(/(?:ing|ed|es|s)$/u, "")
+    .replace(/(.)\1$/u, "$1");
+  return stem.length >= 3 ? stem : word;
+}
+
+function relatedContentWord(left: string, right: string) {
+  return left === right || contentStem(left) === contentStem(right);
+}
+
+function hasRelatedContentWord(text: string, target: string) {
+  return normalizedWords(text).some((word) => relatedContentWord(word, target));
+}
+
+function distinctContentWords(text: string) {
+  return [...new Set(contentWords(text).map(contentStem))];
 }
 
 /**
@@ -196,23 +241,41 @@ function staysOnActiveTopic(
   );
 }
 
-/** Deterministic format backstop for conversation-only provider output. */
-export function validateGeneratedCocoReplyLine(
-  line: string,
+function questionPartsFromLine(line: string, expectsQuestion: boolean) {
+  if (!expectsQuestion) {
+    return { reaction: line, focus: null, question: null };
+  }
+
+  const match = line.match(QUESTION_STARTER_PATTERN);
+  if (!match || match.index === undefined) {
+    return { reaction: line, focus: null, question: null };
+  }
+
+  return {
+    reaction: line.slice(0, match.index).trim() || null,
+    focus: null,
+    question: line.slice(match.index).trim() || null,
+  };
+}
+
+/** Deterministic format and grounding backstop for structured provider output. */
+export function validateGeneratedCocoReplyParts(
+  parts: GeneratedCocoReplyParts,
   options: {
     expectsQuestion: boolean;
     activeQuestion?: string;
     latestStudentResponse?: string;
   },
 ): GeneratedCocoReplyLinePolicyResult {
+  const line = assembleGeneratedCocoReply(parts).line;
   const normalized = line.trim();
   const reasons: GeneratedCocoReplyLineViolation[] = [];
   const questionMarks = normalized.match(/\?/gu)?.length ?? 0;
 
   if (
     options.expectsQuestion
-      ? questionMarks !== 1 || !normalized.endsWith("?")
-      : questionMarks !== 0 || !/[.!]$/u.test(normalized)
+      ? parts.question === null || questionMarks !== 1 || !normalized.endsWith("?")
+      : parts.question !== null || parts.focus !== null || questionMarks !== 0 || !/[.!]$/u.test(normalized)
   ) {
     reasons.push("question_format");
   }
@@ -239,21 +302,104 @@ export function validateGeneratedCocoReplyLine(
     reasons.push("vague_echo");
   }
 
+  if (options.expectsQuestion && parts.reaction) {
+    const responseDetails = distinctContentWords(options.latestStudentResponse ?? "");
+    const reactionDetails = distinctContentWords(parts.reaction);
+    const echoedDetails = responseDetails.filter((responseWord) =>
+      reactionDetails.some((reactionWord) =>
+        relatedContentWord(responseWord, reactionWord),
+      ),
+    );
+
+    if (echoedDetails.length >= 2) {
+      reasons.push("multi_detail_echo");
+    }
+    if (
+      responseDetails.length >= 3 &&
+      echoedDetails.length / responseDetails.length >= 0.7
+    ) {
+      reasons.push("response_summary");
+    }
+
+    const genericAdjectives =
+      "fun|good|great|nice|delicious|exciting|cool";
+    if (
+      new RegExp(
+        `\\bsounds\\b[\\s\\S]*\\b(?:${genericAdjectives})\\b\\s+and\\s+\\b(?:${genericAdjectives})\\b`,
+        "iu",
+      ).test(parts.reaction)
+    ) {
+      reasons.push("stacked_generic_reaction");
+    }
+  }
+
+  if (options.expectsQuestion && parts.focus) {
+    const focusWords = distinctContentWords(parts.focus);
+    const focusInResponse = focusWords.some((focusWord) =>
+      hasRelatedContentWord(options.latestStudentResponse ?? "", focusWord),
+    );
+    const focusInQuestion = focusWords.some((focusWord) =>
+      hasRelatedContentWord(parts.question ?? "", focusWord),
+    );
+    if (!focusInResponse || !focusInQuestion) {
+      reasons.push("focus_mismatch");
+    }
+  }
+
   return reasons.length === 0 ? { ok: true } : { ok: false, reasons };
+}
+
+/** Backward-compatible line validator for existing callers and stored tests. */
+export function validateGeneratedCocoReplyLine(
+  line: string,
+  options: {
+    expectsQuestion: boolean;
+    activeQuestion?: string;
+    latestStudentResponse?: string;
+  },
+): GeneratedCocoReplyLinePolicyResult {
+  const result = validateGeneratedCocoReplyParts(
+    questionPartsFromLine(line, options.expectsQuestion),
+    options,
+  );
+  if (result.ok) return result;
+
+  const legacyReasons = result.reasons.filter(
+    (reason) =>
+      reason !== "multi_detail_echo" &&
+      reason !== "response_summary" &&
+      reason !== "stacked_generic_reaction" &&
+      reason !== "focus_mismatch",
+  );
+  return legacyReasons.length === 0
+    ? { ok: true }
+    : { ok: false, reasons: legacyReasons };
 }
 
 /**
  * Validate a provider's structured-output payload against
- * generatedCocoReplySchema, mirroring the parseGeneratedMissionDraft
- * convention (schema_failed on any validation miss, including a
- * missing/empty line).
+ * generatedCocoReplyPartsSchema, mirroring the parseGeneratedMissionDraft
+ * convention (schema_failed on any validation miss, including an empty
+ * assembled line).
  */
 export function parseGeneratedCocoReply(value: unknown): ParseGeneratedCocoReplyResult {
-  const parsed = generatedCocoReplySchema.safeParse(value);
+  const parsed = generatedCocoReplyPartsSchema.safeParse(value);
   if (!parsed.success) {
     return { ok: false, error: "schema_failed" };
   }
-  return { ok: true, reply: parsed.data };
+  const reply = assembleGeneratedCocoReply(parsed.data);
+  return reply.line.length > 0
+    ? { ok: true, reply }
+    : { ok: false, error: "schema_failed" };
+}
+
+export function assembleGeneratedCocoReply(
+  parts: GeneratedCocoReplyParts,
+): GeneratedCocoReply {
+  return {
+    ...parts,
+    line: [parts.reaction, parts.question].filter(Boolean).join(" ").trim(),
+  };
 }
 
 export type ConversationReplyMode = "follow_up" | "closing";
@@ -345,9 +491,15 @@ export function buildConversationPrompt(input: GenerateCocoReplyInput) {
     conversationHistory,
     instructions: [
       "Speak to a young ESL learner: short, simple sentences with easy everyday words.",
+      "Return reaction, focus, and question separately.",
+      "A follow-up may react briefly or mention one learner-owned detail, but must not summarize a list.",
+      "Choose at most one focus from the latest studentResponse and make the question explore it.",
       replyMode === "closing"
         ? "Acknowledge the latest studentResponse specifically, then add a short friendly goodbye. Write one or two short complete sentences with no question."
         : "Acknowledge the latest studentResponse, then ask exactly one relevant question for new information.",
+      replyMode === "closing"
+        ? "A closing uses reaction only; set focus and question to null."
+        : "A follow-up must include one question and may include one learner-owned focus.",
       "Write complete, correctly punctuated sentences. Put sentence-ending punctuation between a reaction and the follow-up question; never join them as a run-on.",
       "Treat every detail in conversationHistory as already known.",
       ...reviewPendingInstructions,

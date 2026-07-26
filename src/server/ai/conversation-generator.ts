@@ -18,10 +18,10 @@ import { log } from "@/server/logging/logger";
 import {
   conversationReplyMode,
   conversationTurnInputSchema,
-  generatedCocoReplySchema,
+  generatedCocoReplyPartsSchema,
   parseGeneratedCocoReply,
   buildConversationPrompt,
-  validateGeneratedCocoReplyLine,
+  validateGeneratedCocoReplyParts,
   type ConversationSafetyMode,
   type GenerateCocoReplyInput,
   type GeneratedCocoReply,
@@ -90,13 +90,17 @@ function createClient(apiKey: string): ConversationResponsesClient {
 const CONVERSATION_SYSTEM_MESSAGE = [
   "Generate Coco's next line in a bounded ESL practice conversation.",
   "You are talking with a young ESL learner: use short, simple sentences and easy everyday words.",
+  "Return reaction, focus, and question separately.",
   "Prefer one or two short, simple sentences.",
   "Follow replyMode from the user payload exactly.",
   "When replyMode is follow_up, acknowledge the latest studentResponse and ask exactly one relevant question.",
   "When replyMode is closing, acknowledge the latest studentResponse specifically, add a short friendly goodbye such as 'See you next time,' and ask no question.",
+  "A closing uses reaction only; set focus and question to null.",
   "Write complete, correctly punctuated sentences. Put sentence-ending punctuation between a reaction and the follow-up question; never join them as a run-on.",
   "Treat every detail in conversationHistory as already known.",
   "Acknowledge or react specifically to the latest studentResponse before asking a follow-up.",
+  "A follow-up may react briefly or mention one learner-owned detail, but must not summarize a list.",
+  "Choose at most one focus from the latest studentResponse and make the question explore it.",
   "Before the closing turn, ask exactly one short question for genuinely new information whose answer is not present or directly implied anywhere in conversationHistory.",
   "Before the closing turn, after a meaningful answer, ask an open question that connects directly to the answer and invites a short phrase or sentence.",
   "Before the closing turn, treat a short answer as meaningful when it adds a real detail; after 'Inside.', ask an expandable question such as 'What games do you play inside?'.",
@@ -140,6 +144,14 @@ const VIOLATION_CORRECTION_HINTS: Record<
     "The previous candidate drifted away from the active topic (the student's latest answer and Coco's last question). Ask about a detail directly connected to what the student just said.",
   vague_echo:
     "The previous candidate echoed the student's vague word (such as \"anything\" or \"something\") back as if it were a real detail. Acknowledge without repeating that word — say something like \"Lots of things!\" — then ask one short question offering two concrete child-friendly choices.",
+  multi_detail_echo:
+    "The reaction repeated two or more details from the student's latest answer. React briefly without replaying the list, then explore only the declared focus.",
+  response_summary:
+    "The reaction summarized most of the student's response. Replace it with one short social reaction and keep only one focus.",
+  stacked_generic_reaction:
+    "The reaction stacked generic adjectives in a 'sounds ... and ...' phrase. Use one short reaction without an adjective pair.",
+  focus_mismatch:
+    "The question did not explore the declared focus. Keep one learner-owned focus from the latest response and ask about that detail, or make a gentle nearby transition.",
 };
 
 function replyPolicyCorrection(
@@ -147,10 +159,17 @@ function replyPolicyCorrection(
   violations: GeneratedCocoReplyLineViolation[],
 ) {
   return [
-    ...violations.map((violation) => VIOLATION_CORRECTION_HINTS[violation]),
+    ...violations.map(
+      (violation) => `${violation}: ${VIOLATION_CORRECTION_HINTS[violation]}`,
+    ),
     expectsQuestion
       ? "Regenerate the full line once with complete, correctly punctuated sentences and one open question that stays on the active activity."
       : "Regenerate the full line once as one complete, correctly punctuated closing line with no question.",
+    "Return reaction, focus, and question separately. Choose at most one focus from the latest studentResponse.",
+    "A follow-up may react briefly or mention one learner-owned detail, but must not summarize a list.",
+    expectsQuestion
+      ? "For a closing, set focus and question to null; otherwise include exactly one question."
+      : "For a closing, use reaction only and set focus and question to null.",
     "Prefer one or two short, simple sentences and an open question. A single either-or question is allowed when both choices are relevant and child-friendly.",
     "Return only data matching the schema.",
   ].join(" ");
@@ -195,7 +214,7 @@ export async function generateCocoReply(
         },
       ],
       text: {
-        format: zodTextFormat(generatedCocoReplySchema, "coco_reply"),
+        format: zodTextFormat(generatedCocoReplyPartsSchema, "coco_reply"),
       },
     });
 
@@ -208,7 +227,7 @@ export async function generateCocoReply(
     const replyMode = conversationReplyMode(validInput.data);
     const expectsQuestion = replyMode === "follow_up";
     const activeQuestion = validInput.data.conversationHistory.at(-1)?.cocoLine;
-    const linePolicy = validateGeneratedCocoReplyLine(parsed.reply.line, {
+    const linePolicy = validateGeneratedCocoReplyParts(parsed.reply, {
       expectsQuestion,
       activeQuestion,
       latestStudentResponse: latestResponse,
@@ -232,21 +251,18 @@ export async function generateCocoReply(
             },
           ],
           text: {
-            format: zodTextFormat(generatedCocoReplySchema, "coco_reply"),
+            format: zodTextFormat(generatedCocoReplyPartsSchema, "coco_reply"),
           },
         });
         const corrected = parseGeneratedCocoReply(correctedResponse.output_parsed);
         if (!corrected.ok) {
           return { ok: false, error: "schema_failed" };
         }
-        const correctedPolicy = validateGeneratedCocoReplyLine(
-          corrected.reply.line,
-          {
-            expectsQuestion,
-            activeQuestion,
-            latestStudentResponse: latestResponse,
-          },
-        );
+        const correctedPolicy = validateGeneratedCocoReplyParts(corrected.reply, {
+          expectsQuestion,
+          activeQuestion,
+          latestStudentResponse: latestResponse,
+        });
         if (!correctedPolicy.ok) {
           log("warn", "ai.conversation_line_policy_rejected", {
             reasons: correctedPolicy.reasons,

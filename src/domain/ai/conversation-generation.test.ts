@@ -4,6 +4,8 @@ import {
   buildConversationPrompt,
   conversationReplyMode,
   conversationTurnInputSchema,
+  parseGeneratedCocoReply,
+  validateGeneratedCocoReplyParts,
   validateGeneratedCocoReplyLine,
   type GenerateCocoReplyInput,
 } from "@/domain/ai/conversation-generation";
@@ -45,6 +47,82 @@ function historyThrough(turnOrder: number) {
         : `Answer ${index + 1}.`,
   }));
 }
+
+describe("structured Coco reply parts", () => {
+  it("assembles a follow-up while preserving reply.line for consumers", () => {
+    expect(
+      parseGeneratedCocoReply({
+        reaction: "Nice plans!",
+        focus: "swim",
+        question: "Who will you swim with?",
+      }),
+    ).toEqual({
+      ok: true,
+      reply: {
+        reaction: "Nice plans!",
+        focus: "swim",
+        question: "Who will you swim with?",
+        line: "Nice plans! Who will you swim with?",
+      },
+    });
+  });
+
+  it("rejects closing parts that contain a focus or question", () => {
+    expect(
+      validateGeneratedCocoReplyParts(
+        {
+          reaction: "That sounds great. See you next time!",
+          focus: "swim",
+          question: null,
+        },
+        { expectsQuestion: false, latestStudentResponse: "I swim." },
+      ).ok,
+    ).toBe(false);
+  });
+
+  it.each([
+    [
+      {
+        reaction: "Eating watermelon, swimming, and eating chicken sounds fun!",
+        focus: "swimming",
+        question: "Who will you swim with?",
+      },
+      "multi_detail_echo",
+    ],
+    [
+      {
+        reaction: "Eating watermelon swimming eating chicken!",
+        focus: "swimming",
+        question: "Who will you swim with?",
+      },
+      "response_summary",
+    ],
+    [
+      {
+        reaction: "That sounds delicious and fun!",
+        focus: "swimming",
+        question: "Who will you swim with?",
+      },
+      "stacked_generic_reaction",
+    ],
+    [
+      {
+        reaction: "Nice plans!",
+        focus: "swimming",
+        question: "What chicken will you eat?",
+      },
+      "focus_mismatch",
+    ],
+  ])("reports %s deterministically", (parts, violation) => {
+    const result = validateGeneratedCocoReplyParts(parts, {
+      expectsQuestion: true,
+      activeQuestion: "What will you do in the valley?",
+      latestStudentResponse: "I will eat watermelon, swim, and eat chicken.",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reasons).toContain(violation);
+  });
+});
 
 describe("conversation history generation contract", () => {
   it("accepts ordered history and places the complete history in the prompt", () => {
