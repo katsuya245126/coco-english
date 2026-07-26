@@ -15,9 +15,9 @@ Make dynamic conversation feedback accurately distinguish:
 
 When the application can safely identify a language problem, the learner sees
 the exact improved sentence and the established correction flow. When meaning
-is genuinely unclear, the learner gets one explicit same-turn opportunity to
-say the idea again. Internal failures never masquerade as a student mistake,
-and no path can create a chain of context-free
+is genuinely unclear, the learner sees their transcript, `Hmm... Try again`,
+and must re-record once on the same turn. Internal failures never masquerade as
+a student mistake, and no path can create a chain of context-free
 `Hmm... Can you say it again?` questions.
 
 ## Source evidence and limits
@@ -208,12 +208,13 @@ The server:
 The learner sees:
 
 - `You said:` followed by the stored transcript;
-- `Coco isn’t sure what you mean. Try saying the same idea again.`;
+- `Hmm... Try again`;
 - the existing recording playback when available; and
-- one `Try again` action.
+- one `Try again` recording action.
 
 The message does not claim a grammar error and does not show a fabricated
-improved sentence.
+improved sentence. There is no Continue action: the learner must re-record the
+same turn once.
 
 ### Second coherent ambiguity on the same turn
 
@@ -413,7 +414,8 @@ Prove:
 
 Prove:
 
-- first ambiguity renders the transcript and explicit unclear-meaning copy;
+- first ambiguity renders the transcript and exact `Hmm... Try again` copy;
+- first ambiguity offers no Continue action and requires re-recording;
 - the retry stays on the same conversation turn;
 - reloading restores that state and retry count;
 - correction feedback still shows the improved sentence;
@@ -454,7 +456,8 @@ must be labeled localhost application evidence.
 - No identical sentence can persist as an improvement or correction.
 - A safe material correction shows exactly what the learner should say and
   uses the existing repeat flow.
-- A genuinely unclear answer receives exactly one explicit same-turn retry.
+- A genuinely unclear answer shows its transcript and exact
+  `Hmm... Try again` feedback, then requires exactly one same-turn retry.
 - A second ambiguity or internal failure cannot create another learner retry.
 - New runtime behavior never persists
   `Hmm... Can you say it again?` as a dynamic next question.

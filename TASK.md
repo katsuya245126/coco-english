@@ -98,7 +98,8 @@ text that failed `focus_mismatch` cannot be reconstructed from this artifact.
 - An identical original/improved sentence persists as no correction:
   `accepted_original`, severity/reason `none`, `correctionNeeded: false`, and
   no improved sentence.
-- A genuine ambiguity has one explicit, non-judgmental recovery behavior and
+- A genuine ambiguity shows the transcript and exact `Hmm... Try again`
+  feedback, requires one same-turn re-recording with no Continue action, and
   cannot create an unbounded or context-free retry chain.
 - Reply-policy failure never presents `Can you say it again?` as though the
   student's understandable answer caused the internal failure.
@@ -134,7 +135,8 @@ The user approved the contract-first hybrid design in chat on 2026-07-27. The
 written specification is at
 `docs/superpowers/specs/2026-07-27-dynamic-conversation-evaluation-recovery-design.md`.
 It defines one shared evaluator-repair budget, complete no-op
-canonicalization, one bounded genuine-ambiguity retry, distinct internal
+canonicalization, one bounded genuine-ambiguity retry showing the transcript
+and exact `Hmm... Try again` copy with no Continue action, distinct internal
 failure behavior, question-owned focus validation, closing grounding,
 diagnostic evidence, and corrected inspector semantics.
 
