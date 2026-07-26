@@ -1,127 +1,123 @@
-# Compact Homework Review
+# Natural Conversation Policy Hardening
 
-**Status:** Implemented; final evidence complete
-**Classification:** Normal
-**Started:** 2026-07-23
+**Status:** Planning; written design awaiting review
+**Classification:** Consequential
+**Started:** 2026-07-26
 
 ## Desired outcome
 
-Make the dynamic Homework Review easier for elementary learners to scan by
-removing pronunciation cards, keeping recordings collapsed until requested,
-and presenting Coco with a familiar Messenger-style circular portrait beside
-each left-aligned message.
+Make Coco respond to elementary learners naturally without coercing their
+meaning, treating interrupted recordings as language errors, over-expanding
+short answers, or mechanically restating everything the learner said.
 
 ## Scope
 
-- Dynamic Homework Review only.
-- Remove pronunciation presentation from this screen without deleting or
-  changing stored pronunciation data.
-- Put a 44px audio control inside each answer bubble that has an available
-  recording.
-- Load the existing signed playback URL only when the learner requests audio,
-  then reveal a compact responsive player for that exact original or repeat
-  attempt.
-- Render Coco's existing portrait as a circular avatar beside every Coco
-  message.
-- Preserve retry, accepted repeat, minor recast, success, neutral-review, final
-  goodbye, and Back to homework behavior.
-- Slightly widen the desktop reading column while retaining a single-column,
-  overflow-free mobile layout.
+- Preset open-answer evaluation:
+  - accept a valid answer that fills the authored frame with the learner's own
+    choice;
+  - deterministically prevent a correction from replacing that choice with the
+    target example's choice.
+- Original-recording recovery:
+  - recognize a small, conservative set of syntactically dangling transcripts;
+  - ask the learner to record the same answer again without showing the target
+    sentence or consuming the turn.
+- Dynamic-conversation correction:
+  - preserve the complete-sentence mission setting;
+  - when enabled, recast a meaningful fragment into the shortest grounded
+    complete sentence;
+  - accept meaningful fragments when the setting is disabled;
+  - reject embellishment and unsupported details.
+- Dynamic Coco follow-ups:
+  - react briefly without summarizing the learner's whole response;
+  - select at most one detail to explore;
+  - preserve the existing one-question, topic, history, moderation, closing,
+    and fallback boundaries.
+- Attempt inspection:
+  - expose frozen mission policy, stored correction data, original evaluation
+    evidence, every audio-clip status, and moderation/fallback events;
+  - record evaluator policy/model/runtime provenance in new evaluation JSON
+    without changing the database schema.
 
 ## Non-goals
 
-- No changes to the preset Read-only recap.
-- No database, authorization, signed-URL, scoring, teacher-review, or mission
-  flow changes.
-- No changes to stored pronunciation or audio evidence.
-- No push, deploy, publish, production mutation, or Supabase mutation.
+- No change to teacher/student ownership checks, RLS, mission snapshots,
+  assignment or attempt state transitions, signed audio access, or audio
+  retention.
+- No scoring, pronunciation, hint-ladder, teacher-review UI, Homework Review
+  layout, or character-art changes.
+- No replacement of the configured transcription, evaluation, conversation,
+  TTS, moderation, or pronunciation providers.
+- No database migration or historical-row backfill.
+- No attempt to infer the physical cause of an interrupted recording from
+  duration or byte size alone.
+- No push, merge, deploy, publish, production mutation, or Supabase mutation.
 
-## Approved visual contract
+## Approved decisions
 
-- Written design:
-  `docs/superpowers/specs/2026-07-23-homework-review-compact-chat-design.md`
-- Tracked preview:
-  `docs/superpowers/specs/previews/2026-07-23-homework-review-compact-chat.html`
-- The preview is synthetic planning evidence, not an application screenshot.
-- The preview is the visual source of truth for hierarchy, alignment, relative
-  spacing, bubble/avatar treatment, collapsed and expanded audio placement,
-  and correction emphasis.
-- Intentional visual deviations require updating the preview and obtaining
-  user approval before implementation continues.
+- Use the hybrid design in
+  `docs/superpowers/specs/2026-07-26-natural-conversation-policy-design.md`.
+- Do not rely on prompt instructions as the only protection against
+  meaning-changing corrections.
+- When complete-sentence practice is enabled, `"My family."` receives the
+  shortest grounded recast, such as `"I will swim with my family."`.
+- When complete-sentence practice is disabled, the same meaningful fragment is
+  accepted.
+- A syntactically dangling recording such as `"I"` retries the original
+  question and never routes to target-sentence repetition.
+- A generated follow-up may use a short generic reaction or mention one detail;
+  it must not restate a multi-item answer or stack generic adjectives.
+- An invalid model correction receives one constrained repair attempt. If the
+  repair is still unsafe, the turn routes to teacher review without requiring
+  the learner to repeat the unsafe sentence.
 
 ## Observable done checks
 
-- Homework Review renders no pronunciation stars, scores, or green
-  pronunciation cards.
-- Every available original or repeat recording remains associated with its own
-  transcript and compact audio control.
-- The compact control loads the existing signed URL on demand and exposes
-  loading, playable, collapsible, and unavailable states accessibly.
-- Coco's real portrait is circular and aligned beside each Coco bubble.
-- Retry and minor-recast states match the tracked preview and remain
-  understandable without relying on color alone.
-- The preset Read-only recap is unchanged.
-- Component tests, focused server/UI contract tests, typecheck, lint, and build
-  pass.
-- Localhost screenshots at mobile and desktop widths are compared with the
-  tracked preview and labeled as localhost evidence.
+- `"I think chocolate ice cream is the best."` is accepted on the supplied open
+  turn without an evaluator call, correction, hint, or repeat.
+- A genuinely malformed chocolate answer may be corrected, but every correction
+  retains chocolate rather than substituting vanilla.
+- `"I"` produces an incomplete-recording retry on the same question, with no
+  target sentence, correction TTS, next Coco line, or turn consumption.
+- `"My family."` becomes no more than `"I will swim with my family."` when
+  complete sentences are required and is accepted unchanged when they are not.
+- `"I like to play Jenga."` is accepted rather than expanded and repeated.
+- A correction for `"On the side."` cannot introduce `"pool"` or other
+  unsupported content.
+- A follow-up to a multi-activity answer reacts briefly and explores one detail
+  without restating the whole list.
+- Existing conversation history, topic-drift, exactly-one-question,
+  moderation, closing, fallback, ownership, repeat, and teacher-review
+  contracts remain intact.
+- A repeat row retains its original evaluation; the inspection script shows it
+  or explicitly labels legacy/stale-runtime evidence as unavailable.
+- The inspection report shows mission mode/settings, `improved_sentence`, all
+  clip statuses and sizes, failed clips, moderation/fallback events, and
+  evaluator provenance.
+- Focused tests, the full test suite, typecheck, lint, and build pass.
+- A real-provider localhost UAT replays the supplied preset and dynamic
+  examples; its evidence is labeled localhost application evidence.
+
+## Planning checklist
+
+- [x] Inspect the supplied export, raw attempt rows, frozen mission snapshots,
+      recent fixes, evaluator flow, generator flow, and inspection script.
+- [x] Compare prompt-only, hybrid, and two-pass designs.
+- [x] Obtain user approval for the hybrid design.
+- [x] Write and self-review the dedicated design specification.
+- [ ] Obtain user review of the written specification.
+- [ ] Write and self-review the detailed test-first implementation plan.
+- [ ] Obtain implementation-plan approval before runtime changes.
 
 ## Current position
 
-Implementation is complete at HEAD `748d860c`, including compact audio
-controls, on-demand signed playback URL loading, and the compact dynamic
-Homework Review. The final review fix added a visible polite
-`Preparing recording…` status during on-demand loading, disabled duplicate
-activation while loading, and synchronized an external audio pause back to
-`Play recording`.
+The behavior design was approved in chat on 2026-07-26. The written
+specification records the approved policy, the raw database evidence behind
+it, the deterministic/model boundary, error handling, observability, and
+verification requirements. No runtime code has been changed.
 
-The previously verified automated baseline, recorded before the final review
-fix, passed the 7-file focused matrix (46 tests), typecheck, lint with one
-pre-existing warning, build on Next 15.5.19, and the full test suite (95 files,
-985 tests passed, 4 skipped). These remain verified historical facts.
-
-Authenticated localhost application UAT confirmed the dynamic review contract
-at a live 390x844 mobile viewport and 1440x1200 desktop viewport, including
-independent original/repeat players, all eight available recording controls,
-circular Coco avatars, retry markers, blue answer bubbles, and the final Back
-to homework link. The live 390x844 localhost application check specifically
-confirmed an overflow-free layout and 44px controls. The preset Read-only recap
-remained unchanged with pronunciation content present.
-
-The saved mobile localhost application evidence,
-`/private/tmp/compact-homework-review-localhost-application-mobile.png`, is a
-real authenticated application capture from
-`http://localhost:3000/student/history/cb087fc4-9d41-4788-a99b-3ce18166bb0b`
-at an actual 390x844 Chrome viewport. The saved file is a 390x844 PNG with no
-resizing or synthetic rendering. The saved desktop-width localhost application
-evidence remains
-`/private/tmp/compact-homework-review-localhost-application-desktop.png`, a
-1440x2059 capture.
-
-The approved plan's localhost mobile and desktop screenshot comparison with
-the tracked preview is complete. These real localhost application checks and
-captures remain distinct from the tracked synthetic preview used for
-qualitative comparison.
-
-## Follow-up fix (commit `748d860c`)
-
-A narrow-layout audio pass (`f12acd2e`) plus a second round fixed three
-remaining issues:
-
-- The compact audio control's loading state now shows a spinner icon inside
-  the 44px button instead of visible `Preparing recording…` body text; the
-  text remains for screen readers via a visually-hidden `aria-live="polite"`
-  status span.
-- The answer bubble uses `width: fit-content` with a chat-style asymmetric
-  border-radius (tail toward the sender) instead of a fixed-width block.
-- The student name label wraps and constrains its width so long names no
-  longer overflow next to the avatar.
-
-Verified: focused tests (9/9), full suite (95 files, 988 passed, 4 skipped),
-typecheck clean, lint clean (0 errors, 1 pre-existing warning), production
-build succeeds (9/9 pages). User manually confirmed the spinner and long-name
-wrap behave correctly on the authenticated localhost app.
+The unrelated pre-existing working-tree modification at
+`.superpowers/sdd/task-1-report.md` remains untouched.
 
 ## Next step
 
-No remaining work in the approved scope.
+User reviews the written specification before implementation planning begins.
