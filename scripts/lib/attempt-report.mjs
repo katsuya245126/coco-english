@@ -99,14 +99,59 @@ export function formatAudioClip(clip) {
   return lines;
 }
 
-export function formatAttemptTurn(turn, snapshotTurn = {}) {
+function turnContext(turn, input) {
+  const isContext =
+    input &&
+    typeof input === "object" &&
+    ("snapshotTurn" in input ||
+      "promptAnswered" in input ||
+      "conversationMode" in input ||
+      "generatedTurn" in input);
+  if (isContext) {
+    return {
+      promptAnswered: input.promptAnswered ?? null,
+      snapshotTurn: input.snapshotTurn ?? {},
+      conversationMode: input.conversationMode === true,
+      generatedTurn: input.generatedTurn === true,
+      targetPattern: input.targetPattern ?? null,
+    };
+  }
+
+  const snapshotTurn = input ?? {};
+  const templatePrompt = turn.mission_turn_templates?.prompt ?? null;
+  const promptAnswered =
+    templatePrompt ??
+    (turn.coco_line && snapshotTurn.prompt === turn.coco_line
+      ? null
+      : snapshotTurn.prompt ?? null);
+  return {
+    promptAnswered,
+    snapshotTurn,
+    conversationMode: false,
+    generatedTurn: false,
+    targetPattern: null,
+  };
+}
+
+export function formatAttemptTurn(turn, input = {}) {
+  const context = turnContext(turn, input);
+  const snapshotTurn = context.snapshotTurn;
   const evaluation = turn.evaluation ?? {};
   const hintLevel = turn.hint_level_used ?? 0;
+  const promptAnswered =
+    context.promptAnswered ??
+    (context.generatedTurn ? "unavailable (legacy linkage)" : "—");
+  const answerShape =
+    snapshotTurn.answerShape ??
+    (context.conversationMode ? "open (runtime default)" : "fixed");
   const lines = [
     `  Turn ${shown(turn.turn_order)}`,
-    `    coco said: ${shown(turn.coco_line ?? snapshotTurn.prompt)}`,
-    `    target: ${shown(snapshotTurn.targetExample)}`,
-    `    answer shape: ${shown(snapshotTurn.answerShape ?? "fixed")}`,
+    `    prompt answered: ${promptAnswered}`,
+    `    next Coco line: ${shown(turn.coco_line)}`,
+    ...(context.conversationMode
+      ? [`    lesson context (soft): ${shown(context.targetPattern)}`]
+      : [`    target: ${shown(snapshotTurn.targetExample)}`]),
+    `    answer shape: ${answerShape}`,
     `    said (original): ${shown(turn.original_transcript)}`,
     `    improved sentence: ${shown(turn.improved_sentence)}`,
     `    said (repeat): ${shown(turn.repeat_transcript)}`,
@@ -133,6 +178,16 @@ export function formatAttemptTurn(turn, snapshotTurn = {}) {
     if (event.cause) lines.push(`      fallback cause: ${shown(event.cause)}`);
     if (event.violations) {
       lines.push(`      violations: ${event.violations.join(", ")}`);
+    }
+    if (event.rejectedAttempt) {
+      lines.push(`      rejected attempt: ${shown(event.rejectedAttempt)}`);
+    }
+    if (event.rejectedCandidate) {
+      lines.push(
+        `      rejected reaction: ${shown(event.rejectedCandidate.reaction)}`,
+        `      rejected focus: ${shown(event.rejectedCandidate.focus)}`,
+        `      rejected question: ${shown(event.rejectedCandidate.question)}`,
+      );
     }
   }
 

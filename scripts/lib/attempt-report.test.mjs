@@ -114,3 +114,82 @@ test("prints a to-one pronunciation score returned by Supabase", () => {
     /pronunciation: accuracy=91 fluency=82 completeness=93 overall=88 stars=3/i,
   );
 });
+
+test("separates the prompt answered from the next generated line", () => {
+  const turn1 = {
+    turn_order: 1,
+    original_transcript: "I am going to the beach.",
+    coco_line: "What will you do at the beach?",
+    evaluation: {},
+    audio_clips: [],
+  };
+  const turn2 = {
+    turn_order: 2,
+    original_transcript: "I will swim.",
+    coco_line: "What food will you eat?",
+    evaluation: {},
+    audio_clips: [],
+  };
+  const output = [
+    ...formatAttemptTurn(turn1, {
+      promptAnswered: "What are you going to do this summer?",
+      snapshotTurn: { answerShape: "open" },
+      conversationMode: true,
+      generatedTurn: false,
+      targetPattern: "I'm going to _____.",
+    }),
+    ...formatAttemptTurn(turn2, {
+      promptAnswered: "What will you do at the beach?",
+      snapshotTurn: null,
+      conversationMode: true,
+      generatedTurn: true,
+      targetPattern: "I'm going to _____.",
+    }),
+  ].join("\n");
+
+  assert.match(
+    output,
+    /prompt answered: What are you going to do this summer/,
+  );
+  assert.match(output, /next Coco line: What will you do at the beach/);
+  assert.match(output, /answer shape: open \(runtime default\)/);
+  assert.match(output, /lesson context \(soft\): I'm going to _____/);
+  assert.doesNotMatch(output, /coco said:/i);
+});
+
+test("prints only bounded rejected candidate evidence", () => {
+  const output = formatAttemptTurn(
+    {
+      turn_order: 2,
+      evaluation: {},
+      moderation_event: {
+        kind: "canned_fallback",
+        cause: "reply_policy_failed",
+        violations: ["topic_drift"],
+        rejectedAttempt: "corrected",
+        rejectedCandidate: {
+          reaction: "Nice!",
+          focus: "family meal",
+          question: "What food will you eat?",
+          object_key: "must-not-print",
+          access_value: "must-not-print",
+        },
+      },
+      audio_clips: [],
+    },
+    {
+      promptAnswered: null,
+      snapshotTurn: null,
+      conversationMode: true,
+      generatedTurn: true,
+    },
+  ).join("\n");
+
+  assert.match(output, /prompt answered: unavailable \(legacy linkage\)/);
+  assert.match(output, /rejected attempt: corrected/);
+  assert.match(output, /rejected reaction: Nice!/);
+  assert.match(output, /rejected focus: family meal/);
+  assert.match(output, /rejected question: What food will you eat\?/);
+  assert.doesNotMatch(output, /must-not-print/);
+  assert.doesNotMatch(output, /object_key|access_value/i);
+});
