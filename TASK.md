@@ -1,6 +1,6 @@
 # Natural Conversation Policy Hardening
 
-**Status:** Implementation in progress; Tasks 1–6 complete
+**Status:** Implementation in progress; Tasks 1–7 complete
 **Classification:** Consequential
 **Started:** 2026-07-26
 
@@ -113,20 +113,21 @@ short answers, or mechanically restating everything the learner said.
 - [x] Complete Task 4 upload orchestration and focused tests.
 - [x] Complete Task 5 same-question recording-recovery feedback and focused tests.
 - [x] Complete Task 6 structured one-detail Coco replies and focused tests.
+- [x] Complete Task 7 read-only attempt inspection evidence and safety tests.
 
 ## Current position
 
 The behavior design and its written specification were approved in chat on
 2026-07-26. The detailed test-first implementation plan is at
-`docs/superpowers/plans/2026-07-26-natural-conversation-policy.md`. Tasks 1–6
+`docs/superpowers/plans/2026-07-26-natural-conversation-policy.md`. Tasks 1–7
 are implemented in commits `3b447286`, `ad7e643a`, `45461b96`, `45cdae82`,
-`6edb614a`, and the current Task 6 commit, with 111 Task 6 focused tests
-passing. The remaining work covers attempt inspection and verification.
+`6edb614a`, `3150a25e`, and the current Task 7 commit. The remaining work is
+the integrated verification gate.
 
 The unrelated pre-existing working-tree modification at
 `.superpowers/sdd/task-1-report.md` remains untouched.
 
 ## Next step
 
-Continue with Task 7 using the approved inline execution plan. Do not begin
+Continue with Task 8 using the approved inline execution plan. Do not begin
 paid-provider UAT without explicit approval.
