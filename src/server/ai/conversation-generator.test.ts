@@ -417,12 +417,13 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
   it("allows an eight-turn mission closing through the hard-cap boundary", async () => {
     const { generateCocoReply } = await import("@/server/ai/conversation-generator");
     const client = createFakeClient(async () => ({
-      output_parsed: { line: "That was fun! See you next time!" },
+      output_parsed: { line: "Swimming was fun! See you next time!" },
     }));
     const history = Array.from({ length: 8 }, (_, index) => ({
       turnOrder: index + 1,
       cocoLine: `Question ${index + 1}?`,
-      studentResponse: `Answer ${index + 1}.`,
+      studentResponse:
+        index === 7 ? "I enjoyed swimming." : `Answer ${index + 1}.`,
     }));
 
     const result = await generateCocoReply(
@@ -616,6 +617,13 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
       ok: false,
       error: "reply_policy_failed",
       violations: ["question_format"],
+      rejectedAttempt: "corrected",
+      rejectedCandidate: {
+        reaction: null,
+        focus: null,
+        question:
+          "Do you read books or watch TV? What do you enjoy after school?",
+      },
     });
     expect(client.responses.parse).toHaveBeenCalledTimes(2);
   });
@@ -848,6 +856,12 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
       ok: false,
       error: "reply_policy_failed",
       violations: ["topic_drift"],
+      rejectedAttempt: "corrected",
+      rejectedCandidate: {
+        reaction: "Pizza is great!",
+        focus: null,
+        question: "What toppings do you like?",
+      },
     });
     expect(client.responses.parse).toHaveBeenCalledTimes(2);
   });

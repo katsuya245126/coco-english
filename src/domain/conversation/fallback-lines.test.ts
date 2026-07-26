@@ -18,7 +18,7 @@ describe("conversation fallback lines", () => {
   it.each([
     ["meaningful", "Thanks for telling me! What do you like about that?"],
     ["vague_or_stuck", "That's okay! Can you give me one example?"],
-    ["uncertain", "Hmm... Can you say it again?"],
+    ["uncertain", "Thanks for trying! What else do you want to tell me?"],
   ] as const)("returns the exact %s follow-up fallback", (kind, expected) => {
     const line = selectFollowUpFallbackLine(kind);
     expect(line).toBe(expected);
@@ -26,13 +26,12 @@ describe("conversation fallback lines", () => {
     expect(line.endsWith("?")).toBe(true);
   });
 
-  it("removes the abstract uncertain wording rejected for child-ESL register", () => {
+  it("keeps the uncertain fallback moving without another retry request", () => {
     const line = selectFollowUpFallbackLine("uncertain");
-    expect(line).not.toContain("another way");
-    expect(line).not.toContain("small detail");
-    // "Hmm..." signals Coco didn't catch it without narrating a failure to
-    // the child; the ask must stay concrete enough to act on.
-    expect(line).toContain("say it again");
+    expect(line).toBe(
+      "Thanks for trying! What else do you want to tell me?",
+    );
+    expect(line).not.toContain("again");
   });
 
   it("classifies only bounded server-known response state", () => {

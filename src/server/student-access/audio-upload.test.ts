@@ -703,6 +703,12 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       ok: false,
       error: "reply_policy_failed",
       violations: ["question_format"],
+      rejectedCandidate: {
+        reaction: "Try again.",
+        focus: null,
+        question: null,
+      },
+      rejectedAttempt: "corrected",
     }));
     const warmTtsAudioCache = vi.fn();
 
@@ -1791,6 +1797,12 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       ok: false,
       error: "reply_policy_failed",
       violations: ["either_or_question", "topic_drift"],
+      rejectedCandidate: {
+        reaction: "Nice!",
+        focus: "soccer",
+        question: "Do you play soccer or basketball?",
+      },
+      rejectedAttempt: "corrected",
     }));
     const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
       transcribeAudioFile: successfulTranscriber("I like soccer."),
@@ -1808,6 +1820,12 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         kind: "canned_fallback",
         cause: "reply_policy_failed",
         violations: ["either_or_question", "topic_drift"],
+        rejectedCandidate: {
+          reaction: "Nice!",
+          focus: "soccer",
+          question: "Do you play soccer or basketball?",
+        },
+        rejectedAttempt: "corrected",
       },
     });
   });
@@ -1923,8 +1941,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     expect(generate).not.toHaveBeenCalled();
     expect(result).toMatchObject({
       ok: true,
-      cocoLine:
-        "Hmm... Can you say it again?",
+      cocoLine: "Thanks for trying! What else do you want to tell me?",
       cocoLineModerationEvent: { kind: "flagged_student_input" },
     });
   });
@@ -2083,11 +2100,23 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
           ok: false,
           error: "reply_policy_failed",
           violations: ["question_format"],
+          rejectedCandidate: {
+            reaction: "Try again.",
+            focus: null,
+            question: null,
+          },
+          rejectedAttempt: "corrected",
         },
         expectedEvent: {
           kind: "canned_fallback",
           cause: "reply_policy_failed",
           violations: ["question_format"],
+          rejectedCandidate: {
+            reaction: "Try again.",
+            focus: null,
+            question: null,
+          },
+          rejectedAttempt: "corrected",
         },
       },
     ];

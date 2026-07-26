@@ -25,6 +25,7 @@ import {
   type ConversationSafetyMode,
   type GenerateCocoReplyInput,
   type GeneratedCocoReply,
+  type GeneratedCocoReplyParts,
   type GeneratedCocoReplyLineViolation,
 } from "@/domain/ai/conversation-generation";
 
@@ -47,6 +48,8 @@ export type GenerateCocoReplyResult =
       ok: false;
       error: "reply_policy_failed";
       violations: GeneratedCocoReplyLineViolation[];
+      rejectedCandidate: GeneratedCocoReplyParts;
+      rejectedAttempt: "first" | "corrected";
     };
 
 export type ConversationResponsesClient = {
@@ -152,6 +155,8 @@ const VIOLATION_CORRECTION_HINTS: Record<
     "The reaction stacked generic adjectives in a 'sounds ... and ...' phrase. Use one short reaction without an adjective pair.",
   focus_mismatch:
     "The question did not explore the declared focus. Keep one learner-owned focus from the latest response and ask about that detail, or make a gentle nearby transition.",
+  closing_ungrounded:
+    "The closing ignored the student's latest answer. Mention one specific learner-owned detail from that answer before the short goodbye.",
 };
 
 function replyPolicyCorrection(
@@ -231,6 +236,8 @@ export async function generateCocoReply(
       expectsQuestion,
       activeQuestion,
       latestStudentResponse: latestResponse,
+      requireClosingGrounding:
+        !expectsQuestion && validInput.data.responseHandling === "normal",
     });
     if (!linePolicy.ok) {
       log("warn", "ai.conversation_line_policy_rejected", {
@@ -262,6 +269,8 @@ export async function generateCocoReply(
           expectsQuestion,
           activeQuestion,
           latestStudentResponse: latestResponse,
+          requireClosingGrounding:
+            !expectsQuestion && validInput.data.responseHandling === "normal",
         });
         if (!correctedPolicy.ok) {
           log("warn", "ai.conversation_line_policy_rejected", {
@@ -272,6 +281,12 @@ export async function generateCocoReply(
             ok: false,
             error: "reply_policy_failed",
             violations: correctedPolicy.reasons,
+            rejectedCandidate: {
+              reaction: corrected.reply.reaction,
+              focus: corrected.reply.focus,
+              question: corrected.reply.question,
+            },
+            rejectedAttempt: "corrected",
           };
         }
         return { ok: true, reply: corrected.reply };

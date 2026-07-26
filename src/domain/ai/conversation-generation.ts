@@ -99,6 +99,7 @@ export type GeneratedCocoReplyLineViolation =
   | "multi_detail_echo"
   | "response_summary"
   | "stacked_generic_reaction"
+  | "closing_ungrounded"
   | "focus_mismatch";
 
 export type GeneratedCocoReplyLinePolicyResult =
@@ -152,10 +153,6 @@ function contentStem(word: string) {
 
 function relatedContentWord(left: string, right: string) {
   return left === right || contentStem(left) === contentStem(right);
-}
-
-function hasRelatedContentWord(text: string, target: string) {
-  return normalizedWords(text).some((word) => relatedContentWord(word, target));
 }
 
 function distinctContentWords(text: string) {
@@ -276,6 +273,7 @@ export function validateGeneratedCocoReplyParts(
     activeQuestion?: string;
     latestStudentResponse?: string;
     allowReactionTopicGrounding?: boolean;
+    requireClosingGrounding?: boolean;
   },
 ): GeneratedCocoReplyLinePolicyResult {
   const line = assembleGeneratedCocoReply(parts).line;
@@ -348,16 +346,18 @@ export function validateGeneratedCocoReplyParts(
     }
   }
 
-  if (options.expectsQuestion && parts.focus) {
-    const focusWords = distinctContentWords(parts.focus);
-    const focusInResponse = focusWords.some((focusWord) =>
-      hasRelatedContentWord(options.latestStudentResponse ?? "", focusWord),
+  if (!options.expectsQuestion && options.requireClosingGrounding) {
+    const responseDetails = distinctContentWords(
+      options.latestStudentResponse ?? "",
     );
-    const focusInQuestion = focusWords.some((focusWord) =>
-      hasRelatedContentWord(parts.question ?? "", focusWord),
+    const reactionDetails = distinctContentWords(parts.reaction ?? "");
+    const grounded = responseDetails.some((responseWord) =>
+      reactionDetails.some((reactionWord) =>
+        relatedContentWord(responseWord, reactionWord),
+      ),
     );
-    if (!focusInResponse || !focusInQuestion) {
-      reasons.push("focus_mismatch");
+    if (responseDetails.length > 0 && !grounded) {
+      reasons.push("closing_ungrounded");
     }
   }
 

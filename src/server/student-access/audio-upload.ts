@@ -88,6 +88,7 @@ import {
   conversationReplyMode,
   type ConversationExchange,
   type GenerateCocoReplyInput,
+  type GeneratedCocoReplyParts,
   type GeneratedCocoReplyLineViolation,
 } from "@/domain/ai/conversation-generation";
 import {
@@ -142,6 +143,8 @@ export type CocoLineModerationEvent =
       kind: "canned_fallback";
       cause: "reply_policy_failed";
       violations: GeneratedCocoReplyLineViolation[];
+      rejectedCandidate: GeneratedCocoReplyParts;
+      rejectedAttempt: "first" | "corrected";
     };
 
 export type CocoLineModerationEventKind =
@@ -565,6 +568,8 @@ function generationFallbackEvent(
       kind: "canned_fallback",
       cause: failure.error,
       violations: failure.violations,
+      rejectedCandidate: failure.rejectedCandidate,
+      rejectedAttempt: failure.rejectedAttempt,
     };
   }
 

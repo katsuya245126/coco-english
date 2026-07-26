@@ -131,6 +131,41 @@ describe("structured Coco reply parts", () => {
     ).toEqual({ ok: true });
   });
 
+  it("does not reject an on-topic question for a paraphrased focus label", () => {
+    expect(
+      validateGeneratedCocoReplyParts(
+        {
+          reaction: "That sounds nice!",
+          focus: "family meal",
+          question: "What food will you eat with your family?",
+        },
+        {
+          expectsQuestion: true,
+          activeQuestion: "What will you do at the beach?",
+          latestStudentResponse:
+            "I will swimming and my family eat 삼겹살.",
+        },
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  it("rejects a normal closing that ignores the latest food answer", () => {
+    expect(
+      validateGeneratedCocoReplyParts(
+        {
+          reaction: "I am glad you told me about your plans at the beach.",
+          focus: null,
+          question: null,
+        },
+        {
+          expectsQuestion: false,
+          requireClosingGrounding: true,
+          latestStudentResponse: "watermelon and shrimp and 삼겹살 BBQ.",
+        },
+      ),
+    ).toEqual({ ok: false, reasons: ["closing_ungrounded"] });
+  });
+
   it.each([
     [
       {
@@ -155,14 +190,6 @@ describe("structured Coco reply parts", () => {
         question: "Who will you swim with?",
       },
       "stacked_generic_reaction",
-    ],
-    [
-      {
-        reaction: "Nice plans!",
-        focus: "swimming",
-        question: "What chicken will you eat?",
-      },
-      "focus_mismatch",
     ],
   ])("reports %s deterministically", (parts, violation) => {
     const result = validateGeneratedCocoReplyParts(parts, {
