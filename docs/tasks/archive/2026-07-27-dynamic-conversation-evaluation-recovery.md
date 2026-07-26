@@ -1,6 +1,6 @@
 # Dynamic Conversation Evaluation and Recovery Repair
 
-**Status:** Implementation approved; detailed plan written
+**Status:** Complete
 **Classification:** Consequential
 **Started:** 2026-07-26
 
@@ -129,27 +129,84 @@ text that failed `focus_mismatch` cannot be reconstructed from this artifact.
 - [x] Write and self-review the definitive test-first implementation plan.
 - [x] Obtain plan approval before runtime implementation.
 
-## Current position
+## Implemented
 
-The user approved the contract-first hybrid design in chat on 2026-07-27. The
-written specification is at
-`docs/superpowers/specs/2026-07-27-dynamic-conversation-evaluation-recovery-design.md`.
-It defines one shared evaluator-repair budget, complete no-op
-canonicalization, one bounded genuine-ambiguity retry showing the transcript
-and exact `Hmm... Try again` copy with no Continue action, distinct internal
-failure behavior, question-owned focus validation, closing grounding,
-diagnostic evidence, and corrected inspector semantics.
+- Added a pure original-evaluation contract with one shared repair budget.
+  Contradictory outcome, correction, and English-language fields now repair
+  once before app-owned fallback.
+- Canonicalized identical corrections only when they are actual
+  `needs_correction` results; review and non-English outcomes cannot be
+  converted into success by the no-op guard.
+- Added one persisted conversation ambiguity retry. The first genuine
+  ambiguity stores transcript, audio clip, and evaluation evidence; incomplete
+  and minimal-effort re-recordings preserve that budget; a second ambiguity
+  advances to teacher review.
+- Added `retryUnclearMeaning` resume/UI/TTS handling. Coco says exactly
+  `Hmm... Try again`, the transcript remains visible, and no Continue action
+  is provided.
+- Removed live lexical `focus_mismatch` rejection while preserving its
+  historical type, retained question-owned topic-drift validation, and added
+  closing grounding.
+- Replaced the internal-review fallback with
+  `Thanks for trying! What else do you want to tell me?`.
+- Persisted bounded rejected reply parts and attempt stage without prompt,
+  history, object-key, access-value, or credential data.
+- Corrected the attempt formatter to separate `prompt answered` from
+  `next Coco line`, show soft conversation lesson context, and label generated
+  turns `open (runtime default)`.
+- Updated the private Git-ignored `scripts/inspect-attempts.mjs` caller locally
+  to chain the prior Coco line into the tracked formatter. The private runner
+  remains untracked and contains no committed access values.
 
-The user approved the written specification and instructed Codex to start
-implementing on 2026-07-27. The exact unclear-speech copy was then refined to
-`Hmm... Try again`, with the transcript visible and no Continue action. That
-amendment is committed in `d248969f`.
+## Acceptance evidence
 
-The self-reviewed test-first implementation plan is at
-`docs/superpowers/plans/2026-07-27-dynamic-conversation-evaluation-recovery.md`.
-The user's instruction to start implementing authorizes inline execution of
-that matching plan. The next step is Task 1: add failing evaluation-contract
-regressions before runtime code.
+- Contradictory understood review repair:
+  `repairs a contradictory understood ambiguity exactly once`.
+- No-op canonicalization and outcome guard:
+  `canonicalizes an identical minor correction to no correction` and
+  `does not canonicalize an identical sentence on a review outcome`.
+- English/non-English coherence:
+  three contract tests cover both contradictions and a valid non-English
+  result.
+- Bounded ambiguity and evidence:
+  first ambiguity, second ambiguity, incomplete re-recording, and
+  minimal-effort re-recording regressions in
+  `src/server/student-access/audio-upload.test.ts`.
+- Exact learner experience:
+  resume and source-contract tests verify transcript visibility,
+  `Hmm... Try again`, retry action, no Continue action, and matching TTS.
+- Internal failure behavior:
+  repair exhaustion persists internal review and continues with the neutral
+  fallback rather than another same-turn ambiguity retry.
+- Follow-up and closing quality:
+  domain/server tests prove a paraphrased focus passes, genuine topic drift
+  fails, normal closings are grounded, and rejected candidate evidence is
+  retained.
+- Inspector accuracy and privacy:
+  five Node formatter tests cover prompt/next-line separation, runtime answer
+  shape, soft context, rejected parts, legacy linkage, and secret-field
+  exclusion.
 
-The unrelated pre-existing working-tree modification at
+## Final verification
+
+- Focused regression set: 354 Vitest tests and 5 Node formatter tests passed
+  before the independent review.
+- Final full suite after review fixes:
+  102 files passed; 1,172 tests passed; 4 skipped; 0 failed.
+- `npm run typecheck`: passed.
+- `npm run lint`: passed with 0 errors and one pre-existing unused-argument
+  warning in `scripts/check-student-feedback-states.mjs:435`.
+- `npm run build`: passed.
+- `node --check scripts/inspect-attempts.mjs`: passed against the private local
+  runner.
+- `git diff --check`: passed.
+- Independent code review: both Important findings were fixed and re-reviewed;
+  no remaining Critical or Important findings.
+
+No paid-provider replay, Supabase mutation, push, deployment, publication, or
+historical-attempt rewrite was performed. A localhost real-provider replay of
+the supplied utterances remains an optional next action requiring separate
+explicit approval.
+
+The unrelated pre-existing main-checkout modification at
 `.superpowers/sdd/task-1-report.md` remains untouched.
