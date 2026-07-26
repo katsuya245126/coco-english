@@ -1,6 +1,6 @@
 # Natural Conversation Policy Hardening
 
-**Status:** Planning; implementation plan awaiting approval
+**Status:** Implementation in progress; Tasks 1–4 complete
 **Classification:** Consequential
 **Started:** 2026-07-26
 
@@ -106,21 +106,25 @@ short answers, or mechanically restating everything the learner said.
 - [x] Write and self-review the dedicated design specification.
 - [x] Obtain user review of the written specification.
 - [x] Write and self-review the detailed test-first implementation plan.
-- [ ] Obtain implementation-plan approval before runtime changes.
+- [x] Obtain implementation-plan approval before runtime changes.
+- [x] Complete Task 1 deterministic answer-intake policies and focused tests.
+- [x] Complete Task 2 typed correction policy and focused tests.
+- [x] Complete Task 3 evaluator/transcription provenance and focused tests.
+- [x] Complete Task 4 upload orchestration and focused tests.
 
 ## Current position
 
 The behavior design and its written specification were approved in chat on
 2026-07-26. The detailed test-first implementation plan is at
-`docs/superpowers/plans/2026-07-26-natural-conversation-policy.md`. It divides
-the work into deterministic intake, typed correction policy, provider
-provenance, upload orchestration, recovery UI, structured follow-ups, attempt
-inspection, and verification. No runtime code has been changed.
+`docs/superpowers/plans/2026-07-26-natural-conversation-policy.md`. Tasks 1–4
+are implemented in commits `3b447286`, `ad7e643a`, `45461b96`, and the current
+Task 4 commit, with 217 focused tests passing. The remaining work covers
+recovery UI, structured follow-ups, attempt inspection, and verification.
 
 The unrelated pre-existing working-tree modification at
 `.superpowers/sdd/task-1-report.md` remains untouched.
 
 ## Next step
 
-User reviews and approves the implementation plan, then chooses
-subagent-driven or inline execution.
+Continue with Task 5 using the approved inline execution plan. Do not begin
+paid-provider UAT without explicit approval.

@@ -182,6 +182,7 @@ function hasDeclarativeShape(sentence: string) {
   if (sentenceWords.length < 2) return false;
 
   const firstWord = sentenceWords[0];
+  if (!firstWord) return false;
   const hasSubject =
     /^(?:i|you|he|she|it|we|they|this|that|there|my|our|your|his|her|their|a|an|the)$/u.test(
       firstWord,

@@ -5,6 +5,7 @@ const baseOriginalEvaluation = {
   outcome: "correct",
   meaningUnderstood: true,
   targetPatternAttempted: true,
+  correctionNeeded: false,
   englishLanguage: "english",
   confidence: "high",
   reviewReason: null,

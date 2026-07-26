@@ -11,6 +11,11 @@ import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/lib/db/types";
 import { missionSnapshotSchema } from "@/domain/mission/schemas";
 import { isExactTargetMatch } from "@/domain/ai/fast-path";
+import { isIncompleteUtterance } from "@/domain/ai/incomplete-utterance";
+import { matchesOpenAnswerFrame } from "@/domain/ai/open-answer-frame";
+import {
+  validateImprovedSentencePolicy,
+} from "@/domain/ai/correction-policy";
 import {
   isMinimalEffortAnswer,
   MAX_MINIMAL_EFFORT_BLOCKS,
@@ -22,6 +27,7 @@ import {
 } from "@/domain/ai/minimal-effort-feedback";
 import {
   AI_EVALUATION_VERSION,
+  CORRECTION_POLICY_VERSION,
   decideOriginalTurnOutcome,
   guardNonsensicalMinimalEffortCorrection,
   guardNoOpCorrection,
@@ -41,6 +47,7 @@ import {
   hasEnglishTranscript,
   normalizeEnglishTranscript,
   transcribeAudioFile,
+  type TranscriptionEvidence,
 } from "@/server/audio/transcription";
 import { DEFAULT_COCO_TTS_VOICE } from "@/domain/audio/tts";
 import { warmTtsAudioCache } from "@/server/audio/tts-cache";
@@ -53,6 +60,8 @@ import {
 import {
   evaluateOriginalTurn,
   evaluateRepeatTurn,
+  resolveEvaluationModel,
+  resolveEvaluationRuntimeVersion,
   type OriginalTurnEvaluationResult,
   type RepeatTurnEvaluationResult,
 } from "@/server/ai/turn-evaluator";
@@ -169,7 +178,17 @@ export type UploadAttemptAudioClipDeps = {
   scorePronunciation?: typeof scorePronunciation;
 };
 
-type StoredOriginalTurnEvaluation = {
+type StoredEvaluationProvenance = Pick<
+  OriginalTurnEvaluation,
+  | "policyVersion"
+  | "evaluationModel"
+  | "evaluationSource"
+  | "transcriptionModel"
+  | "transcriptionConfidence"
+  | "runtimeVersion"
+>;
+
+type StoredOriginalTurnEvaluation = StoredEvaluationProvenance & {
   version: typeof AI_EVALUATION_VERSION;
   outcome: OriginalTurnDecision["kind"];
   confidence: OriginalTurnEvaluation["confidence"];
@@ -179,9 +198,10 @@ type StoredOriginalTurnEvaluation = {
   englishLanguage: OriginalTurnEvaluation["englishLanguage"];
   correctionNeeded: OriginalTurnEvaluation["correctionNeeded"];
   correctionSeverity: OriginalTurnEvaluation["correctionSeverity"] | null;
+  correctionReason: OriginalTurnEvaluation["correctionReason"];
   improvedSentence: string | null;
   requireRepeat: boolean;
-  retryReason?: "minimal_effort";
+  retryReason?: "minimal_effort" | "incomplete_recording";
   minimalEffortBlocks?: number;
   minimalEffortKind?: MinimalEffortKind;
   retryExample?: string | null;
@@ -205,9 +225,28 @@ type StoredRepeatTurnEvaluation = {
   originalEvaluation?: StoredOriginalTurnEvaluation;
 };
 
+function deterministicOriginalEvaluation(
+  fields: Omit<StoredOriginalTurnEvaluation, keyof StoredEvaluationProvenance>,
+  evidence: StoredEvaluationProvenance,
+): StoredOriginalTurnEvaluation {
+  return {
+    ...fields,
+    ...evidence,
+    evaluationSource: "deterministic",
+  };
+}
+
 export function applyOriginalTurnEvaluation(
   result: OriginalTurnEvaluationResult,
   guardContext?: OriginalTurnGuardContext,
+  fallbackProvenance: StoredEvaluationProvenance = {
+    policyVersion: CORRECTION_POLICY_VERSION,
+    evaluationModel: "unknown",
+    evaluationSource: "model",
+    transcriptionModel: "unknown",
+    transcriptionConfidence: null,
+    runtimeVersion: "unknown",
+  },
 ): OriginalTurnWriteDecision {
   if (!result.ok) {
     const decision =
@@ -221,6 +260,7 @@ export function applyOriginalTurnEvaluation(
 
     return {
       evaluation: {
+        ...fallbackProvenance,
         version: AI_EVALUATION_VERSION,
         outcome: decision.kind,
         confidence: "low",
@@ -230,6 +270,7 @@ export function applyOriginalTurnEvaluation(
         englishLanguage: "uncertain",
         correctionNeeded: false,
         correctionSeverity: null,
+        correctionReason: "none",
         improvedSentence: null,
         requireRepeat: decision.requireRepeat,
       },
@@ -263,6 +304,7 @@ export function applyOriginalTurnEvaluation(
 
   return {
     evaluation: {
+      ...result.evaluation,
       version: AI_EVALUATION_VERSION,
       outcome: decision.kind,
       confidence: result.evaluation.confidence,
@@ -275,6 +317,7 @@ export function applyOriginalTurnEvaluation(
       englishLanguage: result.evaluation.englishLanguage,
       correctionNeeded: result.evaluation.correctionNeeded,
       correctionSeverity: result.evaluation.correctionSeverity,
+      correctionReason: result.evaluation.correctionReason,
       improvedSentence,
       requireRepeat: decision.requireRepeat,
     },
@@ -981,6 +1024,102 @@ export async function uploadAttemptAudioClip(
       };
     }
 
+    const transcriptionEvidence: TranscriptionEvidence = {
+      model: transcription.model,
+      confidence: transcription.confidence,
+    };
+    const fallbackProvenance: StoredEvaluationProvenance = {
+      policyVersion: CORRECTION_POLICY_VERSION,
+      evaluationModel: resolveEvaluationModel(),
+      evaluationSource: "model",
+      transcriptionModel: transcriptionEvidence.model,
+      transcriptionConfidence: transcriptionEvidence.confidence,
+      runtimeVersion: resolveEvaluationRuntimeVersion(),
+    };
+    const exactTargetMatched =
+      input.clipKind === "original_answer" &&
+      targetExample !== null &&
+      isExactTargetMatch(transcript, targetExample);
+
+    if (
+      input.clipKind === "original_answer" &&
+      !exactTargetMatched &&
+      isIncompleteUtterance(transcript)
+    ) {
+      const evaluation = deterministicOriginalEvaluation(
+        {
+          version: AI_EVALUATION_VERSION,
+          outcome: "retry_original",
+          confidence: "high",
+          reviewReason: null,
+          meaningUnderstood: false,
+          targetPatternAttempted: false,
+          englishLanguage: "english",
+          correctionNeeded: false,
+          correctionSeverity: null,
+          correctionReason: "none",
+          improvedSentence: null,
+          requireRepeat: false,
+          retryReason: "incomplete_recording",
+        },
+        fallbackProvenance,
+      );
+      const write = await timeStage("turnWrite", () =>
+        supabase.from("attempt_turns").upsert(
+          {
+            attempt_id: input.attemptId,
+            turn_order: input.turnOrder,
+            original_transcript: transcript,
+            target_attempted: false,
+            improved_sentence: null,
+            evaluation: toJson(evaluation),
+          },
+          { onConflict: "attempt_id,turn_order" },
+        ),
+      );
+      if (write.error) {
+        logTiming("failed", { error: "db_error", step: "turn_write" });
+        return { ok: false, error: "db_error", retryable: true };
+      }
+      const { error: clipUpdateError } = await timeStage(
+        "finalClipUpdate",
+        () =>
+          supabase
+            .from("audio_clips")
+            .update({
+              object_key: objectKey,
+              mime_type: input.mimeType,
+              duration_ms: input.durationMs,
+              byte_size: input.byteSize,
+              processing_status: "transcribed",
+            })
+            .eq("id", audioClip.id),
+      );
+      if (clipUpdateError) {
+        logTiming("failed", { error: "db_error", step: "final_clip_update" });
+        return { ok: false, error: "db_error", retryable: true };
+      }
+      logTiming("success", { step: "incomplete_recording_guard" });
+      return {
+        ok: true,
+        audioClipId: audioClip.id,
+        processingStatus: "transcribed",
+        transcript,
+        evaluation,
+        starBand: null,
+        wordsToPractice: [],
+        cocoLine: null,
+        cocoLineModerationEvent: null,
+      };
+    }
+
+    const openFrameMatched =
+      input.clipKind === "original_answer" &&
+      !exactTargetMatched &&
+      snapshot.conversationMode !== true &&
+      answerShape === "open" &&
+      matchesOpenAnswerFrame(transcript, snapshotTurn?.hintLadder?.tier1);
+
     // Minimal-effort answer guard (phone-UAT item 6, design approved
     // 2026-07-20). Deterministic blocklist only; an exact target-example
     // match ("Yes, I do." as an authored target) always wins; after
@@ -996,10 +1135,8 @@ export async function uploadAttemptAudioClip(
       input.clipKind === "original_answer" &&
       isMinimalEffortAnswer(transcript)
     ) {
-      const exactTargetMatch =
-        targetExample !== null && isExactTargetMatch(transcript, targetExample);
       if (
-        !exactTargetMatch &&
+        !exactTargetMatched &&
         minimalEffortBlocks < MAX_MINIMAL_EFFORT_BLOCKS
       ) {
         const minimalEffortKind =
@@ -1010,23 +1147,27 @@ export async function uploadAttemptAudioClip(
           missionQuestion: missionQuestion ?? "",
           targetExample,
         });
-        const evaluation: StoredOriginalTurnEvaluation = {
-          version: AI_EVALUATION_VERSION,
-          outcome: "retry_original",
-          confidence: "high",
-          reviewReason: null,
-          meaningUnderstood: false,
-          targetPatternAttempted: false,
-          englishLanguage: "english",
-          correctionNeeded: false,
-          correctionSeverity: null,
-          improvedSentence: null,
-          requireRepeat: false,
-          retryReason: "minimal_effort",
-          minimalEffortBlocks: minimalEffortBlocks + 1,
-          minimalEffortKind,
-          retryExample,
-        };
+        const evaluation = deterministicOriginalEvaluation(
+          {
+            version: AI_EVALUATION_VERSION,
+            outcome: "retry_original",
+            confidence: "high",
+            reviewReason: null,
+            meaningUnderstood: false,
+            targetPatternAttempted: false,
+            englishLanguage: "english",
+            correctionNeeded: false,
+            correctionSeverity: null,
+            correctionReason: "none",
+            improvedSentence: null,
+            requireRepeat: false,
+            retryReason: "minimal_effort",
+            minimalEffortBlocks: minimalEffortBlocks + 1,
+            minimalEffortKind,
+            retryExample,
+          },
+          fallbackProvenance,
+        );
 
         const write = await timeStage("turnWrite", () =>
           supabase.from("attempt_turns").upsert(
@@ -1108,58 +1249,125 @@ export async function uploadAttemptAudioClip(
     const turnWrite =
       input.clipKind === "original_answer"
         ? await (async () => {
-            // Skip the OpenAI evaluation call entirely when the transcript is
-            // an exact normalized match for the turn's targetExample — this
-            // is the common case for short/rote answers (e.g. "Hello", "I'm
-            // fine") and removes ~1.3-3.3s of evaluation latency for them.
-            // Open-ended answers still need semantic evaluation against the
-            // mission question; grammar shape alone cannot establish relevance.
-            const fastPathMatched =
-              targetExample !== null &&
-              isExactTargetMatch(transcript, targetExample);
+            // Skip the evaluator for exact authored targets and safe open
+            // frames. Open-ended answers outside an authored frame still need
+            // semantic evaluation against the mission question.
+            const fastPathMatched = exactTargetMatched || openFrameMatched;
             timings.evaluationFastPath = fastPathMatched ? 1 : 0;
-            const evaluationResult: OriginalTurnEvaluationResult = fastPathMatched
+            const evaluate = deps.evaluateOriginalTurn ?? evaluateOriginalTurn;
+            const evaluationInput = {
+              evaluationMode:
+                snapshot.conversationMode === true ? "conversation" : "preset",
+              missionQuestion: missionQuestion ?? undefined,
+              targetPattern: snapshot.targetPattern,
+              targetExample,
+              level: snapshot.level,
+              turnOrder: input.turnOrder,
+              transcript,
+              requireCompleteSentenceAnswers:
+                snapshot.requireCompleteSentenceAnswers,
+              koreanSpans,
+              answerShape,
+              transcriptionEvidence,
+              runtimeVersion: resolveEvaluationRuntimeVersion(),
+            } as const;
+            let evaluationResult: OriginalTurnEvaluationResult = fastPathMatched
               ? {
                   ok: true,
                   evaluation: {
+                    ...fallbackProvenance,
                     version: AI_EVALUATION_VERSION,
                     outcome: "correct",
                     meaningUnderstood: true,
                     targetPatternAttempted: true,
                     correctionNeeded: false,
                     correctionSeverity: "none",
+                    correctionReason: "none",
                     improvedSentence: null,
                     englishLanguage: "english",
                     confidence: "high",
                     reviewReason: null,
+                    evaluationSource: "deterministic",
                   },
                 }
-              : await timeStage("evaluation", () => {
-                  const evaluate = deps.evaluateOriginalTurn ?? evaluateOriginalTurn;
-                  return evaluate({
-                    evaluationMode:
-                      snapshot.conversationMode === true
-                        ? "conversation"
-                        : "preset",
-                    missionQuestion: missionQuestion ?? undefined,
-                    targetPattern: snapshot.targetPattern,
-                    targetExample,
-                    level: snapshot.level,
-                    turnOrder: input.turnOrder,
-                    transcript,
-                    requireCompleteSentenceAnswers:
-                      snapshot.requireCompleteSentenceAnswers,
-                    koreanSpans,
+              : await timeStage("evaluation", () => evaluate(evaluationInput));
+
+            if (evaluationResult.ok && evaluationResult.evaluation.improvedSentence) {
+              const firstPolicy = validateImprovedSentencePolicy({
+                evaluationMode: evaluationInput.evaluationMode,
+                answerShape,
+                missionQuestion: missionQuestion ?? null,
+                targetPattern: snapshot.targetPattern,
+                transcript,
+                correctionReason: evaluationResult.evaluation.correctionReason,
+                improvedSentence: evaluationResult.evaluation.improvedSentence,
+              });
+
+              const handledByExistingGuard =
+                !firstPolicy.ok &&
+                firstPolicy.violations.every(
+                  (violation) =>
+                    violation === "no_op" || violation === "parroted_question",
+                );
+
+              if (!firstPolicy.ok && !handledByExistingGuard) {
+                const repaired = await timeStage("evaluationRepair", () =>
+                  evaluate({
+                    ...evaluationInput,
+                    policyRepair: { violations: firstPolicy.violations },
+                  }),
+                );
+
+                if (!repaired.ok) {
+                  evaluationResult = {
+                    ok: true,
+                    evaluation: {
+                      ...evaluationResult.evaluation,
+                      outcome: "teacher_review",
+                      correctionNeeded: false,
+                      correctionSeverity: "none",
+                      correctionReason: "none",
+                      improvedSentence: null,
+                      reviewReason: "ambiguous",
+                    },
+                  };
+                } else if (repaired.evaluation.improvedSentence) {
+                  const repairedPolicy = validateImprovedSentencePolicy({
+                    evaluationMode: evaluationInput.evaluationMode,
                     answerShape,
+                    missionQuestion: missionQuestion ?? null,
+                    targetPattern: snapshot.targetPattern,
+                    transcript,
+                    correctionReason: repaired.evaluation.correctionReason,
+                    improvedSentence: repaired.evaluation.improvedSentence,
                   });
-                });
+                  evaluationResult = repairedPolicy.ok
+                    ? repaired
+                    : {
+                        ok: true,
+                        evaluation: {
+                          ...repaired.evaluation,
+                          outcome: "teacher_review",
+                          correctionNeeded: false,
+                          correctionSeverity: "none",
+                          correctionReason: "none",
+                          improvedSentence: null,
+                          reviewReason: "ambiguous",
+                        },
+                      };
+                } else {
+                  evaluationResult = repaired;
+                }
+              }
+            }
+
             const decision = applyOriginalTurnEvaluation(evaluationResult, {
               evaluationMode:
                 snapshot.conversationMode === true ? "conversation" : "preset",
               missionQuestion: missionQuestion ?? null,
               transcript,
               priorMinimalEffortBlocks: minimalEffortBlocks,
-            });
+            }, fallbackProvenance);
             if (minimalEffortBlocks > 0) {
               decision.evaluation.minimalEffortBlocks = minimalEffortBlocks;
             }
@@ -1357,7 +1565,7 @@ export async function uploadAttemptAudioClip(
       const resolvedCocoLine = cocoLine;
       const resolvedModerationEvent = cocoLineModerationEvent;
 
-      if (resolvedCocoLine !== null) {
+        if (resolvedCocoLine !== null) {
         const recordResult = await timeStage("cocoLineWrite", () =>
           recordCocoLine({
             studentId: input.studentId,
@@ -1389,23 +1597,25 @@ export async function uploadAttemptAudioClip(
 
         // Kick off TTS for Coco's new line via the existing warm-cache path
         // used for preset/improved lines — no forked audio pipeline.
-        try {
-          const warm = deps.warmTtsAudioCache ?? warmTtsAudioCache;
-          await timeStage("ttsWarmupCocoLine", () =>
-            warm({
-              characterId: snapshot.characterId,
-              voice: DEFAULT_COCO_TTS_VOICE,
-              texts: [resolvedCocoLine],
-            }),
-          );
-        } catch (error) {
-          log("warn", "audio.tts_coco_line_warmup_failed", {
-            assignmentStudentId: input.assignmentStudentId,
-            attemptId: input.attemptId,
-            turnOrder: input.turnOrder,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
+          if (originalEvaluation?.outcome !== "teacher_review") {
+            try {
+              const warm = deps.warmTtsAudioCache ?? warmTtsAudioCache;
+              await timeStage("ttsWarmupCocoLine", () =>
+                warm({
+                  characterId: snapshot.characterId,
+                  voice: DEFAULT_COCO_TTS_VOICE,
+                  texts: [resolvedCocoLine],
+                }),
+              );
+            } catch (error) {
+              log("warn", "audio.tts_coco_line_warmup_failed", {
+                assignmentStudentId: input.assignmentStudentId,
+                attemptId: input.attemptId,
+                turnOrder: input.turnOrder,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            }
+          }
       }
     }
 

@@ -55,7 +55,13 @@ function successfulTranscriber(
   text: string,
   koreanSpans: Array<{ hangul: string; romanized: string }> = [],
 ) {
-  return vi.fn(async () => ({ ok: true as const, text, koreanSpans }));
+  return vi.fn(async () => ({
+    ok: true as const,
+    text,
+    koreanSpans,
+    model: "test-transcriber",
+    confidence: null,
+  }));
 }
 
 function failedTranscriber() {
@@ -97,10 +103,17 @@ function successfulOriginalEvaluator(overrides = {}) {
       targetPatternAttempted: true,
       correctionNeeded: false,
       correctionSeverity: "none" as const,
+      correctionReason: "none" as const,
       improvedSentence: null,
       englishLanguage: "english" as const,
       confidence: "high" as const,
       reviewReason: null,
+      policyVersion: "natural-conversation-v1" as const,
+      evaluationModel: "test-evaluator",
+      evaluationSource: "model" as const,
+      transcriptionModel: "test-transcriber",
+      transcriptionConfidence: null,
+      runtimeVersion: "test-runtime",
       ...overrides,
     },
   }));
@@ -324,6 +337,105 @@ describe("uploadAttemptAudioClip", () => {
     process.env.STUDENT_AUDIO_BUCKET = "student-audio";
   });
 
+  it("accepts an authored open frame with the learner's own choice without evaluation", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...missionSnapshotFixture,
+        requiredTurns: 1,
+        targetPattern: "I think _____ is the best",
+        turns: [
+          {
+            ...missionSnapshotFixture.turns[0],
+            prompt:
+              "Which ice cream is the best: vanilla, strawberry, or chocolate?",
+            targetExample: "I think vanilla ice cream is the best.",
+            hintLadder: {
+              tier1: "I think _______ is the best",
+              tier2: "vanilla",
+              tier3: "I think vanilla ice cream is the best.",
+            },
+            answerShape: "open",
+          },
+        ],
+      },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginalTurn = vi.fn();
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber(
+        "I think chocolate ice cream is the best.",
+      ),
+      evaluateOriginalTurn,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "accepted_original",
+        requireRepeat: false,
+        evaluationSource: "deterministic",
+      },
+    });
+    expect(evaluateOriginalTurn).not.toHaveBeenCalled();
+  });
+
+  it("retries a dangling original before scoring or evaluation", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const scorePronunciation = vi.fn();
+    const evaluateOriginalTurn = vi.fn();
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I"),
+      scorePronunciation,
+      evaluateOriginalTurn,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "retry_original",
+        retryReason: "incomplete_recording",
+        requireRepeat: false,
+      },
+    });
+    expect(scorePronunciation).not.toHaveBeenCalled();
+    expect(evaluateOriginalTurn).not.toHaveBeenCalled();
+  });
+
+  it("lets an exact single-token authored target win before incomplete detection", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...missionSnapshotFixture,
+        requiredTurns: 1,
+        targetPattern: "I",
+        turns: [
+          {
+            ...missionSnapshotFixture.turns[0],
+            targetExample: "I",
+            hintLadder: { tier1: "I", tier2: "I", tier3: "I" },
+            answerShape: "fixed",
+          },
+        ],
+      },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginalTurn = vi.fn();
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I"),
+      evaluateOriginalTurn,
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: { outcome: "accepted_original" },
+    });
+    expect(evaluateOriginalTurn).not.toHaveBeenCalled();
+  });
+
   it("filters assignment ownership by assignment_students.student_id before upload", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
@@ -535,6 +647,7 @@ describe("uploadAttemptAudioClip", () => {
       targetPatternAttempted: true,
       correctionNeeded: true,
       correctionSeverity: "material" as const,
+      correctionReason: "grammar" as const,
       improvedSentence: "I'm going to do my homework.",
     });
     const result = await uploadAttemptAudioClip(audioInput(), {
@@ -703,6 +816,7 @@ describe("uploadAttemptAudioClip", () => {
         outcome: "needs_correction",
         correctionNeeded: true,
         correctionSeverity: "material",
+        correctionReason: "grammar",
         improvedSentence: "I like playing soccer after school.",
       }),
       warmTtsAudioCache,
@@ -726,6 +840,7 @@ describe("uploadAttemptAudioClip", () => {
         outcome: "needs_correction",
         correctionNeeded: true,
         correctionSeverity: "material",
+        correctionReason: "grammar",
         improvedSentence: "I like playing soccer after school.",
       }),
       warmTtsAudioCache: vi.fn(async () => {
@@ -1017,6 +1132,7 @@ describe("uploadAttemptAudioClip", () => {
         outcome: "needs_correction",
         correctionNeeded: true,
         correctionSeverity: "material",
+        correctionReason: "vocabulary",
         improvedSentence: "I like soccer after school.",
       }),
     });
@@ -1548,10 +1664,17 @@ describe("uploadAttemptAudioClip", () => {
         targetPatternAttempted: true,
         correctionNeeded: false,
         correctionSeverity: "none" as const,
+        correctionReason: "none" as const,
         improvedSentence: null,
         englishLanguage: "english" as const,
         confidence: "high" as const,
         reviewReason: null,
+        policyVersion: "natural-conversation-v1" as const,
+        evaluationModel: "test-evaluator",
+        evaluationSource: "model" as const,
+        transcriptionModel: "test-transcriber",
+        transcriptionConfidence: null,
+        runtimeVersion: "test-runtime",
       };
       callOrder.push("evaluate:end");
       return { ok: true as const, evaluation };
@@ -1682,6 +1805,7 @@ describe("minimal-effort answer guard", () => {
       outcome: "needs_correction",
       correctionNeeded: true,
       correctionSeverity: "material",
+      correctionReason: "grammar",
       improvedSentence: "Yes, I like pizza.",
     });
 

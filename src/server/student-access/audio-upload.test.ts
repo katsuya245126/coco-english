@@ -52,25 +52,42 @@ function successfulTranscriber(
   text: string,
   koreanSpans: Array<{ hangul: string; romanized: string }> = [],
 ) {
-  return vi.fn(async () => ({ ok: true as const, text, koreanSpans }));
+  return vi.fn(async () => ({
+    ok: true as const,
+    text,
+    koreanSpans,
+    model: "test-transcriber",
+    confidence: null,
+  }));
+}
+
+function originalEvaluation(overrides = {}) {
+  return {
+    version: "ai-eval-v1" as const,
+    outcome: "correct" as const,
+    meaningUnderstood: true,
+    targetPatternAttempted: true,
+    correctionNeeded: false,
+    correctionSeverity: "none" as const,
+    correctionReason: "none" as const,
+    improvedSentence: null,
+    englishLanguage: "english" as const,
+    confidence: "high" as const,
+    reviewReason: null,
+    policyVersion: "natural-conversation-v1" as const,
+    evaluationModel: "test-evaluator",
+    evaluationSource: "model" as const,
+    transcriptionModel: "test-transcriber",
+    transcriptionConfidence: null,
+    runtimeVersion: "test-runtime",
+    ...overrides,
+  };
 }
 
 function successfulOriginalEvaluator(overrides = {}) {
   return vi.fn(async () => ({
     ok: true as const,
-    evaluation: {
-      version: "ai-eval-v1" as const,
-      outcome: "correct" as const,
-      meaningUnderstood: true,
-      targetPatternAttempted: true,
-      correctionNeeded: false,
-      correctionSeverity: "none" as const,
-      improvedSentence: null,
-      englishLanguage: "english" as const,
-      confidence: "high" as const,
-      reviewReason: null,
-      ...overrides,
-    },
+    evaluation: originalEvaluation(overrides),
   }));
 }
 
@@ -299,6 +316,225 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     process.env.STUDENT_AUDIO_BUCKET = "student-audio";
   });
 
+  it("does not score, evaluate, generate, or warm TTS for an incomplete recording", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginalTurn = vi.fn();
+    const scorePronunciation = vi.fn();
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "should not be called" },
+    }));
+    const warmTtsAudioCache = vi.fn();
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I"),
+      evaluateOriginalTurn,
+      scorePronunciation,
+      generateCocoReply: generate,
+      warmTtsAudioCache,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "retry_original",
+        retryReason: "incomplete_recording",
+        requireRepeat: false,
+      },
+    });
+    expect(evaluateOriginalTurn).not.toHaveBeenCalled();
+    expect(scorePronunciation).not.toHaveBeenCalled();
+    expect(generate).not.toHaveBeenCalled();
+    expect(warmTtsAudioCache).not.toHaveBeenCalled();
+  });
+
+  it("repairs an unsafe correction exactly once before continuing", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        turns: [
+          {
+            ...conversationMissionSnapshotFixture.turns[0],
+            prompt: "What games do you like to play when you swim together?",
+            targetExample: "I will swim with my family.",
+          },
+        ],
+      },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginalTurn = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        evaluation: originalEvaluation({
+          outcome: "needs_correction",
+          correctionNeeded: true,
+          correctionSeverity: "material",
+          correctionReason: "grammar",
+          improvedSentence:
+            "I like to play Jenga when we swim together.",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        evaluation: originalEvaluation(),
+      });
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "Nice plans! Who will you swim with?" },
+    }));
+    const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like to play Jenga."),
+      evaluateOriginalTurn,
+      generateCocoReply: generate,
+      isContentSafe: moderate,
+    });
+
+    expect(evaluateOriginalTurn).toHaveBeenCalledTimes(2);
+    expect(evaluateOriginalTurn.mock.calls[1]?.[0].policyRepair).toEqual({
+      violations: ["pure_embellishment"],
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: { outcome: "accepted_original", requireRepeat: false },
+    });
+  });
+
+  it("routes a second unsafe correction to review without repeat or correction TTS", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        turns: [
+          {
+            ...conversationMissionSnapshotFixture.turns[0],
+            prompt: "What games do you like to play when you swim together?",
+            targetExample: "I will swim with my family.",
+          },
+        ],
+      },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const unsafe = originalEvaluation({
+      outcome: "needs_correction",
+      correctionNeeded: true,
+      correctionSeverity: "material",
+      correctionReason: "grammar",
+      improvedSentence: "I like to play Jenga when we swim together.",
+    });
+    const evaluateOriginalTurn = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, evaluation: unsafe })
+      .mockResolvedValueOnce({ ok: true, evaluation: unsafe });
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: false,
+      error: "reply_policy_failed",
+      violations: ["question_format"],
+    }));
+    const warmTtsAudioCache = vi.fn();
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like to play Jenga."),
+      evaluateOriginalTurn,
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({ safe: true, failedOpen: false })),
+      warmTtsAudioCache,
+    });
+
+    if (!result.ok) throw new Error(`expected upload success, got ${result.error}`);
+    expect(result.evaluation).toMatchObject({
+      outcome: "teacher_review",
+      requireRepeat: false,
+      reviewReason: "ambiguous",
+    });
+    expect(evaluateOriginalTurn).toHaveBeenCalledTimes(2);
+    expect(warmTtsAudioCache).not.toHaveBeenCalled();
+    expect(generate).toHaveBeenCalledWith(
+      expect.objectContaining({ responseHandling: "review_pending" }),
+    );
+  });
+
+  it("accepts a meaningful fragment unchanged when complete sentences are disabled", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        requireCompleteSentenceAnswers: false,
+        turns: [
+          {
+            ...conversationMissionSnapshotFixture.turns[0],
+            prompt: "What games do you like to play when you swim together?",
+            targetExample: "I will swim with my family.",
+          },
+        ],
+      } as unknown as typeof conversationMissionSnapshotFixture,
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginalTurn = successfulOriginalEvaluator();
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("My family."),
+      evaluateOriginalTurn,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      transcript: "My family.",
+      evaluation: { outcome: "accepted_original", improvedSentence: null },
+    });
+    expect(evaluateOriginalTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ requireCompleteSentenceAnswers: false }),
+    );
+  });
+
+  it("requires one repeat for a grounded fragment completion when enabled", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        requireCompleteSentenceAnswers: true,
+        turns: [
+          {
+            ...conversationMissionSnapshotFixture.turns[0],
+            prompt: "What games do you like to play when you swim together?",
+            targetExample: "I will swim with my family.",
+          },
+        ],
+      } as unknown as typeof conversationMissionSnapshotFixture,
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginalTurn = successfulOriginalEvaluator({
+      outcome: "needs_correction",
+      correctionNeeded: true,
+      correctionSeverity: "material",
+      correctionReason: "fragment_completion",
+      improvedSentence: "I will swim with my family.",
+    });
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("My family."),
+      evaluateOriginalTurn,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "needs_correction",
+        improvedSentence: "I will swim with my family.",
+        requireRepeat: true,
+      },
+    });
+  });
+
   it("preset mission (conversationMode false) never calls generateCocoReply/isContentSafe", async () => {
     mockSupabase = createMockSupabase({
       missionSnapshot: {
@@ -393,6 +629,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       outcome: "needs_correction",
       correctionNeeded: true,
       correctionSeverity: "material",
+      correctionReason: "grammar",
       improvedSentence: "I don't play soccer.",
     });
     const generate = fakeGenerateCocoReply(async () => ({
@@ -442,6 +679,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       outcome: "needs_correction",
       correctionNeeded: true,
       correctionSeverity: "material",
+      correctionReason: "grammar",
       improvedSentence: "How often do you play soccer?",
     });
     const generate = fakeGenerateCocoReply(async () => ({
@@ -488,6 +726,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       outcome: "needs_correction",
       correctionNeeded: true,
       correctionSeverity: "material",
+      correctionReason: "grammar",
       improvedSentence: "I want to read many cartoons.",
     });
     const generate = fakeGenerateCocoReply(async () => ({
@@ -556,6 +795,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       outcome: "needs_correction",
       correctionNeeded: true,
       correctionSeverity: "minor",
+      correctionReason: "grammar",
       improvedSentence: "I don't play soccer often.",
     });
     const generate = fakeGenerateCocoReply(async () => ({
@@ -620,6 +860,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       outcome: "needs_correction",
       correctionNeeded: true,
       correctionSeverity: "material",
+      correctionReason: "grammar",
       improvedSentence: "I don't play soccer.",
     });
     const generate = fakeGenerateCocoReply(async () => ({
@@ -1745,6 +1986,7 @@ describe("minimal-effort answer guard (conversation mode)", () => {
       targetPatternAttempted: false,
       correctionNeeded: true,
       correctionSeverity: "material",
+      correctionReason: "grammar",
       improvedSentence: "Yes, I do.",
     });
 
@@ -1778,6 +2020,7 @@ describe("repeat write preserves the original evaluation (2026-07-25)", () => {
     englishLanguage: "english",
     correctionNeeded: true,
     correctionSeverity: "material",
+    correctionReason: "grammar",
     improvedSentence: "I like adventure cartoons.",
     requireRepeat: true,
   };
