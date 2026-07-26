@@ -120,6 +120,27 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     );
   });
 
+  it("keeps incomplete-recording recovery neutral and on the same question", () => {
+    const shellSource = readFileSync(
+      "src/components/student/MissionFlowShell.tsx",
+      "utf8",
+    );
+    const feedbackSource = readFileSync(
+      "src/components/student/StepAiEvaluationFeedback.tsx",
+      "utf8",
+    );
+
+    expect(feedbackSource).toContain(
+      "It sounds like the recording stopped early. Try recording your answer again.",
+    );
+    expect(shellSource).toContain('retryReason === "incomplete_recording"');
+    expect(shellSource).toContain('kind: "retryIncompleteRecording"');
+    expect(shellSource).toContain(
+      'flow.originalFeedback?.kind === "retryIncompleteRecording"',
+    );
+    expect(shellSource).toContain("line: null");
+  });
+
   it("repeat-accepted feedback lets the student review or record again before continuing", () => {
     const feedbackSource = readFileSync(
       "src/components/student/StepAiEvaluationFeedback.tsx",

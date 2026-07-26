@@ -287,6 +287,27 @@ describe("completion helpers: persisted feedback resume", () => {
     });
   });
 
+  it("resumes incomplete recording on the same original question", () => {
+    const review = getPendingTurnReview({
+      ...makeTurn(1, {
+        original_transcript: "I",
+        repeat_transcript: null,
+        repeat_accepted: null,
+      }),
+      evaluation: {
+        version: "ai-eval-v1",
+        outcome: "retry_original",
+        retryReason: "incomplete_recording",
+        requireRepeat: false,
+      },
+    });
+
+    expect(review).toMatchObject({
+      step: "aiFeedback",
+      outcome: "retryIncompleteRecording",
+    });
+  });
+
   it("resumes I don't know with distinct unsure guidance", () => {
     const review = getPendingTurnReview({
       ...makeTurn(1, {

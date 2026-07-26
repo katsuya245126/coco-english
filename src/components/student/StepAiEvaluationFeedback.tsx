@@ -20,6 +20,7 @@ type OriginalOutcome =
   | "acceptedOriginal"
   | "needsCorrection"
   | "retryOriginal"
+  | "retryIncompleteRecording"
   | "retryMinimalEffort"
   | "teacherReview";
 
@@ -156,6 +157,20 @@ export function StepAiEvaluationFeedback({
             <h2 style={headingInlineStyle}>Try again.</h2>
           </div>
         ) : null}
+        <RecordingReview onRetry={onRetry} />
+      </div>
+    );
+  }
+
+  if (outcome === "retryIncompleteRecording") {
+    return (
+      <div style={stepCardStyle} aria-live="polite" role="alert">
+        <Transcript transcript={transcript} audioUrl={audioUrl} />
+        <div style={{ ...evaluationReviewStyle, marginTop: transcript ? 16 : 0 }}>
+          <p style={{ margin: 0 }}>
+            It sounds like the recording stopped early. Try recording your answer again.
+          </p>
+        </div>
         <RecordingReview onRetry={onRetry} />
       </div>
     );

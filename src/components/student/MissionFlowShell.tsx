@@ -86,6 +86,12 @@ type OriginalFeedback = (
       wordsToPractice?: WordHighlight[];
     }
   | {
+      kind: "retryIncompleteRecording";
+      transcript: string;
+      starBand?: PronunciationStarBand | null;
+      wordsToPractice?: WordHighlight[];
+    }
+  | {
       kind: "retryMinimalEffort";
       transcript: string;
       starBand?: PronunciationStarBand | null;
@@ -456,6 +462,14 @@ export function MissionFlowShell({
       };
     }
     if (evaluation?.outcome === "retry_original") {
+      if (evaluation.retryReason === "incomplete_recording") {
+        return {
+          kind: "retryIncompleteRecording",
+          transcript,
+          starBand,
+          wordsToPractice,
+        };
+      }
       return { kind: "retryOriginal", transcript, starBand, wordsToPractice };
     }
     if (evaluation?.outcome === teacherReviewOutcome) {
@@ -1164,6 +1178,17 @@ function getMascotDialogue({
     return {
       text: "Try again.",
       line: { lineKind: "coco_feedback", feedbackVariant: "retry_original" },
+    };
+  }
+
+  if (
+    flow.step === "aiFeedback" &&
+    flow.originalFeedback?.kind === "retryIncompleteRecording"
+  ) {
+    return {
+      text:
+        "It sounds like the recording stopped early. Try recording your answer again.",
+      line: null,
     };
   }
 

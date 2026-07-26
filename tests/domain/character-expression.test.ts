@@ -9,6 +9,7 @@ type OriginalFeedbackKind =
   | "acceptedOriginal"
   | "needsCorrection"
   | "retryOriginal"
+  | "retryIncompleteRecording"
   | "retryMinimalEffort"
   | "teacherReview";
 
@@ -31,6 +32,7 @@ const originalFeedbackKinds: Array<OriginalFeedbackKind | undefined> = [
   "acceptedOriginal",
   "needsCorrection",
   "retryOriginal",
+  "retryIncompleteRecording",
   "retryMinimalEffort",
   "teacherReview",
 ];
@@ -113,6 +115,15 @@ describe("deriveExpression (MASCOT-03)", () => {
       deriveExpression({
         step: "aiFeedback",
         originalFeedbackKind: "retryMinimalEffort",
+      }),
+    ).toBe("encouraging");
+  });
+
+  it("keeps incomplete-recording recovery encouraging", () => {
+    expect(
+      deriveExpression({
+        step: "aiFeedback",
+        originalFeedbackKind: "retryIncompleteRecording",
       }),
     ).toBe("encouraging");
   });

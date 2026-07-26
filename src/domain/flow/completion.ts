@@ -22,6 +22,7 @@ export type PendingTurnReview =
         | "acceptedOriginal"
         | "needsCorrection"
         | "retryOriginal"
+        | "retryIncompleteRecording"
         | "retryMinimalEffort";
       transcript: string;
       improvedSentence: string | null;
@@ -214,6 +215,8 @@ export function getPendingTurnReview(
         : outcome === "retry_original"
           ? evaluationRetryReason(turn) === "minimal_effort"
             ? "retryMinimalEffort"
+            : evaluationRetryReason(turn) === "incomplete_recording"
+              ? "retryIncompleteRecording"
             : "retryOriginal"
           : null;
   if (!originalOutcome) return null;

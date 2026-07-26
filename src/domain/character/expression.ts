@@ -20,6 +20,7 @@ type OriginalFeedbackKind =
   | "acceptedOriginal"
   | "needsCorrection"
   | "retryOriginal"
+  | "retryIncompleteRecording"
   | "retryMinimalEffort"
   | "teacherReview";
 
@@ -46,6 +47,9 @@ export function deriveExpression(input: {
   // A supported retry is a nudge, not a failure — Coco cheers the student
   // toward a more useful answer.
   if (input.originalFeedbackKind === "retryMinimalEffort") return "encouraging";
+  if (input.originalFeedbackKind === "retryIncompleteRecording") {
+    return "encouraging";
+  }
   if (input.originalFeedbackKind === "teacherReview") return "thinking";
   return "idle";
 }
