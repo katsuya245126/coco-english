@@ -1,7 +1,7 @@
 # Natural Conversation Policy Hardening Design
 
 **Date:** 2026-07-26
-**Status:** Approved design; written specification awaiting review
+**Status:** Approved 2026-07-26
 
 ## Purpose
 

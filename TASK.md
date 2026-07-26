@@ -1,6 +1,6 @@
 # Natural Conversation Policy Hardening
 
-**Status:** Planning; written design awaiting review
+**Status:** Planning; implementation plan awaiting approval
 **Classification:** Consequential
 **Started:** 2026-07-26
 
@@ -104,20 +104,23 @@ short answers, or mechanically restating everything the learner said.
 - [x] Compare prompt-only, hybrid, and two-pass designs.
 - [x] Obtain user approval for the hybrid design.
 - [x] Write and self-review the dedicated design specification.
-- [ ] Obtain user review of the written specification.
-- [ ] Write and self-review the detailed test-first implementation plan.
+- [x] Obtain user review of the written specification.
+- [x] Write and self-review the detailed test-first implementation plan.
 - [ ] Obtain implementation-plan approval before runtime changes.
 
 ## Current position
 
-The behavior design was approved in chat on 2026-07-26. The written
-specification records the approved policy, the raw database evidence behind
-it, the deterministic/model boundary, error handling, observability, and
-verification requirements. No runtime code has been changed.
+The behavior design and its written specification were approved in chat on
+2026-07-26. The detailed test-first implementation plan is at
+`docs/superpowers/plans/2026-07-26-natural-conversation-policy.md`. It divides
+the work into deterministic intake, typed correction policy, provider
+provenance, upload orchestration, recovery UI, structured follow-ups, attempt
+inspection, and verification. No runtime code has been changed.
 
 The unrelated pre-existing working-tree modification at
 `.superpowers/sdd/task-1-report.md` remains untouched.
 
 ## Next step
 
-User reviews the written specification before implementation planning begins.
+User reviews and approves the implementation plan, then chooses
+subagent-driven or inline execution.
