@@ -123,6 +123,34 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
     expect(systemMessage?.content).toContain("one replacement evaluation");
   });
 
+  it("sends evaluation-contract violations through the same repair request", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    await evaluateOriginalTurn(
+      {
+        evaluationMode: "conversation",
+        missionQuestion: "What will you do at the beach?",
+        transcript: "I will swimming.",
+        targetPattern: "I'm going to _____.",
+        targetExample: null,
+        level: "elementary",
+        policyRepair: {
+          violations: ["teacher_review_meaning_understood"],
+        },
+      },
+      { apiKey: "test-key", client, model: "test-evaluator" },
+    );
+
+    const request = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const systemMessage = request?.input.find((message) => message.role === "system");
+    expect(systemMessage?.content).toContain(
+      "teacher_review_meaning_understood",
+    );
+  });
+
   function promptFor(client: ReturnType<typeof createFakeClient>) {
     const request = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
     const userMessage = request?.input.find((message) => message.role === "user");

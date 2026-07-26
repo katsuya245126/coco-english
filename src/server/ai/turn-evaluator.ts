@@ -6,7 +6,7 @@
  */
 
 import OpenAI from "openai";
-import type { CorrectionPolicyViolation } from "@/domain/ai/correction-policy";
+import type { OriginalEvaluationViolation } from "@/domain/ai/original-evaluation-contract";
 import type { HangulSpan } from "@/domain/audio/hangul-romanization";
 import { log } from "@/server/logging/logger";
 import { zodTextFormat } from "openai/helpers/zod";
@@ -74,7 +74,7 @@ export type EvaluateOriginalTurnInput = {
   transcriptionEvidence?: TranscriptionEvidence;
   runtimeVersion?: string;
   policyRepair?: {
-    violations: CorrectionPolicyViolation[];
+    violations: OriginalEvaluationViolation[];
   };
 };
 
