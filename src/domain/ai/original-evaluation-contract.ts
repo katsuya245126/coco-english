@@ -38,6 +38,8 @@ export function canonicalizeNoOpOriginalEvaluation(
   transcript: string,
 ): OriginalTurnEvaluation {
   if (
+    evaluation.outcome !== "needs_correction" ||
+    !evaluation.correctionNeeded ||
     !evaluation.improvedSentence ||
     normalizeSentence(evaluation.improvedSentence) !==
       normalizeSentence(transcript)

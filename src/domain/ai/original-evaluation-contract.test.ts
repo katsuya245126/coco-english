@@ -49,6 +49,26 @@ describe("original evaluation contract", () => {
     });
   });
 
+  it("does not canonicalize an identical sentence on a review outcome", () => {
+    const review = {
+      ...baseEvaluation,
+      outcome: "teacher_review" as const,
+      meaningUnderstood: false,
+      correctionNeeded: true,
+      correctionSeverity: "minor" as const,
+      correctionReason: "grammar" as const,
+      improvedSentence: "I am going to the beach.",
+      reviewReason: "ambiguous" as const,
+    };
+
+    expect(
+      canonicalizeNoOpOriginalEvaluation(
+        review,
+        "I am going to the beach.",
+      ),
+    ).toEqual(review);
+  });
+
   it("rejects understood high-confidence ambiguous review", () => {
     expect(
       validateOriginalEvaluationContract({
