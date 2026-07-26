@@ -77,7 +77,7 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     const { generateCocoReply } = await import("@/server/ai/conversation-generator");
     const client = createFakeClient(async () => ({
       output_parsed: {
-        line: "Eating with Minju is fun! What do you talk about?",
+        line: "Eating with Minju is fun! What does Minju like to eat?",
       },
     }));
 
@@ -90,7 +90,7 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     expect(result).toMatchObject({
       ok: true,
       reply: {
-        line: "Eating with Minju is fun! What do you talk about?",
+        line: "Eating with Minju is fun! What does Minju like to eat?",
       },
     });
     expect(client.responses.parse).toHaveBeenCalledWith(

@@ -83,3 +83,34 @@ test("labels missing repeat provenance instead of inventing it", () => {
     /original evaluation unavailable \(legacy row or stale runtime\)/i,
   );
 });
+
+test("prints a to-one pronunciation score returned by Supabase", () => {
+  const output = formatAttemptTurn(
+    {
+      turn_order: 1,
+      evaluation: {
+        outcome: "teacher_review",
+        reviewReason: "ambiguous",
+      },
+      audio_clips: [
+        {
+          clip_kind: "original_answer",
+          pronunciation_scores: {
+            accuracy_score: 91,
+            fluency_score: 82,
+            completeness_score: 93,
+            pronunciation_score: 88,
+            star_band: 3,
+          },
+        },
+      ],
+    },
+    {},
+  ).join("\n");
+
+  assert.match(output, /review reason: ambiguous/i);
+  assert.match(
+    output,
+    /pronunciation: accuracy=91 fluency=82 completeness=93 overall=88 stars=3/i,
+  );
+});

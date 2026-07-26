@@ -429,6 +429,73 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     });
   });
 
+  it("repairs a grammar-labeled correction that invents unsupported details", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        turns: [
+          {
+            ...conversationMissionSnapshotFixture.turns[0],
+            prompt: "What games do you like to play when you swim together?",
+            targetExample: "I will swim with my family.",
+          },
+        ],
+      },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginalTurn = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        evaluation: originalEvaluation({
+          outcome: "needs_correction",
+          correctionNeeded: true,
+          correctionSeverity: "material",
+          correctionReason: "grammar",
+          improvedSentence:
+            "I like to play Jenga on the side of the pool.",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        evaluation: originalEvaluation({
+          outcome: "teacher_review",
+          meaningUnderstood: false,
+          targetPatternAttempted: false,
+          confidence: "medium",
+          reviewReason: "ambiguous",
+        }),
+      });
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("On the side."),
+      evaluateOriginalTurn,
+      generateCocoReply: fakeGenerateCocoReply(async () => ({
+        ok: true,
+        reply: { line: "What game do you mean?" },
+      })),
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(evaluateOriginalTurn).toHaveBeenCalledTimes(2);
+    expect(evaluateOriginalTurn.mock.calls[1]?.[0].policyRepair).toEqual({
+      violations: ["unsupported_detail"],
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "teacher_review",
+        improvedSentence: null,
+        requireRepeat: false,
+      },
+    });
+  });
+
   it("routes a second unsafe correction to review without repeat or correction TTS", async () => {
     mockSupabase = createMockSupabase({
       missionSnapshot: {
@@ -687,7 +754,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     });
   });
 
-  it("downgrades a correction that parrots the mission question to retry_original (UAT 2026-07-16)", async () => {
+  it("repairs a correction that parrots the mission question before routing to review", async () => {
     mockSupabase = createMockSupabase({
       missionSnapshot: soccerConversationSnapshot as unknown as typeof conversationMissionSnapshotFixture,
     });
@@ -698,13 +765,23 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
 
     // Provider disobeys the "never use the missionQuestion as
     // improvedSentence" instruction — the deterministic guard must catch it.
-    const evaluateOriginal = successfulOriginalEvaluator({
+    const parrotedEvaluation = {
       outcome: "needs_correction",
       correctionNeeded: true,
       correctionSeverity: "material",
       correctionReason: "grammar",
       improvedSentence: "How often do you play soccer?",
-    });
+    } as const;
+    const evaluateOriginal = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        evaluation: originalEvaluation(parrotedEvaluation),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        evaluation: originalEvaluation(parrotedEvaluation),
+      });
     const generate = fakeGenerateCocoReply(async () => ({
       ok: true,
       reply: { line: "Oh, what do you like to do instead?" },
@@ -718,10 +795,14 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       isContentSafe: moderate,
     });
 
+    expect(evaluateOriginal).toHaveBeenCalledTimes(2);
+    expect(evaluateOriginal.mock.calls[1]?.[0].policyRepair).toEqual({
+      violations: ["parroted_question", "unsupported_detail"],
+    });
     expect(result).toMatchObject({
       ok: true,
       evaluation: {
-        outcome: "retry_original",
+        outcome: "teacher_review",
         improvedSentence: null,
         requireRepeat: false,
       },
@@ -819,7 +900,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       correctionNeeded: true,
       correctionSeverity: "minor",
       correctionReason: "grammar",
-      improvedSentence: "I don't play soccer often.",
+      improvedSentence: "I don't play soccer much.",
     });
     const generate = fakeGenerateCocoReply(async () => ({
       ok: true,
@@ -846,7 +927,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       evaluation: {
         outcome: "accepted_original",
         correctionSeverity: "minor",
-        improvedSentence: "I don't play soccer often.",
+        improvedSentence: "I don't play soccer much.",
         requireRepeat: false,
       },
       cocoLine: "Oh, what do you like to do instead?",
@@ -864,7 +945,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         action: "upsert",
         payload: expect.objectContaining({
           original_transcript: "I no play soccer much.",
-          improved_sentence: "I don't play soccer often.",
+          improved_sentence: "I don't play soccer much.",
         }),
       }),
     );

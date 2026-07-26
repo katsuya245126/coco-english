@@ -80,6 +80,57 @@ describe("structured Coco reply parts", () => {
     ).toBe(false);
   });
 
+  it("checks the generated question itself for topic drift", () => {
+    expect(
+      validateGeneratedCocoReplyParts(
+        {
+          reaction: "Swimming sounds nice!",
+          focus: null,
+          question: "What color is the sky?",
+        },
+        {
+          expectsQuestion: true,
+          activeQuestion: "Who will you swim with?",
+          latestStudentResponse: "I will swim with my family.",
+        },
+      ),
+    ).toEqual({ ok: false, reasons: ["topic_drift"] });
+  });
+
+  it("does not let a reaction ground an unrelated contentless question", () => {
+    expect(
+      validateGeneratedCocoReplyParts(
+        {
+          reaction: "Swimming sounds nice!",
+          focus: null,
+          question: "Who are you?",
+        },
+        {
+          expectsQuestion: true,
+          activeQuestion: "Who will you swim with?",
+          latestStudentResponse: "I will swim with my family.",
+        },
+      ),
+    ).toEqual({ ok: false, reasons: ["topic_drift"] });
+  });
+
+  it("treats an activity and its object as one focused detail", () => {
+    expect(
+      validateGeneratedCocoReplyParts(
+        {
+          reaction: "Playing Jenga sounds fun!",
+          focus: "Jenga",
+          question: "Who taught you Jenga?",
+        },
+        {
+          expectsQuestion: true,
+          activeQuestion: "What games do you play when you swim?",
+          latestStudentResponse: "I play Jenga.",
+        },
+      ),
+    ).toEqual({ ok: true });
+  });
+
   it.each([
     [
       {

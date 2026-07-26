@@ -381,6 +381,54 @@ describe("uploadAttemptAudioClip", () => {
     expect(evaluateOriginalTurn).not.toHaveBeenCalled();
   });
 
+  it("defers an open-frame match with Hangul to evaluator language judgment", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...missionSnapshotFixture,
+        requiredTurns: 1,
+        targetPattern: "I think _____ is the best",
+        turns: [
+          {
+            ...missionSnapshotFixture.turns[0],
+            prompt:
+              "Which ice cream is the best: vanilla, strawberry, or chocolate?",
+            targetExample: "I think vanilla ice cream is the best.",
+            hintLadder: {
+              tier1: "I think _______ is the best",
+              tier2: "vanilla",
+              tier3: "I think vanilla ice cream is the best.",
+            },
+            answerShape: "open",
+          },
+        ],
+      },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginalTurn = successfulOriginalEvaluator();
+    const koreanSpans = [{ hangul: "바닐라", romanized: "Banilla" }];
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber(
+        "I think 바닐라 is the best.",
+        koreanSpans,
+      ),
+      evaluateOriginalTurn,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: { evaluationSource: "model" },
+    });
+    expect(evaluateOriginalTurn).toHaveBeenCalledTimes(1);
+    expect(evaluateOriginalTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        koreanSpans: [expect.objectContaining({ hangul: "바닐라" })],
+      }),
+    );
+  });
+
   it("retries a dangling original before scoring or evaluation", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"

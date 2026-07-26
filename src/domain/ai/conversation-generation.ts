@@ -134,6 +134,7 @@ const RESPONSE_STOP_WORDS = new Set([
   "their", "this", "that", "it", "myself", "will", "would", "be",
   "been", "being", "am", "was", "were", "very", "just", "also",
   "eat", "eating", "ate",
+  "play", "playing", "played", "plays",
 ]);
 
 function contentWords(text: string) {
@@ -159,6 +160,15 @@ function hasRelatedContentWord(text: string, target: string) {
 
 function distinctContentWords(text: string) {
   return [...new Set(contentWords(text).map(contentStem))];
+}
+
+function questionCanReferBackWithoutContentWords(question: string | null) {
+  const normalized = question?.trim() ?? "";
+  return (
+    /\b(?:it|that|this|they|them|there|together|instead|else)\b/iu.test(
+      normalized,
+    ) || /^(?:why|how)\s*\?$/iu.test(normalized)
+  );
 }
 
 /**
@@ -265,6 +275,7 @@ export function validateGeneratedCocoReplyParts(
     expectsQuestion: boolean;
     activeQuestion?: string;
     latestStudentResponse?: string;
+    allowReactionTopicGrounding?: boolean;
   },
 ): GeneratedCocoReplyLinePolicyResult {
   const line = assembleGeneratedCocoReply(parts).line;
@@ -287,7 +298,11 @@ export function validateGeneratedCocoReplyParts(
   if (
     options.expectsQuestion &&
     !staysOnActiveTopic(
-      normalized,
+      options.allowReactionTopicGrounding ||
+        (contentWords(parts.question ?? "").length === 0 &&
+          questionCanReferBackWithoutContentWords(parts.question))
+        ? normalized
+        : (parts.question ?? normalized),
       options.activeQuestion,
       options.latestStudentResponse,
     )
@@ -360,7 +375,7 @@ export function validateGeneratedCocoReplyLine(
 ): GeneratedCocoReplyLinePolicyResult {
   const result = validateGeneratedCocoReplyParts(
     questionPartsFromLine(line, options.expectsQuestion),
-    options,
+    { ...options, allowReactionTopicGrounding: true },
   );
   if (result.ok) return result;
 

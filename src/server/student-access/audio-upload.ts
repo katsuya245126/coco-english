@@ -1118,6 +1118,7 @@ export async function uploadAttemptAudioClip(
       !exactTargetMatched &&
       snapshot.conversationMode !== true &&
       answerShape === "open" &&
+      koreanSpans.length === 0 &&
       matchesOpenAnswerFrame(transcript, snapshotTurn?.hintLadder?.tier1);
 
     // Minimal-effort answer guard (phone-UAT item 6, design approved
@@ -1306,8 +1307,7 @@ export async function uploadAttemptAudioClip(
               const handledByExistingGuard =
                 !firstPolicy.ok &&
                 firstPolicy.violations.every(
-                  (violation) =>
-                    violation === "no_op" || violation === "parroted_question",
+                  (violation) => violation === "no_op",
                 );
 
               if (!firstPolicy.ok && !handledByExistingGuard) {

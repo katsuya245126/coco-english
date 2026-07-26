@@ -9,6 +9,7 @@ export type CorrectionPolicyViolation =
   | "parroted_question"
   | "open_choice_changed"
   | "pure_embellishment"
+  | "unsupported_detail"
   | "fragment_not_declarative"
   | "fragment_content_lost"
   | "fragment_ungrounded"
@@ -43,6 +44,12 @@ const FUNCTION_WORDS = new Set([
   "it",
   "we",
   "they",
+  "my",
+  "our",
+  "your",
+  "his",
+  "her",
+  "their",
   "am",
   "is",
   "are",
@@ -71,7 +78,7 @@ const FUNCTION_WORDS = new Set([
   "but",
   "because",
 ]);
-const FINITE_VERBS = new Set([
+const AUXILIARY_VERBS = new Set([
   "am",
   "is",
   "are",
@@ -94,44 +101,88 @@ const FINITE_VERBS = new Set([
   "have",
   "has",
   "had",
-  "like",
-  "likes",
-  "play",
-  "plays",
-  "swim",
-  "swims",
-  "eat",
-  "eats",
-  "go",
-  "goes",
-  "feel",
-  "feels",
-  "think",
-  "thinks",
-  "want",
-  "wants",
-  "need",
-  "needs",
-  "see",
-  "sees",
-  "read",
-  "reads",
-  "watch",
-  "watches",
-  "visit",
-  "visits",
-  "study",
-  "studies",
-  "live",
-  "lives",
-  "make",
-  "makes",
-  "run",
-  "runs",
-  "ride",
-  "rides",
-  "drink",
-  "drinks",
+]);
+const SUBJECT_DETERMINERS = new Set([
+  "a",
+  "an",
+  "the",
+  "my",
+  "our",
+  "your",
+  "his",
+  "her",
+  "their",
+]);
+const NON_SUBJECT_STARTERS = new Set([
+  "and",
+  "but",
+  "because",
+  "to",
+  "at",
+  "by",
+  "for",
+  "from",
+  "in",
+  "of",
+  "on",
+  "with",
+]);
+const NON_PREDICATE_WORDS = new Set([
+  ...NON_SUBJECT_STARTERS,
+  ...SUBJECT_DETERMINERS,
+]);
+const SUBJECT_PRONOUNS = new Set([
+  "i",
+  "you",
+  "he",
+  "she",
+  "it",
+  "we",
+  "they",
+]);
+const QUESTION_STARTERS = new Set([
+  "who",
+  "what",
+  "when",
+  "where",
+  "why",
+  "how",
+  "which",
+  "whose",
+]);
+const BE_VERBS = new Set([
+  "am",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+]);
+const IRREGULAR_CONTENT_STEMS = new Map([
+  ["no", "not"],
+  ["not", "not"],
+  ["don't", "not"],
+  ["doesn't", "not"],
+  ["didn't", "not"],
+  ["went", "go"],
+  ["gone", "go"],
+  ["ate", "eat"],
+  ["eaten", "eat"],
+  ["saw", "see"],
+  ["seen", "see"],
+  ["ran", "run"],
+  ["drank", "drink"],
+  ["drunk", "drink"],
+  ["rode", "ride"],
+  ["ridden", "ride"],
+  ["made", "make"],
+  ["thought", "think"],
+  ["felt", "feel"],
+  ["lying", "lie"],
+  ["dying", "die"],
+  ["tying", "tie"],
 ]);
 
 function words(text: string) {
@@ -144,6 +195,46 @@ function normalized(text: string) {
 
 function contentWords(text: string) {
   return words(text).filter((word) => !FUNCTION_WORDS.has(word));
+}
+
+function inflectionBases(word: string) {
+  const bases = new Set([word]);
+  const irregularStem = IRREGULAR_CONTENT_STEMS.get(word);
+  if (irregularStem) bases.add(irregularStem);
+
+  if (/ies$/u.test(word)) {
+    bases.add(word.replace(/ies$/u, "y"));
+  } else if (/(?:ches|shes|sses|xes|zes|oes)$/u.test(word)) {
+    bases.add(word.replace(/es$/u, ""));
+  } else if (/s$/u.test(word) && !/ss$/u.test(word)) {
+    bases.add(word.replace(/s$/u, ""));
+  }
+
+  const addVerbBases = (stem: string) => {
+    if (stem.length < 2) return;
+    bases.add(stem);
+    bases.add(`${stem}e`);
+    if (/(.)\1$/u.test(stem)) bases.add(stem.slice(0, -1));
+  };
+  if (/ing$/u.test(word)) {
+    addVerbBases(word.slice(0, -3));
+  }
+  if (/ied$/u.test(word)) {
+    bases.add(word.replace(/ied$/u, "y"));
+  } else if (/ed$/u.test(word)) {
+    addVerbBases(word.slice(0, -2));
+  }
+
+  return bases;
+}
+
+function relatedContentWord(left: string, right: string) {
+  const rightBases = inflectionBases(right);
+  return [...inflectionBases(left)].some((base) => rightBases.has(base));
+}
+
+function includesRelatedWord(wordsToSearch: string[], target: string) {
+  return wordsToSearch.some((word) => relatedContentWord(word, target));
 }
 
 function hasWordSequence(haystack: string[], needle: string[]) {
@@ -161,13 +252,30 @@ function extractAlternatives(question: string | null): string[] {
   if (afterColon) {
     return afterColon
       .split(/,|\bor\b/iu)
-      .map(normalized)
+      .map((part) => normalized(part.replace(/^\s*(?:and|or)\s+/iu, "")))
       .filter(Boolean);
   }
 
   const commaParts = question.replace(/[?!]/gu, "").split(",");
   if (commaParts.length > 1) {
-    return commaParts.map(normalized).filter(Boolean);
+    const tailAlternatives = commaParts
+      .slice(1)
+      .map((part) => normalized(part.replace(/^\s*(?:and|or)\s+/iu, "")))
+      .filter(Boolean);
+    const maxTailWords = Math.max(
+      1,
+      ...tailAlternatives.map((alternative) => words(alternative).length),
+    );
+    const firstPartWords = words(commaParts[0] ?? "");
+    const firstAlternativeSuffixes = QUESTION_STARTERS.has(
+      firstPartWords[0] ?? "",
+    )
+      ? []
+      : Array.from(
+          { length: Math.min(maxTailWords, firstPartWords.length) },
+          (_, index) => firstPartWords.slice(-(index + 1)).join(" "),
+        );
+    return [...firstAlternativeSuffixes, ...tailAlternatives];
   }
 
   const orIndex = question.toLocaleLowerCase("en-US").lastIndexOf(" or ");
@@ -177,18 +285,84 @@ function extractAlternatives(question: string | null): string[] {
   return [beforeOr, afterOr].filter((value): value is string => Boolean(value));
 }
 
-function hasDeclarativeShape(sentence: string) {
+function questionPredicateWords(question: string | null) {
+  const questionWords = words(question ?? "");
+  const candidates: string[] = [];
+  const addCandidate = (candidate: string | undefined) => {
+    if (
+      candidate &&
+      !AUXILIARY_VERBS.has(candidate) &&
+      !NON_PREDICATE_WORDS.has(candidate) &&
+      !QUESTION_STARTERS.has(candidate)
+    ) {
+      candidates.push(candidate);
+    }
+  };
+
+  if (
+    questionWords[0] === "who" &&
+    !AUXILIARY_VERBS.has(questionWords[1] ?? "")
+  ) {
+    addCandidate(questionWords[1]);
+  }
+
+  questionWords.forEach((word, index) => {
+    if (
+      SUBJECT_PRONOUNS.has(word) &&
+      !AUXILIARY_VERBS.has(questionWords[index - 1] ?? "")
+    ) {
+      addCandidate(questionWords[index + 1]);
+    }
+
+    if (!AUXILIARY_VERBS.has(word)) return;
+    const nextWord = questionWords[index + 1];
+    const addAuxiliaryPredicate = (candidate: string | undefined) => {
+      if (!BE_VERBS.has(word) || /(?:ing|ed)$/u.test(candidate ?? "")) {
+        addCandidate(candidate);
+      }
+    };
+    if (SUBJECT_PRONOUNS.has(nextWord ?? "")) {
+      addAuxiliaryPredicate(questionWords[index + 2]);
+      return;
+    }
+    if (SUBJECT_DETERMINERS.has(nextWord ?? "")) {
+      const boundaryIndex = questionWords.findIndex(
+        (candidate, candidateIndex) =>
+          candidateIndex > index + 1 && NON_SUBJECT_STARTERS.has(candidate),
+      );
+      addAuxiliaryPredicate(
+        questionWords[
+          boundaryIndex > index + 1 ? boundaryIndex - 1 : questionWords.length - 1
+        ],
+      );
+      return;
+    }
+    addAuxiliaryPredicate(questionWords[index + 2] ?? nextWord);
+  });
+
+  return candidates;
+}
+
+function hasDeclarativeShape(sentence: string, missionQuestion: string | null) {
   const sentenceWords = words(sentence);
   if (sentenceWords.length < 2) return false;
 
   const firstWord = sentenceWords[0];
-  if (!firstWord) return false;
-  const hasSubject =
-    /^(?:i|you|he|she|it|we|they|this|that|there|my|our|your|his|her|their|a|an|the)$/u.test(
-      firstWord,
-    ) || /^[a-z\p{L}][\p{L}\p{N}']*$/iu.test(firstWord);
-  const hasFiniteVerb = sentenceWords.some((word) => FINITE_VERBS.has(word));
-  return hasSubject && hasFiniteVerb;
+  if (!firstWord || NON_SUBJECT_STARTERS.has(firstWord)) return false;
+  const predicateWords = questionPredicateWords(missionQuestion);
+  const hasQuestionPredicate = sentenceWords
+    .slice(1)
+    .some((word) => includesRelatedWord(predicateWords, word));
+  const copulaIndex = sentenceWords
+    .slice(1)
+    .findIndex((word) => BE_VERBS.has(word)) + 1;
+  const hasGroundedCopula =
+    sentenceWords.length >= 3 &&
+    copulaIndex > 0 &&
+    copulaIndex < sentenceWords.length - 1 &&
+    words(missionQuestion ?? "").some((word) => BE_VERBS.has(word));
+
+  return hasQuestionPredicate || hasGroundedCopula;
 }
 
 function hasTargetPatternPadding(
@@ -197,16 +371,16 @@ function hasTargetPatternPadding(
   missionQuestion: string | null,
   targetPattern: string,
 ) {
-  const transcriptWords = new Set(words(transcript));
-  const questionWords = new Set(words(missionQuestion ?? ""));
+  const transcriptWords = contentWords(transcript);
+  const questionWords = contentWords(missionQuestion ?? "");
   const targetWords = contentWords(targetPattern);
-  const improvedWords = new Set(words(improvedSentence));
+  const improvedWords = contentWords(improvedSentence);
 
   return targetWords.some(
     (word) =>
-      !transcriptWords.has(word) &&
-      !questionWords.has(word) &&
-      improvedWords.has(word),
+      !includesRelatedWord(transcriptWords, word) &&
+      !includesRelatedWord(questionWords, word) &&
+      includesRelatedWord(improvedWords, word),
   );
 }
 
@@ -260,27 +434,61 @@ export function validateImprovedSentencePolicy(
     addViolation("pure_embellishment");
   }
 
+  if (
+    input.evaluationMode === "conversation" &&
+    input.correctionReason !== "fragment_completion"
+  ) {
+    const originalContent = contentWords(input.transcript);
+    const improvedContent = contentWords(input.improvedSentence);
+    const groundedContent = [
+      ...originalContent,
+      ...contentWords(input.missionQuestion ?? ""),
+    ];
+    const questionPredicates = questionPredicateWords(input.missionQuestion);
+    const learnerAnchors = originalContent.filter(
+      (word) => !includesRelatedWord(questionPredicates, word),
+    );
+    const unsupportedImproved = improvedContent.filter(
+      (word) => !includesRelatedWord(groundedContent, word),
+    );
+    const lostLearnerAnchor = learnerAnchors.some(
+      (word) => !includesRelatedWord(improvedContent, word),
+    );
+
+    if (lostLearnerAnchor || unsupportedImproved.length > 0) {
+      addViolation("unsupported_detail");
+    }
+  }
+
   if (input.correctionReason === "fragment_completion") {
     const terminatorCount = input.improvedSentence.match(/[.!?]/gu)?.length ?? 0;
     if (
       input.improvedSentence.includes("?") ||
       terminatorCount > 1 ||
-      !hasDeclarativeShape(input.improvedSentence)
+      !hasDeclarativeShape(input.improvedSentence, input.missionQuestion)
     ) {
       addViolation("fragment_not_declarative");
     }
 
     const originalContent = contentWords(input.transcript);
-    const improvedContent = new Set(contentWords(input.improvedSentence));
-    if (originalContent.some((word) => !improvedContent.has(word))) {
+    const improvedContent = contentWords(input.improvedSentence);
+    if (
+      originalContent.some(
+        (word) => !includesRelatedWord(improvedContent, word),
+      )
+    ) {
       addViolation("fragment_content_lost");
     }
 
-    const groundedWords = new Set([
+    const groundedWords = [
       ...contentWords(input.transcript),
       ...contentWords(input.missionQuestion ?? ""),
-    ]);
-    if (contentWords(input.improvedSentence).some((word) => !groundedWords.has(word))) {
+    ];
+    if (
+      contentWords(input.improvedSentence).some(
+        (word) => !includesRelatedWord(groundedWords, word),
+      )
+    ) {
       addViolation("fragment_ungrounded");
     }
 

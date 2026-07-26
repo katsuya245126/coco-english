@@ -77,6 +77,11 @@ export function formatAssignmentPolicy(snapshot) {
 }
 
 export function formatAudioClip(clip) {
+  const pronunciationScores = Array.isArray(clip.pronunciation_scores)
+    ? clip.pronunciation_scores
+    : clip.pronunciation_scores
+      ? [clip.pronunciation_scores]
+      : [];
   const lines = [
     `    audio clip: ${shown(clip.clip_kind)}`,
     `      processing status: ${shown(clip.processing_status)}`,
@@ -86,7 +91,7 @@ export function formatAudioClip(clip) {
     `      created at: ${shown(clip.created_at)}`,
     `      updated at: ${shown(clip.updated_at)}`,
   ];
-  for (const score of clip.pronunciation_scores ?? []) {
+  for (const score of pronunciationScores) {
     lines.push(
       `      pronunciation: accuracy=${shown(score.accuracy_score)} fluency=${shown(score.fluency_score)} completeness=${shown(score.completeness_score)} overall=${shown(score.pronunciation_score)} stars=${shown(score.star_band)}`,
     );

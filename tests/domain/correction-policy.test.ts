@@ -33,6 +33,48 @@ describe("validateImprovedSentencePolicy", () => {
     expect(result).toEqual({ ok: false, violations: ["open_choice_changed"] });
   });
 
+  it("preserves the learner's choice in a comma list without a colon", () => {
+    const result = validateImprovedSentencePolicy({
+      ...base,
+      evaluationMode: "preset",
+      missionQuestion: "Which is best, vanilla, strawberry, or chocolate?",
+      targetPattern: "I think _____ is the best",
+      transcript: "I think chocolate is the best.",
+      correctionReason: "vocabulary",
+      improvedSentence: "I think vanilla is the best.",
+    });
+    expect(result).toEqual({ ok: false, violations: ["open_choice_changed"] });
+  });
+
+  it("extracts the first choice when it shares a comma segment with the question", () => {
+    const result = validateImprovedSentencePolicy({
+      ...base,
+      evaluationMode: "preset",
+      missionQuestion:
+        "Would you like vanilla, strawberry, or chocolate?",
+      targetPattern: "I would like _____",
+      transcript: "I would like vanilla.",
+      correctionReason: "vocabulary",
+      improvedSentence: "I would like strawberry.",
+    });
+    expect(result).toEqual({ ok: false, violations: ["open_choice_changed"] });
+  });
+
+  it("does not mistake a WH-question predicate for the first listed choice", () => {
+    expect(
+      validateImprovedSentencePolicy({
+        ...base,
+        evaluationMode: "preset",
+        missionQuestion:
+          "Which activity do you like, swimming, hiking, or reading?",
+        targetPattern: "I like _____",
+        transcript: "I like swimming.",
+        correctionReason: "vocabulary",
+        improvedSentence: "I enjoy swimming.",
+      }),
+    ).toEqual({ ok: true });
+  });
+
   it("rejects pure appended embellishment", () => {
     const result = validateImprovedSentencePolicy({
       ...base,
@@ -52,6 +94,177 @@ describe("validateImprovedSentencePolicy", () => {
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.violations).toContain("fragment_ungrounded");
+  });
+
+  it("rejects unsupported details regardless of the evaluator's reason label", () => {
+    const result = validateImprovedSentencePolicy({
+      ...base,
+      transcript: "On the side.",
+      missionQuestion: "What games do you like to play when you swim together?",
+      correctionReason: "grammar",
+      improvedSentence: "I like to play Jenga on the side of the pool.",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violations).toContain("unsupported_detail");
+  });
+
+  it.each(["grammar", "vocabulary"] as const)(
+    "rejects a %s label that replaces the learner's only content anchor",
+    (correctionReason) => {
+      const result = validateImprovedSentencePolicy({
+        ...base,
+        transcript: "On the side.",
+        missionQuestion: "Where do you play?",
+        correctionReason,
+        improvedSentence: "At the pool.",
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.violations).toContain("unsupported_detail");
+    },
+  );
+
+  it("rejects a vocabulary label that swaps one retained choice for another", () => {
+    const result = validateImprovedSentencePolicy({
+      ...base,
+      transcript: "I play Jenga.",
+      missionQuestion: "What games do you play?",
+      correctionReason: "vocabulary",
+      improvedSentence: "I play chess.",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violations).toContain("unsupported_detail");
+  });
+
+  it("does not let the question overwrite a learner-owned answer anchor", () => {
+    const result = validateImprovedSentencePolicy({
+      ...base,
+      transcript: "I play golf.",
+      missionQuestion: "Do you play soccer?",
+      correctionReason: "vocabulary",
+      improvedSentence: "I play soccer.",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violations).toContain("unsupported_detail");
+  });
+
+  it("rejects a near-spelling substitution when context does not prove the meaning", () => {
+    const result = validateImprovedSentencePolicy({
+      ...base,
+      transcript: "I play chest.",
+      missionQuestion: "What games do you play?",
+      correctionReason: "vocabulary",
+      improvedSentence: "I play chess.",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violations).toContain("unsupported_detail");
+  });
+
+  it("does not treat an arbitrary one-character substitution as meaning-preserving", () => {
+    const result = validateImprovedSentencePolicy({
+      ...base,
+      transcript: "I play golf.",
+      missionQuestion: "What games do you play?",
+      correctionReason: "vocabulary",
+      improvedSentence: "I play wolf.",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violations).toContain("unsupported_detail");
+  });
+
+  it("accepts a grounded grammar correction across a regular inflection", () => {
+    expect(
+      validateImprovedSentencePolicy({
+        ...base,
+        transcript: "I study English.",
+        missionQuestion: "What are you studying?",
+        correctionReason: "grammar",
+        improvedSentence: "I am studying English.",
+      }),
+    ).toEqual({ ok: true });
+  });
+
+  it.each([
+    {
+      missionQuestion: "What do you cook at home?",
+      transcript: "Pasta.",
+      improvedSentence: "I cook pasta.",
+    },
+    {
+      missionQuestion: "Who cooks dinner?",
+      transcript: "My brother.",
+      improvedSentence: "My brother cooks dinner.",
+    },
+    {
+      missionQuestion: "What are you cooking?",
+      transcript: "Pasta.",
+      improvedSentence: "I cook pasta.",
+    },
+    {
+      missionQuestion: "What game does your sister like?",
+      transcript: "Jenga.",
+      improvedSentence: "My sister likes Jenga.",
+    },
+    {
+      missionQuestion: "Where does he go?",
+      transcript: "Go home.",
+      improvedSentence: "He goes home.",
+    },
+    {
+      missionQuestion: "Who cooks dinner?",
+      transcript: "My older brother.",
+      improvedSentence: "My older brother cooks dinner.",
+    },
+    {
+      missionQuestion: "What does Minju cook for dinner?",
+      transcript: "Pasta.",
+      improvedSentence: "Minju cooks pasta.",
+    },
+  ])(
+    "accepts an ordinary grounded fragment recast: $improvedSentence",
+    ({ missionQuestion, transcript, improvedSentence }) => {
+      expect(
+        validateImprovedSentencePolicy({
+          ...base,
+          missionQuestion,
+          targetPattern: "I _____",
+          transcript,
+          improvedSentence,
+        }),
+      ).toEqual({ ok: true });
+    },
+  );
+
+  it("does not mistake a subject plus noun for a complete declarative clause", () => {
+    const result = validateImprovedSentencePolicy({
+      ...base,
+      missionQuestion: "What do you cook?",
+      transcript: "Pasta.",
+      improvedSentence: "I pasta.",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violations).toContain("fragment_not_declarative");
+  });
+
+  it("does not treat a question-grounded noun as the sentence predicate", () => {
+    const result = validateImprovedSentencePolicy({
+      ...base,
+      missionQuestion: "What do you cook for dinner?",
+      transcript: "Dinner.",
+      improvedSentence: "I dinner.",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violations).toContain("fragment_not_declarative");
+  });
+
+  it("requires a copula in a recast grounded by a copular question", () => {
+    const result = validateImprovedSentencePolicy({
+      ...base,
+      missionQuestion: "What color is your car?",
+      transcript: "Red.",
+      improvedSentence: "My car red.",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violations).toContain("fragment_not_declarative");
   });
 
   it("rejects a fragment completion that adds more than five lexical tokens", () => {
