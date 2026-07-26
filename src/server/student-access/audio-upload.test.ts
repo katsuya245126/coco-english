@@ -373,6 +373,56 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     expect(warmTtsAudioCache).not.toHaveBeenCalled();
   });
 
+  it("preserves the ambiguity budget through an incomplete re-recording", async () => {
+    mockSupabase = createMockSupabase({
+      turnEvaluation: {
+        ...originalEvaluation({
+          outcome: "retry_original",
+          meaningUnderstood: false,
+          targetPatternAttempted: false,
+          confidence: "medium",
+          reviewReason: null,
+        }),
+        retryReason: "unclear_meaning",
+        ambiguityRetries: 1,
+        ambiguityHistory: [
+          {
+            transcript: "At my family maybe.",
+            audioClipId: "clip-first",
+            evaluation: originalEvaluation({
+              outcome: "teacher_review",
+              meaningUnderstood: false,
+              targetPatternAttempted: false,
+              confidence: "medium",
+              reviewReason: "ambiguous",
+            }),
+          },
+        ],
+      },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I"),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        retryReason: "incomplete_recording",
+        ambiguityRetries: 1,
+        ambiguityHistory: [
+          {
+            transcript: "At my family maybe.",
+            audioClipId: "clip-first",
+          },
+        ],
+      },
+    });
+  });
+
   it("repairs an unsafe correction exactly once before continuing", async () => {
     mockSupabase = createMockSupabase({
       missionSnapshot: {
@@ -2274,6 +2324,56 @@ describe("minimal-effort answer guard (conversation mode)", () => {
       minimalEffortBlocks: 1,
       minimalEffortKind: "short_answer",
       retryExample: "I play soccer sometimes.",
+    });
+  });
+
+  it("preserves the ambiguity budget through a minimal-effort re-recording", async () => {
+    mockSupabase = createMockSupabase({
+      turnEvaluation: {
+        ...originalEvaluation({
+          outcome: "retry_original",
+          meaningUnderstood: false,
+          targetPatternAttempted: false,
+          confidence: "medium",
+          reviewReason: null,
+        }),
+        retryReason: "unclear_meaning",
+        ambiguityRetries: 1,
+        ambiguityHistory: [
+          {
+            transcript: "At my family maybe.",
+            audioClipId: "clip-first",
+            evaluation: originalEvaluation({
+              outcome: "teacher_review",
+              meaningUnderstood: false,
+              targetPatternAttempted: false,
+              confidence: "medium",
+              reviewReason: "ambiguous",
+            }),
+          },
+        ],
+      },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("No."),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        retryReason: "minimal_effort",
+        ambiguityRetries: 1,
+        ambiguityHistory: [
+          {
+            transcript: "At my family maybe.",
+            audioClipId: "clip-first",
+          },
+        ],
+      },
     });
   });
 

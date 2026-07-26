@@ -112,4 +112,63 @@ describe("original evaluation contract", () => {
       violations: expect.arrayContaining(["correct_contract_mismatch"]),
     });
   });
+
+  it("rejects a correct outcome labeled as non-English", () => {
+    expect(
+      validateOriginalEvaluationContract({
+        evaluation: {
+          ...baseEvaluation,
+          englishLanguage: "non_english",
+        },
+        evaluationMode: "conversation",
+        answerShape: "open",
+        missionQuestion: "What will you do at the beach?",
+        targetPattern: "I'm going to ________",
+        transcript: "I will swim.",
+      }),
+    ).toEqual({
+      ok: false,
+      violations: ["english_language_mismatch"],
+    });
+  });
+
+  it("rejects a non-English outcome with understood English fields", () => {
+    expect(
+      validateOriginalEvaluationContract({
+        evaluation: {
+          ...baseEvaluation,
+          outcome: "non_english",
+        },
+        evaluationMode: "conversation",
+        answerShape: "open",
+        missionQuestion: "What will you do at the beach?",
+        targetPattern: "I'm going to ________",
+        transcript: "I will swim.",
+      }),
+    ).toEqual({
+      ok: false,
+      violations: ["non_english_contract_mismatch"],
+    });
+  });
+
+  it("accepts a coherent non-English outcome", () => {
+    const evaluation = {
+      ...baseEvaluation,
+      outcome: "non_english" as const,
+      meaningUnderstood: false,
+      targetPatternAttempted: false,
+      englishLanguage: "non_english" as const,
+    };
+
+    expect(
+      validateOriginalEvaluationContract({
+        evaluation,
+        evaluationMode: "conversation",
+        answerShape: "open",
+        missionQuestion: "What will you do at the beach?",
+        targetPattern: "I'm going to ________",
+        transcript: "바다에 갈 거예요.",
+      }),
+    ).toEqual({ ok: true, evaluation });
+  });
 });

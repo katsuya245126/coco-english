@@ -1076,6 +1076,9 @@ export async function uploadAttemptAudioClip(
       transcriptionConfidence: transcriptionEvidence.confidence,
       runtimeVersion: resolveEvaluationRuntimeVersion(),
     };
+    const ambiguityState = priorAmbiguityState(
+      (turn as { evaluation?: unknown }).evaluation,
+    );
     const exactTargetMatched =
       input.clipKind === "original_answer" &&
       targetExample !== null &&
@@ -1101,6 +1104,12 @@ export async function uploadAttemptAudioClip(
           improvedSentence: null,
           requireRepeat: false,
           retryReason: "incomplete_recording",
+          ...((ambiguityState.ambiguityRetries ?? 0) > 0
+            ? {
+                ambiguityRetries: ambiguityState.ambiguityRetries,
+                ambiguityHistory: ambiguityState.ambiguityHistory,
+              }
+            : {}),
         },
         fallbackProvenance,
       );
@@ -1171,10 +1180,6 @@ export async function uploadAttemptAudioClip(
     const minimalEffortBlocks = priorMinimalEffortBlocks(
       (turn as { evaluation?: unknown }).evaluation,
     );
-    const ambiguityState = priorAmbiguityState(
-      (turn as { evaluation?: unknown }).evaluation,
-    );
-
     if (
       input.clipKind === "original_answer" &&
       isMinimalEffortAnswer(transcript)
@@ -1209,6 +1214,12 @@ export async function uploadAttemptAudioClip(
             minimalEffortBlocks: minimalEffortBlocks + 1,
             minimalEffortKind,
             retryExample,
+            ...((ambiguityState.ambiguityRetries ?? 0) > 0
+              ? {
+                  ambiguityRetries: ambiguityState.ambiguityRetries,
+                  ambiguityHistory: ambiguityState.ambiguityHistory,
+                }
+              : {}),
           },
           fallbackProvenance,
         );

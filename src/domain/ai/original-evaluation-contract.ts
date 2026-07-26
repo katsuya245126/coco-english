@@ -10,6 +10,8 @@ export type OriginalEvaluationViolation =
   | "correction_contract_mismatch"
   | "teacher_review_contract_mismatch"
   | "teacher_review_meaning_understood"
+  | "english_language_mismatch"
+  | "non_english_contract_mismatch"
   | CorrectionPolicyViolation;
 
 export type OriginalEvaluationContractInput = {
@@ -100,6 +102,24 @@ export function validateOriginalEvaluationContract(
     ) {
       violations.push("correction_contract_mismatch");
     }
+  } else if (
+    evaluation.englishLanguage !== "non_english" ||
+    evaluation.meaningUnderstood ||
+    evaluation.correctionNeeded ||
+    evaluation.correctionSeverity !== "none" ||
+    evaluation.correctionReason !== "none" ||
+    evaluation.improvedSentence !== null ||
+    evaluation.reviewReason !== null
+  ) {
+    violations.push("non_english_contract_mismatch");
+  }
+
+  if (
+    (evaluation.outcome === "correct" ||
+      evaluation.outcome === "needs_correction") &&
+    evaluation.englishLanguage !== "english"
+  ) {
+    violations.push("english_language_mismatch");
   }
 
   if (evaluation.improvedSentence) {
