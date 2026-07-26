@@ -6,15 +6,18 @@
  */
 
 import OpenAI from "openai";
+import type { CorrectionPolicyViolation } from "@/domain/ai/correction-policy";
 import type { HangulSpan } from "@/domain/audio/hangul-romanization";
 import { log } from "@/server/logging/logger";
 import { zodTextFormat } from "openai/helpers/zod";
 import {
-  originalTurnEvaluationSchema,
+  CORRECTION_POLICY_VERSION,
+  originalTurnProviderEvaluationSchema,
   repeatTurnEvaluationSchema,
   type OriginalTurnEvaluation,
   type RepeatTurnEvaluation,
 } from "@/domain/ai/turn-evaluation";
+import type { TranscriptionEvidence } from "@/server/audio/transcription";
 import {
   missionLevelSchema,
   type AnswerShape,
@@ -68,6 +71,11 @@ export type EvaluateOriginalTurnInput = {
   koreanSpans?: HangulSpan[];
   /** Fixed = match the target; open = enforce only the frame, never the choice. */
   answerShape?: AnswerShape;
+  transcriptionEvidence?: TranscriptionEvidence;
+  runtimeVersion?: string;
+  policyRepair?: {
+    violations: CorrectionPolicyViolation[];
+  };
 };
 
 export type EvaluateRepeatTurnInput = {
@@ -91,11 +99,19 @@ function resolveApiKey(deps?: TurnEvaluatorDeps) {
   return process.env.OPENAI_API_KEY?.trim() ?? "";
 }
 
-function resolveModel(deps?: TurnEvaluatorDeps) {
+export function resolveEvaluationModel(deps?: TurnEvaluatorDeps) {
   return (
     deps?.model?.trim() ||
     process.env.OPENAI_EVALUATION_MODEL?.trim() ||
     DEFAULT_EVALUATION_MODEL
+  );
+}
+
+export function resolveEvaluationRuntimeVersion(override?: string) {
+  return (
+    override?.trim() ||
+    process.env.VERCEL_GIT_COMMIT_SHA?.trim() ||
+    "local-dev"
   );
 }
 
@@ -142,6 +158,12 @@ const correctionSeverityInstructions = [
   "Always set correctionSeverity. Set it to 'none' when no correction is needed, 'minor' for an accepted local function-word recast, and 'material' when repetition is required.",
   "Set correctionNeeded to false only for correctionSeverity 'none'. Set correctionNeeded to true for 'minor' and 'material'.",
   "For 'minor' and 'material', set outcome to 'needs_correction' and provide one non-empty declarative improvedSentence. For 'none', set outcome to 'correct' and improvedSentence to null.",
+];
+
+const correctionReasonInstructions = [
+  "Set correctionReason to none only with correctionSeverity none and improvedSentence null.",
+  "Use fragment_completion only when a relevant fragment needs clause structure because requireCompleteSentenceAnswers is true.",
+  "Use grammar or vocabulary only to repair an actual error. Never add optional facts or make a complete relevant sentence longer.",
 ];
 
 const conversationSeverityInstructions = [
@@ -229,6 +251,7 @@ function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
     requireCompleteSentenceAnswers,
     koreanSpans,
     answerShape: input.answerShape ?? "open",
+    policyRepair: input.policyRepair ?? null,
     instructions: [
       "Evaluate only this transcript against the assigned ESL turn.",
       koreanSpans.length > 0
@@ -247,10 +270,17 @@ function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
       ...modeInstructions,
       ...completeSentenceInstructions,
       ...(isConversationMode ? conversationGenuineAmbiguityInstructions : []),
+      ...correctionReasonInstructions,
       ...correctionSeverityInstructions,
       ...(isConversationMode
         ? conversationSeverityInstructions
         : presetSeverityInstructions),
+      ...(input.policyRepair
+        ? [
+            `The previous evaluation was rejected by deterministic correction policy. Violations: ${input.policyRepair.violations.join(", ")}.`,
+            "Return one replacement evaluation that fixes every named violation. Do not quote or defend the rejected sentence.",
+          ]
+        : []),
       "Use teacher_review for ambiguity, low confidence, or unsafe uncertainty.",
       "Do not include student names, PINs, audio keys, or private class data.",
     ],
@@ -317,13 +347,19 @@ export async function evaluateOriginalTurn(
 
   try {
     const client = deps?.client ?? createClient(apiKey);
+    const model = resolveEvaluationModel(deps);
+    const transcriptionEvidence =
+      input.transcriptionEvidence ?? { model: "unknown", confidence: null };
+    const repairInstruction = input.policyRepair
+      ? ` The previous evaluation was rejected by deterministic correction policy. Violations: ${input.policyRepair.violations.join(", ")}. Return one replacement evaluation that fixes every named violation. Do not quote or defend the rejected sentence.`
+      : "";
     const response = await client.responses.parse({
-      model: resolveModel(deps),
+      model,
       input: [
         {
           role: "system",
           content:
-            "Evaluate a child's guided ESL original answer. Return only data matching the schema.",
+            `Evaluate a child's guided ESL original answer. Return only data matching the schema.${repairInstruction}`,
         },
         {
           role: "user",
@@ -332,18 +368,30 @@ export async function evaluateOriginalTurn(
       ],
       text: {
         format: zodTextFormat(
-          originalTurnEvaluationSchema,
+          originalTurnProviderEvaluationSchema,
           "original_turn_evaluation",
         ),
       },
     });
-    const parsed = originalTurnEvaluationSchema.safeParse(response.output_parsed);
+    const parsed = originalTurnProviderEvaluationSchema.safeParse(
+      response.output_parsed,
+    );
 
     if (!parsed.success) {
       return { ok: false, error: "schema_failed" };
     }
 
-    return { ok: true, evaluation: parsed.data };
+    const evaluation: OriginalTurnEvaluation = {
+      ...parsed.data,
+      policyVersion: CORRECTION_POLICY_VERSION,
+      evaluationModel: model,
+      evaluationSource: "model",
+      transcriptionModel: transcriptionEvidence.model,
+      transcriptionConfidence: transcriptionEvidence.confidence,
+      runtimeVersion: resolveEvaluationRuntimeVersion(input.runtimeVersion),
+    };
+
+    return { ok: true, evaluation };
   } catch {
     log("error", "ai.evaluation_failed", { turnKind: "original", error: "provider_failed" });
     return { ok: false, error: "provider_failed" };
@@ -366,7 +414,7 @@ export async function evaluateRepeatTurn(
   try {
     const client = deps?.client ?? createClient(apiKey);
     const response = await client.responses.parse({
-      model: resolveModel(deps),
+      model: resolveEvaluationModel(deps),
       input: [
         {
           role: "system",

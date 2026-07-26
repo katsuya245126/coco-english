@@ -18,6 +18,7 @@ const correctOriginalProviderResult = {
   targetPatternAttempted: true,
   correctionNeeded: false,
   correctionSeverity: "none",
+  correctionReason: "none",
   improvedSentence: null,
   englishLanguage: "english",
   confidence: "high",
@@ -42,13 +43,84 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
       { apiKey: "test-key", client, model: "test-evaluator" },
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
       evaluation: correctOriginalProviderResult,
     });
     expect(client.responses.parse).toHaveBeenCalledWith(
       expect.objectContaining({ model: "test-evaluator" }),
     );
+  });
+
+  it("stores evaluator and transcription provenance with the parsed result", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    const result = await evaluateOriginalTurn(
+      {
+        evaluationMode: "conversation",
+        missionQuestion: "What do you like?",
+        transcript: "I like chocolate.",
+        targetPattern: "I like _____.",
+        targetExample: null,
+        level: "elementary",
+        transcriptionEvidence: {
+          model: "test-transcriber",
+          confidence: { minLogprob: -0.02, tokenCount: 3 },
+        },
+        runtimeVersion: "test-runtime",
+      },
+      { apiKey: "test-key", client, model: "test-evaluator" },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        correctionReason: "none",
+        policyVersion: "natural-conversation-v1",
+        evaluationModel: "test-evaluator",
+        evaluationSource: "model",
+        transcriptionModel: "test-transcriber",
+        transcriptionConfidence: { minLogprob: -0.02, tokenCount: 3 },
+        runtimeVersion: "test-runtime",
+      },
+    });
+  });
+
+  it("sends deterministic correction-policy violations on a repair request", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    await evaluateOriginalTurn(
+      {
+        evaluationMode: "preset",
+        transcript: "I think chocolate is the best.",
+        targetPattern: "I think _____ is the best.",
+        targetExample: "I think vanilla is the best.",
+        level: "elementary",
+        transcriptionEvidence: {
+          model: "test-transcriber",
+          confidence: null,
+        },
+        policyRepair: { violations: ["open_choice_changed"] },
+      },
+      { apiKey: "test-key", client, model: "test-evaluator" },
+    );
+
+    const request = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const userMessage = request?.input.find((message) => message.role === "user");
+    const systemMessage = request?.input.find((message) => message.role === "system");
+    expect(JSON.parse(userMessage?.content ?? "{}")).toMatchObject({
+      policyRepair: {
+        violations: ["open_choice_changed"],
+      },
+    });
+    expect(systemMessage?.content).toContain("open_choice_changed");
+    expect(systemMessage?.content).toContain("one replacement evaluation");
   });
 
   function promptFor(client: ReturnType<typeof createFakeClient>) {
@@ -355,7 +427,7 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
       { apiKey: "test-key", client },
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
       evaluation: correctOriginalProviderResult,
     });
@@ -535,7 +607,7 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
       { apiKey: "test-key", client },
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
       evaluation: correctOriginalProviderResult,
     });

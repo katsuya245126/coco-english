@@ -26,25 +26,29 @@ describe("transcribeAudioFile", () => {
 
   it("returns transcript text from an injected client", async () => {
     const { transcribeAudioFile } = await import("@/server/audio/transcription");
-    const client = createFakeClient({ text: "I like apples." });
+    const client = createFakeClient({
+      text: "I like chocolate.",
+      logprobs: [{ logprob: -0.01 }, { logprob: -0.02 }, { logprob: -0.01 }],
+    });
 
     const result = await transcribeAudioFile(
       {
         file: new Blob(["voice"], { type: "audio/webm" }),
         mimeType: "audio/webm",
-        model: "test-transcribe",
       },
-      { apiKey: "test-key", client },
+      { apiKey: "test-key", client, model: "test-transcriber" },
     );
 
     expect(result).toEqual({
       ok: true,
-      text: "I like apples.",
+      text: "I like chocolate.",
       koreanSpans: [],
+      model: "test-transcriber",
+      confidence: { minLogprob: -0.02, tokenCount: 3 },
     });
     expect(client.audio.transcriptions.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: "test-transcribe",
+        model: "test-transcriber",
       }),
     );
   });
@@ -89,6 +93,8 @@ describe("transcribeAudioFile", () => {
       ok: true,
       text: "I like 축구 after school.",
       koreanSpans: [{ hangul: "축구", romanized: "Chukgu" }],
+      model: "gpt-4o-mini-transcribe",
+      confidence: null,
     });
   });
 
@@ -111,6 +117,8 @@ describe("transcribeAudioFile", () => {
       ok: true,
       text: "I'm going to 거제도 this summer vacation.",
       koreanSpans: [{ hangul: "거제도", romanized: "Geojedo" }],
+      model: "gpt-4o-mini-transcribe",
+      confidence: null,
     });
   });
 
@@ -161,6 +169,8 @@ describe("transcribeAudioFile", () => {
         { hangul: "초콜릿", romanized: "Chokolrit" },
         { hangul: "바닐라", romanized: "Banilra" },
       ],
+      model: "gpt-4o-mini-transcribe",
+      confidence: null,
     });
   });
 
@@ -288,6 +298,8 @@ describe("transcribeAudioFile", () => {
       ok: true,
       text: "I will play soccer.",
       koreanSpans: [],
+      model: "gpt-4o-mini-transcribe",
+      confidence: { minLogprob: -2.424, tokenCount: 2 },
     });
   });
 
@@ -400,6 +412,8 @@ describe("transcribeAudioFile", () => {
       ok: true,
       text: "I will play soccer.",
       koreanSpans: [],
+      model: "gpt-4o-mini-transcribe",
+      confidence: { minLogprob: -0.0004, tokenCount: 3 },
     });
   });
 
@@ -422,6 +436,8 @@ describe("transcribeAudioFile", () => {
       ok: true,
       text: "I will play soccer.",
       koreanSpans: [],
+      model: "gpt-4o-mini-transcribe",
+      confidence: null,
     });
   });
 
@@ -446,6 +462,8 @@ describe("transcribeAudioFile", () => {
       ok: true,
       text: "I'm going to 거제도 this summer vacation.",
       koreanSpans: [{ hangul: "거제도", romanized: "Geojedo" }],
+      model: "gpt-4o-mini-transcribe",
+      confidence: { minLogprob: -0.001, tokenCount: 2 },
     });
   });
 
@@ -511,6 +529,8 @@ describe("all-Hangul transcripts reach the evaluator (UAT 2026-07-25)", () => {
       ok: true,
       text: "바나나스",
       koreanSpans: [{ hangul: "바나나스", romanized: "Bananaseu" }],
+      model: "gpt-4o-mini-transcribe",
+      confidence: null,
     });
   });
 

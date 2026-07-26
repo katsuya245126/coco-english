@@ -15,6 +15,7 @@ import { detectNoSpeech } from "@/domain/audio/no-speech-detection";
 import {
   isLowConfidenceTranscript,
   summarizeTranscriptConfidence,
+  type TranscriptConfidence,
   type TranscriptLogprob,
 } from "@/domain/audio/transcript-confidence";
 import { log } from "@/server/logging/logger";
@@ -54,8 +55,15 @@ export type TranscriptionResult =
        * accept or ordinary vocabulary to teach.
        */
       koreanSpans: HangulSpan[];
+      model: string;
+      confidence: TranscriptConfidence | null;
     }
   | { ok: false; error: TranscriptionError };
+
+export type TranscriptionEvidence = {
+  model: string;
+  confidence: TranscriptConfidence | null;
+};
 
 export type TranscriptionClient = {
   audio: {
@@ -201,12 +209,13 @@ export async function transcribeAudioFile(
 
   try {
     const client = deps?.client ?? createClient(apiKey);
+    const model = resolveModel(input, deps);
     const transcriptFile = new File([input.file], fileNameForMimeType(input.mimeType), {
       type: input.mimeType,
     });
     const response = await client.audio.transcriptions.create({
       file: transcriptFile,
-      model: resolveModel(input, deps),
+      model,
       // Pins the output language so a Korean word mid-sentence doesn't cause
       // Whisper-family models to switch the whole transcript to Korean — a
       // known failure mode with code-switched/bilingual audio.
@@ -270,7 +279,7 @@ export async function transcribeAudioFile(
       });
     }
 
-    return { ok: true, text, koreanSpans };
+    return { ok: true, text, koreanSpans, model, confidence };
   } catch {
     log("error", "audio.transcription_failed", { error: "transcription_failed" });
     return { ok: false, error: "transcription_failed" };
