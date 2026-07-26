@@ -1,6 +1,6 @@
 # Natural Conversation Policy Hardening
 
-**Status:** Implementation in progress; Tasks 1–7 complete
+**Status:** Implemented; automated verification complete; live UAT awaiting separate approval
 **Classification:** Consequential
 **Started:** 2026-07-26
 
@@ -114,6 +114,8 @@ short answers, or mechanically restating everything the learner said.
 - [x] Complete Task 5 same-question recording-recovery feedback and focused tests.
 - [x] Complete Task 6 structured one-detail Coco replies and focused tests.
 - [x] Complete Task 7 read-only attempt inspection evidence and safety tests.
+- [x] Complete Task 8 focused tests, full suite, typecheck, lint, build, and
+      observable-policy audit.
 
 ## Current position
 
@@ -121,13 +123,32 @@ The behavior design and its written specification were approved in chat on
 2026-07-26. The detailed test-first implementation plan is at
 `docs/superpowers/plans/2026-07-26-natural-conversation-policy.md`. Tasks 1–7
 are implemented in commits `3b447286`, `ad7e643a`, `45461b96`, `45cdae82`,
-`6edb614a`, `3150a25e`, and the current Task 7 commit. The remaining work is
-the integrated verification gate.
+`6edb614a`, `3150a25e`, and `ac8a4b5c`. Task 8 verification is complete:
+
+- Focused natural-conversation suite: 346 tests passed across 13 Vitest files;
+  attempt-report formatter: 2 Node tests passed.
+- Full suite: 1,127 tests passed, 4 skipped across 101 files.
+- `npm run typecheck`: passed.
+- `npm run lint`: passed with one pre-existing warning at
+  `scripts/check-student-feedback-states.mjs:435` (`label` unused).
+- `npm run build`: passed.
+- Observable-policy audit: passed for the supplied chocolate, incomplete
+  recording, family, Jenga, unsupported-detail, structured-reply, provenance,
+  and legacy-evidence cases.
+
+The full suite's runtime socket tests required the approved escalated local
+execution because the sandbox returned `EPERM` while binding a local port.
+
+Task 7's public-safe formatter and tests are committed in `ac8a4b5c`. The
+database inspection entrypoint remains ignored and local-only under the
+repository's explicit rule for one-off production DB management scripts; it
+was not force-added.
 
 The unrelated pre-existing working-tree modification at
 `.superpowers/sdd/task-1-report.md` remains untouched.
 
 ## Next step
 
-Continue with Task 8 using the approved inline execution plan. Do not begin
-paid-provider UAT without explicit approval.
+Request explicit approval naming the target Supabase environment before
+running the paid-provider localhost UAT. The UAT checklist remains unchecked;
+no provider UAT or external mutation has been performed.
