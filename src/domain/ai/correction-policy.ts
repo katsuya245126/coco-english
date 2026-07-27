@@ -160,6 +160,28 @@ const BE_VERBS = new Set([
   "been",
   "being",
 ]);
+/**
+ * Base-form verbs common in beginner ESL answers, used only as positive
+ * evidence that a completion has a predicate (see hasDeclarativeShape).
+ *
+ * Deliberately a closed list rather than morphology: English bare verbs are
+ * indistinguishable from nouns by shape ("play", "swim", "cook", "watch" are
+ * all both), so guessing would readmit the subject-plus-noun fragments this
+ * guard exists to reject. Missing a verb here is safe — it only falls back to
+ * the question-predicate and copula checks, which is the pre-existing
+ * behavior.
+ */
+const KNOWN_VERBS = new Set([
+  "play", "go", "eat", "drink", "read", "write", "watch", "swim", "run",
+  "walk", "sleep", "study", "cook", "draw", "sing", "dance", "jump", "ride",
+  "like", "love", "want", "need", "have", "make", "take", "see", "look",
+  "come", "get", "give", "help", "learn", "live", "meet", "buy", "visit",
+  "talk", "speak", "say", "tell", "ask", "think", "know", "feel", "work",
+  "start", "finish", "practice", "travel", "wear", "clean", "wash", "open",
+  "close", "listen", "climb", "build", "paint", "fish", "camp", "hike",
+  "rest", "relax", "enjoy", "stay", "sit", "stand", "hold", "find", "keep",
+  "bring", "send", "call", "use", "try", "wait", "show", "put", "let",
+]);
 const IRREGULAR_CONTENT_STEMS = new Map([
   ["no", "not"],
   ["not", "not"],
@@ -185,8 +207,59 @@ const IRREGULAR_CONTENT_STEMS = new Map([
   ["tying", "tie"],
 ]);
 
+/**
+ * Contractions expand to their component words before any policy check runs.
+ *
+ * WORD keeps apostrophes, so "I'm" tokenized as the single token "i'm", which
+ * is in neither FUNCTION_WORDS nor any transcript/question. contentWords()
+ * therefore kept it as a *content* word that could never be grounded, and
+ * "I'm going to play games." was reported as both fragment_ungrounded and
+ * target_pattern_padding while the identical "I am going to play games."
+ * passed clean (attempt 2b496b6d, 2026-07-27).
+ *
+ * That made every fragment completion toward a contracted target pattern —
+ * such as this project's "I'm going to ________" — unsatisfiable, so the turn
+ * exhausted its retries and surfaced to the child as "I didn't understand
+ * that."
+ *
+ * Expanding here rather than adding "i'm" to FUNCTION_WORDS is deliberate: the
+ * expansion also restores the real content word in cases like "don't" -> "not",
+ * which IRREGULAR_CONTENT_STEMS already expects to see.
+ */
+const CONTRACTIONS = new Map([
+  ["i'm", ["i", "am"]],
+  ["you're", ["you", "are"]],
+  ["we're", ["we", "are"]],
+  ["they're", ["they", "are"]],
+  ["he's", ["he", "is"]],
+  ["she's", ["she", "is"]],
+  ["it's", ["it", "is"]],
+  ["that's", ["that", "is"]],
+  ["i've", ["i", "have"]],
+  ["you've", ["you", "have"]],
+  ["we've", ["we", "have"]],
+  ["they've", ["they", "have"]],
+  ["i'll", ["i", "will"]],
+  ["you'll", ["you", "will"]],
+  ["we'll", ["we", "will"]],
+  ["they'll", ["they", "will"]],
+  ["i'd", ["i", "would"]],
+  ["you'd", ["you", "would"]],
+  ["don't", ["do", "not"]],
+  ["doesn't", ["does", "not"]],
+  ["didn't", ["did", "not"]],
+  ["isn't", ["is", "not"]],
+  ["aren't", ["are", "not"]],
+  ["wasn't", ["was", "not"]],
+  ["weren't", ["were", "not"]],
+  ["can't", ["can", "not"]],
+  ["won't", ["will", "not"]],
+  ["let's", ["let", "us"]],
+]);
+
 function words(text: string) {
-  return text.toLocaleLowerCase("en-US").match(WORD) ?? [];
+  const tokens = text.toLocaleLowerCase("en-US").match(WORD) ?? [];
+  return tokens.flatMap((token) => CONTRACTIONS.get(token) ?? [token]);
 }
 
 function normalized(text: string) {
@@ -362,7 +435,44 @@ function hasDeclarativeShape(sentence: string, missionQuestion: string | null) {
     copulaIndex < sentenceWords.length - 1 &&
     words(missionQuestion ?? "").some((word) => BE_VERBS.has(word));
 
-  return hasQuestionPredicate || hasGroundedCopula;
+  /*
+   * A clause is declarative when it has a verb — not when it happens to reuse
+   * the mission question's verb.
+   *
+   * The two checks above only recognize a predicate that echoes the question
+   * (or a copula the question also uses), so "I swim." for "What do you like
+   * to do?" was reported as fragment_not_declarative while the stilted "I want
+   * to swim." passed. Combined with the contraction bug fixed in words(), that
+   * left short child answers with no legal completion at all.
+   *
+   * The verb evidence below is additive: every case the original two checks
+   * accepted still passes. It only adds a third way to be declarative, so the
+   * subject-plus-noun fragments this guard exists to catch ("I pasta.",
+   * "I dinner.", "My car red.") still have no verb and stay rejected.
+   */
+  const hasOwnVerb = sentenceWords
+    .slice(1)
+    .some(
+      (word, index) =>
+        AUXILIARY_VERBS.has(word) ||
+        // A to-infinitive ("I want to play") marks the preceding word as a
+        // verb; the infinitive itself is covered by the suffix test below.
+        sentenceWords[index + 2] === "to" ||
+        KNOWN_VERBS.has(word) ||
+        [...inflectionBases(word)].some((base) => KNOWN_VERBS.has(base)) ||
+        // Inflections that only ever attach to verbs. Bare "-s" is excluded on
+        // purpose: it is ambiguous with plural nouns ("I games."), and the
+        // third-person cases in the suite ("cooks", "likes", "goes") are
+        // already grounded by the question predicate.
+        //
+        // The length floor keeps short words whose ending merely *looks*
+        // inflected from counting: "red" is an adjective, not the past tense
+        // of "r" ("My car red." must stay a fragment).
+        (/ing$/u.test(word) && word.length > 5) ||
+        (/ed$/u.test(word) && word.length > 4),
+    );
+
+  return hasQuestionPredicate || hasGroundedCopula || hasOwnVerb;
 }
 
 function hasTargetPatternPadding(
@@ -484,9 +594,25 @@ export function validateImprovedSentencePolicy(
       ...contentWords(input.transcript),
       ...contentWords(input.missionQuestion ?? ""),
     ];
+    /*
+     * Grounding is about invented *facts*, not invented grammar.
+     *
+     * Completing a fragment necessarily supplies the verb the child omitted:
+     * "Inside." -> "I play inside." must add "play", and no rule can require
+     * that verb to already appear in the transcript or the question. Requiring
+     * it made well-formed completions unsatisfiable, which is what surfaced to
+     * the child as "I didn't understand that."
+     *
+     * Only the supplied predicate is exempt. Every other content word — the
+     * nouns and modifiers that carry what the student actually claimed — still
+     * has to be grounded, so Coco still cannot invent a detail.
+     */
+    const suppliedVerb = (word: string) =>
+      KNOWN_VERBS.has(word) ||
+      [...inflectionBases(word)].some((base) => KNOWN_VERBS.has(base));
     if (
       contentWords(input.improvedSentence).some(
-        (word) => !includesRelatedWord(groundedWords, word),
+        (word) => !includesRelatedWord(groundedWords, word) && !suppliedVerb(word),
       )
     ) {
       addViolation("fragment_ungrounded");
@@ -496,7 +622,19 @@ export function validateImprovedSentencePolicy(
       addViolation("fragment_too_long");
     }
 
+    /*
+     * Conversation mode does not police the target pattern.
+     *
+     * The check exists to stop a preset mission from shoehorning its pattern
+     * into an answer the child never gave. In free-talking conversation the
+     * pattern is not something the student is being held to — the product
+     * decision (2026-07-27) is that free talking is allowed to drift off it —
+     * yet the check still fired on any completion that used a pattern word
+     * absent from the question, which for "I'm going to ________" meant every
+     * natural completion of a short answer was a violation.
+     */
     if (
+      input.evaluationMode !== "conversation" &&
       hasTargetPatternPadding(
         input.transcript,
         input.improvedSentence,

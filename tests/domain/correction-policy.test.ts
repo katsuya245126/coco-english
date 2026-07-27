@@ -279,10 +279,85 @@ describe("validateImprovedSentencePolicy", () => {
   it("rejects copied target-pattern padding", () => {
     const result = validateImprovedSentencePolicy({
       ...base,
+      // Preset, not the fixture's conversation default: free-talking
+      // conversation deliberately stopped policing the target pattern
+      // (2026-07-27). The padding rule still guards preset missions, which is
+      // the case this test exists for.
+      evaluationMode: "preset",
       targetPattern: "I'm going to _____ in the valley",
       improvedSentence: "I'm going to swim with my family in the valley.",
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.violations).toContain("target_pattern_padding");
+  });
+
+  it("does not police the target pattern in free-talking conversation", () => {
+    // Regression: attempt 2b496b6d (2026-07-27). "Play games." had no legal
+    // completion — using the mission's own "I'm going to ________" pattern was
+    // itself a violation — so the turn burned its retries and the child was
+    // told "I didn't understand that."
+    expect(
+      validateImprovedSentencePolicy({
+        ...base,
+        evaluationMode: "conversation",
+        missionQuestion:
+          "What fun things do you want to do this summer vacation?",
+        targetPattern: "I'm going to ________",
+        transcript: "Play games.",
+        improvedSentence: "I'm going to play games.",
+      }),
+    ).toEqual({ ok: true });
+  });
+
+  it("treats a contraction as its expanded words", () => {
+    // "I'm" tokenized as one unmatchable content word, so the contracted form
+    // was rejected while "I am ..." passed.
+    expect(
+      validateImprovedSentencePolicy({
+        ...base,
+        evaluationMode: "preset",
+        missionQuestion: "What are you going to do this summer?",
+        targetPattern: "I'm going to ________",
+        transcript: "Going to play games.",
+        improvedSentence: "I'm going to play games.",
+      }),
+    ).toEqual({ ok: true });
+  });
+
+  it("accepts a completion whose only new word is the supplied verb", () => {
+    expect(
+      validateImprovedSentencePolicy({
+        ...base,
+        missionQuestion:
+          "What fun things do you want to do this summer vacation?",
+        transcript: "Inside.",
+        improvedSentence: "I play inside.",
+      }),
+    ).toEqual({ ok: true });
+  });
+
+  it("still rejects a completion that invents a detail the student never gave", () => {
+    const result = validateImprovedSentencePolicy({
+      ...base,
+      missionQuestion:
+        "What fun things do you want to do this summer vacation?",
+      transcript: "Play games.",
+      improvedSentence: "I play games with my brother.",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violations).toContain("fragment_ungrounded");
+  });
+
+  it("accepts a bare declarative that does not echo the question's verb", () => {
+    // "I swim." was reported as fragment_not_declarative because the guard
+    // required the completion to reuse a verb from the mission question.
+    expect(
+      validateImprovedSentencePolicy({
+        ...base,
+        missionQuestion: "What do you like to do?",
+        transcript: "Swim.",
+        improvedSentence: "I swim.",
+      }),
+    ).toEqual({ ok: true });
   });
 });
