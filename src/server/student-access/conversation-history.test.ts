@@ -126,3 +126,95 @@ describe("buildConversationHistory", () => {
     ).toEqual({ ok: false, error: "invalid_history" });
   });
 });
+
+describe("withholding turns that were never understood (attempt 4c1f229e)", () => {
+  const priorTurn = (evaluation: unknown) => ({
+    turn_order: 1,
+    original_transcript: "발러런트",
+    improved_sentence: null,
+    coco_line: "Do you like to play games inside or outside?",
+    evaluation,
+  });
+
+  const build = (evaluation: unknown) =>
+    buildConversationHistory({
+      openerLine: "What kind of games are you going to play this summer?",
+      currentTurnOrder: 2,
+      currentStudentResponse: "Inside.",
+      priorTurns: [priorTurn(evaluation)],
+    });
+
+  it.each([["failed_schema"], ["provider_failed"], ["low_confidence"]])(
+    "withholds a prior turn left for teacher review (%s)",
+    (reviewReason) => {
+      const result = build({ outcome: "teacher_review", reviewReason });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.history[0]?.studentResponse).toBe("(not understood)");
+      // The current turn is untouched.
+      expect(result.history[1]?.studentResponse).toBe("Inside.");
+    },
+  );
+
+  it.each([
+    ["the jsonb column default", {}],
+    ["null", null],
+    ["undefined", undefined],
+    ["an unexpected array", []],
+    ["an accepted turn", { outcome: "accepted_original" }],
+    ["a corrected turn", { outcome: "needs_correction" }],
+  ])("keeps the answer for %s", (_label, evaluation) => {
+    const result = build(evaluation);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.history[0]?.studentResponse).toBe("발러런트");
+  });
+
+  it("keeps a withheld turn withheld on every later turn", () => {
+    // The original defect: masking only the latest turn let an unusable answer
+    // return as trusted grounding one turn later and reach the closing recap.
+    const result = buildConversationHistory({
+      openerLine: "What kind of games are you going to play this summer?",
+      currentTurnOrder: 3,
+      currentStudentResponse: "It's fun.",
+      priorTurns: [
+        priorTurn({ outcome: "teacher_review", reviewReason: "failed_schema" }),
+        {
+          turn_order: 2,
+          original_transcript: "Inside",
+          improved_sentence: "I like to play games inside.",
+          coco_line: "Thanks for telling me! What do you like about that?",
+          evaluation: { outcome: "accepted_repeat" },
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.history[0]?.studentResponse).toBe("(not understood)");
+    expect(result.history[1]?.studentResponse).toBe(
+      "I like to play games inside.",
+    );
+  });
+
+  it("still rejects a prior turn with no transcript at all", () => {
+    expect(
+      buildConversationHistory({
+        openerLine: "What will you do?",
+        currentTurnOrder: 2,
+        currentStudentResponse: "Inside.",
+        priorTurns: [
+          {
+            turn_order: 1,
+            original_transcript: null,
+            improved_sentence: null,
+            coco_line: "Where?",
+            evaluation: { outcome: "teacher_review" },
+          },
+        ],
+      }),
+    ).toEqual({ ok: false, error: "invalid_history" });
+  });
+});

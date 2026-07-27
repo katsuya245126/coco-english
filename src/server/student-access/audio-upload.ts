@@ -865,7 +865,9 @@ export async function uploadAttemptAudioClip(
       const { data, error } = await timeStage("conversationHistoryLookup", () =>
         supabase
           .from("attempt_turns")
-          .select("turn_order, original_transcript, improved_sentence, coco_line")
+          .select(
+            "turn_order, original_transcript, improved_sentence, coco_line, evaluation",
+          )
           .eq("attempt_id", input.attemptId)
           .lt("turn_order", input.turnOrder)
           .order("turn_order", { ascending: true }),

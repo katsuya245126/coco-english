@@ -153,6 +153,7 @@ function createMockSupabase(options: {
     original_transcript: string | null;
     improved_sentence: string | null;
     coco_line: string | null;
+    evaluation?: unknown;
   }>;
   historyLookupError?: { message: string } | null;
   cocoLineUpsertError?: { message: string } | null;
@@ -1570,6 +1571,68 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         ),
     );
     expect(historyRead?.filters).toContainEqual(["turn_order<", 2]);
+  });
+
+  it("hands a prior teacher-review turn to generation as not understood", async () => {
+    // End-to-end wiring for attempt 4c1f229e: the history select must fetch
+    // `evaluation`, and buildConversationHistory must mask the unusable answer
+    // so it can never ground a later line or the closing recap.
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        turns: [
+          {
+            ...conversationMissionSnapshotFixture.turns[0],
+            prompt: "What games are you going to play this summer?",
+          },
+        ],
+      },
+      previousTurns: [
+        {
+          turn_order: 1,
+          original_transcript: "발러런트",
+          improved_sentence: null,
+          coco_line: "Do you like to play games inside or outside?",
+          evaluation: {
+            outcome: "teacher_review",
+            reviewReason: "failed_schema",
+          },
+        },
+      ],
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "Thanks for telling me! What do you like about that?" },
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+      transcribeAudioFile: successfulTranscriber("Inside."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationHistory: [
+          expect.objectContaining({
+            turnOrder: 1,
+            studentResponse: "(not understood)",
+          }),
+          expect.objectContaining({
+            turnOrder: 2,
+            studentResponse: "Inside.",
+          }),
+        ],
+      }),
+    );
   });
 
   it("returns a retryable database error when conversation history lookup fails", async () => {
