@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   HARD_TURN_CAP,
+  WITHHELD_STUDENT_RESPONSE,
   buildConversationPrompt,
   conversationReplyMode,
   conversationTurnInputSchema,
@@ -314,6 +315,365 @@ describe("multi_detail_echo list-parrot scope (attempt 4c1f229e turn 4)", () => 
   });
 });
 
+/*
+ * Evidence: inspect-attempts 2026-07-27. Six of twenty-five logged turns closed
+ * a meaningful answer with an either/or or yes/no question, and in three of them
+ * the closed question directly produced the next degenerate answer:
+ *
+ *   bbc0c5a7 t2 "Do you go swimming in the sea with your family or friends?"
+ *     -> "Yes, I do."      (teacher_review, failed_schema)
+ *   e947a05d t3 "Do you like to swim fast or slow?"
+ *     -> "I can't swim."   (closed the topic)
+ *   e947a05d t4 "Are you going to take swimming lessons?"
+ *     -> "No, I'm not."    (nothing left to react to)
+ *
+ * The rule is contextual, not absolute: a closed question is the correct
+ * recovery move when the learner is vague, stuck, or was not understood.
+ */
+describe("either/or is recovery-only after a meaningful answer (2026-07-27 log)", () => {
+  it("rejects the logged Valorant either/or after a meaningful answer", () => {
+    const result = validateGeneratedCocoReplyParts(
+      {
+        reaction: "You like to play Valorant with your friend.",
+        focus: "Valorant",
+        question:
+          "Do you and your friend play Valorant at each other's homes or online?",
+      },
+      {
+        expectsQuestion: true,
+        activeQuestion: "Where do you like to play Valorant with your friend?",
+        latestStudentResponse: "I like to play Valorant with my friend.",
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reasons).toContain("either_or_question");
+  });
+
+  it("accepts the simplest WH question that asks for the same new detail", () => {
+    expect(
+      validateGeneratedCocoReplyParts(
+        {
+          reaction: "That sounds fun!",
+          focus: "Valorant",
+          question: "Where do you play Valorant?",
+        },
+        {
+          expectsQuestion: true,
+          activeQuestion: "Who do you like to play Valorant with this summer?",
+          latestStudentResponse: "I like to play Valorant with my friend.",
+        },
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  it("rejects a yes/no follow-up after a meaningful answer", () => {
+    // e947a05d turn 4. "Are you going to take swimming lessons?" can only be
+    // answered "No, I'm not.", which is what the learner said.
+    const result = validateGeneratedCocoReplyParts(
+      {
+        reaction: "That's okay. You can learn to swim this summer.",
+        focus: "swimming",
+        question: "Are you going to take swimming lessons?",
+      },
+      {
+        expectsQuestion: true,
+        activeQuestion: "Do you like to swim fast or slow?",
+        latestStudentResponse: "I can't swim.",
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reasons).toContain("either_or_question");
+  });
+
+  it("still allows either/or as a recovery move after a vague answer", () => {
+    // The documented recovery from the system prompt's own worked example.
+    expect(
+      validateGeneratedCocoReplyParts(
+        {
+          reaction: "Lots of things!",
+          focus: null,
+          question: "Do you talk about games or school?",
+        },
+        {
+          expectsQuestion: true,
+          activeQuestion: "What do you and Minju talk about?",
+          latestStudentResponse: "Anything.",
+        },
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  it("allows either/or when the latest response was withheld as not understood", () => {
+    expect(
+      validateGeneratedCocoReplyParts(
+        {
+          reaction: "That's okay!",
+          focus: null,
+          question: "Do you swim in the sea or in a pool?",
+        },
+        {
+          expectsQuestion: true,
+          activeQuestion: "Where do you like to swim?",
+          latestStudentResponse: WITHHELD_STUDENT_RESPONSE,
+        },
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  it("allows either/or after an answer that only rejects the topic", () => {
+    // "I don't know." carries no detail to build an open question on.
+    expect(
+      validateGeneratedCocoReplyParts(
+        {
+          reaction: "That's okay.",
+          focus: null,
+          question: "Do you want to go to the park or stay inside?",
+        },
+        {
+          expectsQuestion: true,
+          activeQuestion: "What are you going to do this summer vacation?",
+          latestStudentResponse: "I don't know.",
+        },
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  /*
+   * A bare "Yes."/"No."/"Maybe."/"Hmm." answers the question but hands Coco no
+   * detail to build an open question on — the same situation as a vague answer.
+   * Treating those as meaningful locked recovery scaffolding out of exactly the
+   * turns that need it most, since a one-word reply is the strongest signal the
+   * learner is stuck.
+   */
+  it("allows either/or recovery after a bare 'Yes.'", () => {
+    // bbc0c5a7 t2's actual degenerate answer. The next turn must be able to
+    // offer two concrete choices rather than being forced open.
+    expect(
+      validateGeneratedCocoReplyParts(
+        {
+          reaction: "Nice!",
+          focus: null,
+          question: "Do you swim with your family or your friends?",
+        },
+        {
+          expectsQuestion: true,
+          activeQuestion: "Do you go swimming in the sea with your family?",
+          latestStudentResponse: "Yes.",
+        },
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  it("does not treat 'Maybe.' or 'Hmm.' as a meaningful answer", () => {
+    for (const latestStudentResponse of ["Maybe.", "Hmm.", "No.", "Okay."]) {
+      expect(
+        validateGeneratedCocoReplyParts(
+          {
+            reaction: "That's okay!",
+            focus: null,
+            question: "Do you want to talk about games or school?",
+          },
+          {
+            expectsQuestion: true,
+            activeQuestion: "What do you like to do after school?",
+            latestStudentResponse,
+          },
+        ),
+      ).toEqual({ ok: true });
+    }
+  });
+
+  it("still treats a real one-word answer as meaningful", () => {
+    // "Soccer." and "At school." are short but carry a detail, so the closed
+    // follow-up is still rejected and Coco must ask an open question.
+    for (const latestStudentResponse of ["Soccer.", "At school."]) {
+      const result = validateGeneratedCocoReplyParts(
+        {
+          reaction: "Nice!",
+          focus: null,
+          question: "Do you play soccer inside or outside?",
+        },
+        {
+          expectsQuestion: true,
+          activeQuestion: "What do you like to do after school?",
+          latestStudentResponse,
+        },
+      );
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reasons).toContain("either_or_question");
+    }
+  });
+
+  it("treats a minimal word as meaningful when a detail follows it", () => {
+    // "Yes, I play soccer." leads with a minimal word but still gives Coco
+    // something to explore, so the closed follow-up stays rejected.
+    const result = validateGeneratedCocoReplyParts(
+      {
+        reaction: "Nice!",
+        focus: null,
+        question: "Do you play soccer inside or outside?",
+      },
+      {
+        expectsQuestion: true,
+        activeQuestion: "Do you play soccer after school?",
+        latestStudentResponse: "Yes, I play soccer.",
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reasons).toContain("either_or_question");
+  });
+
+  it("does not flag an open question that merely contains the word 'or'", () => {
+    expect(
+      validateGeneratedCocoReplyParts(
+        {
+          reaction: "Sea swimming sounds cool!",
+          focus: "sea",
+          question: "What do you see in the sea or under the water?",
+        },
+        {
+          expectsQuestion: true,
+          activeQuestion: "Where do you like to swim?",
+          latestStudentResponse: "I like to swim in the sea.",
+        },
+      ),
+    ).toEqual({ ok: true });
+  });
+});
+
+/*
+ * Evidence: inspect-attempts 2026-07-27, three restatement reactions —
+ *   ffeccaf0 t4 "You like to play Valorant with your friend."
+ *   ffeccaf0 t5 "You usually play Valorant online with your friend."
+ *   e947a05d t5 "I understand you are not going to take swimming lessons this summer."
+ *
+ * These mirror the learner's own sentence back in the second person and add
+ * nothing. The check keys on that shape, not on detail overlap, so genuine
+ * short acknowledgements that happen to reuse the learner's nouns still pass.
+ */
+describe("restatement reactions (2026-07-27 log)", () => {
+  it("rejects a second-person mirror of the learner's answer", () => {
+    const result = validateGeneratedCocoReplyParts(
+      {
+        reaction: "You like to play Valorant with your friend.",
+        focus: "Valorant",
+        question: "Where do you play Valorant?",
+      },
+      {
+        expectsQuestion: true,
+        activeQuestion: "Who do you play Valorant with?",
+        latestStudentResponse: "I like to play Valorant with my friend.",
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reasons).toContain("restatement_reaction");
+  });
+
+  it("rejects an 'I understand you ...' recap of the answer", () => {
+    const result = validateGeneratedCocoReplyParts(
+      {
+        reaction:
+          "I understand you are not going to take swimming lessons this summer.",
+        focus: null,
+        question: null,
+      },
+      {
+        expectsQuestion: false,
+        requireClosingGrounding: true,
+        latestStudentResponse: "No, I'm not.",
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reasons).toContain("restatement_reaction");
+  });
+
+  it("accepts the natural short acknowledgement that must not regress", () => {
+    // The 4c1f229e worked example. Reuses the learner's nouns but adds Coco's
+    // own stance, so it is a reaction rather than a mirror.
+    expect(
+      validateGeneratedCocoReplyParts(
+        {
+          reaction: "Playing games inside sounds fun.",
+          focus: "games",
+          question: "What games do you play inside?",
+        },
+        {
+          expectsQuestion: true,
+          activeQuestion: "Do you like to play games inside or outside?",
+          latestStudentResponse: "I play games inside.",
+        },
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  /*
+   * KNOWN GAP — pre-existing false positive, deliberately not fixed here.
+   *
+   * e829c7b1 turn 2 (2026-07-27 log): the learner said "I will swim and eat
+   * very tasty food." and Coco's reaction "Swimming and eating tasty food
+   * sounds great!" was discarded as multi_detail_echo + response_summary. The
+   * learner was served a canned fallback instead, after two paid calls.
+   *
+   * That is a reasonable, natural acknowledgement and should be accepted. The
+   * cause is the older echo rule, not the restatement rule added in this pass:
+   * a three-detail answer trips the >=3-detail threshold even when the reaction
+   * is a genuine reaction rather than a recap. Fixing it means retuning
+   * multi_detail_echo/response_summary, which is out of scope for this change.
+   *
+   * This test asserts the CURRENT (wrong) behavior on purpose so the gap is
+   * visible and the day it is fixed this test fails and gets flipped. It also
+   * pins the one thing this pass is responsible for: restatement_reaction must
+   * not be among the reasons.
+   */
+  it("documents the pre-existing echo false positive on a natural acknowledgement", () => {
+    const result = validateGeneratedCocoReplyParts(
+      {
+        reaction: "Swimming and eating tasty food sounds great!",
+        focus: "swim",
+        question: "Who do you swim with at the beach?",
+      },
+      {
+        expectsQuestion: true,
+        activeQuestion: "What will you do at the beach this summer?",
+        latestStudentResponse: "I will swim and eat very tasty food.",
+      },
+    );
+
+    // Current behavior: rejected. Should be { ok: true } once the echo
+    // thresholds are retuned — see the follow-up note above.
+    expect(result).toEqual({
+      ok: false,
+      reasons: ["multi_detail_echo", "response_summary"],
+    });
+    if (!result.ok) {
+      expect(result.reasons).not.toContain("restatement_reaction");
+    }
+  });
+
+  it("accepts a second-person reaction that adds Coco's own stance", () => {
+    expect(
+      validateGeneratedCocoReplyParts(
+        {
+          reaction: "You sound excited about the beach!",
+          focus: "beach",
+          question: "What do you like most at the beach?",
+        },
+        {
+          expectsQuestion: true,
+          activeQuestion: "What will you do this summer?",
+          latestStudentResponse: "I am going to the beach.",
+        },
+      ),
+    ).toEqual({ ok: true });
+  });
+});
+
 describe("conversation history generation contract", () => {
   it("accepts ordered history and places the complete history in the prompt", () => {
     expect(conversationTurnInputSchema.safeParse(input).success).toBe(true);
@@ -400,7 +760,9 @@ describe("conversation history generation contract", () => {
 
     expect(instructions).toContain("open question");
     expect(instructions).toContain("short phrase or sentence");
-    expect(instructions).toContain("Do not default to yes/no or either/or questions");
+    expect(instructions).toContain(
+      "Do not ask a yes/no or either/or question; those are for when the learner is vague, stuck, or was not understood.",
+    );
     expect(instructions).toContain("What games do you play inside?");
   });
 
@@ -429,7 +791,10 @@ describe("conversation history generation contract", () => {
     ).toEqual({ ok: true });
   });
 
-  it("accepts one relevant either-or question and still rejects either-or drift", () => {
+  it("rejects an either-or after a meaningful answer and still rejects either-or drift", () => {
+    // Policy reversal (2026-07-27 attempt log): an either/or after a
+    // meaningful answer is no longer allowed. "I play soccer at school."
+    // is a real detail, so the follow-up must be an open question.
     expect(
       validateGeneratedCocoReplyLine(
         "Soccer sounds fun! Do you play inside or outside?",
@@ -439,7 +804,7 @@ describe("conversation history generation contract", () => {
           latestStudentResponse: "I play soccer at school.",
         },
       ),
-    ).toEqual({ ok: true });
+    ).toEqual({ ok: false, reasons: ["either_or_question"] });
 
     expect(
       validateGeneratedCocoReplyLine(
@@ -450,7 +815,12 @@ describe("conversation history generation contract", () => {
           latestStudentResponse: "I play soccer at school.",
         },
       ),
-    ).toEqual({ ok: false, reasons: ["topic_drift"] });
+      // Both apply: the question drifts off soccer *and* closes a meaningful
+      // answer with a choice.
+    ).toEqual({
+      ok: false,
+      reasons: ["topic_drift", "either_or_question"],
+    });
   });
 
   it("rejects a comma before a new question clause as a run-on", () => {
@@ -597,9 +967,13 @@ describe("conversation history generation contract", () => {
   });
 
   it("allows a vague word Coco introduces when the student was not vague", () => {
+    // Phrased as an open question that still contains "anything": after the
+    // meaningful answer "I play soccer." a closed follow-up is rejected on its
+    // own grounds, which would mask what this case is about — Coco may use a
+    // vague word himself, he just may not echo the learner's.
     expect(
       validateGeneratedCocoReplyLine(
-        "Soccer is fun! Do you play anything else after school?",
+        "Soccer is fun! Why do you like playing soccer more than anything else?",
         {
           expectsQuestion: true,
           activeQuestion: "What do you do after school?",

@@ -95,13 +95,12 @@ export type ParseGeneratedCocoReplyResult =
 export type GeneratedCocoReplyLineViolation =
   | "question_format"
   | "run_on_question"
-  // Retained only so historical stored moderation events remain type-readable;
-  // the validator no longer produces this reason (see Task 3 policy repair).
   | "either_or_question"
   | "topic_drift"
   | "vague_echo"
   | "multi_detail_echo"
   | "response_summary"
+  | "restatement_reaction"
   | "stacked_generic_reaction"
   | "closing_ungrounded"
   | "focus_mismatch"
@@ -205,6 +204,119 @@ function echoesVagueResponse(line: string, latestStudentResponse?: string) {
 
   const reactionWords = new Set(normalizedWords(reaction));
   return studentVagueWords.some((word) => reactionWords.has(word));
+}
+
+/**
+ * Bare replies that answer the question without adding a detail to build on.
+ *
+ * Kept separate from VAGUE_RESPONSE_WORDS on purpose: that set also drives
+ * echoesVagueResponse, where a reaction repeating the learner's word is a
+ * violation. "Yes!" in a reaction is fine, so these words must not leak into
+ * the vague-echo rule.
+ */
+const MINIMAL_RESPONSE_WORDS = new Set([
+  "yes", "yeah", "yep", "yup", "no", "nope", "nah",
+  "maybe", "okay", "ok", "sure", "hmm", "hm", "um", "uh", "dunno",
+]);
+
+/**
+ * True when the learner's latest answer carries a real detail to build an open
+ * question on.
+ *
+ * Not meaningful: a withheld/unusable transcript, a bare "I don't know", a
+ * vague non-answer ("Anything."), a bare minimal reply ("Yes.", "Maybe."), or
+ * anything with no content word left after stop-word removal. Those are exactly
+ * the cases where a two-choice question is the right scaffold, so they keep
+ * permitting either/or.
+ *
+ * A minimal word only disqualifies an answer when it is the *whole* answer:
+ * "Yes, I play soccer." leads with "yes" but still hands Coco a detail.
+ */
+function latestResponseIsMeaningful(latestStudentResponse?: string) {
+  const normalized = latestStudentResponse?.trim() ?? "";
+  if (normalized.length === 0) return false;
+  if (normalized === WITHHELD_STUDENT_RESPONSE) return false;
+
+  const words = normalizedWords(normalized);
+  if (words.length === 0) return false;
+
+  // "I don't know." / "I'm not sure." carry no detail even though "know" and
+  // "sure" survive stop-word filtering.
+  if (/\b(?:don'?t|do not)\s+know\b/iu.test(normalized)) return false;
+  if (/\bnot\s+sure\b/iu.test(normalized)) return false;
+
+  // "Yes." / "Maybe." / "Hmm." answer the question but leave nothing to explore,
+  // which is precisely when two concrete choices are the right scaffold.
+  if (words.every((word) => MINIMAL_RESPONSE_WORDS.has(word))) return false;
+
+  const details = contentWords(normalized).filter(
+    (word) => !VAGUE_RESPONSE_WORDS.has(word) && !MINIMAL_RESPONSE_WORDS.has(word),
+  );
+  return details.length > 0;
+}
+
+/**
+ * True when the question forces a choice between two offered options, or can
+ * only be answered yes/no.
+ *
+ * "or" alone is not enough — "What do you see in the sea or under the water?"
+ * is an open question. The signal is a closed opener (auxiliary + pronoun, with
+ * no WH word in front of it), optionally combined with an "X or Y" choice.
+ */
+const CLOSED_QUESTION_OPENER =
+  /^\s*(?:and\s+|so\s+|but\s+)?(?:do|does|did|can|could|would|will|are|is|was|were|have|has|should)\s+(?:you|your|he|she|they|we|it)\b/iu;
+
+function isClosedQuestion(question: string | null) {
+  const normalized = question?.trim() ?? "";
+  if (normalized.length === 0) return false;
+
+  // A WH word anywhere before the auxiliary makes it open ("Where do you ...?").
+  if (/^\s*(?:who|what|when|where|why|how|which)\b/iu.test(normalized)) {
+    return false;
+  }
+
+  return CLOSED_QUESTION_OPENER.test(normalized);
+}
+
+/**
+ * True when Coco's reaction merely mirrors the learner's own sentence back in
+ * the second person, adding no reaction of his own.
+ *
+ * Shape-based on purpose. Detail overlap cannot separate a mirror from a
+ * genuine acknowledgement — "Playing games inside sounds fun." reuses every
+ * noun the learner said and is exactly the line the prompt asks for. What marks
+ * a mirror is a second-person declarative ("You like to play ...", "I
+ * understand you are not going to ...") with no evaluative word carrying Coco's
+ * own stance.
+ */
+const REACTION_STANCE_PATTERN =
+  /\b(?:sounds?|sound|fun|great|nice|cool|good|delicious|tasty|exciting|awesome|wonderful|amazing|happy|glad|love|like\s+that|wow|yay|interesting|funny|excited|brave|clever)\b/iu;
+
+const SECOND_PERSON_MIRROR_PATTERN =
+  /(?:^|\.\s*|!\s*)(?:i\s+(?:understand|see|hear)\s+(?:that\s+)?)?you\s+(?:are|were|will|can|do|don'?t|usually|often|always|like|play|go|going|eat|want|have|swim)\b/iu;
+
+function mirrorsResponseInSecondPerson(
+  reaction: string | null,
+  latestStudentResponse?: string,
+) {
+  const normalized = reaction?.trim() ?? "";
+  if (normalized.length === 0) return false;
+  if (!SECOND_PERSON_MIRROR_PATTERN.test(normalized)) return false;
+
+  // Coco's own stance anywhere in the reaction redeems it: "You sound excited
+  // about the beach!" is a reaction, not a recap.
+  if (REACTION_STANCE_PATTERN.test(normalized)) return false;
+
+  // Require that the mirror actually replays the learner's content, so an
+  // unrelated second-person remark is not swept up.
+  const responseDetails = distinctContentWords(latestStudentResponse ?? "");
+  if (responseDetails.length === 0) return false;
+  const reactionDetails = distinctContentWords(normalized);
+  return responseDetails.some((responseWord) =>
+    reactionDetails.some((reactionWord) =>
+      relatedContentWord(responseWord, reactionWord),
+    ),
+  );
 }
 
 function latestQuestionText(text: string) {
@@ -320,6 +432,31 @@ export function validateGeneratedCocoReplyParts(
     reasons.push("vague_echo");
   }
 
+  /*
+   * Either/or and yes/no follow-ups are a recovery move, not a default.
+   *
+   * Evidence (inspect-attempts 2026-07-27): six of twenty-five turns closed a
+   * meaningful answer with a closed question, and three of those directly
+   * produced the next degenerate answer — "Do you go swimming in the sea with
+   * your family or friends?" -> "Yes, I do.", which then cost a teacher review.
+   * After a real detail the follow-up must be an open WH question; when the
+   * learner is vague, stuck, or was not understood, two concrete choices remain
+   * the correct scaffold.
+   */
+  if (
+    options.expectsQuestion &&
+    isClosedQuestion(parts.question) &&
+    latestResponseIsMeaningful(options.latestStudentResponse)
+  ) {
+    reasons.push("either_or_question");
+  }
+
+  if (
+    mirrorsResponseInSecondPerson(parts.reaction, options.latestStudentResponse)
+  ) {
+    reasons.push("restatement_reaction");
+  }
+
   if (options.expectsQuestion && parts.reaction) {
     const responseDetails = distinctContentWords(options.latestStudentResponse ?? "");
     const reactionDetails = distinctContentWords(parts.reaction);
@@ -427,10 +564,15 @@ export function validateGeneratedCocoReplyLine(
   );
   if (result.ok) return result;
 
+  // Reasons that depend on the structured reaction/focus/question split are
+  // dropped here, because this validator reconstructs those parts heuristically
+  // from a flat line. either_or_question survives: it is derived from the
+  // question text alone, which questionPartsFromLine recovers reliably.
   const legacyReasons = result.reasons.filter(
     (reason) =>
       reason !== "multi_detail_echo" &&
       reason !== "response_summary" &&
+      reason !== "restatement_reaction" &&
       reason !== "stacked_generic_reaction" &&
       reason !== "focus_mismatch",
   );
@@ -604,7 +746,11 @@ export function buildConversationPrompt(input: GenerateCocoReplyInput) {
       "Before the closing turn, acknowledge the latest studentResponse, then ask exactly one question for new information whose answer is not present or directly implied anywhere in conversationHistory.",
       "Before the closing turn, after a meaningful answer, ask an open question that connects directly to the answer and invites a short phrase or sentence.",
       "Before the closing turn, treat a short answer as meaningful when it adds a real detail; after 'Inside.', ask an expandable question such as 'What games do you play inside?'.",
-      "Do not default to yes/no or either/or questions after a meaningful answer.",
+      "After a meaningful answer, ask an open WH question. Do not ask a yes/no or either/or question; those are for when the learner is vague, stuck, or was not understood.",
+      "Ask the simplest question that gets one new detail. Prefer 'Where do you play Valorant?' over 'Do you and your friend play Valorant at each other's homes or online?'.",
+      "Keep the question concrete; avoid abstract or hypothetical questions such as 'What do you like about that?'.",
+      "React to the student's answer; never restate it back to them in the second person.",
+      "Do not repeat a detail in the question that the reaction already stated, and do not write 'your' in front of something the student would call 'my'.",
       "Treat vague replies such as 'anything', 'something', or 'stuff' as minimally informative; do not echo the vague word as if it were a meaningful detail.",
       "Before the closing turn, acknowledge lightly, then ask one short scene-relevant narrowing question. Use two concrete child-friendly choices only when the latest response is vague, unclear, or shows the learner is stuck.",
       "Do not shame the learner or demand a more specific answer.",

@@ -347,13 +347,25 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     expect(client.responses.parse).toHaveBeenCalledTimes(2);
   });
 
-  it("accepts a relevant either-or line with a single provider call", async () => {
+  it("regenerates an on-topic either-or that closes a meaningful answer", async () => {
+    // Policy reversal (2026-07-27 attempt log): staying on topic is no longer
+    // enough. "I play soccer at school." is a real detail, so the follow-up
+    // must be open even though the either-or was perfectly relevant.
     const { generateCocoReply } = await import("@/server/ai/conversation-generator");
-    const client = createFakeClient(async () => ({
-      output_parsed: {
-        line: "Soccer sounds fun! Do you play inside or outside?",
-      },
-    }));
+    const client = createFakeClient(
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          output_parsed: {
+            line: "Soccer sounds fun! Do you play inside or outside?",
+          },
+        })
+        .mockResolvedValueOnce({
+          output_parsed: {
+            line: "Soccer sounds fun! Where do you play soccer at school?",
+          },
+        }),
+    );
 
     const result = await generateCocoReply(
       {
@@ -372,7 +384,40 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
 
     expect(result).toMatchObject({
       ok: true,
-      reply: { line: "Soccer sounds fun! Do you play inside or outside?" },
+      reply: { line: "Soccer sounds fun! Where do you play soccer at school?" },
+    });
+    expect(client.responses.parse).toHaveBeenCalledTimes(2);
+    expect(
+      vi.mocked(client.responses.parse).mock.calls[1]?.[0].input[0]?.content,
+    ).toContain("closed a meaningful answer");
+  });
+
+  it("keeps an either-or when the learner's latest answer was vague", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(async () => ({
+      output_parsed: {
+        line: "Lots of things! Do you talk about games or school?",
+      },
+    }));
+
+    const result = await generateCocoReply(
+      {
+        ...baseInput,
+        turnOrder: 1,
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "What do you and Minju talk about?",
+            studentResponse: "Anything.",
+          },
+        ],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      reply: { line: "Lots of things! Do you talk about games or school?" },
     });
     expect(client.responses.parse).toHaveBeenCalledTimes(1);
   });
@@ -492,8 +537,12 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     const user = call?.input.find((message) => message.role === "user")?.content ?? "{}";
     const prompt = JSON.parse(user) as { instructions?: string[] };
 
+    // The system message must not re-grant what the policy now forbids: an
+    // earlier version allowed "a single either-or question" while the domain
+    // instructions banned it, and the model followed the permission.
+    expect(system).not.toContain("either-or question is allowed");
     expect(system).toContain(
-      "Prefer an open question after a meaningful answer. A single either-or question is allowed when both choices are relevant and child-friendly.",
+      "Do not ask an either-or or yes/no question; save those for when the learner is vague, stuck, or was not understood.",
     );
     for (const fragment of [
       "open question",
@@ -617,7 +666,9 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     expect(result).toEqual({
       ok: false,
       error: "reply_policy_failed",
-      violations: ["question_format"],
+      // Both apply after the meaningful answer "I draw pictures.": two
+      // question marks, and a closed opener where an open one is required.
+      violations: ["question_format", "either_or_question"],
       rejectedAttempt: "corrected",
       rejectedCandidate: {
         reaction: null,
@@ -826,6 +877,54 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
       reply: { line: "You can play tag or hide. What game do you play?" },
     });
     expect(client.responses.parse).toHaveBeenCalledTimes(1);
+  });
+
+  it("regenerates a reaction that restates the learner's answer back to them", async () => {
+    // ffeccaf0 turn 4: "You like to play Valorant with your friend." repeated
+    // the learner's own sentence in the second person and added nothing.
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          output_parsed: {
+            reaction: "You like to play Valorant with your friend.",
+            focus: "Valorant",
+            question: "Where do you play Valorant?",
+          },
+        })
+        .mockResolvedValueOnce({
+          output_parsed: {
+            reaction: "That sounds fun!",
+            focus: "Valorant",
+            question: "Where do you play Valorant?",
+          },
+        }),
+    );
+
+    const result = await generateCocoReply(
+      {
+        ...baseInput,
+        turnOrder: 1,
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "Who do you play Valorant with?",
+            studentResponse: "I like to play Valorant with my friend.",
+          },
+        ],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      reply: { line: "That sounds fun! Where do you play Valorant?" },
+    });
+    expect(client.responses.parse).toHaveBeenCalledTimes(2);
+    expect(
+      vi.mocked(client.responses.parse).mock.calls[1]?.[0].input[0]?.content,
+    ).toContain("restated the student's own answer");
   });
 
   it("returns reply_policy_failed with reasons when correction still violates policy", async () => {

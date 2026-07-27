@@ -108,7 +108,13 @@ const CONVERSATION_SYSTEM_MESSAGE = [
   "Before the closing turn, ask exactly one short question for genuinely new information whose answer is not present or directly implied anywhere in conversationHistory.",
   "Before the closing turn, after a meaningful answer, ask an open question that connects directly to the answer and invites a short phrase or sentence.",
   "Before the closing turn, treat a short answer as meaningful when it adds a real detail; after 'Inside.', ask an expandable question such as 'What games do you play inside?'.",
-  "Prefer an open question after a meaningful answer. A single either-or question is allowed when both choices are relevant and child-friendly.",
+  "After a meaningful answer, ask an open WH question (who, what, when, where, why, how). Do not ask an either-or or yes/no question; save those for when the learner is vague, stuck, or was not understood.",
+  "Ask the simplest question that gets one new detail. Prefer 'Where do you play Valorant?' over 'Do you and your friend play Valorant at each other's homes or online?'.",
+  "Keep the question concrete. Do not ask abstract, hypothetical, or feelings-about-feelings questions such as 'What do you like about that?' or 'What do you do to feel better when you feel like a blob?'.",
+  "Do not put a detail in the question that the reaction already stated, and do not re-ask for a detail the student already gave.",
+  "Do not write 'your' in front of a thing the student owns when they would have to answer with 'my'. Say 'Where do you play Valorant?', not 'Where do you play Valorant with your friend?'.",
+  "React to the student's answer; never restate it back to them. 'You like to play Valorant with your friend.' is a recap, not a reaction — say 'That sounds fun!' instead.",
+  "Do not use recovery framing such as 'I didn't understand that' after an answer you did understand, and never ask the same question twice.",
   "Treat vague replies such as 'anything', 'something', or 'stuff' as minimally informative; do not echo the vague word as if it were a meaningful detail.",
   "Before the closing turn, acknowledge lightly, then ask one short scene-relevant narrowing question. Use two concrete child-friendly choices only when the latest response is vague, unclear, or shows the learner is stuck.",
   "Do not shame the learner or demand a more specific answer.",
@@ -144,7 +150,9 @@ const VIOLATION_CORRECTION_HINTS: Record<
   run_on_question:
     "The previous candidate ran a reaction straight into the question without sentence-ending punctuation between them. Put \".\", \"!\", or \"?\" between the reaction and the question.",
   either_or_question:
-    "The previous candidate used an invalid either/or question after a meaningful student detail. Ask a single open question instead — do not offer a choice with \"or\".",
+    "The previous candidate closed a meaningful answer with an either/or or yes/no question, which a child can answer with one word. Ask the simplest open WH question that gets one new detail instead — for example \"Where do you play Valorant?\" rather than \"Do you and your friend play Valorant at each other's homes or online?\".",
+  restatement_reaction:
+    "The reaction restated the student's own answer back to them in the second person (\"You like to play Valorant with your friend.\"), which adds nothing. React to it instead — \"That sounds fun!\" — then ask the question.",
   topic_drift:
     "The previous candidate drifted away from the active topic (the student's latest answer and Coco's last question). Ask about a detail directly connected to what the student just said.",
   vague_echo:
@@ -179,7 +187,7 @@ function replyPolicyCorrection(
     expectsQuestion
       ? "For a closing, set focus and question to null; otherwise include exactly one question."
       : "For a closing, use reaction only and set focus and question to null.",
-    "Prefer one or two short, simple sentences and an open question. A single either-or question is allowed when both choices are relevant and child-friendly.",
+    "Prefer one or two short, simple sentences. After a meaningful answer the question must be an open WH question, not an either-or or yes/no question.",
     "Return only data matching the schema.",
   ].join(" ");
 }
