@@ -1225,3 +1225,104 @@ describe("unresolved Korean nouns in Coco's reply (attempt 6406e6a5)", () => {
     );
   });
 });
+
+describe("raw Hangul in Coco's reply (attempt e30d80e7, 2026-07-27)", () => {
+  // The child said "Valorant" with a Korean accent and the transcriber wrote
+  // 발러런트 — itself a mishearing (the standard spelling is 발로란트). Rather
+  // than transliterating it, the model copied the Hangul straight into its own
+  // line, so Coco asked "Where do you play 발러런트?" and the derived hint
+  // became "I play 발러런트 at ____.".
+  //
+  // The transliteration guard could not see this: it scans Latin words only,
+  // and raw Hangul matches none of them. Coco speaks English by construction,
+  // so any Hangul in his line is a failure regardless of which span it came
+  // from.
+  const respondedInKorean = {
+    expectsQuestion: true,
+    activeQuestion: "What games do you play?",
+    latestStudentResponse: "I am going to play 발러런트.",
+  } as const;
+
+  it("rejects raw Hangul in the question", () => {
+    const result = validateGeneratedCocoReplyParts(
+      {
+        reaction: "That sounds fun!",
+        focus: "발러런트",
+        question: "Where do you play 발러런트?",
+      },
+      respondedInKorean,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.reasons).toContain(
+      "unresolved_korean_noun",
+    );
+  });
+
+  it("rejects raw Hangul in the reaction", () => {
+    const result = validateGeneratedCocoReplyParts(
+      {
+        reaction: "발러런트 sounds fun!",
+        focus: "that game",
+        question: "Where do you play that game?",
+      },
+      respondedInKorean,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.reasons).toContain(
+      "unresolved_korean_noun",
+    );
+  });
+
+  it("rejects raw Hangul on a closing turn", () => {
+    const result = validateGeneratedCocoReplyParts(
+      {
+        reaction: "발러런트 sounds fun! Have a great summer!",
+        focus: null,
+        question: null,
+      },
+      {
+        expectsQuestion: false,
+        activeQuestion: "What games do you play?",
+        latestStudentResponse: "I am going to play 발러런트.",
+      },
+    );
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.reasons).toContain(
+      "unresolved_korean_noun",
+    );
+  });
+
+  it("accepts referring to the unresolved noun as 'that game'", () => {
+    // The escape hatch the correction hint asks for. Guards against an
+    // over-broad fix that bans every Korean-adjacent reply.
+    const result = validateGeneratedCocoReplyParts(
+      {
+        reaction: "That sounds fun!",
+        focus: "that game",
+        question: "Where do you play that game?",
+      },
+      respondedInKorean,
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it("still allows naming a span the evaluator genuinely resolved", () => {
+    // "플레이 게임즈" comes back as real English ("play games"), so naming it
+    // carries no invented word. This contract predates the raw-Hangul fix.
+    const result = validateGeneratedCocoReplyParts(
+      {
+        reaction: "That sounds fun!",
+        focus: "games",
+        question: "Where do you play games?",
+      },
+      {
+        expectsQuestion: true,
+        activeQuestion: "What do you do after school?",
+        latestStudentResponse: "I 플레이 게임즈 after school.",
+      },
+    );
+    expect(result.ok === false && result.reasons).not.toContain(
+      "unresolved_korean_noun",
+    );
+  });
+});

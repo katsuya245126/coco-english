@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  HANGUL_PATTERN,
   detectHangulSpans,
   findRomanizationArtifacts,
 } from "@/domain/audio/hangul-romanization";
@@ -527,7 +528,19 @@ export function validateGeneratedCocoReplyParts(
     line,
     detectHangulSpans(options.latestStudentResponse ?? ""),
   );
-  if (unresolvedKorean.length > 0) {
+
+  /*
+   * The same failure, one step earlier: instead of transliterating the span,
+   * the model copies the Hangul into its own line verbatim, so Coco asks
+   * "Where do you play 발러런트?" and the derived reply hint inherits it
+   * (attempt e30d80e7, 2026-07-27).
+   *
+   * `findRomanizationArtifacts` cannot see this — it scans Latin words, and
+   * raw Hangul matches none of them. Testing the line directly needs no span
+   * comparison at all: Coco speaks English by construction, so Hangul in his
+   * line is always wrong, whether or not it echoes a span this turn.
+   */
+  if (unresolvedKorean.length > 0 || HANGUL_PATTERN.test(line)) {
     reasons.push("unresolved_korean_noun");
   }
 
