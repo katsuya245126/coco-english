@@ -24,6 +24,23 @@ export type ImprovedSentencePolicyInput = {
   transcript: string;
   correctionReason: CorrectionReason;
   improvedSentence: string;
+  /**
+   * Whether the transcript contains Hangul the evaluator already read as
+   * English (accented English, or a proper noun it accepted).
+   *
+   * The grounding checks compare word forms. Hangul and Latin never share a
+   * word form, so on a transcript like "플레이 게임즈" the correct completion
+   * "I play games." reports *every* transcript word as lost and *every*
+   * improved word as ungrounded — the checks cannot pass, whatever the model
+   * returns. That is what reached the child as "I didn't hear you well."
+   * (attempt 77446535, 2026-07-27).
+   *
+   * The evaluator has already done this judgement with the romanization in
+   * hand — the shipped phonetic rule, probed 15/16 — so the policy must not
+   * re-litigate it by string comparison it is structurally unable to perform.
+   * Defaults to false, leaving all-Latin transcripts exactly as they were.
+   */
+  transcriptResolvedFromKorean?: boolean;
 };
 
 export type ImprovedSentencePolicyResult =
@@ -546,7 +563,8 @@ export function validateImprovedSentencePolicy(
 
   if (
     input.evaluationMode === "conversation" &&
-    input.correctionReason !== "fragment_completion"
+    input.correctionReason !== "fragment_completion" &&
+    !input.transcriptResolvedFromKorean
   ) {
     const originalContent = contentWords(input.transcript);
     const improvedContent = contentWords(input.improvedSentence);
@@ -583,6 +601,7 @@ export function validateImprovedSentencePolicy(
     const originalContent = contentWords(input.transcript);
     const improvedContent = contentWords(input.improvedSentence);
     if (
+      !input.transcriptResolvedFromKorean &&
       originalContent.some(
         (word) => !includesRelatedWord(improvedContent, word),
       )
@@ -611,6 +630,7 @@ export function validateImprovedSentencePolicy(
       KNOWN_VERBS.has(word) ||
       [...inflectionBases(word)].some((base) => KNOWN_VERBS.has(base));
     if (
+      !input.transcriptResolvedFromKorean &&
       contentWords(input.improvedSentence).some(
         (word) => !includesRelatedWord(groundedWords, word) && !suppliedVerb(word),
       )

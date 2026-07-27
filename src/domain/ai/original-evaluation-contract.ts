@@ -2,6 +2,7 @@ import {
   validateImprovedSentencePolicy,
   type CorrectionPolicyViolation,
 } from "@/domain/ai/correction-policy";
+import { detectHangulSpans } from "@/domain/audio/hangul-romanization";
 import type { OriginalTurnEvaluation } from "@/domain/ai/turn-evaluation";
 import type { AnswerShape } from "@/domain/mission/schemas";
 
@@ -123,6 +124,20 @@ export function validateOriginalEvaluationContract(
   }
 
   if (evaluation.improvedSentence) {
+    /*
+     * A Hangul transcript the evaluator graded as English is one it resolved
+     * via the romanization ("플레이 게임즈" -> play games). The grounding checks
+     * compare word forms and so can never match Hangul against the English
+     * correction; telling them to stand down is what keeps a correct answer
+     * from being thrown out (attempt 77446535, 2026-07-27).
+     *
+     * Gated on englishLanguage === "english" on purpose: a genuinely Korean
+     * answer is "non_english", keeps every check, and still routes to retry.
+     */
+    const transcriptResolvedFromKorean =
+      evaluation.englishLanguage === "english" &&
+      detectHangulSpans(input.transcript).length > 0;
+
     const correction = validateImprovedSentencePolicy({
       evaluationMode: input.evaluationMode,
       answerShape: input.answerShape,
@@ -131,6 +146,7 @@ export function validateOriginalEvaluationContract(
       transcript: input.transcript,
       correctionReason: evaluation.correctionReason,
       improvedSentence: evaluation.improvedSentence,
+      transcriptResolvedFromKorean,
     });
     if (!correction.ok) violations.push(...correction.violations);
   }

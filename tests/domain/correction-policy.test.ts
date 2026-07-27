@@ -348,6 +348,52 @@ describe("validateImprovedSentencePolicy", () => {
     if (!result.ok) expect(result.violations).toContain("fragment_ungrounded");
   });
 
+  describe("transcripts the evaluator resolved from Korean", () => {
+    // Regression: attempt 77446535 (2026-07-27). The transcriber wrote the
+    // child's accented English as Hangul ("플레이 게임즈" for "play games"). The
+    // evaluator read it correctly, but the grounding checks compare word forms
+    // — Hangul never matches Latin — so every correct completion was rejected
+    // and the child heard "I didn't hear you well."
+    const korean = {
+      ...base,
+      missionQuestion: "What fun things do you want to do this summer vacation?",
+      transcript: "플레이 게임즈",
+      improvedSentence: "I play games.",
+    };
+
+    it("accepts a completion whose transcript is accented English in Hangul", () => {
+      expect(
+        validateImprovedSentencePolicy({
+          ...korean,
+          transcriptResolvedFromKorean: true,
+        }),
+      ).toEqual({ ok: true });
+    });
+
+    it("accepts a Korean-script proper noun the evaluator kept", () => {
+      expect(
+        validateImprovedSentencePolicy({
+          ...korean,
+          missionQuestion: "What games do you like to play?",
+          transcript: "발로란트",
+          improvedSentence: "I play Valorant.",
+          transcriptResolvedFromKorean: true,
+        }),
+      ).toEqual({ ok: true });
+    });
+
+    it("still applies grounding when the flag is absent", () => {
+      // The caller only sets the flag when englishLanguage is "english", so a
+      // genuinely Korean answer keeps every check and still routes to retry.
+      const result = validateImprovedSentencePolicy(korean);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.violations).toContain("fragment_content_lost");
+        expect(result.violations).toContain("fragment_ungrounded");
+      }
+    });
+  });
+
   it("accepts a bare declarative that does not echo the question's verb", () => {
     // "I swim." was reported as fragment_not_declarative because the guard
     // required the completion to reuse a verb from the mission question.

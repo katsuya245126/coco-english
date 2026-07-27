@@ -171,4 +171,54 @@ describe("original evaluation contract", () => {
       }),
     ).toEqual({ ok: true, evaluation });
   });
+
+  describe("Hangul transcripts the evaluator read as English", () => {
+    // Regression: attempt 77446535 (2026-07-27). The transcriber wrote accented
+    // English as Hangul ("플레이 게임즈" = "play games"). The evaluator resolved it
+    // correctly, but the correction policy compares word forms and Hangul never
+    // matches Latin, so the correct completion was rejected as
+    // fragment_content_lost + fragment_ungrounded and the child was told
+    // "I didn't hear you well."
+    const correction = {
+      ...baseEvaluation,
+      outcome: "needs_correction" as const,
+      correctionNeeded: true,
+      correctionSeverity: "material" as const,
+      correctionReason: "fragment_completion" as const,
+      improvedSentence: "I play games.",
+    };
+
+    it("accepts the correction when the answer was graded as English", () => {
+      expect(
+        validateOriginalEvaluationContract({
+          evaluation: correction,
+          evaluationMode: "conversation",
+          answerShape: "open",
+          missionQuestion:
+            "What fun things do you want to do this summer vacation?",
+          targetPattern: "I'm going to ________",
+          transcript: "플레이 게임즈",
+        }),
+      ).toEqual({ ok: true, evaluation: correction });
+    });
+
+    it("does not relax grounding for an all-Latin transcript", () => {
+      // The relaxation is keyed on Hangul being present, so an ordinary
+      // English transcript keeps every check and invented detail still fails.
+      const invented = { ...correction, improvedSentence: "I play games with my brother." };
+      const result = validateOriginalEvaluationContract({
+        evaluation: invented,
+        evaluationMode: "conversation",
+        answerShape: "open",
+        missionQuestion:
+          "What fun things do you want to do this summer vacation?",
+        targetPattern: "I'm going to ________",
+        transcript: "Play games.",
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.violations).toContain("fragment_ungrounded");
+      }
+    });
+  });
 });
