@@ -13,7 +13,7 @@ import {
 
 export const DEFAULT_TRANSLATION_LOCALE = "ko" as const;
 export const TRANSLATION_HINT_POLICY_VERSION =
-  "translation-hint-v2-short-chunks" as const;
+  "translation-hint-v4-chunked-full-coverage" as const;
 
 export function computeTranslationSourceDigest(sourceText: string): string {
   return createHash("sha256")

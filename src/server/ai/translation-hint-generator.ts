@@ -86,7 +86,7 @@ export async function generateTranslationHint(
         {
           role: "system",
           content:
-            "Select and translate useful phrases for a young ESL learner. Return only data matching the schema.",
+            "Translate Coco's English line into Korean phrase hints for a young ESL learner. Return only data matching the schema.",
         },
         {
           role: "user",
@@ -95,15 +95,15 @@ export async function generateTranslationHint(
             studentLevel: input.studentLevel,
             targetLocale: input.targetLocale,
             instructions: [
-              "Return zero to three useful semantic meaning units in source order.",
-              "When the sentence has enough useful language, prefer two or three shorter chunks instead of one large chunk.",
-              "Keep each selected chunk short, usually two to four words.",
-              "Prefer contextual chunks, idioms, and level-appropriate difficult phrases.",
-              "Do not select isolated function words such as do, the, or you.",
-              "Do not cover every word or turn the complete sentence into clickable pieces.",
-              "Never select one span that covers the whole sentence or the whole sentence except terminal punctuation.",
+              "Cover the full sourceText with useful Korean meaning chunks in source order.",
+              "Use natural meaning chunks, usually phrases or clauses, not word-by-word translations.",
+              "For normal sentences longer than six words, prefer 2 to 4 chunks per sentence.",
+              "Do not select a complete sentence as one phrase when that sentence has more than six words.",
+              "For a line with a reaction and a question, include coverage for the question because it is the part the student must answer.",
               "Each phrase's source must be an exact substring copied verbatim from sourceText.",
-              "Translate only that phrase's contextual meaning into targetLocale.",
+              "Avoid selecting whitespace-only or punctuation-only spans.",
+              "Do not translate word by word; translate each chunk's contextual meaning into targetLocale.",
+              "Keep chunks short enough to fit inline, usually one clause or one natural phrase.",
             ],
           }),
         },

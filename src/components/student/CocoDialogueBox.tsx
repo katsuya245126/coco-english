@@ -11,7 +11,6 @@ import {
   type TranslationPhrase,
 } from "@/domain/ai/translation-hint";
 import {
-  findDialoguePageIndex,
   paginateDialogueText,
 } from "@/domain/conversation/dialogue-pagination";
 import {
@@ -105,13 +104,16 @@ export function CocoDialogueBox({
   async function loadTranslationHint() {
     if (!translationLine || !dialogueText) return;
     if (translationState.kind === "ready") {
-      const firstPhrase = translationState.phrases[0];
-      if (!firstPhrase) return;
-      const nextIndex = toggleTranslationBubble(expandedPhraseIndex, 0);
+      const phraseIndex = firstPhraseIndexOnPage(
+        translationState.phrases,
+        currentPage,
+      );
+      if (phraseIndex === null) return;
+      const nextIndex = toggleTranslationBubble(
+        expandedPhraseIndex,
+        phraseIndex,
+      );
       setExpandedPhraseIndex(nextIndex);
-      if (nextIndex !== null) {
-        setCurrentPageIndex(findDialoguePageIndex(pages, firstPhrase.start));
-      }
       return;
     }
     activeRequestRef.current?.abort();
@@ -163,8 +165,9 @@ export function CocoDialogueBox({
         return;
       }
       setTranslationState({ kind: "ready", phrases: parsed.hint.phrases });
-      setExpandedPhraseIndex(0);
-      setCurrentPageIndex(findDialoguePageIndex(pages, firstPhrase.start));
+      setExpandedPhraseIndex(
+        firstPhraseIndexOnPage(parsed.hint.phrases, currentPage),
+      );
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") return;
       if (requestTokenRef.current !== requestToken) return;
@@ -304,6 +307,17 @@ export function CocoDialogueBox({
       ) : null}
     </div>
   );
+}
+
+function firstPhraseIndexOnPage(
+  phrases: TranslationPhrase[],
+  page: { start: number; end: number } | null,
+): number | null {
+  if (!page) return null;
+  const index = phrases.findIndex(
+    (phrase) => phrase.start < page.end && phrase.end > page.start,
+  );
+  return index >= 0 ? index : null;
 }
 
 function ThinkingDots() {

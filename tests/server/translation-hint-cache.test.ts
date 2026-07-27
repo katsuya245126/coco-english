@@ -108,7 +108,7 @@ describe("getOrCreateTranslationHint", () => {
     );
   });
 
-  it("versions the source digest so pre-redesign cached chunks are missed", async () => {
+  it("versions the source digest so short-chunk cached hints are missed", async () => {
     const { createHash } = await import("node:crypto");
     const {
       computeTranslationSourceDigest,
@@ -119,7 +119,7 @@ describe("getOrCreateTranslationHint", () => {
       .digest("hex");
 
     expect(TRANSLATION_HINT_POLICY_VERSION).toBe(
-      "translation-hint-v2-short-chunks",
+      "translation-hint-v4-chunked-full-coverage",
     );
     expect(computeTranslationSourceDigest(input.sourceText)).not.toBe(
       legacyDigest,

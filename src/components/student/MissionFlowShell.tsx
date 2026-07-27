@@ -51,6 +51,7 @@ import {
   resolveAcceptedConversationTurn,
   type ActiveStudentQuestion,
 } from "@/domain/mission/student-question-state";
+import type { TranslatableCocoLine } from "@/domain/ai/translation-hint";
 
 // ─── Types ───
 
@@ -902,13 +903,7 @@ export function MissionFlowShell({
         displayName={characterProfile.displayName}
         dialogueText={mascotDialogue.text}
         isThinking={flow.step === "cocoThinking"}
-        translationLine={
-          !actionError &&
-          flow.step === "question" &&
-          activeQuestion.kind !== "unavailable"
-            ? activeQuestion.line
-            : null
-        }
+        translationLine={getTranslationLine({ flow, activeQuestion, actionError })}
         voiceControl={
           mascotDialogue.line ? (
             <CocoSpeechAudio
@@ -1130,6 +1125,28 @@ export function MissionFlowShell({
       </div>
     </div>
   );
+}
+
+function getTranslationLine({
+  flow,
+  activeQuestion,
+  actionError,
+}: {
+  flow: FlowState;
+  activeQuestion: ActiveStudentQuestion;
+  actionError?: string | null;
+}): TranslatableCocoLine | null {
+  if (actionError) return null;
+  if (flow.step === "question" && activeQuestion.kind !== "unavailable") {
+    return activeQuestion.line;
+  }
+  if (flow.step === "closing" && flow.cocoLine) {
+    return {
+      lineKind: "coco_dynamic_line",
+      turnOrder: flow.turnIndex + 1,
+    };
+  }
+  return null;
 }
 
 function getMascotDialogue({

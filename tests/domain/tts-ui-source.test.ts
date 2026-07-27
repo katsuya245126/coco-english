@@ -197,7 +197,6 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     const stylesSource = readSource("src/components/student/styles.ts");
 
     expect(dialogueSource).toContain("paginateDialogueText");
-    expect(dialogueSource).toContain("findDialoguePageIndex");
     expect(dialogueSource).toContain('paginateDialogueText(dialogueText ?? "")');
     expect(dialogueSource).not.toContain("protectedPages");
     expect(dialogueSource).toContain("clampPhrasesToPage");
@@ -211,14 +210,16 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     );
   });
 
-  it("opens the first Korean phrase on its page without refetching", () => {
+  it("opens the first Korean phrase on the current page without refetching or changing pages", () => {
     const dialogueSource = readSource(
       "src/components/student/CocoDialogueBox.tsx",
     );
 
     expect(dialogueSource).toContain("toggleTranslationBubble");
-    expect(dialogueSource).toContain("setCurrentPageIndex(");
-    expect(dialogueSource).toContain("firstPhrase.start");
+    expect(dialogueSource).toContain("firstPhraseIndexOnPage");
+    expect(dialogueSource).toContain("currentPage");
+    expect(dialogueSource).not.toContain("findDialoguePageIndex");
+    expect(dialogueSource).not.toContain("firstPhrase.start");
     expect(dialogueSource).toContain("currentPage.start + segment.phrase.start");
     expect(dialogueSource).toMatch(
       /translationState\.kind === "ready"[\s\S]*setExpandedPhraseIndex[\s\S]*return/,
@@ -553,6 +554,17 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(shellSource).toMatch(
       /flow\.step === "closing"[\s\S]*lineKind: "coco_dynamic_line"[\s\S]*turnOrder: flow\.turnIndex \+ 1/,
     );
+  });
+
+  it("offers translation hints for the final closing through the persisted dynamic-line descriptor", () => {
+    const shellSource = readSource(
+      "src/components/student/MissionFlowShell.tsx",
+    );
+    expect(shellSource).toContain("getTranslationLine");
+    expect(shellSource).toMatch(
+      /flow\.step === "closing"[\s\S]*lineKind: "coco_dynamic_line"[\s\S]*turnOrder: flow\.turnIndex \+ 1/,
+    );
+    expect(shellSource).toContain("translationLine={getTranslationLine");
   });
 });
 

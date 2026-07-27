@@ -332,9 +332,9 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(shellSource).toContain('kind === "unavailable"');
     expect(shellSource).toContain("recordingEnabled");
     expect(shellSource).toContain("coco_dynamic_line");
-    expect(shellSource).toMatch(
-      /translationLine=\{[\s\S]*!actionError[\s\S]*flow\.step === "question"/,
-    );
+    expect(shellSource).toContain("getTranslationLine");
+    expect(shellSource).toContain('flow.step === "question"');
+    expect(shellSource).toContain('flow.step === "closing"');
     expect(pageSource).toContain("coco_line");
     expect(pageSource).toContain("deriveResumedDynamicPrompt");
     expect(pageSource).toContain("initialDynamicPrompt");
