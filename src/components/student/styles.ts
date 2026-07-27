@@ -234,15 +234,19 @@ export const resumeNoticeStyle: CSSProperties = {
 
 // ─── Phase 10: Mascot stage tokens ───
 
-export const mascotStageStyle: CSSProperties = {
+export const mascotStageStyle: CSSProperties & {
+  "--coco-dialogue-height": string;
+} = {
   width: "100%",
   maxWidth: MISSION_CONTENT_MAX_WIDTH,
   height: 400,
+  "--coco-dialogue-height": "clamp(144px, 44vw, 168px)",
   position: "relative",
   marginTop: 16,
+  marginBottom: 22,
   marginLeft: "auto",
   marginRight: "auto",
-  overflow: "hidden",
+  overflow: "visible",
   borderRadius: 8,
   boxSizing: "border-box",
 };
@@ -250,7 +254,12 @@ export const mascotStageStyle: CSSProperties = {
 export const mascotBackdropStyle: CSSProperties = {
   position: "absolute",
   inset: 0,
-  background: "linear-gradient(180deg, #EFF6FF 0%, #F7F8FA 100%)",
+  backgroundColor: "#F7F8FA",
+  backgroundImage:
+    "image-set(url(/images/backgrounds/default-classroom-background-640.webp) 1x, url(/images/backgrounds/default-classroom-background-1280.webp) 2x)",
+  backgroundSize: "cover",
+  backgroundPosition: "center center",
+  borderRadius: 8,
 };
 
 export const mascotSpriteWrapStyle: CSSProperties = {
@@ -260,17 +269,17 @@ export const mascotSpriteWrapStyle: CSSProperties = {
   // and overlap the main chatbox by 10px so their visible edges stay attached.
   left: "max(24px, calc((100% - 226px) / 2))",
   width: "min(226px, calc(100% - 48px))",
-  bottom: 166,
+  bottom: "calc(var(--coco-dialogue-height) - 10px)",
   height: 180,
   transformOrigin: "bottom center",
 };
 
 export const mascotDialogueShellStyle: CSSProperties = {
   position: "absolute",
-  left: 16,
-  right: 16,
-  bottom: 32,
-  height: 144,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  height: "var(--coco-dialogue-height)",
   overflow: "visible",
 };
 
