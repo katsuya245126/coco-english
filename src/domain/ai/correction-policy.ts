@@ -516,6 +516,32 @@ function hasTargetPatternPadding(
   );
 }
 
+function hasExcessiveFragmentCompletion(
+  input: ImprovedSentencePolicyInput,
+  transcriptWords: string[],
+  improvedWords: string[],
+) {
+  const questionContent = contentWords(input.missionQuestion ?? "");
+  const transcriptContent = contentWords(input.transcript);
+  const learnerOwnedContent = contentWords(input.improvedSentence).filter(
+    (word) => !includesRelatedWord(questionContent, word),
+  );
+  if (!input.transcriptResolvedFromKorean) {
+    const newlyIntroducedContent = learnerOwnedContent.filter(
+      (word) => !includesRelatedWord(transcriptContent, word),
+    );
+    if (newlyIntroducedContent.length > 1) {
+      return true;
+    }
+
+    return improvedWords.length - transcriptWords.length > 5 &&
+      newlyIntroducedContent.length > 0;
+  }
+
+  const hangulSpanCount = detectHangulSpans(input.transcript).length;
+  return learnerOwnedContent.length > Math.max(hangulSpanCount, 2);
+}
+
 export function validateImprovedSentencePolicy(
   input: ImprovedSentencePolicyInput,
 ): ImprovedSentencePolicyResult {
@@ -669,7 +695,7 @@ export function validateImprovedSentencePolicy(
       addViolation("fragment_ungrounded");
     }
 
-    if (improvedWords.length - transcriptWords.length > 5) {
+    if (hasExcessiveFragmentCompletion(input, transcriptWords, improvedWords)) {
       addViolation("fragment_too_long");
     }
 

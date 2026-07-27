@@ -336,6 +336,17 @@ describe("validateImprovedSentencePolicy", () => {
     ).toEqual({ ok: true });
   });
 
+  it("accepts a who-answer fragment completed with words already grounded by Coco's question", () => {
+    expect(
+      validateImprovedSentencePolicy({
+        ...base,
+        missionQuestion: "Who do you like to play Valorant with?",
+        transcript: "My friend.",
+        improvedSentence: "I like to play Valorant with my friend.",
+      }),
+    ).toEqual({ ok: true });
+  });
+
   it("still rejects a completion that invents a detail the student never gave", () => {
     const result = validateImprovedSentencePolicy({
       ...base,
@@ -377,6 +388,18 @@ describe("validateImprovedSentencePolicy", () => {
           missionQuestion: "What games do you like to play?",
           transcript: "발로란트",
           improvedSentence: "I play Valorant.",
+          transcriptResolvedFromKorean: true,
+        }),
+      ).toEqual({ ok: true });
+    });
+
+    it("accepts a short question-grounded completion when Hangul tokenization undercounts the English answer", () => {
+      expect(
+        validateImprovedSentencePolicy({
+          ...korean,
+          missionQuestion: "What do you like to do in the summer?",
+          transcript: "플레이 게임즈",
+          improvedSentence: "I like to play games in the summer.",
           transcriptResolvedFromKorean: true,
         }),
       ).toEqual({ ok: true });
