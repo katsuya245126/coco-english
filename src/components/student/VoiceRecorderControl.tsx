@@ -11,10 +11,10 @@ import {
   recorderErrorStyle,
   recorderPanelStyle,
   recorderProcessingStyle,
-  recorderRecordingStyle,
   recorderSuccessStyle,
   secondaryButtonStyle,
 } from "@/components/student/styles";
+import { LiveRecorderWaveform } from "@/components/student/LiveRecorderWaveform";
 
 export type VoiceRecordingMetadata = {
   mimeType: string;
@@ -211,7 +211,6 @@ export function VoiceRecorderControl({
   }
 
   function panelStyleForState() {
-    if (state === "recording") return recorderRecordingStyle;
     if (isProcessing) return recorderProcessingStyle;
     if (state === "success") return recorderSuccessStyle;
     if (isError) return recorderErrorStyle;
@@ -252,7 +251,7 @@ export function VoiceRecorderControl({
     if (state === "success") {
       return mode === "original" ? "See the better sentence" : "Continue";
     }
-    return "Start recording";
+    return "Record";
   }
 
   function handleAction() {
@@ -270,23 +269,7 @@ export function VoiceRecorderControl({
 
   return (
     <div style={panelStyleForState()}>
-      <p
-        style={{
-          fontSize: 14,
-          fontWeight: 600,
-          lineHeight: 1.4,
-          color: "#4B5563",
-          margin: "0 0 8px",
-        }}
-      >
-        {state === "waiting-permission"
-          ? "Your browser will ask to use the microphone."
-          : mode === "original"
-            ? "Your answer"
-            : "Your repeat"}
-      </p>
-
-      {currentStatusText && (
+      {currentStatusText && isError && (
         <p
           aria-live="polite"
           role={isError ? "alert" : undefined}
@@ -309,6 +292,11 @@ export function VoiceRecorderControl({
           )}
         </p>
       )}
+      <span aria-live="polite" style={visuallyHiddenStyle}>
+        {state === "waiting-permission"
+          ? "Your browser will ask to use the microphone."
+          : currentStatusText}
+      </span>
 
       {state === "recording" && maxSeconds && (
         <div style={{ marginBottom: 12 }}>
@@ -344,12 +332,21 @@ export function VoiceRecorderControl({
         }}
         onClick={handleAction}
         disabled={disabled || state === "waiting-permission" || state === "success"}
+        aria-label={state === "recording" ? "Stop recording" : undefined}
       >
         {isProcessing ? (
           "Please wait"
+        ) : state === "recording" ? (
+          <>
+            <LiveRecorderWaveform
+              stream={state === "recording" ? streamRef.current : null}
+              active={state === "recording"}
+            />
+            <span style={recordingStopLabelStyle}>Stop</span>
+          </>
         ) : (
           <>
-            {isError ? <MicIcon /> : null}
+            {state === "ready" || isError ? <MicIcon /> : null}
             {actionLabel()}
           </>
         )}
@@ -357,6 +354,25 @@ export function VoiceRecorderControl({
     </div>
   );
 }
+
+const visuallyHiddenStyle: React.CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  whiteSpace: "nowrap",
+  border: 0,
+};
+
+const recordingStopLabelStyle: React.CSSProperties = {
+  flex: "0 0 auto",
+  fontSize: 16,
+  fontWeight: 700,
+  lineHeight: 1,
+};
 
 function MicIcon() {
   return (

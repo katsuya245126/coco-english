@@ -45,7 +45,10 @@ test("student audio transcription states use classroom-safe copy", async () => {
   expect(recorderSource).toContain("Saving…");
   expect(recorderSource.match(/Saving…/g) ?? []).toHaveLength(1);
   expect(recorderSource).toContain("function MicIcon()");
-  expect(recorderSource).toContain("{isError ? <MicIcon /> : null}");
+  expect(recorderSource).toContain(
+    '{state === "ready" || isError ? <MicIcon /> : null}',
+  );
+  expect(recorderSource).toContain('return "Record";');
   expect(recorderSource).toContain('state === "recording"');
   expect(recorderSource).not.toContain('state === "recording" || isError');
   expect(shellSource).toContain("I didn't hear you. Try again.");
@@ -54,6 +57,48 @@ test("student audio transcription states use classroom-safe copy", async () => {
   expect(repeatSource).not.toContain("We heard:");
   expect(repeatSource).not.toContain("originalTranscript");
   expect(shellSource).not.toContain("Your repeat:");
+});
+
+test("student recorder waveform uses real Web Audio samples without fake pulse animation", async () => {
+  const recorderSource = readFileSync(
+    "src/components/student/VoiceRecorderControl.tsx",
+    "utf8",
+  );
+  const waveformSource = readFileSync(
+    "src/components/student/LiveRecorderWaveform.tsx",
+    "utf8",
+  );
+
+  expect(recorderSource).toContain("<LiveRecorderWaveform");
+  expect(recorderSource).toContain(
+    'stream={state === "recording" ? streamRef.current : null}',
+  );
+  expect(recorderSource).toContain(
+    'aria-label={state === "recording" ? "Stop recording" : undefined}',
+  );
+  expect(recorderSource).toContain("<span style={recordingStopLabelStyle}>");
+  expect(recorderSource).toContain("Stop</span>");
+  expect(recorderSource).not.toContain("recorderRecordingStyle");
+  expect(recorderSource).not.toContain("Your answer</p>");
+  expect(recorderSource).not.toContain("Your repeat</p>");
+  expect(waveformSource).toContain("createAnalyser()");
+  expect(waveformSource).toContain("createMediaStreamSource(stream)");
+  expect(waveformSource).toContain("getByteTimeDomainData");
+  expect(waveformSource).toContain("analyser.fftSize = 256");
+  expect(waveformSource).toContain("analyser.smoothingTimeConstant = 0.65");
+  expect(waveformSource).toContain("sensitivity: SENSITIVITY");
+  expect(waveformSource).toContain("buildWaveformBars");
+  expect(waveformSource).toContain("const BAR_COUNT = 13");
+  expect(waveformSource).toContain("const BAR_WIDTH = 6");
+  expect(waveformSource).toContain("const BAR_GAP = 4");
+  expect(waveformSource).toContain("const BAR_RADIUS = BAR_WIDTH / 2");
+  expect(waveformSource).toContain('aria-hidden="true"');
+  expect(waveformSource).toContain("<rect");
+  expect(waveformSource).toContain("rx={BAR_RADIUS}");
+  expect(waveformSource).not.toContain("<path");
+  expect(waveformSource).not.toContain("@keyframes");
+  expect(waveformSource).not.toContain("animation:");
+  expect(waveformSource).not.toContain("setInterval");
 });
 
 test("student mission completion is gated after repeat transcript success", async () => {
