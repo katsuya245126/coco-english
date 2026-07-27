@@ -26,15 +26,14 @@ export function StudentHomeShell({ className, displayName, assignmentPage, curre
 
     <section aria-live="polite" className="student-home-list">
       <div className="student-home-section-title"><strong>{assignmentPage.tab === "current" ? "Your missions" : "Completed missions"}</strong><span>{assignmentPage.tab === "current" ? "Due soon first" : "Newest first"}</span></div>
-      {assignmentPage.items.length > 0 ? assignmentPage.items.map((item) => <AssignmentListItem item={item} key={item.assignmentStudentId}/>) : <div className="student-home-empty"><div aria-hidden="true">{assignmentPage.tab === "past" ? "🗂️" : "🌱"}</div><h2>{assignmentPage.tab === "past" ? "No past missions yet" : "No homework yet"}</h2><p>{assignmentPage.tab === "past" ? "Completed speaking missions will show up here." : "Your teacher has not assigned speaking homework yet."}</p></div>}
+      {assignmentPage.items.length > 0 ? assignmentPage.items.map((item) => <AssignmentListItem item={item} key={item.assignmentStudentId}/>) : <div className="student-home-empty"><div aria-hidden="true">{assignmentPage.tab === "past" ? "🗂️" : "🌱"}</div><h2>{assignmentPage.tab === "past" ? "No past missions yet" : "No homework yet"}</h2>{assignmentPage.tab === "past" ? <p>Completed speaking missions will show up here.</p> : null}</div>}
 
       {assignmentPage.totalPages > 1 && <nav aria-label="Mission pages" className="student-home-pager">
         {assignmentPage.page > 1 ? <Link aria-label="Previous page" href={pageHref(assignmentPage.page - 1)}>‹</Link> : <span aria-disabled="true">‹</span>}
         {Array.from({ length: assignmentPage.totalPages }, (_, index) => index + 1).map((page) => <Link aria-current={page === assignmentPage.page ? "page" : undefined} href={pageHref(page)} key={page}>{page}</Link>)}
         {assignmentPage.page < assignmentPage.totalPages ? <Link aria-label="Next page" href={pageHref(assignmentPage.page + 1)}>›</Link> : <span aria-disabled="true">›</span>}
       </nav>}
-      <p className="student-home-page-hint">Up to 5 missions per page</p>
-      <button className="student-switch-class" onClick={handleSwitchClass} type="button">Switch class</button>
+      <button className="student-switch-class" onClick={handleSwitchClass} type="button">Log out</button>
     </section>
   </div>;
 }
