@@ -22,6 +22,7 @@ import {
   parseGeneratedCocoReply,
   buildConversationPrompt,
   validateGeneratedCocoReplyParts,
+  withClosingSignOff,
   type ConversationSafetyMode,
   type GenerateCocoReplyInput,
   type GeneratedCocoReply,
@@ -97,7 +98,7 @@ const CONVERSATION_SYSTEM_MESSAGE = [
   "Prefer one or two short, simple sentences.",
   "Follow replyMode from the user payload exactly.",
   "When replyMode is follow_up, acknowledge the latest studentResponse and ask exactly one relevant question.",
-  "When replyMode is closing, acknowledge the latest studentResponse specifically, add a short friendly goodbye such as 'See you next time,' and ask no question.",
+  "When replyMode is closing, acknowledge the latest studentResponse specifically and ask no question. Do not write a goodbye: the sign-off 'See you next time!' is appended automatically after your line.",
   "A closing uses reaction only; set focus and question to null.",
   "Write complete, correctly punctuated sentences. Put sentence-ending punctuation between a reaction and the follow-up question; never join them as a run-on.",
   "Treat every detail in conversationHistory as already known.",
@@ -292,14 +293,20 @@ export async function generateCocoReply(
             rejectedAttempt: "corrected",
           };
         }
-        return { ok: true, reply: corrected.reply };
+        return {
+          ok: true,
+          reply: expectsQuestion ? corrected.reply : withClosingSignOff(corrected.reply),
+        };
       } catch {
         log("error", "ai.conversation_generation_failed", { error: "provider_failed" });
         return { ok: false, error: "provider_failed" };
       }
     }
 
-    return { ok: true, reply: parsed.reply };
+    return {
+      ok: true,
+      reply: expectsQuestion ? parsed.reply : withClosingSignOff(parsed.reply),
+    };
   } catch {
     log("error", "ai.conversation_generation_failed", { error: "provider_failed" });
     return { ok: false, error: "provider_failed" };

@@ -5,6 +5,7 @@ import {
   conversationReplyMode,
   conversationTurnInputSchema,
   parseGeneratedCocoReply,
+  withClosingSignOff,
   validateGeneratedCocoReplyParts,
   validateGeneratedCocoReplyLine,
   type GenerateCocoReplyInput,
@@ -47,6 +48,37 @@ function historyThrough(turnOrder: number) {
         : `Answer ${index + 1}.`,
   }));
 }
+
+describe("closing sign-off", () => {
+  function closingReply(reaction: string) {
+    const parsed = parseGeneratedCocoReply({ reaction, focus: null, question: null });
+    if (!parsed.ok) throw new Error("expected parseable closing");
+    return parsed.reply;
+  }
+
+  it("appends the sign-off to a closing that has none", () => {
+    expect(withClosingSignOff(closingReply("Sushi sounds tasty.")).line).toBe(
+      "Sushi sounds tasty. See you next time!",
+    );
+  });
+
+  it("does not double up when the model already wrote a goodbye", () => {
+    expect(
+      withClosingSignOff(closingReply("Sushi sounds tasty. See you next time!")).line,
+    ).toBe("Sushi sounds tasty. See you next time!");
+  });
+
+  it("replaces a different farewell with the fixed sign-off", () => {
+    expect(withClosingSignOff(closingReply("Great job today. See you later!")).line).toBe(
+      "Great job today. See you next time!",
+    );
+  });
+
+  it("is idempotent", () => {
+    const once = withClosingSignOff(closingReply("Nice work."));
+    expect(withClosingSignOff(once)).toEqual(once);
+  });
+});
 
 describe("structured Coco reply parts", () => {
   it("assembles a follow-up while preserving reply.line for consumers", () => {
@@ -643,7 +675,8 @@ describe("conversation history generation contract", () => {
     });
     const closingInstructions = closing.instructions.join(" ");
     expect(closingInstructions).toContain("Acknowledge the latest studentResponse");
-    expect(closingInstructions).toContain("short friendly goodbye");
+    expect(closingInstructions).toContain("no goodbye");
+    expect(closingInstructions).toContain("See you next time!");
     expect(closingInstructions).toContain("no question");
   });
 

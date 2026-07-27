@@ -410,7 +410,8 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     });
     const call = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
     const combined = call?.input.map((message) => message.content).join(" ") ?? "";
-    expect(combined).toContain("short friendly goodbye");
+    expect(combined).toContain("no goodbye");
+    expect(combined).toContain("See you next time!");
     expect(combined).toContain("no question");
   });
 

@@ -465,6 +465,36 @@ export function assembleGeneratedCocoReply(
   };
 }
 
+/**
+ * The exact sign-off every closing line ends with. The system message asks
+ * for a goodbye, but a prompt cannot guarantee one — this suffix is applied
+ * deterministically after generation so the last line a learner hears is
+ * always the same friendly close.
+ */
+export const CLOSING_SIGN_OFF = "See you next time!";
+
+/**
+ * Strip any goodbye the model already wrote so the deterministic sign-off is
+ * never doubled up ("See you next time! See you next time!").
+ */
+const MODEL_SIGN_OFF_PATTERN =
+  /\s*see\s+you\s+(next\s+time|soon|later|again|tomorrow)\s*[.!?]*\s*$/i;
+
+/**
+ * Append CLOSING_SIGN_OFF to an assembled closing reply, replacing whatever
+ * goodbye the model produced. Idempotent: applying it twice yields the same
+ * line.
+ */
+export function withClosingSignOff(reply: GeneratedCocoReply): GeneratedCocoReply {
+  const trimmedReaction = (reply.reaction ?? "").replace(MODEL_SIGN_OFF_PATTERN, "").trim();
+  const body = (reply.line ?? "").replace(MODEL_SIGN_OFF_PATTERN, "").trim();
+  return {
+    ...reply,
+    reaction: trimmedReaction.length > 0 ? trimmedReaction : null,
+    line: body.length > 0 ? `${body} ${CLOSING_SIGN_OFF}` : CLOSING_SIGN_OFF,
+  };
+}
+
 export type ConversationReplyMode = "follow_up" | "closing";
 
 /**
@@ -558,7 +588,7 @@ export function buildConversationPrompt(input: GenerateCocoReplyInput) {
       "A follow-up may react briefly or mention one learner-owned detail, but must not summarize a list.",
       "Choose at most one focus from the latest studentResponse and make the question explore it.",
       replyMode === "closing"
-        ? "Acknowledge the latest studentResponse specifically, then add a short friendly goodbye. Write one or two short complete sentences with no question."
+        ? "Acknowledge the latest studentResponse specifically. Write one short complete sentence with no question and no goodbye; the sign-off 'See you next time!' is appended automatically after your line."
         : "Acknowledge the latest studentResponse, then ask exactly one relevant question for new information.",
       replyMode === "closing"
         ? "A closing uses reaction only; set focus and question to null."
