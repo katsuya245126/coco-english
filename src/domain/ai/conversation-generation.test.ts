@@ -777,3 +777,44 @@ describe("withheld-response instruction is unconditional", () => {
     ).toBe(true);
   });
 });
+
+describe("unresolved Korean nouns in Coco's reply (attempt 6406e6a5)", () => {
+  it("rejects a reply that speaks a transliteration of the student's Korean", () => {
+    // The child said 발로란트 (Valorant), transcribed 배달란트. Coco must not
+    // read that back as "Baedalranteu" — no such word exists.
+    const result = validateGeneratedCocoReplyParts(
+      {
+        reaction: "Baedalranteu sounds interesting!",
+        focus: "Baedalranteu",
+        question: "What do you do in Baedalranteu?",
+      },
+      {
+        expectsQuestion: true,
+        activeQuestion: "What games do you play?",
+        latestStudentResponse: "배달란트",
+      },
+    );
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.reasons).toContain(
+      "unresolved_korean_noun",
+    );
+  });
+
+  it("accepts a reply that refers to the word instead of naming it", () => {
+    const result = validateGeneratedCocoReplyParts(
+      {
+        reaction: "That sounds fun!",
+        focus: "that game",
+        question: "What do you do in that game?",
+      },
+      {
+        expectsQuestion: true,
+        activeQuestion: "What games do you play?",
+        latestStudentResponse: "배달란트",
+      },
+    );
+    expect(result.ok === false && result.reasons).not.toContain(
+      "unresolved_korean_noun",
+    );
+  });
+});

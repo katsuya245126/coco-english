@@ -908,3 +908,35 @@ describe("blank improvedSentence tolerance (attempt 4c1f229e, 2026-07-27)", () =
     });
   });
 });
+
+describe("repeat attempt cap (attempt 6406e6a5, 2026-07-27)", () => {
+  const notCloseEnough = {
+    version: "ai-eval-v1",
+    outcome: "repeat_retry",
+    repeatCloseEnough: false,
+    englishLanguage: "english",
+    confidence: "high",
+    reviewReason: null,
+  } as const;
+
+  it("stops asking after the cap instead of looping the child", async () => {
+    const { decideRepeatTurnOutcome, MAX_REPEAT_ATTEMPTS } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    // Turn 3 rejected five clips scoring 90/93/94/94/84 against an invented
+    // target. Past the cap the target is the likely fault, so the child moves on.
+    expect(
+      decideRepeatTurnOutcome(notCloseEnough, MAX_REPEAT_ATTEMPTS),
+    ).toEqual({ kind: "accepted_repeat", repeatAccepted: true });
+  });
+
+  it("still asks again on earlier attempts", async () => {
+    const { decideRepeatTurnOutcome } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    expect(decideRepeatTurnOutcome(notCloseEnough, 1).kind).toBe("retry_repeat");
+    expect(decideRepeatTurnOutcome(notCloseEnough, 2).kind).toBe("retry_repeat");
+  });
+});

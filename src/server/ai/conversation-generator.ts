@@ -120,6 +120,7 @@ const CONVERSATION_SYSTEM_MESSAGE = [
   "Treat targetPattern as soft lesson context only, never as a next-line template — do not steer the student back into the targetPattern format.",
   "Reject a follow-up that merely swaps in a new noun or activity to repeat targetPattern; the follow-up must connect to the student's actual answer.",
   "Begin winding down and gently steering toward a close when turnsRemaining <= 2 (windDown is true).",
+  "If the student's answer contains a Korean word you cannot confidently translate, never spell it out in Latin letters. Refer to it by what the conversation shows it is ('that game', 'it', 'that place') instead of naming it.",
   "Elementary ESL classroom-safe. No student names, PINs, audio keys, or private data.",
   "Return only data matching the schema.",
 ].join(" ");
@@ -155,6 +156,8 @@ const VIOLATION_CORRECTION_HINTS: Record<
     "The reaction stacked generic adjectives in a 'sounds ... and ...' phrase. Use one short reaction without an adjective pair.",
   focus_mismatch:
     "The question did not explore the declared focus. Keep one learner-owned focus from the latest response and ask about that detail, or make a gentle nearby transition.",
+  unresolved_korean_noun:
+    "The previous candidate spoke aloud a letter-by-letter transliteration of a Korean word the student said, which is not a real English word. Do not name that word at all. Refer to it instead using what the conversation already shows it is — \"that game\", \"it\", \"that place\" — as in \"That sounds fun! What do you do in that game?\".",
   closing_ungrounded:
     "The closing ignored the student's latest answer. Mention one specific learner-owned detail from that answer before the short goodbye.",
 };

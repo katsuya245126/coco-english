@@ -373,6 +373,11 @@ function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
       ...(input.policyRepair
         ? [
             `The previous evaluation was rejected by deterministic correction policy. Violations: ${input.policyRepair.violations.join(", ")}.`,
+            ...(input.policyRepair.violations.includes("romanization_artifact")
+              ? [
+                  "romanization_artifact means the improved sentence spelled a Korean word out letter by letter instead of translating it, producing a word that does not exist in English. Never do this: it becomes a word the child is asked to pronounce. If you cannot confidently translate the Korean word, do not correct this turn — return outcome teacher_review.",
+                ]
+              : []),
             "Return one replacement evaluation that fixes every named violation. Do not quote or defend the rejected sentence.",
           ]
         : []),
@@ -446,7 +451,11 @@ export async function evaluateOriginalTurn(
     const transcriptionEvidence =
       input.transcriptionEvidence ?? { model: "unknown", confidence: null };
     const repairInstruction = input.policyRepair
-      ? ` The previous evaluation was rejected by deterministic correction policy. Violations: ${input.policyRepair.violations.join(", ")}. Return one replacement evaluation that fixes every named violation. Do not quote or defend the rejected sentence.`
+      ? ` The previous evaluation was rejected by deterministic correction policy. Violations: ${input.policyRepair.violations.join(", ")}.${
+          input.policyRepair.violations.includes("romanization_artifact")
+            ? " romanization_artifact means the improved sentence spelled a Korean word out letter by letter instead of translating it, producing a word that does not exist in English. Never do this: it becomes a word the child is asked to pronounce. If you cannot confidently translate the Korean word, do not correct this turn — return outcome teacher_review."
+            : ""
+        } Return one replacement evaluation that fixes every named violation. Do not quote or defend the rejected sentence.`
       : "";
     const response = await client.responses.parse({
       model,

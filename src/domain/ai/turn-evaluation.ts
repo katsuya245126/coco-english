@@ -500,8 +500,22 @@ export function repeatTurnProviderFailureResult(): Extract<
   };
 }
 
+/**
+ * Repeat attempts a child may be asked to make before the turn moves on.
+ *
+ * A repeat the evaluator keeps calling "not close enough" is, past a few
+ * tries, far more likely to be an unsayable target than a child who cannot
+ * say it. Turn 3 of attempt 6406e6a5 (2026-07-27) asked for the invented word
+ * "Baedalranteu" and rejected five clips scoring 90/93/94/94/84 — a loop the
+ * child had no way to exit. Accepting after the cap ends the loop in the
+ * child's favour, which is the right direction when the fault is ours.
+ */
+export const MAX_REPEAT_ATTEMPTS = 3 as const;
+
 export function decideRepeatTurnOutcome(
   evaluation: RepeatTurnEvaluation,
+  /** Repeat clips already submitted for this turn, including this one. */
+  attemptNumber = 1,
 ): RepeatTurnDecision {
   if (
     evaluation.outcome === "teacher_review" ||
@@ -518,6 +532,12 @@ export function decideRepeatTurnOutcome(
   }
 
   if (evaluation.repeatCloseEnough) {
+    return { kind: "accepted_repeat", repeatAccepted: true };
+  }
+
+  // Stop asking rather than loop. The child has tried enough times that the
+  // target itself is the likely problem.
+  if (attemptNumber >= MAX_REPEAT_ATTEMPTS) {
     return { kind: "accepted_repeat", repeatAccepted: true };
   }
 

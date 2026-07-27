@@ -407,3 +407,38 @@ describe("validateImprovedSentencePolicy", () => {
     ).toEqual({ ok: true });
   });
 });
+
+describe("romanization artifacts (attempt 6406e6a5, 2026-07-27)", () => {
+  const base = {
+    evaluationMode: "conversation" as const,
+    answerShape: "open" as const,
+    missionQuestion: "What games do you play?",
+    targetPattern: "I like to play ________.",
+    correctionReason: "fragment_completion" as const,
+  };
+
+  it("rejects a correction naming a word the evaluator invented", () => {
+    // 발로란트 (Valorant) was misheard as 배달란트; "Baedalranteu" is its RR
+    // reading and exists in no language, yet became a repeat target.
+    const result = validateImprovedSentencePolicy({
+      ...base,
+      transcript: "배달란트",
+      improvedSentence: "I like to play Baedalranteu.",
+      transcriptResolvedFromKorean: true,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.violations).toContain(
+      "romanization_artifact",
+    );
+  });
+
+  it("still accepts a correction that genuinely resolved the Korean", () => {
+    const result = validateImprovedSentencePolicy({
+      ...base,
+      transcript: "플레이 게임즈.",
+      improvedSentence: "I play games.",
+      transcriptResolvedFromKorean: true,
+    });
+    expect(result.ok).toBe(true);
+  });
+});

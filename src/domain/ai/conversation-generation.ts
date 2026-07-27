@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  detectHangulSpans,
+  findRomanizationArtifacts,
+} from "@/domain/audio/hangul-romanization";
 
 /**
  * Pure AI conversation-generation contracts (Coco Chat, Phase 11).
@@ -100,7 +104,8 @@ export type GeneratedCocoReplyLineViolation =
   | "response_summary"
   | "stacked_generic_reaction"
   | "closing_ungrounded"
-  | "focus_mismatch";
+  | "focus_mismatch"
+  | "unresolved_korean_noun";
 
 export type GeneratedCocoReplyLinePolicyResult =
   | { ok: true }
@@ -368,6 +373,27 @@ export function validateGeneratedCocoReplyParts(
     }
   }
 
+  /*
+   * Coco must not say a Korean noun he could not resolve.
+   *
+   * When the transcriber mishears a name, the only English form available is a
+   * transliteration of the mishearing — "Baedalranteu" for 발로란트. Saying it
+   * back tells the child that is how the word sounds in English, and it is not
+   * a word at all (attempt 6406e6a5, 2026-07-27).
+   *
+   * Referring beats naming here: earlier turns already establish it is a game,
+   * so "That sounds fun! What do you do in that game?" carries the same
+   * meaning with nothing invented. A noun the evaluator genuinely recognized
+   * comes back as real English and never matches, so naming it stays allowed.
+   */
+  const unresolvedKorean = findRomanizationArtifacts(
+    line,
+    detectHangulSpans(options.latestStudentResponse ?? ""),
+  );
+  if (unresolvedKorean.length > 0) {
+    reasons.push("unresolved_korean_noun");
+  }
+
   if (!options.expectsQuestion && options.requireClosingGrounding) {
     const responseDetails = distinctContentWords(
       options.latestStudentResponse ?? "",
@@ -559,6 +585,7 @@ export function buildConversationPrompt(input: GenerateCocoReplyInput) {
       "Treat targetPattern as soft lesson context only, never as a next-line template — do not steer the student back into the targetPattern format.",
       "Reject a follow-up that merely swaps in a new noun or activity to repeat targetPattern; the follow-up must connect to the student's actual answer.",
       "If windDown is true, begin gently wrapping up the scene toward a natural close.",
+      "If the latest studentResponse contains a Korean word you cannot confidently translate, never spell it out in Latin letters. Refer to it by what the conversation shows it is ('that game', 'it', 'that place') instead of naming it.",
       "Elementary ESL classroom-safe. No student names, PINs, audio keys, or private data.",
     ],
   };

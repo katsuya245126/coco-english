@@ -183,6 +183,72 @@ export function detectHangulSpans(text: string): HangulSpan[] {
   return spans;
 }
 
+/** Lowercase and drop every non-letter, so "Baedal-ranteu" == "baedalranteu". */
+function collapseLetters(value: string): string {
+  return value.toLocaleLowerCase("en-US").replace(/[^a-z]/gu, "");
+}
+
+/**
+ * Latin words in `sentence` that are merely the RR romanization of a Hangul
+ * span the student actually said.
+ *
+ * A transcriber that mishears 발로란트 (Valorant) as 배달란트 hands the
+ * evaluator a Hangul span with no real English reading. The evaluator, told to
+ * keep the child's word, transliterates it and emits the non-word
+ * "Baedalranteu" — which Coco then says aloud and asks the child to repeat.
+ * Five clips at 90+ accuracy were rejected, because a word that does not exist
+ * cannot be pronounced (attempt 6406e6a5, 2026-07-27).
+ *
+ * This is deterministic on purpose. The evaluator prompt already forbids the
+ * substitution and the model did it anyway, so the guard cannot be a prompt
+ * line. Matching is on collapsed letters, catching "Baedalranteu",
+ * "baedal-ranteu", and "Baedal Ranteu" alike, and a romanization split across
+ * adjacent words.
+ *
+ * Only spans the model transliterated are reported. A span it genuinely
+ * recognized comes back as a real English word ("플레이 게임즈" -> "play games"),
+ * which shares no letters with "Peullei Geimjeu" and so never matches.
+ */
+export function findRomanizationArtifacts(
+  sentence: string,
+  spans: HangulSpan[],
+): string[] {
+  if (!sentence || spans.length === 0) return [];
+
+  const words = sentence.match(/[A-Za-z][A-Za-z'-]*/gu) ?? [];
+  if (words.length === 0) return [];
+
+  const artifacts: string[] = [];
+  const seen = new Set<string>();
+  const targets = spans
+    .map((span) => collapseLetters(span.romanized))
+    .filter((target) => target.length > 0);
+
+  for (let index = 0; index < words.length; index += 1) {
+    // A romanization may arrive as one token or be split across a few
+    // ("Baedal Ranteu"), so grow a window from each word and stop as soon as
+    // it can no longer be a prefix of any target.
+    let joined = "";
+    for (let length = 0; length < 4 && index + length < words.length; length += 1) {
+      joined += collapseLetters(words[index + length]);
+      if (!joined) break;
+
+      if (targets.includes(joined)) {
+        const matched = words.slice(index, index + length + 1).join(" ");
+        if (!seen.has(matched)) {
+          seen.add(matched);
+          artifacts.push(matched);
+        }
+        break;
+      }
+
+      if (!targets.some((target) => target.startsWith(joined))) break;
+    }
+  }
+
+  return artifacts;
+}
+
 /**
  * True when `text` contains no Latin letters — i.e. the learner answered
  * entirely in Korean rather than code-switching a single proper noun.

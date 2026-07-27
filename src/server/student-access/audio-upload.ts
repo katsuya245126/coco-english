@@ -341,6 +341,8 @@ export function applyOriginalTurnEvaluation(
 
 export function applyRepeatTurnEvaluation(
   result: RepeatTurnEvaluationResult,
+  /** Repeat clips submitted for this turn so far, including this one. */
+  attemptNumber = 1,
 ): StoredRepeatTurnEvaluation {
   if (!result.ok) {
     const decision =
@@ -364,7 +366,7 @@ export function applyRepeatTurnEvaluation(
     };
   }
 
-  const decision = decideRepeatTurnOutcome(result.evaluation);
+  const decision = decideRepeatTurnOutcome(result.evaluation, attemptNumber);
   return {
     version: AI_EVALUATION_VERSION,
     outcome: decision.kind,
@@ -1515,7 +1517,23 @@ export async function uploadAttemptAudioClip(
                     repeatTranscript: transcript,
                   });
                 });
-            const decision = applyRepeatTurnEvaluation(evaluationResult);
+            // Count the repeat clips recorded for this turn, this one
+            // included: the row was inserted before evaluation. The turn row
+            // itself cannot supply this — each repeat overwrites the last —
+            // so the clip table is the only durable tally.
+            const { count: repeatClipCount } = await timeStage(
+              "repeatAttemptCount",
+              () =>
+                supabase
+                  .from("audio_clips")
+                  .select("id", { count: "exact", head: true })
+                  .eq("attempt_turn_id", turn.id)
+                  .eq("clip_kind", "repeat_attempt"),
+            );
+            const decision = applyRepeatTurnEvaluation(
+              evaluationResult,
+              repeatClipCount ?? 1,
+            );
             repeatEvaluation = decision;
 
             // The original and the repeat arrive as separate uploads, so the

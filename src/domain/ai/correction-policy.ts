@@ -2,6 +2,10 @@ import {
   isParrotedMissionQuestion,
   type CorrectionReason,
 } from "@/domain/ai/turn-evaluation";
+import {
+  detectHangulSpans,
+  findRomanizationArtifacts,
+} from "@/domain/audio/hangul-romanization";
 import type { AnswerShape } from "@/domain/mission/schemas";
 
 export type CorrectionPolicyViolation =
@@ -14,7 +18,8 @@ export type CorrectionPolicyViolation =
   | "fragment_content_lost"
   | "fragment_ungrounded"
   | "fragment_too_long"
-  | "target_pattern_padding";
+  | "target_pattern_padding"
+  | "romanization_artifact";
 
 export type ImprovedSentencePolicyInput = {
   evaluationMode: "preset" | "conversation";
@@ -526,6 +531,32 @@ export function validateImprovedSentencePolicy(
 
   if (normalizedTranscript === normalizedImprovedSentence) {
     addViolation("no_op");
+  }
+
+  /*
+   * Deliberately outside the transcriptResolvedFromKorean exemption below.
+   *
+   * That flag stands the grounding checks down because they compare word
+   * forms and Hangul can never match Latin — but standing them all down is
+   * what let an invented word through. The child said 발로란트 (Valorant), the
+   * transcriber wrote 배달란트, and the evaluator transliterated that into
+   * "Baedalranteu": a word in no language, which Coco spoke aloud and then
+   * asked the child to repeat, rejecting five clips at 90+ accuracy
+   * (attempt 6406e6a5, 2026-07-27).
+   *
+   * A romanization artifact is exactly the case where grounding must still
+   * apply, and it is decidable by string comparison: the improved sentence
+   * carries a Latin word that is only the RR reading of a span the child
+   * said. A span the evaluator genuinely recognized ("플레이 게임즈" -> "play
+   * games") shares no letters with its romanization and never trips this.
+   */
+  if (
+    findRomanizationArtifacts(
+      input.improvedSentence,
+      detectHangulSpans(input.transcript),
+    ).length > 0
+  ) {
+    addViolation("romanization_artifact");
   }
 
   if (

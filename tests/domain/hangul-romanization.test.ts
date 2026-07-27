@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   detectHangulSpans,
+  findRomanizationArtifacts,
   isEntirelyNonEnglish,
   romanizeHangul,
   romanizeHangulRun,
@@ -165,5 +166,41 @@ describe("Korean answer in an English frame (UAT 2026-07-24)", () => {
       { hangul: "바닐라", romanized: "Banilra" },
     ]);
     expect(isEntirelyNonEnglish("초콜릿 is better than 바닐라.")).toBe(false);
+  });
+});
+
+describe("findRomanizationArtifacts", () => {
+  const valorant = detectHangulSpans("배달란트");
+
+  it("catches a romanization the evaluator invented from a misheard span", () => {
+    // The exact failure: the child said 발로란트 (Valorant), the transcriber
+    // wrote 배달란트, and the evaluator emitted a word that does not exist.
+    expect(
+      findRomanizationArtifacts("I like to play Baedalranteu.", valorant),
+    ).toEqual(["Baedalranteu"]);
+  });
+
+  it("catches the artifact however it is spaced or cased", () => {
+    expect(findRomanizationArtifacts("I play baedal-ranteu.", valorant)).toEqual([
+      "baedal-ranteu",
+    ]);
+    expect(findRomanizationArtifacts("I play Baedal Ranteu.", valorant)).toEqual([
+      "Baedal Ranteu",
+    ]);
+  });
+
+  it("leaves a genuinely resolved span alone", () => {
+    // "플레이 게임즈" romanizes to "Peulleigeimjeu"; the evaluator reading it as
+    // "play games" is the behaviour to keep, so nothing must be reported.
+    const spans = detectHangulSpans("플레이 게임즈.");
+    expect(findRomanizationArtifacts("I play games.", spans)).toEqual([]);
+  });
+
+  it("reports nothing when the turn had no Hangul at all", () => {
+    expect(findRomanizationArtifacts("I like to play soccer.", [])).toEqual([]);
+  });
+
+  it("does not flag an ordinary English word that merely starts alike", () => {
+    expect(findRomanizationArtifacts("I bake bread.", valorant)).toEqual([]);
   });
 });
