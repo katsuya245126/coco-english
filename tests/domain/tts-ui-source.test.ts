@@ -215,14 +215,15 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
       "src/components/student/CocoDialogueBox.tsx",
     );
 
-    expect(dialogueSource).toContain("toggleTranslationBubble");
+    expect(dialogueSource).toContain("translationVisible");
+    expect(dialogueSource).toContain("setTranslationVisible(nextVisible)");
     expect(dialogueSource).toContain("firstPhraseIndexOnPage");
     expect(dialogueSource).toContain("currentPage");
     expect(dialogueSource).not.toContain("findDialoguePageIndex");
     expect(dialogueSource).not.toContain("firstPhrase.start");
     expect(dialogueSource).toContain("currentPage.start + segment.phrase.start");
     expect(dialogueSource).toMatch(
-      /translationState\.kind === "ready"[\s\S]*setExpandedPhraseIndex[\s\S]*return/,
+      /translationState\.kind === "ready"[\s\S]*setExpandedPhraseIndex\(nextVisible \? phraseIndex : null\)[\s\S]*return/,
     );
     const readyBranchIndex = dialogueSource.indexOf(
       'if (translationState.kind === "ready")',
@@ -231,7 +232,7 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(readyBranchIndex).toBeGreaterThan(-1);
     expect(fetchIndex).toBeGreaterThan(readyBranchIndex);
     expect(dialogueSource).toContain(
-      "aria-pressed={expandedPhraseIndex !== null}",
+      "aria-pressed={translationVisible}",
     );
     expect(dialogueSource).not.toContain(
       "getFirstTranslationPhraseSegmentIndex",
