@@ -35,7 +35,7 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
     return <main style={pageStyle}><div style={{ ...panelStyle, maxWidth: 430 }}>
       <h1>Homework Review</h1>
       <p>Your homework is complete, but the review could not load.</p>
-      <Link href="/student/home" style={primaryButtonStyle}>Back to homework</Link>
+      <Link href="/student/home" className="student-primary-button" style={primaryButtonStyle}>Back to homework</Link>
     </div></main>;
   }
   if (!recap) notFound();
@@ -45,8 +45,7 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
   }
 
   return <main style={pageStyle}><div style={{ ...panelStyle, maxWidth: 430 }}>
-    <style>{".recap-back-btn:hover { background: #1D4ED8 !important; } .recap-back-btn:active { background: #1E40AF !important; }"}</style>
-    <Link href="/student/home?tab=past" className="recap-back-btn" style={backLinkStyle} aria-label="Back to past missions" title="Back to past missions">←</Link>
+    <Link href="/student/home?tab=past" className="student-primary-button" style={backLinkStyle} aria-label="Back to past missions" title="Back to past missions">←</Link>
     <h1 style={{ marginBottom: 4 }}>{recap.title}</h1>
     <p style={{ color: "#64748B", marginTop: 0 }}>{recap.completedAt ? `Completed ${new Date(recap.completedAt).toLocaleDateString("en-US", { month: "long", day: "numeric" })} · ` : ""}Read-only recap</p>
     <StudentMissionRecap recap={recap} />

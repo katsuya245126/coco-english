@@ -284,7 +284,7 @@ test("full per-turn walk: answer -> improved sentence shown -> required repeat (
     // Unlock the student
     await page.goto("/join");
     await page.getByLabel(/class code/i).fill(joinCode);
-    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("button", { name: "Join" }).click();
     await page.getByLabel(/name/i).fill(studentName);
     await page.getByLabel("4-digit PIN").fill(pin);
     await page.getByRole("button", { name: "Unlock homework" }).click();
@@ -508,7 +508,7 @@ test("mobile viewport shows mission flow within 420px max-width (PILOT-01)", asy
     // Unlock
     await page.goto("/join");
     await page.getByLabel(/class code/i).fill(joinCode);
-    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("button", { name: "Join" }).click();
     await page.getByLabel(/name/i).fill(studentName);
     await page.getByLabel("4-digit PIN").fill(pin);
     await page.getByRole("button", { name: "Unlock homework" }).click();

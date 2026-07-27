@@ -19,7 +19,7 @@ test("manual /join page renders code entry with no visible roster selector", asy
 
   // Manual class-code entry must be present (STUD-01 fallback).
   await expect(
-    page.getByRole("button", { name: "Continue" }),
+    page.getByRole("button", { name: "Join" }),
   ).toBeVisible();
 
   // D-11: students type their name; there must be NO visible roster picker.
@@ -60,7 +60,7 @@ test("wrong tuple shows the identical generic mismatch copy (env-aware)", async 
   // Drive the manual flow with a wrong tuple and assert the generic copy.
   await page.goto("/join");
   await page.getByLabel(/class code/i).fill("ZZZZZZ");
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Join" }).click();
 
   // Even an unknown code funnels to the generic mismatch copy (D-16).
   await expect(
@@ -155,7 +155,7 @@ test("a remembered device survives a join-code reset (step 6, D-18)", async ({
     //    the immutable class id) on this device.
     await page.goto("/join");
     await page.getByLabel(/class code/i).fill(originalCode);
-    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("button", { name: "Join" }).click();
     await page.getByLabel(/name/i).fill(studentName);
     await page.getByLabel("4-digit PIN").fill(pin);
     await page.getByRole("button", { name: "Unlock homework" }).click();
@@ -176,7 +176,7 @@ test("a remembered device survives a join-code reset (step 6, D-18)", async ({
     //    device was stranded on the stale code, violating D-18).
     await page.goto("/join");
     await expect(page.getByText(`Step6 Class ${stamp}`)).toBeVisible();
-    await page.getByRole("button", { name: "Use this class" }).click();
+    await page.getByRole("button", { name: "Login" }).click();
 
     await expect(
       page.getByText(/Enter your name and PIN/),

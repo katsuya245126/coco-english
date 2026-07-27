@@ -17,6 +17,7 @@ export function LandingPanel() {
       <p style={bodyStyle}>Choose how you want to start.</p>
 
       <Link
+        className="student-primary-button"
         href="/join"
         style={{
           ...primaryButtonStyle,
@@ -30,6 +31,7 @@ export function LandingPanel() {
       </Link>
 
       <Link
+        className="student-secondary-button"
         href="/auth/login"
         style={{
           ...secondaryButtonStyle,

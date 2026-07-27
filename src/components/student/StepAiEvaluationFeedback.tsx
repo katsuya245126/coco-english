@@ -100,6 +100,7 @@ export function StepAiEvaluationFeedback({
           <RecordAgainRequiredNotice />
         ) : (
           <button
+            className="student-primary-button"
             type="button"
             style={{ ...primaryButtonStyle, marginTop: 16 }}
             onClick={onContinue}
@@ -231,6 +232,7 @@ export function StepAiEvaluationFeedback({
           </div>
         ) : null}
         <button
+          className="student-primary-button"
           type="button"
           style={{ ...primaryButtonStyle, marginTop: 16 }}
           onClick={onContinue}
@@ -258,6 +260,7 @@ export function StepAiEvaluationFeedback({
           <RecordAgainRequiredNotice />
         ) : (
           <button
+            className="student-primary-button"
             type="button"
             style={{ ...primaryButtonStyle, marginTop: 16 }}
             onClick={onContinue}

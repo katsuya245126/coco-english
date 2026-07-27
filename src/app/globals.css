@@ -127,3 +127,21 @@
     @apply font-sans;
     }
 }
+
+.student-primary-button:hover {
+    background: #1D4ED8 !important;
+}
+
+.student-primary-button:active {
+    background: #1E40AF !important;
+}
+
+.student-secondary-button:hover {
+    background: #F3F4F6 !important;
+    border-color: #9CA3AF !important;
+}
+
+.student-secondary-button:active {
+    background: #E5E7EB !important;
+    border-color: #6B7280 !important;
+}

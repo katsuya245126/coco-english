@@ -114,6 +114,7 @@ export function PinForm({ classId, className, joinCode }: PinFormProps) {
       ) : null}
 
       <button
+        className="student-primary-button"
         type="submit"
         disabled={submitting}
         style={{ ...primaryButtonStyle, marginTop: 16 }}

@@ -981,6 +981,7 @@ export function MissionFlowShell({
               Coco’s next question isn’t available yet. Please return to your missions and try again.
             </p>
             <button
+              className="student-primary-button"
               type="button"
               style={{ ...primaryButtonStyle, marginTop: 24 }}
               onClick={() => router.push("/student/home")}
@@ -1117,6 +1118,7 @@ export function MissionFlowShell({
               Your teacher will check this answer.
             </p>
             <button
+              className="student-primary-button"
               type="button"
               style={{ ...primaryButtonStyle, marginTop: 24 }}
               onClick={() => router.push("/student/home")}

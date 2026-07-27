@@ -2,15 +2,10 @@
 
 import { useEffect, useState } from "react";
 import {
-  clearRememberedClass,
   getRememberedClass,
   type RememberedClass,
 } from "@/components/student/remembered-class";
-import {
-  bodyStyle,
-  headingStyle,
-  secondaryButtonStyle,
-} from "@/components/student/styles";
+import { primaryButtonStyle } from "@/components/student/styles";
 
 type RememberedClassBannerProps = {
   // Called with the remembered class's IMMUTABLE id (D-18), so the parent can
@@ -41,39 +36,40 @@ export function RememberedClassBanner({ onUse }: RememberedClassBannerProps) {
   return (
     <div
       style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
         background: "#F7F8FA",
         border: "1px solid #E5E7EB",
-        borderRadius: 8,
-        padding: 16,
+        borderRadius: 12,
+        padding: 14,
         marginBottom: 16,
       }}
     >
-      <h2 style={headingStyle}>Welcome back</h2>
-      <p style={bodyStyle}>
-        Return to <strong>{remembered.className}</strong>. You will still enter
-        your PIN.
-      </p>
-      <button
-        type="button"
-        style={secondaryButtonStyle}
-        onClick={() => onUse(remembered.classId)}
+      <strong
+        style={{
+          minWidth: 0,
+          color: "#111827",
+          overflowWrap: "anywhere",
+        }}
       >
-        Use this class
-      </button>
+        {remembered.className}
+      </strong>
       <button
+        className="student-primary-button"
         type="button"
         style={{
-          ...secondaryButtonStyle,
-          marginTop: 8,
-          color: "#6B7280",
-          border: "1px solid #D1D5DB",
+          ...primaryButtonStyle,
+          width: "auto",
+          minHeight: 42,
+          padding: "10px 16px",
+          borderRadius: 10,
+          flex: "0 0 auto",
         }}
-        onClick={() => {
-          clearRememberedClass();
-          setRemembered(null);
-        }}
+        onClick={() => onUse(remembered.classId)}
       >
-        Forget this class
+        Login
       </button>
     </div>
   );

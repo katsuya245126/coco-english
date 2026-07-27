@@ -47,7 +47,7 @@ export function JoinForm({ initialClass, showRemembered }: JoinFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // "Use this class" on the remembered-class banner. Resolves by the stored
+  // "Login" on the remembered-class banner. Resolves by the stored
   // IMMUTABLE class id (D-18) so a join-code reset never strands the device:
   // the server returns the CURRENT live code, and we jump straight to the
   // name + PIN step with it. If the class no longer resolves (archived/deleted),
@@ -106,10 +106,8 @@ export function JoinForm({ initialClass, showRemembered }: JoinFormProps) {
 
   return (
     <div>
-      <h1 style={displayTitleStyle}>Enter your class</h1>
-      <p style={bodyStyle}>
-        Enter the class code from your teacher, or open the class link.
-      </p>
+      <h1 style={displayTitleStyle}>Join class</h1>
+      <p style={bodyStyle}>Choose your class.</p>
 
       {showRemembered ? (
         <RememberedClassBanner onUse={handleUseRemembered} />
@@ -144,11 +142,12 @@ export function JoinForm({ initialClass, showRemembered }: JoinFormProps) {
         ) : null}
 
         <button
+          className="student-primary-button"
           type="submit"
           disabled={submitting}
           style={{ ...primaryButtonStyle, marginTop: 16 }}
         >
-          Continue
+          Join
         </button>
       </form>
     </div>

@@ -55,6 +55,7 @@ export function StepTurnTransition({
       </div>
       ) : null}
       <button
+        className="student-primary-button"
         type="button"
         style={primaryButtonStyle}
         onClick={onNextTurn}

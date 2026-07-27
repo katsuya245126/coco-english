@@ -170,6 +170,14 @@
   text-decoration: none;
 }
 
+.backButton:hover {
+  background: #1d4ed8;
+}
+
+.backButton:active {
+  background: #1e40af;
+}
+
 .backButton:focus-visible {
   outline: 3px solid #f97316;
   outline-offset: 2px;

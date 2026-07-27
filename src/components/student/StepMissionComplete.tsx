@@ -68,6 +68,7 @@ export function StepMissionComplete({
         {completionBody}
       </p>
       <button
+        className="student-primary-button"
         type="button"
         style={{ ...primaryButtonStyle, marginTop: 24 }}
         onClick={() => router.push("/student/home")}

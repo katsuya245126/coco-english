@@ -12,6 +12,7 @@ export function StepConversationClosing({
   return (
     <div style={{ ...stepCardStyle, textAlign: "center" }} aria-live="polite">
       <button
+        className="student-primary-button"
         type="button"
         style={primaryButtonStyle}
         onClick={onFinish}
