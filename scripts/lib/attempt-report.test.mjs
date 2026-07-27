@@ -84,6 +84,31 @@ test("labels missing repeat provenance instead of inventing it", () => {
   );
 });
 
+test("prints contract violations that explain a failed_schema fallback", () => {
+  const output = formatAttemptTurn(
+    {
+      turn_order: 2,
+      evaluation: {
+        outcome: "teacher_review",
+        reviewReason: "failed_schema",
+        contractViolations: [
+          "fragment_ungrounded",
+          "romanization_artifact",
+        ],
+        privatePayload: "must-not-print",
+      },
+      audio_clips: [],
+    },
+    {},
+  ).join("\n");
+
+  assert.match(
+    output,
+    /contract violations: fragment_ungrounded, romanization_artifact/i,
+  );
+  assert.doesNotMatch(output, /must-not-print|privatePayload/i);
+});
+
 test("prints a to-one pronunciation score returned by Supabase", () => {
   const output = formatAttemptTurn(
     {

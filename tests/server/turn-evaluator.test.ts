@@ -1175,7 +1175,7 @@ describe("schema_failed diagnostics (attempt 4c1f229e, 2026-07-27)", () => {
     });
   });
 
-  it("treats a null output_parsed (refusal or truncation) as schema_failed", async () => {
+  it("treats a null output_parsed from truncation as provider_failed", async () => {
     const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
     const client = createFakeClient({
       output_parsed: null,
@@ -1195,7 +1195,7 @@ describe("schema_failed diagnostics (attempt 4c1f229e, 2026-07-27)", () => {
       { apiKey: "test-key", client, model: "test-evaluator" },
     );
 
-    expect(result).toEqual({ ok: false, error: "schema_failed" });
+    expect(result).toEqual({ ok: false, error: "provider_failed" });
   });
 });
 

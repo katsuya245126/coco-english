@@ -27,6 +27,12 @@ export function formatEvaluation(evaluation, { label = "evaluation" } = {}) {
     ["language", value.englishLanguage],
     ["confidence", value.confidence],
     ["review reason", value.reviewReason],
+    [
+      "contract violations",
+      Array.isArray(value.contractViolations)
+        ? value.contractViolations.join(", ")
+        : null,
+    ],
     ["policy version", value.policyVersion],
     ["evaluator model", value.evaluationModel],
     ["evaluation source", value.evaluationSource],

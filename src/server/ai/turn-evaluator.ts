@@ -175,6 +175,32 @@ function logSchemaFailure(
   });
 }
 
+function logUnparsedEvaluationResponse(
+  turnKind: "original" | "repeat",
+  model: string,
+  response: unknown,
+) {
+  const raw = response as {
+    status?: unknown;
+    incomplete_details?: { reason?: unknown };
+    output?: Array<{ content?: Array<{ type?: unknown }> }>;
+  };
+  const refused = raw?.output
+    ?.flatMap((item) => item?.content ?? [])
+    .some((part) => part?.type === "refusal");
+
+  log("error", "ai.evaluation_unparsed", {
+    turnKind,
+    model,
+    responseStatus: typeof raw?.status === "string" ? raw.status : null,
+    incompleteReason:
+      typeof raw?.incomplete_details?.reason === "string"
+        ? raw.incomplete_details.reason
+        : null,
+    refused: Boolean(refused),
+  });
+}
+
 /** Schema keys absent from the payload entirely. */
 function missingSchemaFields(
   turnKind: "original" | "repeat",
@@ -477,6 +503,10 @@ export async function evaluateOriginalTurn(
         ),
       },
     });
+    if (response.output_parsed == null) {
+      logUnparsedEvaluationResponse("original", model, response);
+      return { ok: false, error: "provider_failed" };
+    }
     const parsed = originalTurnProviderEvaluationSchema.safeParse(
       response.output_parsed,
     );
@@ -533,8 +563,9 @@ export async function evaluateRepeatTurn(
 
   try {
     const client = deps?.client ?? createClient(apiKey);
+    const model = resolveEvaluationModel(deps);
     const response = await client.responses.parse({
-      model: resolveEvaluationModel(deps),
+      model,
       input: [
         {
           role: "system",
@@ -553,12 +584,16 @@ export async function evaluateRepeatTurn(
         ),
       },
     });
+    if (response.output_parsed == null) {
+      logUnparsedEvaluationResponse("repeat", model, response);
+      return { ok: false, error: "provider_failed" };
+    }
     const parsed = repeatTurnEvaluationSchema.safeParse(response.output_parsed);
 
     if (!parsed.success) {
       logSchemaFailure(
         "repeat",
-        resolveEvaluationModel(deps),
+        model,
         response,
         parsed.error,
       );
