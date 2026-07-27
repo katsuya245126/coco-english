@@ -16,6 +16,9 @@ playwright-report/
 # Superpowers workflow session artifacts (briefs, review diffs, progress logs)
 .superpowers/
 
+# Local task state for the active checkout/thread
+TASK.md
+
 # Supabase CLI local cache (linked project ref, pooler URL, version stamps)
 supabase/.temp/
 
