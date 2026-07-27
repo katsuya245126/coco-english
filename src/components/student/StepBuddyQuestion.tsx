@@ -9,9 +9,11 @@
  * No AI client import (AI-06).
  */
 
+import { useEffect, useState } from "react";
 import {
   stepCardStyle,
   buddyCardStyle,
+  hintCardStyle,
 } from "@/components/student/styles";
 import { HintRevealer } from "@/components/student/HintRevealer";
 import type { HintLadder } from "@/domain/mission/schemas";
@@ -42,6 +44,7 @@ type StepBuddyQuestionProps = AnswerHelpProps & {
   assignmentStudentId: string;
   turnOrder: number;
   prompt: string;
+  replyHintFrame?: string | null;
   onAmplitudeFrame?: (level: number) => void;
   onPlayingChange?: (playing: boolean) => void;
   showCocoLine?: boolean;
@@ -54,6 +57,7 @@ export function StepBuddyQuestion({
   assignmentStudentId,
   turnOrder,
   prompt,
+  replyHintFrame,
   hintLadder,
   hintLevel,
   onAmplitudeFrame,
@@ -64,6 +68,12 @@ export function StepBuddyQuestion({
   onVoiceRecorded,
   isSubmitting,
 }: StepBuddyQuestionProps) {
+  const [replyHintVisible, setReplyHintVisible] = useState(false);
+
+  useEffect(() => {
+    setReplyHintVisible(false);
+  }, [replyHintFrame]);
+
   return (
     <div style={stepCardStyle} aria-live="polite">
       {showCocoLine ? (
@@ -80,6 +90,61 @@ export function StepBuddyQuestion({
           <p style={{ fontSize: 20, fontWeight: 600, color: "#111827", margin: 0, lineHeight: 1.25 }}>
             {prompt}
           </p>
+        </div>
+      ) : null}
+
+      {replyHintFrame ? (
+        <div style={{ marginTop: showCocoLine ? 16 : 0 }}>
+          <button
+            type="button"
+            aria-expanded={replyHintVisible}
+            onClick={() => setReplyHintVisible((visible) => !visible)}
+            style={{
+              background: "#FFFFFF",
+              border: "1px solid #BFDBFE",
+              borderRadius: 999,
+              padding: "8px 12px",
+              minHeight: 40,
+              fontSize: 15,
+              fontWeight: 600,
+              color: "#1D4ED8",
+              cursor: "pointer",
+              textAlign: "center",
+            }}
+          >
+            {replyHintVisible ? "Hide hint" : "Show hint"}
+          </button>
+
+          <div
+            aria-hidden={!replyHintVisible}
+            style={{
+              ...hintCardStyle,
+              display: replyHintVisible ? "block" : "none",
+              marginTop: 8,
+            }}
+          >
+            <p
+              style={{
+                fontSize: 14,
+                fontWeight: 600,
+                color: "#4B5563",
+                margin: "0 0 4px",
+                lineHeight: 1.4,
+              }}
+            >
+              Try:
+            </p>
+            <p
+              style={{
+                fontSize: 16,
+                color: "#111827",
+                margin: 0,
+                lineHeight: 1.5,
+              }}
+            >
+              {replyHintFrame}
+            </p>
+          </div>
         </div>
       ) : null}
 

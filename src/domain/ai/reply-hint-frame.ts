@@ -1,0 +1,146 @@
+const WORD_PATTERN = /[\p{L}\p{N}']+/gu;
+const TRAILING_CONTEXT_PATTERN =
+  /\s+(after|before|for|in|inside|outside|on|at|with|near|about|this|next|last|every)(?:\s+[\p{L}\p{N}'\s]*)?$/iu;
+const WHO_TRAILING_CONTEXT_PATTERN =
+  /\s+(after|before|for|in|inside|outside|on|at|near|about|this|next|last|every)(?:\s+[\p{L}\p{N}'\s]*)?$/iu;
+
+function sentenceCase(value: string) {
+  return value.length > 0 ? value[0].toUpperCase() + value.slice(1) : value;
+}
+
+function cleanQuestion(input: string) {
+  const questions = input.match(/[^.?!]*\?/gu);
+  const question = questions?.at(-1) ?? input;
+  return question.replace(/\s+/gu, " ").trim();
+}
+
+function cleanPhrase(value: string) {
+  return value
+    .replace(/\?$/u, "")
+    .replace(/\b(?:today|tomorrow|now)\b/giu, "")
+    .replace(/\byourself\b/giu, "myself")
+    .replace(/\byour\b/giu, "my")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+function hasWords(value: string) {
+  WORD_PATTERN.lastIndex = 0;
+  return WORD_PATTERN.test(value);
+}
+
+function completeFrame(value: string) {
+  const frame = value.replace(/\s+/gu, " ").trim();
+  if (!hasWords(frame) || !frame.includes("____")) return null;
+  return `${sentenceCase(frame)}.`;
+}
+
+function withFinalBlank(value: string) {
+  const frame = value.replace(/\s+/gu, " ").trim();
+  if (!hasWords(frame)) return null;
+  return completeFrame(`${frame} ____`);
+}
+
+function dropTrailingContext(value: string) {
+  return cleanPhrase(value).replace(TRAILING_CONTEXT_PATTERN, "").trim();
+}
+
+function splitTrailingContext(value: string) {
+  const phrase = cleanPhrase(value);
+  const match = phrase.match(TRAILING_CONTEXT_PATTERN);
+  if (!match || match.index === undefined) {
+    return { core: phrase, context: "" };
+  }
+
+  return {
+    core: phrase.slice(0, match.index).trim(),
+    context: phrase.slice(match.index).trim(),
+  };
+}
+
+function frameBroadObject(prefix: string, verbPhrase: string) {
+  const core = dropTrailingContext(verbPhrase);
+  if (!core) return null;
+  if (core.toLowerCase() === "do") return completeFrame(`I ${prefix} ____`);
+  return completeFrame(`I ${prefix} ${core} ____`);
+}
+
+function framePresentObject(verbPhrase: string) {
+  const { core, context } = splitTrailingContext(verbPhrase);
+  if (!core) return null;
+  if (core.toLowerCase() === "do") {
+    return context ? completeFrame(`I ____ ${context}`) : completeFrame("I ____");
+  }
+  return context
+    ? completeFrame(`I ${core} ____ ${context}`)
+    : completeFrame(`I ${core} ____`);
+}
+
+function frameWhoDetail(verbPhrase: string) {
+  const core = cleanPhrase(verbPhrase)
+    .replace(WHO_TRAILING_CONTEXT_PATTERN, "")
+    .trim();
+  return withFinalBlank(`I ${core}`);
+}
+
+function frameWhereDetail(verbPhrase: string) {
+  const phrase = cleanPhrase(verbPhrase);
+  if (!phrase) return null;
+  return completeFrame(`I ${phrase} at ____`);
+}
+
+export function buildReplyHintFrame(prompt: string): string | null {
+  const question = cleanQuestion(prompt);
+
+  const futureGoingTo = question.match(
+    /^what(?:\s+[\p{L}\p{N}']+)?\s+are\s+you\s+going\s+to\s+(.+)\?$/iu,
+  );
+  if (futureGoingTo) {
+    return frameBroadObject("am going to", futureGoingTo[1]);
+  }
+
+  const futureWill = question.match(
+    /^what(?:\s+[\p{L}\p{N}']+)?\s+will\s+you\s+(.+)\?$/iu,
+  );
+  if (futureWill) {
+    return frameBroadObject("will", futureWill[1]);
+  }
+
+  const likeToDo = question.match(
+    /^what\s+do\s+you\s+like\s+to\s+do(?:\s+(.+))?\?$/iu,
+  );
+  if (likeToDo) {
+    return completeFrame("I like to ____");
+  }
+
+  const likeToObject = question.match(
+    /^what(?:\s+[\p{L}\p{N}']+)?\s+do\s+you\s+like\s+to\s+(.+)\?$/iu,
+  );
+  if (likeToObject) {
+    return frameBroadObject("like to", likeToObject[1]);
+  }
+
+  const whoQuestion = question.match(/^who\s+do\s+you\s+(.+)\?$/iu);
+  if (whoQuestion) {
+    return frameWhoDetail(whoQuestion[1]);
+  }
+
+  const whereQuestion = question.match(/^where\s+do\s+you\s+(.+)\?$/iu);
+  if (whereQuestion) {
+    return frameWhereDetail(whereQuestion[1]);
+  }
+
+  const whenQuestion = question.match(/^when\s+do\s+you\s+(.+)\?$/iu);
+  if (whenQuestion) {
+    return withFinalBlank(`I ${cleanPhrase(whenQuestion[1])}`);
+  }
+
+  const presentWhat = question.match(
+    /^what(?:\s+[\p{L}\p{N}']+)?\s+do\s+you\s+(.+)\?$/iu,
+  );
+  if (presentWhat) {
+    return framePresentObject(presentWhat[1]);
+  }
+
+  return null;
+}

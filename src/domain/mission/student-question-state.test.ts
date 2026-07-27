@@ -31,6 +31,7 @@ describe("student question state", () => {
     expect(question).toEqual({
       kind: "conversation",
       prompt: opener.prompt,
+      replyHintFrame: "I like to ____.",
       activeTurnOrder: 1,
       recordingEnabled: true,
       line: { lineKind: "mission_prompt", turnOrder: 1 },
@@ -55,6 +56,7 @@ describe("student question state", () => {
     expect(question).toEqual({
       kind: "conversation",
       prompt: "Tell me more about soccer.",
+      replyHintFrame: null,
       activeTurnOrder: 2,
       recordingEnabled: true,
       line: { lineKind: "coco_dynamic_line", turnOrder: 1 },
@@ -78,6 +80,7 @@ describe("student question state", () => {
     ).toEqual({
       kind: "conversation",
       prompt: "Tell me more about soccer.",
+      replyHintFrame: null,
       activeTurnOrder: 2,
       recordingEnabled: true,
       line: { lineKind: "coco_dynamic_line", turnOrder: 1 },
@@ -105,6 +108,7 @@ describe("student question state", () => {
     ).toMatchObject({
       kind: "conversation",
       prompt: "Tell me more about soccer.",
+      replyHintFrame: null,
       line: { lineKind: "coco_dynamic_line", turnOrder: 1 },
     });
   });

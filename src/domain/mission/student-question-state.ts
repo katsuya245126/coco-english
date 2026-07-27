@@ -1,4 +1,5 @@
 import type { HintLadder, MissionSnapshotTurn } from "@/domain/mission/schemas";
+import { buildReplyHintFrame } from "@/domain/ai/reply-hint-frame";
 
 type StudentQuestionSpeechLine = {
   lineKind: "mission_prompt" | "coco_dynamic_line";
@@ -18,6 +19,7 @@ type PresetStudentQuestion = {
 type ConversationStudentQuestion = {
   kind: "conversation";
   prompt: string;
+  replyHintFrame: string | null;
   activeTurnOrder: number;
   recordingEnabled: true;
   line: StudentQuestionSpeechLine;
@@ -52,6 +54,7 @@ export function deriveActiveStudentQuestion({
       return {
         kind: "conversation",
         prompt: snapshotTurn.prompt,
+        replyHintFrame: buildReplyHintFrame(snapshotTurn.prompt),
         activeTurnOrder: snapshotTurn.turnOrder,
         recordingEnabled: true,
         line: { lineKind: "mission_prompt", turnOrder: snapshotTurn.turnOrder },
@@ -73,6 +76,7 @@ export function deriveActiveStudentQuestion({
     return {
       kind: "conversation",
       prompt,
+      replyHintFrame: buildReplyHintFrame(prompt),
       activeTurnOrder: turnIndex + 1,
       recordingEnabled: true,
       line: { lineKind: "coco_dynamic_line", turnOrder: turnIndex },

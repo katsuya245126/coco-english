@@ -362,6 +362,25 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(shellSource).not.toContain("questionLabel={characterProfile.questionLabel}");
   });
 
+  it("keeps lower conversation reply hints separate from Coco translation hints", () => {
+    const questionSource = readSource(
+      "src/components/student/StepBuddyQuestion.tsx",
+    );
+    const shellSource = readSource(
+      "src/components/student/MissionFlowShell.tsx",
+    );
+    const dialogueSource = readSource(
+      "src/components/student/CocoDialogueBox.tsx",
+    );
+
+    expect(dialogueSource).toContain("{hintVisibleLabel}");
+    expect(questionSource).toContain("replyHintFrame");
+    expect(questionSource).toContain('"Show hint"');
+    expect(questionSource).toContain('"Hide hint"');
+    expect(questionSource).toContain("Try:");
+    expect(shellSource).toContain("replyHintFrame={activeQuestion.replyHintFrame}");
+  });
+
   it("does not send student transcript text to CocoSpeechAudio (D-10)", () => {
     const repeatSource = readSource(
       "src/components/student/StepImprovedRepeat.tsx",

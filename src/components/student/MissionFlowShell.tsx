@@ -961,6 +961,7 @@ export function MissionFlowShell({
             assignmentStudentId={assignmentStudentId}
             turnOrder={activeQuestion.activeTurnOrder}
             prompt={activeQuestion.prompt}
+            replyHintFrame={activeQuestion.replyHintFrame}
             onAmplitudeFrame={handleMascotAmplitudeFrame}
             onPlayingChange={handleMascotPlayingChange}
             showCocoLine={false}
