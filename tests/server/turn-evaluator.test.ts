@@ -1143,3 +1143,100 @@ describe("buildOriginalPrompt answerShape branch", () => {
     );
   });
 });
+
+describe("schema_failed diagnostics (attempt 4c1f229e, 2026-07-27)", () => {
+  it("normalizes a whitespace-only improvedSentence instead of failing the turn", async () => {
+    // zodTextFormat drops Zod's .trim() transform, so the provider is never
+    // constrained against a blank string. A blank means "no correction", so it
+    // parses to null rather than costing the student a teacher_review.
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: {
+        ...correctOriginalProviderResult,
+        improvedSentence: "   ",
+      },
+    });
+
+    const result = await evaluateOriginalTurn(
+      {
+        evaluationMode: "conversation",
+        transcript: "Play games.",
+        targetPattern: "I'm going to ________",
+        targetExample: null,
+        missionQuestion: "What are you going to do this summer vacation?",
+        level: "elementary",
+      },
+      { apiKey: "test-key", client, model: "test-evaluator" },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: { improvedSentence: null },
+    });
+  });
+
+  it("treats a null output_parsed (refusal or truncation) as schema_failed", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: null,
+      status: "incomplete",
+      incomplete_details: { reason: "max_output_tokens" },
+    });
+
+    const result = await evaluateOriginalTurn(
+      {
+        evaluationMode: "conversation",
+        transcript: "Play games.",
+        targetPattern: "I'm going to ________",
+        targetExample: null,
+        missionQuestion: "What are you going to do this summer vacation?",
+        level: "elementary",
+      },
+      { apiKey: "test-key", client, model: "test-evaluator" },
+    );
+
+    expect(result).toEqual({ ok: false, error: "schema_failed" });
+  });
+});
+
+describe("schema failure diagnostics name the offending fields", () => {
+  it("reports missing schema keys without logging student text", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const logs: string[] = [];
+    const spy = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(((line: unknown) => {
+        logs.push(String(line));
+        return true;
+      }) as typeof process.stdout.write);
+
+    const { improvedSentence: _omit, ...withoutImprovedSentence } =
+      correctOriginalProviderResult;
+    const client = createFakeClient({ output_parsed: withoutImprovedSentence });
+
+    const result = await evaluateOriginalTurn(
+      {
+        evaluationMode: "conversation",
+        transcript: "Play games with my brother.",
+        targetPattern: "I'm going to ________",
+        targetExample: null,
+        missionQuestion: "What are you going to do this summer vacation?",
+        level: "elementary",
+      },
+      { apiKey: "test-key", client, model: "test-evaluator" },
+    );
+
+    spy.mockRestore();
+
+    expect(result).toEqual({ ok: false, error: "schema_failed" });
+
+    const diagnostic = logs.find((line) =>
+      line.includes("ai.evaluation_schema_failed"),
+    );
+    expect(diagnostic).toBeDefined();
+    expect(diagnostic).toContain("improvedSentence");
+    // The child's words must never reach the logs.
+    expect(diagnostic).not.toContain("brother");
+    expect(diagnostic).not.toContain("summer vacation");
+  });
+});

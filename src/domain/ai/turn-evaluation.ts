@@ -49,7 +49,25 @@ export const originalTurnProviderEvaluationSchema = z.object({
   correctionNeeded: z.boolean(),
   correctionSeverity: correctionSeveritySchema,
   correctionReason: correctionReasonSchema,
-  improvedSentence: z.string().trim().min(1).nullable(),
+  /**
+   * A whitespace-only string means "no correction", so normalize it to null
+   * rather than failing the whole turn.
+   *
+   * zodTextFormat drops Zod's .trim() transform when it builds the JSON schema
+   * sent to OpenAI, and structured-output decoding ignores the surviving
+   * minLength. The provider is therefore free to emit "   ", which then failed
+   * local safeParse and cost the student a teacher_review on an otherwise fine
+   * answer.
+   *
+   * This is not a loosening: a blank paired with correctionSeverity other than
+   * "none" is still rejected downstream by validReasonCombination /
+   * validCombination in decideOriginalTurnOutcome.
+   */
+  improvedSentence: z.preprocess(
+    (value) =>
+      typeof value === "string" && value.trim().length === 0 ? null : value,
+    z.string().trim().min(1).nullable(),
+  ),
   englishLanguage: aiEvaluationEnglishLanguageSchema,
   confidence: aiEvaluationConfidenceSchema,
   reviewReason: aiEvaluationReviewReasonSchema.nullable(),

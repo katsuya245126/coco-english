@@ -6,6 +6,7 @@
  */
 
 import OpenAI from "openai";
+import { z } from "zod";
 import type { OriginalEvaluationViolation } from "@/domain/ai/original-evaluation-contract";
 import type { HangulSpan } from "@/domain/audio/hangul-romanization";
 import { log } from "@/server/logging/logger";
@@ -117,6 +118,100 @@ export function resolveEvaluationRuntimeVersion(override?: string) {
 
 function createClient(apiKey: string): TurnEvaluationResponsesClient {
   return new OpenAI({ apiKey }) as TurnEvaluationResponsesClient;
+}
+
+/**
+ * Diagnose why a structured-output response failed local validation.
+ *
+ * Inspecting attempt 4c1f229e (2026-07-27) was impossible because every
+ * schema_failed turn discarded the provider response before anything was
+ * persisted, leaving only the fallback's default fields. The stored evidence
+ * could not distinguish a refusal, a truncated response, or a genuine field
+ * mismatch.
+ *
+ * Logs field paths and value types only. The transcript, the improvedSentence,
+ * and any other child-authored text stay out of logs.
+ */
+function logSchemaFailure(
+  turnKind: "original" | "repeat",
+  model: string,
+  response: unknown,
+  error: z.ZodError,
+) {
+  const raw = response as {
+    output_parsed?: unknown;
+    status?: unknown;
+    incomplete_details?: { reason?: unknown };
+    output?: Array<{ content?: Array<{ type?: unknown; refusal?: unknown }> }>;
+  };
+
+  const refusal = raw?.output
+    ?.flatMap((item) => item?.content ?? [])
+    .find((part) => part?.type === "refusal");
+
+  log("error", "ai.evaluation_schema_failed", {
+    turnKind,
+    model,
+    // Distinguishes the three failure modes that all collapsed into
+    // "failed_schema": refusal, truncation, and field mismatch.
+    outputParsedIsNull: raw?.output_parsed == null,
+    responseStatus: typeof raw?.status === "string" ? raw.status : null,
+    incompleteReason:
+      typeof raw?.incomplete_details?.reason === "string"
+        ? raw.incomplete_details.reason
+        : null,
+    refused: Boolean(refusal),
+    issues: error.issues.slice(0, 10).map((issue) => ({
+      path: issue.path.join("."),
+      code: issue.code,
+      message: issue.message,
+    })),
+    // A truncated or partially-emitted object is the leading explanation for a
+    // high failure rate that the dropped-.trim() bug cannot account for, and it
+    // is otherwise invisible in the stored evidence.
+    missingFields: missingSchemaFields(turnKind, raw?.output_parsed),
+    blankStringFields: blankStringFields(raw?.output_parsed),
+    fieldTypes: describeFieldTypes(raw?.output_parsed),
+  });
+}
+
+/** Schema keys absent from the payload entirely. */
+function missingSchemaFields(
+  turnKind: "original" | "repeat",
+  value: unknown,
+): string[] | null {
+  if (typeof value !== "object" || value === null) return null;
+  const schema =
+    turnKind === "original"
+      ? originalTurnProviderEvaluationSchema
+      : repeatTurnEvaluationSchema;
+  const present = new Set(Object.keys(value as Record<string, unknown>));
+  return Object.keys(schema.shape).filter((key) => !present.has(key));
+}
+
+/** Keys whose string value trims to empty — greppable companion to fieldTypes. */
+function blankStringFields(value: unknown): string[] | null {
+  if (typeof value !== "object" || value === null) return null;
+  return Object.entries(value as Record<string, unknown>)
+    .filter(([, entry]) => typeof entry === "string" && entry.trim().length === 0)
+    .map(([key]) => key);
+}
+
+/** Value types per top-level key — never the values themselves. */
+function describeFieldTypes(value: unknown): Record<string, string> | null {
+  if (typeof value !== "object" || value === null) return null;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+      key,
+      entry === null
+        ? "null"
+        : typeof entry === "string"
+          ? entry.trim().length === 0
+            ? "string(blank)"
+            : "string"
+          : typeof entry,
+    ]),
+  );
 }
 
 const fixedPresetInstructions = [
@@ -378,6 +473,7 @@ export async function evaluateOriginalTurn(
     );
 
     if (!parsed.success) {
+      logSchemaFailure("original", model, response, parsed.error);
       return { ok: false, error: "schema_failed" };
     }
 
@@ -392,10 +488,25 @@ export async function evaluateOriginalTurn(
     };
 
     return { ok: true, evaluation };
-  } catch {
-    log("error", "ai.evaluation_failed", { turnKind: "original", error: "provider_failed" });
+  } catch (cause) {
+    log("error", "ai.evaluation_failed", {
+      turnKind: "original",
+      error: "provider_failed",
+      ...describeThrown(cause),
+    });
     return { ok: false, error: "provider_failed" };
   }
+}
+
+/** Provider error shape, without leaking prompt or student content. */
+function describeThrown(cause: unknown) {
+  const err = cause as { name?: unknown; status?: unknown; code?: unknown; message?: unknown };
+  return {
+    causeName: typeof err?.name === "string" ? err.name : null,
+    causeStatus: typeof err?.status === "number" ? err.status : null,
+    causeCode: typeof err?.code === "string" ? err.code : null,
+    causeMessage: typeof err?.message === "string" ? err.message.slice(0, 200) : null,
+  };
 }
 
 export async function evaluateRepeatTurn(
@@ -436,12 +547,22 @@ export async function evaluateRepeatTurn(
     const parsed = repeatTurnEvaluationSchema.safeParse(response.output_parsed);
 
     if (!parsed.success) {
+      logSchemaFailure(
+        "repeat",
+        resolveEvaluationModel(deps),
+        response,
+        parsed.error,
+      );
       return { ok: false, error: "schema_failed" };
     }
 
     return { ok: true, evaluation: parsed.data };
-  } catch {
-    log("error", "ai.evaluation_failed", { turnKind: "repeat", error: "provider_failed" });
+  } catch (cause) {
+    log("error", "ai.evaluation_failed", {
+      turnKind: "repeat",
+      error: "provider_failed",
+      ...describeThrown(cause),
+    });
     return { ok: false, error: "provider_failed" };
   }
 }

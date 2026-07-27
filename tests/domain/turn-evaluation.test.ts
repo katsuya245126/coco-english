@@ -839,3 +839,72 @@ describe("no-op correction guard (attempt 103fa68e turn 2 regression)", () => {
     expect(guardNoOpCorrection(decision, context)).toEqual(decision);
   });
 });
+
+describe("blank improvedSentence tolerance (attempt 4c1f229e, 2026-07-27)", () => {
+  it.each([["   "], [""], ["\n\t"]])(
+    "normalizes a blank improvedSentence %j to null instead of failing the turn",
+    async (blank) => {
+      const { originalTurnProviderEvaluationSchema } = await import(
+        "@/domain/ai/turn-evaluation"
+      );
+
+      const result = originalTurnProviderEvaluationSchema.safeParse({
+        version: "ai-eval-v1",
+        outcome: "correct",
+        meaningUnderstood: true,
+        targetPatternAttempted: true,
+        correctionNeeded: false,
+        correctionSeverity: "none",
+        correctionReason: "none",
+        improvedSentence: blank,
+        englishLanguage: "english",
+        confidence: "high",
+        reviewReason: null,
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.improvedSentence).toBeNull();
+    },
+  );
+
+  it("accepts the original turn when a blank correction meant no correction", async () => {
+    const { decideOriginalTurnOutcome, originalTurnProviderEvaluationSchema } =
+      await import("@/domain/ai/turn-evaluation");
+
+    const parsed = originalTurnProviderEvaluationSchema.safeParse({
+      ...baseOriginalEvaluation,
+      improvedSentence: "   ",
+    });
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+
+    const decision = decideOriginalTurnOutcome({
+      ...baseOriginalEvaluation,
+      improvedSentence: parsed.data.improvedSentence,
+    });
+
+    expect(decision).toMatchObject({ kind: "accepted_original" });
+  });
+
+  it("still refuses a blank correction that claims a material fix", async () => {
+    // The safety net must survive the loosening: blank + needs_correction is
+    // unusable and has to stay a teacher_review.
+    const { decideOriginalTurnOutcome } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    const decision = decideOriginalTurnOutcome({
+      ...baseOriginalEvaluation,
+      outcome: "needs_correction",
+      correctionNeeded: true,
+      correctionSeverity: "material",
+      correctionReason: "grammar",
+      improvedSentence: null,
+    });
+
+    expect(decision).toMatchObject({
+      kind: "teacher_review",
+      reviewReason: "failed_schema",
+    });
+  });
+});
