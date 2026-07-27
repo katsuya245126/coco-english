@@ -182,6 +182,70 @@ test("separates the prompt answered from the next generated line", () => {
   assert.doesNotMatch(output, /coco said:/i);
 });
 
+test("prints the stored conversation reply hint frame", () => {
+  const output = formatAttemptTurn(
+    {
+      turn_order: 2,
+      original_transcript: "At home.",
+      coco_line: "Who do you play that game with?",
+      reply_hint_frame: "I play that game at ____.",
+      evaluation: {},
+      audio_clips: [],
+    },
+    {
+      promptAnswered: "Where do you play that game?",
+      snapshotTurn: null,
+      conversationMode: true,
+      generatedTurn: true,
+      targetPattern: "I'm going to _____.",
+    },
+  ).join("\n");
+
+  assert.match(output, /prompt answered: Where do you play that game\?/);
+  assert.match(output, /reply hint frame: I play that game at ____\./);
+});
+
+test("reports a missing reply hint frame as not recorded, not as absent", () => {
+  const output = formatAttemptTurn(
+    {
+      turn_order: 2,
+      original_transcript: "At home.",
+      coco_line: "Who do you play that game with?",
+      evaluation: {},
+      audio_clips: [],
+    },
+    {
+      promptAnswered: "Where do you play that game?",
+      snapshotTurn: null,
+      conversationMode: true,
+      generatedTurn: true,
+      targetPattern: "I'm going to _____.",
+    },
+  ).join("\n");
+
+  assert.match(output, /reply hint frame: not recorded/);
+});
+
+test("does not print a reply hint frame line for preset missions", () => {
+  const output = formatAttemptTurn(
+    {
+      turn_order: 1,
+      original_transcript: "I am going to swim.",
+      reply_hint_frame: null,
+      evaluation: {},
+      audio_clips: [],
+    },
+    {
+      promptAnswered: "What are you going to do this summer?",
+      snapshotTurn: { targetExample: "I am going to ____." },
+      conversationMode: false,
+      generatedTurn: false,
+    },
+  ).join("\n");
+
+  assert.doesNotMatch(output, /reply hint frame:/);
+});
+
 test("prints only bounded rejected candidate evidence", () => {
   const output = formatAttemptTurn(
     {

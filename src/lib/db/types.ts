@@ -223,6 +223,7 @@ export type Database = {
           hint_level_used: number;
           coco_line: string | null;
           moderation_event: Json | null;
+          reply_hint_frame: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -240,6 +241,7 @@ export type Database = {
           hint_level_used?: number;
           coco_line?: string | null;
           moderation_event?: Json | null;
+          reply_hint_frame?: string | null;
           created_at?: string;
           updated_at?: string;
         };

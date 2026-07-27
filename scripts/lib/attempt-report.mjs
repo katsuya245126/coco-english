@@ -150,9 +150,19 @@ export function formatAttemptTurn(turn, input = {}) {
   const answerShape =
     snapshotTurn.answerShape ??
     (context.conversationMode ? "open (runtime default)" : "fixed");
+  // Read the stored column; never re-derive. A row written before the
+  // reply_hint_frame migration has null here and is reported as such, so an old
+  // attempt is not misread as "no hint was available to the student".
+  const replyHintFrame =
+    turn.reply_hint_frame == null
+      ? "not recorded (pre-migration or no frame matched)"
+      : turn.reply_hint_frame;
   const lines = [
     `  Turn ${shown(turn.turn_order)}`,
     `    prompt answered: ${promptAnswered}`,
+    ...(context.conversationMode
+      ? [`    reply hint frame: ${replyHintFrame}`]
+      : []),
     `    next Coco line: ${shown(turn.coco_line)}`,
     ...(context.conversationMode
       ? [`    lesson context (soft): ${shown(context.targetPattern)}`]

@@ -932,6 +932,10 @@ describe("uploadAttemptAudioClip", () => {
       }),
     });
     expect(transcriptWrite?.filters).toContainEqual(["id", "turn-1"]);
+    // A repeat answers the same question as the original, so the frame is
+    // already on the row. Leaving it out of the update keeps the original
+    // answer's recorded frame from being rewritten.
+    expect(transcriptWrite?.payload).not.toHaveProperty("reply_hint_frame");
     expect(evaluateRepeat).toHaveBeenCalledWith(
       expect.objectContaining({
         repeatTranscript: "I want pizza, please.",

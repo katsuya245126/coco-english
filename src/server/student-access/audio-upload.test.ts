@@ -1399,6 +1399,136 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     ).toHaveLength(1);
   });
 
+  // reply_hint_frame records the hint frame that was AVAILABLE for the question
+  // the student answered, so a later change to buildReplyHintFrame cannot
+  // rewrite what old attempts actually showed. It is not a record of whether
+  // the student expanded the hint.
+  it("stores the reply hint frame for the dynamic question the student answered", async () => {
+    mockSupabase = createMockSupabase({
+      previousTurns: [
+        {
+          turn_order: 1,
+          original_transcript: "I like soccer.",
+          improved_sentence: null,
+          coco_line: "What will you do next?",
+        },
+      ],
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+      transcribeAudioFile: successfulTranscriber("I will play soccer."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: fakeGenerateCocoReply(async () => ({
+        ok: true,
+        reply: { line: "Great! Tell me one more thing." },
+      })),
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(result.ok).toBe(true);
+    const answerWrite = mockSupabase.operations.find(
+      (operation) =>
+        operation.table === "attempt_turns" &&
+        operation.action === "upsert" &&
+        typeof operation.payload === "object" &&
+        operation.payload !== null &&
+        "original_transcript" in operation.payload,
+    );
+    // The frame comes from the prior turn's persisted coco_line, not from the
+    // authored opener and not from the next line Coco is about to say.
+    expect(answerWrite?.payload).toMatchObject({
+      reply_hint_frame: "I will ____.",
+    });
+  });
+
+  it("stores the reply hint frame for the conversation opener on turn one", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        turns: [
+          {
+            ...conversationMissionSnapshotFixture.turns[0],
+            turnOrder: 1,
+            prompt: "What do you like to do after school?",
+          },
+        ],
+      },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like to play soccer."),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+      generateCocoReply: fakeGenerateCocoReply(async () => ({
+        ok: true,
+        reply: { line: "Nice! Where do you play?" },
+      })),
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(result.ok).toBe(true);
+    const answerWrite = mockSupabase.operations.find(
+      (operation) =>
+        operation.table === "attempt_turns" &&
+        operation.action === "upsert" &&
+        typeof operation.payload === "object" &&
+        operation.payload !== null &&
+        "original_transcript" in operation.payload,
+    );
+    expect(answerWrite?.payload).toMatchObject({
+      reply_hint_frame: "I like to ____.",
+    });
+  });
+
+  it("stores a null reply hint frame for preset missions", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        conversationMode: false,
+        requiredTurns: 1,
+        turns: [
+          {
+            ...conversationMissionSnapshotFixture.turns[0],
+            turnOrder: 1,
+            // Would yield "I want to order ____." in conversation mode; preset
+            // missions must stay null because they never show a reply hint.
+            prompt: "What do you want to order?",
+          },
+        ],
+      } as unknown as typeof conversationMissionSnapshotFixture,
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("Can I have a juice, please?"),
+      evaluateOriginalTurn: successfulOriginalEvaluator(),
+    });
+
+    expect(result.ok).toBe(true);
+    const answerWrite = mockSupabase.operations.find(
+      (operation) =>
+        operation.table === "attempt_turns" &&
+        operation.action === "upsert" &&
+        typeof operation.payload === "object" &&
+        operation.payload !== null &&
+        "original_transcript" in operation.payload,
+    );
+    expect(answerWrite?.payload).toMatchObject({ reply_hint_frame: null });
+  });
+
   it("ignores a legacy authored tail and evaluates turn two against its persisted Coco line", async () => {
     mockSupabase = createMockSupabase({
       missionSnapshot: {

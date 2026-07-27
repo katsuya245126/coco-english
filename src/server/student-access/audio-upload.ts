@@ -13,6 +13,7 @@ import { missionSnapshotSchema } from "@/domain/mission/schemas";
 import { isExactTargetMatch } from "@/domain/ai/fast-path";
 import { isIncompleteUtterance } from "@/domain/ai/incomplete-utterance";
 import { matchesOpenAnswerFrame } from "@/domain/ai/open-answer-frame";
+import { buildReplyHintFrame } from "@/domain/ai/reply-hint-frame";
 import {
   canonicalizeNoOpOriginalEvaluation,
   validateOriginalEvaluationContract,
@@ -893,6 +894,16 @@ export async function uploadAttemptAudioClip(
     }
 
     const missionQuestion = snapshotTurn?.prompt ?? previousCocoLine;
+    // The reply hint frame OFFERED to the student for the question they just
+    // answered — recorded, not derived later, so a future change to
+    // buildReplyHintFrame cannot rewrite what old attempts actually showed.
+    // Mirrors deriveActiveStudentQuestion, which is what the UI renders, so
+    // this is the available frame regardless of whether the student expanded
+    // it. Preset missions never show one, so they stay null.
+    const replyHintFrame =
+      snapshot.conversationMode === true && missionQuestion
+        ? buildReplyHintFrame(missionQuestion)
+        : null;
     const targetExample =
       snapshot.conversationMode === true
         ? null
@@ -1126,6 +1137,7 @@ export async function uploadAttemptAudioClip(
             target_attempted: false,
             improved_sentence: null,
             evaluation: toJson(evaluation),
+            reply_hint_frame: replyHintFrame,
           },
           { onConflict: "attempt_id,turn_order" },
         ),
@@ -1237,6 +1249,7 @@ export async function uploadAttemptAudioClip(
               target_attempted: false,
               improved_sentence: null,
               evaluation: toJson(evaluation),
+              reply_hint_frame: replyHintFrame,
             },
             { onConflict: "attempt_id,turn_order" },
           ),
@@ -1462,6 +1475,7 @@ export async function uploadAttemptAudioClip(
                   target_attempted: decision.targetAttempted,
                   improved_sentence: decision.improvedSentence,
                   evaluation: toJson(decision.evaluation),
+                  reply_hint_frame: replyHintFrame,
                 },
                 { onConflict: "attempt_id,turn_order" },
               ),
