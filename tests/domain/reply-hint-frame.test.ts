@@ -108,6 +108,100 @@ describe("conversation reply hint frames", () => {
     });
   });
 
+  // In "What do you like about that?" the preposition GOVERNS the questioned
+  // thing — the answer belongs after "about", not before it. Treating it as
+  // optional trailing context produced "I like ____ about that.", which the
+  // student read aloud as "I like it's fun about that." (UAT 2026-07-27,
+  // attempt db9a4297 T4). Same defect class as the who-bug: the blank was
+  // placed by position instead of by role.
+  describe("about is the questioned thing, not trailing context", () => {
+    it.each([
+      ["What do you like about that?", "I like ____."],
+      ["What do you think about that?", "I think ____."],
+      ["What do you know about that game?", "I know ____."],
+    ])("drops the about clause so the blank ends the frame: %s", (prompt, frame) => {
+      expect(buildReplyHintFrame(prompt)).toBe(frame);
+    });
+
+    it("drops a long about tail rather than stranding the blank", () => {
+      // Topic anchoring is deliberately sacrificed: a child reads the frame
+      // aloud, so the blank must be the last slot.
+      expect(
+        buildReplyHintFrame("What do you like about playing games at the PC room?"),
+      ).toBe("I like ____.");
+    });
+
+    it("handles the exact UAT regression with Coco's reaction attached", () => {
+      expect(
+        buildReplyHintFrame("Thanks for telling me! What do you like about that?"),
+      ).toBe("I like ____.");
+    });
+
+    // Only "about" changes meaning this way. Other prepositions still carry
+    // genuine context and must keep trailing the blank, byte-identical.
+    it.each([
+      ["What food do you eat for breakfast?", "I eat ____ for breakfast."],
+      ["What do you do in that game?", "I ____ in that game."],
+      ["What games do you play inside?", "I play ____ inside."],
+    ])("leaves other trailing context untouched: %s", (prompt, frame) => {
+      expect(buildReplyHintFrame(prompt)).toBe(frame);
+    });
+  });
+
+  // Coco's "tell me" is the student's "tell you". cleanPhrase flipped "your"
+  // and "yourself" but never "me", so the student was shown "I want to tell me
+  // bye." (UAT 2026-07-27, attempt db9a4297 T5).
+  describe("first-person pronouns flip to the student's voice", () => {
+    it.each([
+      ["What else do you want to tell me?", "I want to tell you ____."],
+      ["What do you want to show me?", "I want to show you ____."],
+      ["What do you want to give me?", "I want to give you ____."],
+    ])("flips me to you: %s", (prompt, frame) => {
+      expect(buildReplyHintFrame(prompt)).toBe(frame);
+    });
+
+    it("handles the exact UAT regression with Coco's reaction attached", () => {
+      expect(
+        buildReplyHintFrame("Thanks for trying! What else do you want to tell me?"),
+      ).toBe("I want to tell you ____.");
+    });
+
+    it("does not corrupt words that merely contain me", () => {
+      expect(buildReplyHintFrame("What games do you play at home?")).toBe(
+        "I play ____ at home.",
+      );
+    });
+  });
+
+  // Class invariants: guard the whole shape, not just the cases enumerated
+  // above. A frame is spoken by the STUDENT, so "me" can never appear in it,
+  // and an "about" fragment can never trail the blank.
+  it.each([
+    "What do you like about that?",
+    "What do you think about that?",
+    "What do you know about that game?",
+    "What do you like about playing games at the PC room?",
+    "What else do you want to tell me?",
+    "What do you want to show me?",
+    "What do you want to give me?",
+  ])("never speaks in Coco's voice or strands an about clause: %s", (prompt) => {
+    const frame = buildReplyHintFrame(prompt);
+    expect(frame).not.toBeNull();
+    expect(frame).not.toMatch(/\bme\b/iu);
+    expect(frame).not.toMatch(/____.*\babout\b/iu);
+  });
+
+  // The who-path reaches WHO_TRAILING_CONTEXT_PATTERN, which also lists
+  // "about". This pins that the present-what fix left it byte-identical.
+  it.each([
+    ["Who do you talk about at school?", "I talk ____."],
+    ["Who do you play with?", "I play with ____."],
+    ["Who do you talk to at school?", "I talk to ____."],
+    ["Who do you go with to the PC room?", "I go to the PC room with ____."],
+  ])("leaves who-question frames unchanged: %s", (prompt, frame) => {
+    expect(buildReplyHintFrame(prompt)).toBe(frame);
+  });
+
   it.each([
     ["Where do you play soccer?", "I play soccer at ____."],
     [

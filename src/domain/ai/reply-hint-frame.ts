@@ -25,6 +25,9 @@ function cleanPhrase(value: string) {
     .replace(/\b(?:today|tomorrow|now)\b/giu, "")
     .replace(/\byourself\b/giu, "myself")
     .replace(/\byour\b/giu, "my")
+    // Coco's "tell me" is the student's "tell you". Without this the student
+    // was shown "I want to tell me bye." (UAT 2026-07-27, attempt db9a4297 T5).
+    .replace(/\bme\b/giu, "you")
     .replace(/\s+/gu, " ")
     .trim();
 }
@@ -70,8 +73,28 @@ function frameBroadObject(prefix: string, verbPhrase: string) {
   return completeFrame(`I ${prefix} ${core} ____`);
 }
 
+/**
+ * In "What do you like about that?" the preposition GOVERNS the questioned
+ * thing — the answer belongs after "about", so the blank has to take its slot
+ * and the remainder is dropped. Trailing it instead produced "I like ____
+ * about that.", which the student read aloud as "I like it's fun about that."
+ * (UAT 2026-07-27, attempt db9a4297 T4). Same defect class as the who-bug: the
+ * blank was placed by position instead of by role.
+ *
+ * The topic is deliberately sacrificed on long tails — "What do you like about
+ * playing games at the PC room?" yields "I like ____." rather than anchoring
+ * the topic — because a child reads the frame aloud and the blank must be the
+ * last slot. Only "about" behaves this way; every other preposition in
+ * TRAILING_CONTEXT_PATTERN carries genuine context and still trails the blank.
+ */
+const GOVERNING_CONTEXT_PATTERN = /^about\b/iu;
+
 function framePresentObject(verbPhrase: string) {
-  const { core, context } = splitTrailingContext(verbPhrase);
+  const split = splitTrailingContext(verbPhrase);
+  const { core } = split;
+  const context = GOVERNING_CONTEXT_PATTERN.test(split.context)
+    ? ""
+    : split.context;
   if (!core) return null;
   if (core.toLowerCase() === "do") {
     return context ? completeFrame(`I ____ ${context}`) : completeFrame("I ____");
