@@ -324,7 +324,29 @@ export function validateGeneratedCocoReplyParts(
       ),
     );
 
-    if (echoedDetails.length >= 2) {
+    // Only a genuine list-parrot counts. Two guards, both load-bearing:
+    //
+    // 1. A length floor matching the sibling response_summary check below. A
+    //    two-detail answer ("I play games inside.") cannot be a list, so any
+    //    specific acknowledgement of it echoed 100% of the details and was
+    //    rejected outright — which contradicted the system prompt's own order to
+    //    "acknowledge or react specifically to the latest studentResponse".
+    // 2. The declared focus is excluded. The prompt tells Coco to pick one
+    //    learner-owned detail and explore it, so echoing the focus is the
+    //    requested behavior, not parroting.
+    //
+    // Regression: attempt 4c1f229e turn 4 discarded the on-topic reply
+    // "Playing games inside sounds fun. / What games do you play inside?" and
+    // served a canned line instead, after two paid calls.
+    const focusDetails = distinctContentWords(parts.focus ?? "");
+    const echoedBeyondFocus = echoedDetails.filter(
+      (echoedWord) =>
+        !focusDetails.some((focusWord) =>
+          relatedContentWord(echoedWord, focusWord),
+        ),
+    );
+
+    if (responseDetails.length >= 3 && echoedBeyondFocus.length >= 2) {
       reasons.push("multi_detail_echo");
     }
     if (
@@ -517,6 +539,11 @@ export function buildConversationPrompt(input: GenerateCocoReplyInput) {
         : "A follow-up must include one question and may include one learner-owned focus.",
       "Write complete, correctly punctuated sentences. Put sentence-ending punctuation between a reaction and the follow-up question; never join them as a run-on.",
       "Treat every detail in conversationHistory as already known.",
+      // Unconditional on purpose. A withheld answer from an earlier turn stays
+      // withheld in history, but reviewPendingInstructions is empty whenever
+      // responseHandling is "normal" — including the closing turn, which is
+      // where the unexplained marker produced a fabricated recap.
+      `A studentResponse of "${WITHHELD_STUDENT_RESPONSE}" was not understood. Never guess, reconstruct, reference, or summarize it, and never treat it as a detail the student told you.`,
       ...reviewPendingInstructions,
       "Before the closing turn, acknowledge the latest studentResponse, then ask exactly one question for new information whose answer is not present or directly implied anywhere in conversationHistory.",
       "Before the closing turn, after a meaningful answer, ask an open question that connects directly to the answer and invites a short phrase or sentence.",

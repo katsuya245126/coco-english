@@ -202,6 +202,86 @@ describe("structured Coco reply parts", () => {
   });
 });
 
+describe("multi_detail_echo list-parrot scope (attempt 4c1f229e turn 4)", () => {
+  it("accepts a specific acknowledgement of a short two-detail answer", () => {
+    // The rejected reply from the attempt. The system prompt gives this exact
+    // exchange as its worked example, so the policy was discarding the
+    // documented desired output and serving a canned line instead.
+    expect(
+      validateGeneratedCocoReplyParts(
+        {
+          reaction: "Playing games inside sounds fun.",
+          focus: "games",
+          question: "What games do you play inside?",
+        },
+        {
+          expectsQuestion: true,
+          activeQuestion: "Do you like to play games inside or outside?",
+          latestStudentResponse: "I play games inside.",
+        },
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  it("allows a long answer whose reaction echoes only the declared focus", () => {
+    const result = validateGeneratedCocoReplyParts(
+      {
+        reaction: "Swimming sounds fun!",
+        focus: "swimming",
+        question: "Who will you swim with?",
+      },
+      {
+        expectsQuestion: true,
+        activeQuestion: "What will you do in the valley?",
+        latestStudentResponse: "I will eat watermelon, swim, and eat chicken.",
+      },
+    );
+
+    if (!result.ok) expect(result.reasons).not.toContain("multi_detail_echo");
+  });
+
+  it("still rejects parroting a genuine list back at the child", () => {
+    const result = validateGeneratedCocoReplyParts(
+      {
+        reaction:
+          "You play soccer and basketball with Minju at school sounds fun!",
+        focus: "soccer",
+        question: "Who do you play soccer with?",
+      },
+      {
+        expectsQuestion: true,
+        activeQuestion: "What do you do after school?",
+        latestStudentResponse:
+          "I play soccer and basketball with Minju at school on Saturdays.",
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reasons).toContain("multi_detail_echo");
+  });
+
+  it("keeps response_summary independent of the focus exclusion", () => {
+    // Guards against a future refactor collapsing the two checks: this echoes
+    // every detail, so response_summary must fire even where focus-exclusion
+    // drops multi_detail_echo below its threshold.
+    const result = validateGeneratedCocoReplyParts(
+      {
+        reaction: "Watermelon swimming chicken!",
+        focus: "watermelon",
+        question: "Who will you swim with?",
+      },
+      {
+        expectsQuestion: true,
+        activeQuestion: "What will you do in the valley?",
+        latestStudentResponse: "I will eat watermelon, swim, and eat chicken.",
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reasons).toContain("response_summary");
+  });
+});
+
 describe("conversation history generation contract", () => {
   it("accepts ordered history and places the complete history in the prompt", () => {
     expect(conversationTurnInputSchema.safeParse(input).success).toBe(true);
@@ -651,5 +731,49 @@ describe("conversation history generation contract", () => {
     expect(prompt.conversationHistory[0]?.studentResponse).toBe(
       "playing soccer on the weekend",
     );
+  });
+});
+
+describe("withheld-response instruction is unconditional", () => {
+  const withheldHistoryInput = {
+    scenePremise: "You talk about summer vacation plans.",
+    targetPattern: "I'm going to ________",
+    turnOrder: 3,
+    requiredTurns: 3,
+    hardCap: 8,
+    safetyMode: "standard",
+    responseHandling: "normal",
+    conversationHistory: [
+      {
+        turnOrder: 1,
+        cocoLine: "What games will you play?",
+        studentResponse: "(not understood)",
+      },
+      {
+        turnOrder: 2,
+        cocoLine: "Do you play inside or outside?",
+        studentResponse: "Inside.",
+      },
+      {
+        turnOrder: 3,
+        cocoLine: "What do you like about that?",
+        studentResponse: "It's fun.",
+      },
+    ],
+  } satisfies GenerateCocoReplyInput;
+
+  it("explains the marker on a closing turn with responseHandling normal", () => {
+    // reviewPendingInstructions is empty here, which is exactly the gap that
+    // let the closing line recap a game the student never named.
+    const prompt = buildConversationPrompt(withheldHistoryInput);
+
+    expect(prompt.replyMode).toBe("closing");
+    expect(
+      prompt.instructions.some(
+        (instruction) =>
+          instruction.includes("(not understood)") &&
+          instruction.includes("summarize"),
+      ),
+    ).toBe(true);
   });
 });
