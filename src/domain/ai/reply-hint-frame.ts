@@ -3,6 +3,11 @@ const TRAILING_CONTEXT_PATTERN =
   /\s+(after|before|for|in|inside|outside|on|at|with|near|about|this|next|last|every)(?:\s+[\p{L}\p{N}'\s]*)?$/iu;
 const WHO_TRAILING_CONTEXT_PATTERN =
   /\s+(after|before|for|in|inside|outside|on|at|near|about|this|next|last|every)(?:\s+[\p{L}\p{N}'\s]*)?$/iu;
+// Context that reads naturally BEFORE "with" in a who frame, so it can be
+// relocated instead of dropped: "go with to the PC room" -> "go to the PC room
+// with ____". Only a to-destination qualifies; "at school" or "on the weekend"
+// ahead of "with" reads stilted for a child, so those are dropped instead.
+const WHO_RELOCATABLE_DESTINATION = /^to\s+[\p{L}\p{N}'][\p{L}\p{N}'\s]*$/iu;
 
 function sentenceCase(value: string) {
   return value.length > 0 ? value[0].toUpperCase() + value.slice(1) : value;
@@ -76,10 +81,40 @@ function framePresentObject(verbPhrase: string) {
     : completeFrame(`I ${core} ____`);
 }
 
+/**
+ * A `who` question asks for a PERSON, so the blank marks the person slot and
+ * must stay welded to `with`. Appending it after the trailing phrase instead
+ * produced "I usually go with to the PC room ____." (UAT 2026-07-27, attempt
+ * 992af2e2) — the student read the hint aloud and the evaluator correctly
+ * rejected it.
+ *
+ * Splitting on `with` rather than enumerating what may follow it is deliberate:
+ * the earlier stripper missed `to`, and `during`, `over`, `by`, `around`,
+ * `from`, and `while` failed the same way. Anything after `with` is context by
+ * definition, so no preposition list can go stale here.
+ *
+ * A `to`-destination is the one context that reads naturally ahead of `with`
+ * ("I go to the PC room with ____."), so it is relocated. Everything else is
+ * dropped rather than stranded, which leaves every previously correct hint
+ * byte-identical.
+ */
 function frameWhoDetail(verbPhrase: string) {
-  const core = cleanPhrase(verbPhrase)
-    .replace(WHO_TRAILING_CONTEXT_PATTERN, "")
-    .trim();
+  const phrase = cleanPhrase(verbPhrase);
+  const withMatch = phrase.match(/^(.*?)\s*\bwith\b\s*(.*)$/iu);
+
+  if (withMatch) {
+    const core = withMatch[1].trim();
+    const trailing = withMatch[2].trim();
+    const destination = WHO_RELOCATABLE_DESTINATION.test(trailing)
+      ? trailing
+      : "";
+    const lead = [core, destination].filter(Boolean).join(" ");
+    // Bare "Who do you go with?" still needs a verb to build a frame from.
+    if (!lead) return null;
+    return completeFrame(`I ${lead} with ____`);
+  }
+
+  const core = phrase.replace(WHO_TRAILING_CONTEXT_PATTERN, "").trim();
   return withFinalBlank(`I ${core}`);
 }
 
