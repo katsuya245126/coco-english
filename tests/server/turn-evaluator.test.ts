@@ -974,6 +974,17 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
 });
 
 describe("evaluateRepeatTurn server adapter (AI-04, AI-05)", () => {
+  function repeatPromptFor(client: ReturnType<typeof createFakeClient>) {
+    const request = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const userMessage = request?.input.find((message) => message.role === "user");
+    return JSON.parse(userMessage?.content ?? "{}") as {
+      repeatTranscript?: string;
+      improvedSentence?: string;
+      koreanSpans?: Array<{ hangul: string; romanized: string }>;
+      instructions?: string[];
+    };
+  }
+
   it("accepts close repeat fixtures from a fake client", async () => {
     const { evaluateRepeatTurn } = await import("@/server/ai/turn-evaluator");
     const client = createFakeClient({
@@ -1042,6 +1053,91 @@ describe("evaluateRepeatTurn server adapter (AI-04, AI-05)", () => {
         reviewReason: "low_confidence",
       },
     });
+  });
+
+  it("tells repeat evaluation to treat Hangul loanword spans as accented English when they sound like the expected sentence", async () => {
+    const { evaluateRepeatTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: {
+        version: "ai-eval-v1",
+        outcome: "repeat_accepted",
+        repeatCloseEnough: true,
+        englishLanguage: "english",
+        confidence: "high",
+        reviewReason: null,
+      },
+    });
+
+    await evaluateRepeatTurn(
+      {
+        originalTranscript:
+          "Vanilla ice cream is more tasty than strawberry ice cream.",
+        improvedSentence:
+          "Vanilla ice cream is tastier than strawberry ice cream.",
+        targetPattern: "____ is ______er than _____.",
+        level: "elementary",
+        repeatTranscript:
+          "바닐라 아이스크림 is tastier than strawberry 아이스크림.",
+        koreanSpans: [
+          { hangul: "바닐라", romanized: "Banilra" },
+          { hangul: "아이스크림", romanized: "Aiseukeurim" },
+        ],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const prompt = repeatPromptFor(client);
+    const instructions = prompt.instructions?.join("\n") ?? "";
+
+    expect(prompt.koreanSpans).toEqual([
+      { hangul: "바닐라", romanized: "Banilra" },
+      { hangul: "아이스크림", romanized: "Aiseukeurim" },
+    ]);
+    expect(instructions).toContain("romanization sounds like an English word");
+    expect(instructions).toContain("Banilra -> vanilla");
+    expect(instructions).toContain("Aiseukeurim -> ice cream");
+    expect(instructions).toContain("not non_english");
+    expect(instructions).toContain(
+      "Compare the normalized reading to improvedSentence",
+    );
+  });
+
+  it("keeps genuine Korean repeats eligible for non_english instead of blanket-accepting Hangul", async () => {
+    const { evaluateRepeatTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: {
+        version: "ai-eval-v1",
+        outcome: "repeat_retry",
+        repeatCloseEnough: false,
+        englishLanguage: "non_english",
+        confidence: "high",
+        reviewReason: null,
+      },
+    });
+
+    await evaluateRepeatTurn(
+      {
+        improvedSentence: "I like soccer after school.",
+        targetPattern: "I like ____ after school.",
+        level: "elementary",
+        repeatTranscript: "나는 방과 후에 축구를 좋아해요.",
+        koreanSpans: [
+          { hangul: "나는", romanized: "Naneun" },
+          { hangul: "방과", romanized: "Banggwa" },
+          { hangul: "후에", romanized: "Hue" },
+          { hangul: "축구를", romanized: "Chukgureul" },
+          { hangul: "좋아해요", romanized: "Johahaeyo" },
+        ],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const instructions = repeatPromptFor(client).instructions?.join("\n") ?? "";
+
+    expect(instructions).toContain("Only mark englishLanguage non_english");
+    expect(instructions).toContain(
+      "do not phonetically resemble the expected English sentence",
+    );
   });
 });
 

@@ -87,6 +87,11 @@ export type EvaluateRepeatTurnInput = {
   repeatTranscript?: string;
   expectedSentence?: string;
   transcript?: string;
+  /**
+   * Korean-script spans kept verbatim in repeatTranscript. Some are genuine
+   * Korean; some are accented English the transcriber wrote in Hangul.
+   */
+  koreanSpans?: HangulSpan[];
 };
 
 export type TurnEvaluatorDeps = {
@@ -416,6 +421,18 @@ function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
 function buildRepeatPrompt(input: EvaluateRepeatTurnInput) {
   const improvedSentence = input.improvedSentence ?? input.expectedSentence ?? "";
   const repeatTranscript = input.repeatTranscript ?? input.transcript ?? "";
+  const koreanSpans = input.koreanSpans ?? [];
+  const koreanSpanInstructions =
+    koreanSpans.length > 0
+      ? [
+          `The repeat transcript contains ${koreanSpans.length === 1 ? "one Korean-script span" : `${koreanSpans.length} Korean-script spans`}: ${koreanSpans
+            .map((span) => `"${span.hangul}" (romanized: ${span.romanized})`)
+            .join(", ")}.`,
+          "For each Korean-script span, say its romanization aloud in your head. If the romanization sounds like an English word or phrase in improvedSentence (Banilra -> vanilla, Aiseukeurim -> ice cream, Chokolrit -> chocolate, Pija -> pizza), treat that span as the English word the child repeated with a Korean accent, not non_english.",
+          "Compare the normalized reading to improvedSentence. Example: repeatTranscript \"바닐라 아이스크림 is tastier than strawberry 아이스크림.\" with improvedSentence \"Vanilla ice cream is tastier than strawberry ice cream.\" should be repeat_accepted when the only differences are those phonetic Korean-script spans.",
+          "Only mark englishLanguage non_english when the repeat meaning is carried by Korean words that do not phonetically resemble the expected English sentence.",
+        ]
+      : [];
 
   return {
     originalTranscript: input.originalTranscript ?? null,
@@ -423,9 +440,11 @@ function buildRepeatPrompt(input: EvaluateRepeatTurnInput) {
     targetPattern: input.targetPattern ?? null,
     level: input.level,
     repeatTranscript,
+    koreanSpans,
     instructions: [
       "Evaluate whether the repeat is close enough for an elementary ESL learner.",
       "Compare the repeat transcript to the improved sentence, not to the child's original answer.",
+      ...koreanSpanInstructions,
       "Use teacher_review for ambiguity, low confidence, or unsafe uncertainty.",
       "Do not score pronunciation numerically.",
     ],
