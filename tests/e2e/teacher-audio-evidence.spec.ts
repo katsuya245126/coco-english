@@ -18,8 +18,8 @@ const playerSourcePath = join(
 test("teacher evidence page renders transcript labels before audio controls", () => {
   const source = readFileSync(pageSourcePath, "utf8");
   const headingIndex = source.indexOf("Attempt evidence");
-  const originalIndex = source.indexOf("Student answer");
-  const repeatIndex = source.indexOf("Repeat attempt");
+  const originalIndex = source.indexOf("Raw student transcript");
+  const repeatIndex = source.indexOf("Raw repeat transcript");
   const playerIndex = source.indexOf("<AudioClipPlayer");
 
   expect(headingIndex).toBeGreaterThan(-1);
@@ -33,7 +33,7 @@ test("teacher evidence page renders transcript labels before audio controls", ()
 test("teacher evidence page groups pronunciation scoring with each recording", () => {
   const source = readFileSync(pageSourcePath, "utf8");
 
-  expect(source).toContain('label="Student answer"');
+  expect(source).toContain('label="Raw student transcript"');
   expect(source).toContain('label="Student answer audio"');
   expect(source).not.toContain('label="Original answer"');
   expect(source).not.toContain('label="Original answer audio"');
@@ -106,6 +106,12 @@ test("audio player requires Load audio before native controls are shown", async 
 
 test("teacher evidence page keeps raw transcripts and labels interpretations", () => {
   const source = readFileSync(pageSourcePath, "utf8").replace(/\s+/g, " ");
+
+  // Raw evidence is explicitly labelled as raw, distinct from the derived read.
+  expect(source).toContain('label="Raw student transcript"');
+  expect(source).toContain('label="Raw repeat transcript"');
+  expect(source).not.toContain('label="Student answer" ');
+  expect(source).not.toContain('label="Repeat attempt" ');
 
   // Raw evidence stays wired to the unmodified transcript fields.
   expect(source).toContain("transcript={turn.originalTranscript}");

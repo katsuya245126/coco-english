@@ -129,7 +129,7 @@ function TurnEvidenceSection({
         <TranscriptBlock label="Question asked" transcript={turn.question} />
       )}
       <TranscriptBlock
-        label="Student answer"
+        label="Raw student transcript"
         transcript={turn.originalTranscript}
         interpretation={turn.originalDisplayTranscript}
       />
@@ -141,7 +141,7 @@ function TurnEvidenceSection({
         />
       )}
       <TranscriptBlock
-        label="Repeat attempt"
+        label="Raw repeat transcript"
         transcript={turn.repeatTranscript}
         interpretation={turn.repeatDisplayTranscript}
       />
