@@ -18,6 +18,7 @@ const baseOriginalEvaluation = {
   transcriptionModel: "gpt-4o-mini-transcribe",
   transcriptionConfidence: null,
   runtimeVersion: "test-runtime",
+  hangulInterpretations: [],
 } as const;
 
 describe("original evaluation schema and correction intent", () => {
@@ -44,6 +45,7 @@ describe("original evaluation schema and correction intent", () => {
       transcriptionModel: "gpt-4o-mini-transcribe",
       transcriptionConfidence: { minLogprob: -0.01, tokenCount: 4 },
       runtimeVersion: "local-dev",
+      hangulInterpretations: [],
     });
 
     expect(result.success).toBe(true);
@@ -860,6 +862,7 @@ describe("blank improvedSentence tolerance (attempt 4c1f229e, 2026-07-27)", () =
         englishLanguage: "english",
         confidence: "high",
         reviewReason: null,
+        hangulInterpretations: [],
       });
 
       expect(result.success).toBe(true);
@@ -938,5 +941,101 @@ describe("repeat attempt cap (attempt 6406e6a5, 2026-07-27)", () => {
 
     expect(decideRepeatTurnOutcome(notCloseEnough, 1).kind).toBe("retry_repeat");
     expect(decideRepeatTurnOutcome(notCloseEnough, 2).kind).toBe("retry_repeat");
+  });
+});
+
+describe("Hangul interpretation metadata on evaluation schemas", () => {
+  it("accepts an original evaluation carrying accented-English span metadata", async () => {
+    const { originalTurnProviderEvaluationSchema } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    expect(
+      originalTurnProviderEvaluationSchema.safeParse({
+        version: "ai-eval-v1",
+        outcome: "correct",
+        meaningUnderstood: true,
+        targetPatternAttempted: true,
+        correctionNeeded: false,
+        correctionSeverity: "none",
+        correctionReason: "none",
+        improvedSentence: null,
+        englishLanguage: "english",
+        confidence: "high",
+        reviewReason: null,
+        hangulInterpretations: [
+          {
+            hangul: "바닐라",
+            kind: "accented_english",
+            englishReading: "vanilla",
+          },
+        ],
+      }).success,
+    ).toBe(true);
+  });
+
+  it("accepts a repeat evaluation carrying accented-English span metadata", async () => {
+    const { repeatTurnEvaluationSchema } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    expect(
+      repeatTurnEvaluationSchema.safeParse({
+        version: "ai-eval-v1",
+        outcome: "repeat_accepted",
+        repeatCloseEnough: true,
+        englishLanguage: "english",
+        confidence: "high",
+        reviewReason: null,
+        hangulInterpretations: [
+          {
+            hangul: "아이스크림",
+            kind: "accented_english",
+            englishReading: "ice cream",
+          },
+        ],
+      }).success,
+    ).toBe(true);
+  });
+
+  it("requires the field rather than defaulting it, so an all-English turn states it explicitly", async () => {
+    const {
+      originalTurnProviderEvaluationSchema,
+      repeatTurnEvaluationSchema,
+    } = await import("@/domain/ai/turn-evaluation");
+
+    expect(
+      originalTurnProviderEvaluationSchema.safeParse({
+        version: "ai-eval-v1",
+        outcome: "correct",
+        meaningUnderstood: true,
+        targetPatternAttempted: true,
+        correctionNeeded: false,
+        correctionSeverity: "none",
+        correctionReason: "none",
+        improvedSentence: null,
+        englishLanguage: "english",
+        confidence: "high",
+        reviewReason: null,
+      }).success,
+    ).toBe(false);
+
+    expect(
+      repeatTurnEvaluationSchema.safeParse({
+        version: "ai-eval-v1",
+        outcome: "repeat_accepted",
+        repeatCloseEnough: true,
+        englishLanguage: "english",
+        confidence: "high",
+        reviewReason: null,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps the evaluation envelope version unchanged", async () => {
+    const { AI_EVALUATION_VERSION } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+    expect(AI_EVALUATION_VERSION).toBe("ai-eval-v1");
   });
 });

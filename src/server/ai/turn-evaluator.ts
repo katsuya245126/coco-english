@@ -18,6 +18,7 @@ import {
   type OriginalTurnEvaluation,
   type RepeatTurnEvaluation,
 } from "@/domain/ai/turn-evaluation";
+import { validateHangulInterpretations } from "@/domain/audio/transcript-interpretation";
 import type { TranscriptionEvidence } from "@/server/audio/transcription";
 import {
   missionLevelSchema,
@@ -363,8 +364,20 @@ function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
           'Example: transcript "I like 축구 after school." becomes improvedSentence "I like soccer after school."',
           'Example: transcript "I\'m going to 거제도 this summer." is correct as-is, because 거제도 is a place name; improvedSentence is null.',
           "When a NAME appears in an improvedSentence you write for some other reason, keep the Korean word exactly as the student said it. Never swap in a different name.",
+          // Structured per-span metadata, separate from the grading judgement
+          // above: it drives what the learner is shown as their own words, so
+          // the vocabulary is closed and an unsure span must say so rather
+          // than guess.
+          "Return exactly one hangulInterpretations item for each supplied Korean-script span, in the same order, and no other items.",
+          "Use kind accented_english only when the romanization clearly sounds like an English word or phrase the child intended. Put that English spelling in englishReading.",
+          "Use kind name for a specific person, place, or Korean proper name that should remain as spoken.",
+          "Use kind korean_vocabulary for an ordinary Korean word whose English vocabulary should be taught.",
+          "Use kind uncertain whenever none of the other classifications is safe.",
+          "englishReading must be null for name, korean_vocabulary, and uncertain.",
         ]
-      : [];
+      : [
+          "No Korean-script spans were supplied. Return hangulInterpretations as an empty array.",
+        ];
 
   return {
     evaluationMode: input.evaluationMode,
@@ -431,8 +444,16 @@ function buildRepeatPrompt(input: EvaluateRepeatTurnInput) {
           "For each Korean-script span, say its romanization aloud in your head. If the romanization sounds like an English word or phrase in improvedSentence (Banilra -> vanilla, Aiseukeurim -> ice cream, Chokolrit -> chocolate, Pija -> pizza), treat that span as the English word the child repeated with a Korean accent, not non_english.",
           "Compare the normalized reading to improvedSentence. Example: repeatTranscript \"바닐라 아이스크림 is tastier than strawberry 아이스크림.\" with improvedSentence \"Vanilla ice cream is tastier than strawberry ice cream.\" should be repeat_accepted when the only differences are those phonetic Korean-script spans.",
           "Only mark englishLanguage non_english when the repeat meaning is carried by Korean words that do not phonetically resemble the expected English sentence.",
+          "Return exactly one hangulInterpretations item for each supplied Korean-script span, in the same order, and no other items.",
+          "Use kind accented_english only when the romanization clearly sounds like an English word or phrase the child intended. Put that English spelling in englishReading.",
+          "Use kind name for a specific person, place, or Korean proper name that should remain as spoken.",
+          "Use kind korean_vocabulary for an ordinary Korean word whose English vocabulary should be taught.",
+          "Use kind uncertain whenever none of the other classifications is safe.",
+          "englishReading must be null for name, korean_vocabulary, and uncertain.",
         ]
-      : [];
+      : [
+          "No Korean-script spans were supplied. Return hangulInterpretations as an empty array.",
+        ];
 
   return {
     originalTranscript: input.originalTranscript ?? null,
@@ -616,6 +637,30 @@ export async function evaluateRepeatTurn(
         response,
         parsed.error,
       );
+      return { ok: false, error: "schema_failed" };
+    }
+
+    /*
+     * Repeats have no policy-repair loop, so coverage is enforced here instead.
+     * Incomplete metadata against a Hangul repeat would otherwise reach the
+     * display helper and silently hide the transcript with no stored reason.
+     */
+    const repeatTranscript = input.repeatTranscript ?? input.transcript ?? "";
+    const interpretationValidation = validateHangulInterpretations(
+      repeatTranscript,
+      parsed.data.hangulInterpretations,
+    );
+    if (!interpretationValidation.ok) {
+      log("error", "ai.evaluation_schema_failed", {
+        turnKind: "repeat",
+        model,
+        issues: [
+          {
+            path: "hangulInterpretations",
+            code: interpretationValidation.reason,
+          },
+        ],
+      });
       return { ok: false, error: "schema_failed" };
     }
 

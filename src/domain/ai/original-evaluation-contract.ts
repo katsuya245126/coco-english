@@ -3,6 +3,7 @@ import {
   type CorrectionPolicyViolation,
 } from "@/domain/ai/correction-policy";
 import { detectHangulSpans } from "@/domain/audio/hangul-romanization";
+import { validateHangulInterpretations } from "@/domain/audio/transcript-interpretation";
 import type { OriginalTurnEvaluation } from "@/domain/ai/turn-evaluation";
 import type { AnswerShape } from "@/domain/mission/schemas";
 
@@ -13,6 +14,8 @@ export type OriginalEvaluationViolation =
   | "teacher_review_meaning_understood"
   | "english_language_mismatch"
   | "non_english_contract_mismatch"
+  | "hangul_interpretation_invalid"
+  | "hangul_interpretation_missing"
   | CorrectionPolicyViolation;
 
 export type OriginalEvaluationContractInput = {
@@ -121,6 +124,24 @@ export function validateOriginalEvaluationContract(
     evaluation.englishLanguage !== "english"
   ) {
     violations.push("english_language_mismatch");
+  }
+
+  /*
+   * Every Hangul run must be classified exactly once. Routing a shortfall
+   * through the existing single repair attempt gives the evaluator one chance
+   * to complete the set; if repair also violates the contract the turn goes to
+   * teacher review rather than showing the child an unexplained Korean word.
+   */
+  const interpretationValidation = validateHangulInterpretations(
+    input.transcript,
+    evaluation.hangulInterpretations,
+  );
+  if (!interpretationValidation.ok) {
+    violations.push(
+      interpretationValidation.reason === "coverage_mismatch"
+        ? "hangul_interpretation_missing"
+        : "hangul_interpretation_invalid",
+    );
   }
 
   if (evaluation.improvedSentence) {

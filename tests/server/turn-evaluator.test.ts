@@ -23,6 +23,7 @@ const correctOriginalProviderResult = {
   englishLanguage: "english",
   confidence: "high",
   reviewReason: null,
+  hangulInterpretations: [],
 };
 
 describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => {
@@ -995,6 +996,7 @@ describe("evaluateRepeatTurn server adapter (AI-04, AI-05)", () => {
         englishLanguage: "english",
         confidence: "high",
         reviewReason: null,
+        hangulInterpretations: [],
       },
     });
 
@@ -1016,6 +1018,7 @@ describe("evaluateRepeatTurn server adapter (AI-04, AI-05)", () => {
         englishLanguage: "english",
         confidence: "high",
         reviewReason: null,
+        hangulInterpretations: [],
       },
     });
   });
@@ -1030,6 +1033,7 @@ describe("evaluateRepeatTurn server adapter (AI-04, AI-05)", () => {
         englishLanguage: "uncertain",
         confidence: "low",
         reviewReason: "low_confidence",
+        hangulInterpretations: [],
       },
     });
 
@@ -1051,6 +1055,7 @@ describe("evaluateRepeatTurn server adapter (AI-04, AI-05)", () => {
         englishLanguage: "uncertain",
         confidence: "low",
         reviewReason: "low_confidence",
+        hangulInterpretations: [],
       },
     });
   });
@@ -1065,6 +1070,7 @@ describe("evaluateRepeatTurn server adapter (AI-04, AI-05)", () => {
         englishLanguage: "english",
         confidence: "high",
         reviewReason: null,
+        hangulInterpretations: [],
       },
     });
 
@@ -1112,6 +1118,7 @@ describe("evaluateRepeatTurn server adapter (AI-04, AI-05)", () => {
         englishLanguage: "non_english",
         confidence: "high",
         reviewReason: null,
+        hangulInterpretations: [],
       },
     });
 
@@ -1334,5 +1341,200 @@ describe("schema failure diagnostics name the offending fields", () => {
     // The child's words must never reach the logs.
     expect(diagnostic).not.toContain("brother");
     expect(diagnostic).not.toContain("summer vacation");
+  });
+});
+
+describe("Hangul interpretation metadata through the evaluator adapter", () => {
+  function originalPromptFor(client: ReturnType<typeof createFakeClient>) {
+    const request = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const userMessage = request?.input.find((message) => message.role === "user");
+    return JSON.parse(userMessage?.content ?? "{}") as {
+      instructions?: string[];
+    };
+  }
+
+  it("returns the evaluator's per-span classifications on an original turn", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: {
+        ...correctOriginalProviderResult,
+        hangulInterpretations: [
+          {
+            hangul: "바닐라",
+            kind: "accented_english",
+            englishReading: "vanilla",
+          },
+        ],
+      },
+    });
+
+    const result = await evaluateOriginalTurn(
+      {
+        evaluationMode: "preset",
+        transcript: "I like 바닐라.",
+        targetPattern: "I like _____.",
+        targetExample: "I like vanilla.",
+        level: "elementary",
+        koreanSpans: [{ hangul: "바닐라", romanized: "Banilra" }],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        hangulInterpretations: [
+          {
+            hangul: "바닐라",
+            kind: "accented_english",
+            englishReading: "vanilla",
+          },
+        ],
+      },
+    });
+  });
+
+  it("returns the evaluator's per-span classifications on a repeat turn", async () => {
+    const { evaluateRepeatTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: {
+        version: "ai-eval-v1",
+        outcome: "repeat_accepted",
+        repeatCloseEnough: true,
+        englishLanguage: "english",
+        confidence: "high",
+        reviewReason: null,
+        hangulInterpretations: [
+          {
+            hangul: "아이스크림",
+            kind: "accented_english",
+            englishReading: "ice cream",
+          },
+        ],
+      },
+    });
+
+    const result = await evaluateRepeatTurn(
+      {
+        improvedSentence: "I like ice cream.",
+        level: "elementary",
+        repeatTranscript: "I like 아이스크림.",
+        koreanSpans: [{ hangul: "아이스크림", romanized: "Aiseukeurim" }],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        hangulInterpretations: [
+          {
+            hangul: "아이스크림",
+            kind: "accented_english",
+            englishReading: "ice cream",
+          },
+        ],
+      },
+    });
+  });
+
+  it("rejects a repeat whose classifications do not cover the repeat transcript", async () => {
+    const { evaluateRepeatTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: {
+        version: "ai-eval-v1",
+        outcome: "repeat_accepted",
+        repeatCloseEnough: true,
+        englishLanguage: "english",
+        confidence: "high",
+        reviewReason: null,
+        hangulInterpretations: [],
+      },
+    });
+
+    const result = await evaluateRepeatTurn(
+      {
+        improvedSentence: "I like ice cream.",
+        level: "elementary",
+        repeatTranscript: "I like 아이스크림.",
+        koreanSpans: [{ hangul: "아이스크림", romanized: "Aiseukeurim" }],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toEqual({ ok: false, error: "schema_failed" });
+  });
+
+  it("instructs the original prompt with the closed classification vocabulary", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    await evaluateOriginalTurn(
+      {
+        evaluationMode: "preset",
+        transcript: "I like 바닐라.",
+        targetPattern: "I like _____.",
+        targetExample: "I like vanilla.",
+        level: "elementary",
+        koreanSpans: [{ hangul: "바닐라", romanized: "Banilra" }],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const instructions = originalPromptFor(client).instructions ?? [];
+    expect(instructions.join(" ")).toContain(
+      "Return exactly one hangulInterpretations item for each supplied Korean-script span",
+    );
+    expect(instructions.join(" ")).toContain("englishReading must be null");
+  });
+
+  it("tells an all-English original turn to return an empty interpretation array", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    await evaluateOriginalTurn(
+      {
+        evaluationMode: "preset",
+        transcript: "I like vanilla.",
+        targetPattern: "I like _____.",
+        targetExample: "I like vanilla.",
+        level: "elementary",
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect((originalPromptFor(client).instructions ?? []).join(" ")).toContain(
+      "No Korean-script spans were supplied. Return hangulInterpretations as an empty array.",
+    );
+  });
+
+  it("carries a missing-interpretation violation into the repair prompt", async () => {
+    const { evaluateOriginalTurn } = await import("@/server/ai/turn-evaluator");
+    const client = createFakeClient({
+      output_parsed: correctOriginalProviderResult,
+    });
+
+    await evaluateOriginalTurn(
+      {
+        evaluationMode: "preset",
+        transcript: "I like 바닐라.",
+        targetPattern: "I like _____.",
+        targetExample: "I like vanilla.",
+        level: "elementary",
+        koreanSpans: [{ hangul: "바닐라", romanized: "Banilra" }],
+        policyRepair: { violations: ["hangul_interpretation_missing"] },
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const request = vi.mocked(client.responses.parse).mock.calls[0]?.[0];
+    const systemMessage = request?.input.find(
+      (message) => message.role === "system",
+    );
+    expect(systemMessage?.content).toContain("hangul_interpretation_missing");
   });
 });

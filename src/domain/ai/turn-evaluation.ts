@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { hangulInterpretationSchema } from "@/domain/audio/transcript-interpretation";
 
 /**
  * Pure AI turn-evaluation contracts.
@@ -71,6 +72,13 @@ export const originalTurnProviderEvaluationSchema = z.object({
   englishLanguage: aiEvaluationEnglishLanguageSchema,
   confidence: aiEvaluationConfidenceSchema,
   reviewReason: aiEvaluationReviewReasonSchema.nullable(),
+  /**
+   * One classification per Korean-script span in the transcript, used only to
+   * derive learner-facing display text. Required rather than optional: an
+   * absent array and a genuinely all-English answer must not look alike, since
+   * the display helper fails closed on unexplained Hangul.
+   */
+  hangulInterpretations: z.array(hangulInterpretationSchema),
 });
 
 export const originalTurnEvaluationSchema =
@@ -99,6 +107,8 @@ export const repeatTurnEvaluationSchema = z.object({
   englishLanguage: aiEvaluationEnglishLanguageSchema,
   confidence: aiEvaluationConfidenceSchema,
   reviewReason: aiEvaluationReviewReasonSchema.nullable(),
+  /** Per-span classifications for the repeat transcript. See the original schema. */
+  hangulInterpretations: z.array(hangulInterpretationSchema),
 });
 
 export type RepeatTurnEvaluation = z.infer<typeof repeatTurnEvaluationSchema>;

@@ -23,6 +23,7 @@ const baseEvaluation: OriginalTurnEvaluation = {
   transcriptionModel: "test-transcriber",
   transcriptionConfidence: null,
   runtimeVersion: "test-runtime",
+  hangulInterpretations: [],
 };
 
 describe("original evaluation contract", () => {
@@ -78,6 +79,9 @@ describe("original evaluation contract", () => {
           meaningUnderstood: true,
           confidence: "high",
           reviewReason: "ambiguous",
+          hangulInterpretations: [
+            { hangul: "삼겹살", kind: "name", englishReading: null },
+          ],
         },
         evaluationMode: "conversation",
         answerShape: "open",
@@ -158,6 +162,11 @@ describe("original evaluation contract", () => {
       meaningUnderstood: false,
       targetPatternAttempted: false,
       englishLanguage: "non_english" as const,
+      hangulInterpretations: [
+        { hangul: "바다에", kind: "korean_vocabulary", englishReading: null },
+        { hangul: "갈", kind: "korean_vocabulary", englishReading: null },
+        { hangul: "거예요", kind: "korean_vocabulary", englishReading: null },
+      ],
     };
 
     expect(
@@ -186,6 +195,10 @@ describe("original evaluation contract", () => {
       correctionSeverity: "material" as const,
       correctionReason: "fragment_completion" as const,
       improvedSentence: "I play games.",
+      hangulInterpretations: [
+        { hangul: "플레이", kind: "accented_english", englishReading: "play" },
+        { hangul: "게임즈", kind: "accented_english", englishReading: "games" },
+      ],
     };
 
     it("accepts the correction when the answer was graded as English", () => {
@@ -205,7 +218,11 @@ describe("original evaluation contract", () => {
     it("does not relax grounding for an all-Latin transcript", () => {
       // The relaxation is keyed on Hangul being present, so an ordinary
       // English transcript keeps every check and invented detail still fails.
-      const invented = { ...correction, improvedSentence: "I play games with my brother." };
+      const invented = {
+        ...correction,
+        improvedSentence: "I play games with my brother.",
+        hangulInterpretations: [],
+      };
       const result = validateOriginalEvaluationContract({
         evaluation: invented,
         evaluationMode: "conversation",
@@ -220,5 +237,79 @@ describe("original evaluation contract", () => {
         expect(result.violations).toContain("fragment_ungrounded");
       }
     });
+  });
+});
+
+describe("Hangul interpretation coverage in the original contract", () => {
+  it("flags a detected span the evaluator did not classify", () => {
+    const result = validateOriginalEvaluationContract({
+      evaluation: { ...baseEvaluation, hangulInterpretations: [] },
+      evaluationMode: "preset",
+      answerShape: "open",
+      missionQuestion: "Which ice cream is best?",
+      targetPattern: "I like _____.",
+      transcript: "I like 바닐라.",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.violations).toContain("hangul_interpretation_missing");
+    }
+  });
+
+  it("flags a malformed English reading as invalid rather than missing", () => {
+    const result = validateOriginalEvaluationContract({
+      evaluation: {
+        ...baseEvaluation,
+        hangulInterpretations: [
+          { hangul: "바닐라", kind: "accented_english", englishReading: "香草" },
+        ],
+      },
+      evaluationMode: "preset",
+      answerShape: "open",
+      missionQuestion: "Which ice cream is best?",
+      targetPattern: "I like _____.",
+      transcript: "I like 바닐라.",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.violations).toContain("hangul_interpretation_invalid");
+    }
+  });
+
+  it("accepts a fully and validly classified Hangul transcript", () => {
+    const result = validateOriginalEvaluationContract({
+      evaluation: {
+        ...baseEvaluation,
+        hangulInterpretations: [
+          {
+            hangul: "바닐라",
+            kind: "accented_english",
+            englishReading: "vanilla",
+          },
+        ],
+      },
+      evaluationMode: "preset",
+      answerShape: "open",
+      missionQuestion: "Which ice cream is best?",
+      targetPattern: "I like _____.",
+      transcript: "I like 바닐라.",
+    });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("leaves an all-English transcript with empty metadata untouched", () => {
+    const result = validateOriginalEvaluationContract({
+      evaluation: { ...baseEvaluation, hangulInterpretations: [] },
+      evaluationMode: "preset",
+      answerShape: "open",
+      missionQuestion: "Which ice cream is best?",
+      targetPattern: "I like _____.",
+      transcript: "I like vanilla.",
+    });
+
+    expect(result.ok).toBe(true);
   });
 });
