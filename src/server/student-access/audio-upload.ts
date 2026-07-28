@@ -1707,6 +1707,29 @@ export async function uploadAttemptAudioClip(
       return { ok: false, error: "db_error", retryable: true };
     }
 
+    // Derive the learner-facing text and start any deferred scoring here —
+    // immediately after the turn write succeeded and *before* conversation
+    // generation, moderation, Coco-line persistence, and TTS warmup. A Hangul
+    // original must cost evaluator latency only; if this ran after the block
+    // below, its scoring would be serialized behind Coco's reply.
+    const currentEvaluation = originalEvaluation ?? repeatEvaluation;
+    const displayTranscript = buildLearnerTranscript(
+      transcript,
+      currentEvaluation?.hangulInterpretations ?? [],
+    );
+
+    const hasAccentedEnglish = currentEvaluation?.hangulInterpretations.some(
+      (item) => item.kind === "accented_english",
+    );
+    if (
+      input.clipKind === "original_answer" &&
+      scoringPromise === null &&
+      displayTranscript &&
+      hasAccentedEnglish
+    ) {
+      scoringPromise = beginPronunciationScoring(displayTranscript);
+    }
+
     // Conversation-mode dynamic-turn orchestration (CHAT-01/03/05/06). Runs
     // only for chat-mode missions, only on the original-answer turn (the
     // student's utterance Coco is replying to), after the turn write above
@@ -1817,24 +1840,6 @@ export async function uploadAttemptAudioClip(
             }
           }
       }
-    }
-
-    const currentEvaluation = originalEvaluation ?? repeatEvaluation;
-    const displayTranscript = buildLearnerTranscript(
-      transcript,
-      currentEvaluation?.hangulInterpretations ?? [],
-    );
-
-    const hasAccentedEnglish = currentEvaluation?.hangulInterpretations.some(
-      (item) => item.kind === "accented_english",
-    );
-    if (
-      input.clipKind === "original_answer" &&
-      scoringPromise === null &&
-      displayTranscript &&
-      hasAccentedEnglish
-    ) {
-      scoringPromise = beginPronunciationScoring(displayTranscript);
     }
 
     let starBand: PronunciationStarBand | null = null;

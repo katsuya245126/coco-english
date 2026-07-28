@@ -2715,3 +2715,81 @@ describe("repeat write preserves the original evaluation (2026-07-25)", () => {
     expect(findRepeatTurnUpdate()).not.toHaveProperty("originalEvaluation");
   });
 });
+
+describe("Hangul-original pronunciation scoring start order", () => {
+  it("starts scoring before generateCocoReply resolves", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        requiredTurns: 4,
+      } as unknown as typeof conversationMissionSnapshotFixture,
+    });
+
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    // Hold Coco's reply open. If scoring only starts after conversation
+    // generation, the scorer cannot have been called by the time we check.
+    let releaseCocoReply: (() => void) | null = null;
+    const cocoReplyGate = new Promise<void>((resolve) => {
+      releaseCocoReply = resolve;
+    });
+    let markScoringStarted: (() => void) | null = null;
+    const scoringStarted = new Promise<void>((resolve) => {
+      markScoringStarted = resolve;
+    });
+
+    const generate = fakeGenerateCocoReply(async () => {
+      await cocoReplyGate;
+      return { ok: true, reply: generatedReply("Yum, I like vanilla too!") };
+    });
+    const scorePronunciation = vi.fn(async () => {
+      markScoringStarted!();
+      return {
+        ok: true as const,
+        score: {
+          starBand: 3 as const,
+          pronunciationScore: 90,
+          accuracyScore: 90,
+          fluencyScore: 90,
+          completenessScore: 100,
+          prosodyScore: 90,
+          wordScores: [],
+        },
+      };
+    });
+
+    const uploadPromise = uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like 바닐라.", [
+        { hangul: "바닐라", romanized: "Banilla" },
+      ]),
+      evaluateOriginalTurn: successfulOriginalEvaluator({
+        hangulInterpretations: [
+          {
+            hangul: "바닐라",
+            kind: "accented_english",
+            englishReading: "vanilla",
+          },
+        ],
+      }),
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+      scorePronunciation,
+    } as unknown as Parameters<typeof uploadAttemptAudioClip>[1]);
+
+    // Scoring must be under way while Coco's reply is still pending.
+    await scoringStarted;
+    expect(scorePronunciation).toHaveBeenCalledWith(
+      expect.objectContaining({ referenceText: "I like vanilla." }),
+    );
+    // Coco's reply is still gated open at this point, so scoring demonstrably
+    // did not wait on conversation generation.
+    releaseCocoReply!();
+    const result = await uploadPromise;
+    expect(result.ok).toBe(true);
+  });
+});
