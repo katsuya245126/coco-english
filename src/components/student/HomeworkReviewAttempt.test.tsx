@@ -324,3 +324,20 @@ describe("HomeworkReviewAttempt", () => {
     );
   });
 });
+
+describe("HomeworkReviewAttempt with a hidden transcript", () => {
+  it("omits the text bubble but still renders the authorized audio control", () => {
+    act(() => {
+      root.render(
+        <HomeworkReviewAttempt
+          attempt={{ ...availableAttempt("clip-hidden"), transcript: null }}
+        />,
+      );
+    });
+
+    expect(container.querySelector("p[class*='transcript']")).toBeNull();
+    expect(
+      container.querySelector("button[aria-label='Listen to this recording']"),
+    ).not.toBeNull();
+  });
+});

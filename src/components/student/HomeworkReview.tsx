@@ -67,8 +67,12 @@ export function HomeworkReview({
                   {turn.reviewState === "accepted_minor" &&
                   turn.improvedSentence ? (
                     <p className={styles.improvedSentence}>
+                      {/*
+                        A withheld transcript gives no safe basis for a word
+                        diff, so the correction still shows — just unhighlighted.
+                      */}
                       {buildImprovedSentenceParts(
-                        turn.original.transcript,
+                        turn.original.transcript ?? turn.improvedSentence,
                         turn.improvedSentence,
                       ).map((part, index) => (
                         <span

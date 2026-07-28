@@ -167,3 +167,27 @@ describe("HomeworkReview", () => {
     expect(css).not.toMatch(/\.pronunciation/);
   });
 });
+
+describe("HomeworkReview with a withheld transcript", () => {
+  const withheld: StudentMissionRecap = {
+    ...recap,
+    turns: [
+      {
+        ...recap.turns[1]!,
+        transcript: null,
+        original: { transcript: null, audio: null, pronunciation: null },
+      },
+    ],
+  };
+
+  it("still shows the correction, unhighlighted, with no transcript text", () => {
+    const html = renderToStaticMarkup(
+      <HomeworkReview recap={withheld} studentDisplayName="Minji" />,
+    );
+
+    const text = html.replace(/<[^>]+>/g, "");
+    expect(text).toContain("I go to the library.");
+    expect(text).not.toContain("I go to library.");
+    expect(html).not.toContain("changedWord");
+  });
+});

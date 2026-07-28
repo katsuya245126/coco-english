@@ -255,6 +255,8 @@ function createDynamicMockSupabase(attemptTurnsOverride?: DynamicAttemptTurnRow[
         { id: "clip-minor-original", attempt_turn_id: "turn-minor", clip_kind: "original_answer", object_key: "minor.webm", processing_status: "transcribed", audio_expires_at: null, deleted_at: null },
         { id: "clip-repeat-original", attempt_turn_id: "turn-repeat", clip_kind: "original_answer", object_key: "repeat-original.webm", processing_status: "transcribed", audio_expires_at: null, deleted_at: null },
         { id: "clip-repeat-repeat", attempt_turn_id: "turn-repeat", clip_kind: "repeat_attempt", object_key: "repeat-repeat.webm", processing_status: "transcribed", audio_expires_at: null, deleted_at: null },
+        { id: "clip-hangul-original", attempt_turn_id: "turn-loanword", clip_kind: "original_answer", object_key: "hangul.webm", processing_status: "transcribed", audio_expires_at: null, deleted_at: null },
+        { id: "clip-hidden-original", attempt_turn_id: "turn-hidden", clip_kind: "original_answer", object_key: "hidden.webm", processing_status: "transcribed", audio_expires_at: null, deleted_at: null },
       ],
       error: null,
     },
@@ -264,6 +266,16 @@ function createDynamicMockSupabase(attemptTurnsOverride?: DynamicAttemptTurnRow[
         { audio_clip_id: "clip-minor-original", star_band: 2, word_scores: [] },
         { audio_clip_id: "clip-repeat-original", star_band: 1, word_scores: [] },
         { audio_clip_id: "clip-repeat-repeat", star_band: 3, word_scores: [] },
+        {
+          audio_clip_id: "clip-hangul-original",
+          star_band: 2,
+          word_scores: [{ word: "vanilla", accuracyScore: 30, errorType: "Mispronunciation" }],
+        },
+        {
+          audio_clip_id: "clip-hidden-original",
+          star_band: 2,
+          word_scores: [{ word: "soccer", accuracyScore: 30, errorType: "Mispronunciation" }],
+        },
       ],
       error: null,
     },
@@ -346,5 +358,144 @@ describe("student completed mission recap dynamic homework review", () => {
     expect(recap?.turns[0]?.reviewState).toBe("neutral");
     expect(JSON.stringify(recap)).not.toContain("ambiguous");
     expect(JSON.stringify(recap)).not.toContain("evaluation");
+  });
+});
+
+describe("completed homework review derives learner-safe transcripts", () => {
+  function hangulTurn(overrides: Partial<DynamicAttemptTurnRow> = {}): DynamicAttemptTurnRow {
+    return {
+      id: "turn-loanword",
+      turn_order: 1,
+      original_transcript: "I like 바닐라 ice cream.",
+      improved_sentence: null,
+      repeat_transcript: null,
+      repeat_accepted: false,
+      evaluation: {
+        outcome: "accepted_original",
+        correctionSeverity: "none",
+        hangulInterpretations: [
+          { hangul: "바닐라", kind: "accented_english", englishReading: "vanilla" },
+        ],
+      },
+      coco_line: "That was fun! Thanks for talking with me. See you next time!",
+      ...overrides,
+    };
+  }
+
+  it("replaces a validated accented-English span in the recap text", async () => {
+    mockSupabase = createDynamicMockSupabase([hangulTurn()]);
+
+    const recap = await getCompletedMissionRecap("student-1", "assignment-student-1");
+
+    expect(recap?.turns[0]?.transcript).toBe("I like vanilla ice cream.");
+    expect(recap?.turns[0]?.original.transcript).toBe("I like vanilla ice cream.");
+    expect(JSON.stringify(recap)).not.toContain("바닐라");
+  });
+
+  it("hides the whole transcript when a span is Korean vocabulary", async () => {
+    mockSupabase = createDynamicMockSupabase([
+      hangulTurn({
+        id: "turn-hidden",
+        original_transcript: "I like 축구.",
+        evaluation: {
+          outcome: "accepted_original",
+          hangulInterpretations: [
+            { hangul: "축구", kind: "korean_vocabulary", englishReading: null },
+          ],
+        },
+      }),
+    ]);
+
+    const recap = await getCompletedMissionRecap("student-1", "assignment-student-1");
+
+    expect(recap?.turns[0]?.transcript).toBeNull();
+    expect(recap?.turns[0]?.original.transcript).toBeNull();
+    expect(recap?.turns[0]?.original.pronunciation?.words).toEqual([]);
+    expect(recap?.turns[0]?.original.audio?.id).toBe("clip-hidden-original");
+  });
+
+  it("keeps a proper name exactly as spoken", async () => {
+    mockSupabase = createDynamicMockSupabase([
+      hangulTurn({
+        original_transcript: "I ate 삼겹살 with my family.",
+        evaluation: {
+          outcome: "accepted_original",
+          hangulInterpretations: [
+            { hangul: "삼겹살", kind: "name", englishReading: null },
+          ],
+        },
+      }),
+    ]);
+
+    const recap = await getCompletedMissionRecap("student-1", "assignment-student-1");
+
+    expect(recap?.turns[0]?.transcript).toBe("I ate 삼겹살 with my family.");
+  });
+
+  it("reads repeat and original metadata from their own evaluation levels", async () => {
+    mockSupabase = createDynamicMockSupabase([
+      hangulTurn({
+        original_transcript: "I like 축구.",
+        repeat_transcript: "I like 사커.",
+        repeat_accepted: true,
+        evaluation: {
+          outcome: "accepted_repeat",
+          hangulInterpretations: [
+            { hangul: "사커", kind: "accented_english", englishReading: "soccer" },
+          ],
+          originalEvaluation: {
+            hangulInterpretations: [
+              { hangul: "축구", kind: "korean_vocabulary", englishReading: null },
+            ],
+          },
+        },
+      }),
+    ]);
+
+    const recap = await getCompletedMissionRecap("student-1", "assignment-student-1");
+
+    expect(recap?.turns[0]?.repeat?.transcript).toBe("I like soccer.");
+    expect(recap?.turns[0]?.transcript).toBe("I like soccer.");
+    expect(recap?.turns[0]?.original.transcript).toBeNull();
+  });
+
+  it("fails closed for a legacy Hangul record with no interpretation metadata", async () => {
+    mockSupabase = createDynamicMockSupabase([
+      hangulTurn({
+        evaluation: { outcome: "accepted_original" },
+      }),
+    ]);
+
+    const recap = await getCompletedMissionRecap("student-1", "assignment-student-1");
+
+    expect(recap?.turns[0]?.transcript).toBeNull();
+  });
+
+  it("fails closed for malformed interpretation metadata", async () => {
+    mockSupabase = createDynamicMockSupabase([
+      hangulTurn({
+        evaluation: {
+          outcome: "accepted_original",
+          hangulInterpretations: "바닐라 = vanilla",
+        },
+      }),
+    ]);
+
+    const recap = await getCompletedMissionRecap("student-1", "assignment-student-1");
+
+    expect(recap?.turns[0]?.transcript).toBeNull();
+  });
+
+  it("displays a legacy all-English record normally", async () => {
+    mockSupabase = createDynamicMockSupabase([
+      hangulTurn({
+        original_transcript: "I like vanilla ice cream.",
+        evaluation: { outcome: "accepted_original" },
+      }),
+    ]);
+
+    const recap = await getCompletedMissionRecap("student-1", "assignment-student-1");
+
+    expect(recap?.turns[0]?.transcript).toBe("I like vanilla ice cream.");
   });
 });

@@ -1,5 +1,10 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { wordsToPractice, type WordScore } from "@/domain/pronunciation/scoring";
+import {
+  buildLearnerTranscript,
+  hangulInterpretationSchema,
+  type HangulInterpretation,
+} from "@/domain/audio/transcript-interpretation";
 
 const AUDIO_TTL_SECONDS = 300;
 const AUDIO_BUCKET = "student-audio";
@@ -15,7 +20,8 @@ export type StudentRecapAudioClip = {
 };
 
 export type StudentRecapAttempt = {
-  transcript: string;
+  /** Learner-safe text, or null when a Hangul span could not be vouched for. */
+  transcript: string | null;
   audio: StudentRecapAudioClip | null;
   pronunciation: StudentRecapPronunciation | null;
 };
@@ -30,7 +36,7 @@ export type StudentRecapTurn = {
   id: string;
   turnOrder: number;
   cocoPrompt: string;
-  transcript: string;
+  transcript: string | null;
   audio: StudentRecapAudioClip | null;
   pronunciation: StudentRecapPronunciation | null;
   original: StudentRecapAttempt;
@@ -56,6 +62,32 @@ type Snapshot = {
   characterId: string;
   turns: Array<{ turnOrder?: number; order?: number; prompt: string }>;
 };
+
+function readInterpretations(value: unknown): HangulInterpretation[] {
+  const parsed = hangulInterpretationSchema.array().safeParse(value);
+  return parsed.success ? parsed.data : [];
+}
+
+function readEvaluationObject(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+/**
+ * Absent or malformed metadata yields an empty set, which is right in both
+ * directions: a legacy all-English row still displays verbatim, and any row
+ * containing Hangul fails closed to `null`.
+ */
+function displayFor(
+  rawTranscript: string,
+  evaluation: Record<string, unknown> | null,
+): string | null {
+  return buildLearnerTranscript(
+    rawTranscript,
+    readInterpretations(evaluation?.hangulInterpretations),
+  );
+}
 
 function parseSnapshot(value: unknown): Snapshot | null {
   if (!value || typeof value !== "object") return null;
@@ -162,13 +194,13 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
     scores = result.data ?? [];
   }
 
-  function attemptFor(turnId: string, clipKind: "original_answer" | "repeat_attempt", transcript: string): StudentRecapAttempt {
+  function attemptFor(turnId: string, clipKind: "original_answer" | "repeat_attempt", transcript: string | null): StudentRecapAttempt {
     const clip = clips.find((item) => item.attempt_turn_id === turnId && item.clip_kind === clipKind) ?? null;
     const score = clip ? scores.find((item) => item.audio_clip_id === clip.id) : undefined;
     return {
       transcript,
       audio: clip ? { id: clip.id, playback: playbackFor(clip) } : null,
-      pronunciation: score && [1, 2, 3].includes(score.star_band) ? { starBand: score.star_band as 1 | 2 | 3, words: Array.isArray(score.word_scores) ? wordsToPractice(score.word_scores as WordScore[], transcript) : [] } : null,
+      pronunciation: score && [1, 2, 3].includes(score.star_band) ? { starBand: score.star_band as 1 | 2 | 3, words: transcript !== null && Array.isArray(score.word_scores) ? wordsToPractice(score.word_scores as WordScore[], transcript) : [] } : null,
     };
   }
 
@@ -178,9 +210,19 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
 
   const turns: StudentRecapTurn[] = turnRows.map((turn) => {
     const acceptedRepeat = turn.repeat_accepted === true && Boolean(turn.repeat_transcript);
-    const transcript = acceptedRepeat ? turn.repeat_transcript! : turn.original_transcript ?? "";
-    const original = attemptFor(turn.id, "original_answer", turn.original_transcript ?? "");
-    const repeat = turn.repeat_transcript?.trim() ? attemptFor(turn.id, "repeat_attempt", turn.repeat_transcript) : null;
+    const storedEvaluation = readEvaluationObject(turn.evaluation);
+    const original = attemptFor(
+      turn.id,
+      "original_answer",
+      displayFor(
+        turn.original_transcript ?? "",
+        readEvaluationObject(storedEvaluation?.originalEvaluation) ?? storedEvaluation,
+      ),
+    );
+    const repeat = turn.repeat_transcript?.trim()
+      ? attemptFor(turn.id, "repeat_attempt", displayFor(turn.repeat_transcript, storedEvaluation))
+      : null;
+    const transcript = acceptedRepeat ? repeat!.transcript : original.transcript;
 
     const cocoPrompt = snapshot.conversationMode
       ? nextDynamicPrompt

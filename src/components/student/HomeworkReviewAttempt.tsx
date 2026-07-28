@@ -84,7 +84,9 @@ export function HomeworkReviewAttempt({
   return (
     <div className={styles.bubble}>
       <div className={styles.transcriptRow}>
-        <p className={styles.transcript}>{attempt.transcript}</p>
+        {attempt.transcript ? (
+          <p className={styles.transcript}>{attempt.transcript}</p>
+        ) : null}
         {audioAvailable ? (
           <button
             className={styles.audioButton}
