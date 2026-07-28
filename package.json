@@ -9,6 +9,7 @@
     "dev": "next dev",
     "uat": "node scripts/uat-worktree.mjs",
     "build": "next build",
+    "postbuild": "node scripts/assert-ffmpeg-traced.mjs",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

@@ -71,10 +71,19 @@ export async function transcodeToWav(
           chunks.push(chunk);
         });
 
-        ffmpeg.on("error", () => {
+        // `code` is a libuv constant, never user data. It is the only field
+        // that separates a binary missing from the deployed function (ENOENT)
+        // from one present but not executable (EACCES) or built for the wrong
+        // architecture (ENOEXEC) — a distinction the logs could not previously
+        // make, since every failure path emitted the same bare string.
+        ffmpeg.on("error", (error: NodeJS.ErrnoException) => {
           if (settled) return;
           settled = true;
-          log("error", "audio.transcode_failed", { error: "transcode_failed" });
+          log("error", "audio.transcode_failed", {
+            error: "transcode_failed",
+            stage: "spawn_error",
+            code: error.code ?? null,
+          });
           resolve({ ok: false, error: "transcode_failed" });
         });
 
@@ -84,7 +93,12 @@ export async function transcodeToWav(
           if (code === 0) {
             resolve({ ok: true, wav: Buffer.concat(chunks) });
           } else {
-            log("error", "audio.transcode_failed", { error: "transcode_failed" });
+            // Reaching a non-zero exit proves the binary ran: this is a decode
+            // fault, not a packaging one.
+            log("error", "audio.transcode_failed", {
+              error: "transcode_failed",
+              stage: "ffmpeg_exit",
+            });
             resolve({ ok: false, error: "transcode_failed" });
           }
         });
@@ -95,8 +109,12 @@ export async function transcodeToWav(
         });
         ffmpeg.stdin?.write(buffer);
         ffmpeg.stdin?.end();
-      } catch {
-        log("error", "audio.transcode_failed", { error: "transcode_failed" });
+      } catch (error) {
+        log("error", "audio.transcode_failed", {
+          error: "transcode_failed",
+          stage: "spawn_threw",
+          code: (error as NodeJS.ErrnoException)?.code ?? null,
+        });
         resolve({ ok: false, error: "transcode_failed" });
       }
     }
