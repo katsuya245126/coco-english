@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { HangulInterpretation } from "@/domain/audio/transcript-interpretation";
 
 const baseOriginalEvaluation = {
   version: "ai-eval-v1",
@@ -18,7 +19,7 @@ const baseOriginalEvaluation = {
   transcriptionModel: "gpt-4o-mini-transcribe",
   transcriptionConfidence: null,
   runtimeVersion: "test-runtime",
-  hangulInterpretations: [],
+  hangulInterpretations: [] as HangulInterpretation[],
 } as const;
 
 describe("original evaluation schema and correction intent", () => {
@@ -370,6 +371,7 @@ describe("repeat turn AI evaluation decisions (AI-04, AI-05)", () => {
         englishLanguage: "english",
         confidence: "high",
         reviewReason: null,
+        hangulInterpretations: [],
       }),
     ).toEqual({ kind: "accepted_repeat", repeatAccepted: true });
   });
@@ -387,6 +389,7 @@ describe("repeat turn AI evaluation decisions (AI-04, AI-05)", () => {
         englishLanguage: "english",
         confidence: "high",
         reviewReason: null,
+        hangulInterpretations: [],
       }),
     ).toEqual({
       kind: "retry_repeat",
@@ -408,6 +411,7 @@ describe("repeat turn AI evaluation decisions (AI-04, AI-05)", () => {
         englishLanguage: "uncertain",
         confidence: "low",
         reviewReason: "low_confidence",
+        hangulInterpretations: [],
       }),
     ).toEqual({
       kind: "teacher_review",
@@ -920,6 +924,7 @@ describe("repeat attempt cap (attempt 6406e6a5, 2026-07-27)", () => {
     englishLanguage: "english",
     confidence: "high",
     reviewReason: null,
+    hangulInterpretations: [] as HangulInterpretation[],
   } as const;
 
   it("stops asking after the cap instead of looping the child", async () => {

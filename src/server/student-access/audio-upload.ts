@@ -56,6 +56,10 @@ import { DEFAULT_COCO_TTS_VOICE } from "@/domain/audio/tts";
 import { warmTtsAudioCache } from "@/server/audio/tts-cache";
 import { scorePronunciation } from "@/server/audio/pronunciation-scorer";
 import {
+  buildLearnerTranscript,
+  type HangulInterpretation,
+} from "@/domain/audio/transcript-interpretation";
+import {
   wordsToPractice,
   type PronunciationStarBand,
   type WordHighlight,
@@ -156,7 +160,13 @@ export type UploadAttemptAudioClipResult =
       ok: true;
       audioClipId: string;
       processingStatus: "transcribed";
-      transcript: string;
+      /**
+       * Learner-facing text only. `null` whenever the raw transcript contains
+       * Hangul that was not confirmed as accented English, so the student
+       * surface shows nothing rather than something it cannot vouch for. The
+       * raw transcript stays teacher evidence and never leaves this module.
+       */
+      displayTranscript: string | null;
       evaluation?: StoredOriginalTurnEvaluation | StoredRepeatTurnEvaluation;
       starBand: PronunciationStarBand | null;
       wordsToPractice: WordHighlight[];
@@ -218,6 +228,7 @@ type StoredOriginalTurnEvaluation = StoredEvaluationProvenance & {
     evaluation: OriginalTurnEvaluation;
   }>;
   contractViolations?: OriginalEvaluationViolation[];
+  hangulInterpretations: HangulInterpretation[];
 };
 
 type OriginalTurnWriteDecision = {
@@ -236,6 +247,7 @@ type StoredRepeatTurnEvaluation = {
   repeatAccepted: boolean | null;
   requireRepeat: boolean;
   originalEvaluation?: StoredOriginalTurnEvaluation;
+  hangulInterpretations: HangulInterpretation[];
 };
 
 function deterministicOriginalEvaluation(
@@ -286,6 +298,7 @@ export function applyOriginalTurnEvaluation(
         correctionReason: "none",
         improvedSentence: null,
         requireRepeat: decision.requireRepeat,
+        hangulInterpretations: [],
       },
       targetAttempted: null,
       improvedSentence: null,
@@ -364,6 +377,7 @@ export function applyRepeatTurnEvaluation(
       repeatCloseEnough: false,
       repeatAccepted: decision.repeatAccepted,
       requireRepeat: decision.requireRepeat,
+      hangulInterpretations: [],
     };
   }
 
@@ -378,6 +392,7 @@ export function applyRepeatTurnEvaluation(
     repeatCloseEnough: result.evaluation.repeatCloseEnough,
     repeatAccepted: decision.repeatAccepted,
     requireRepeat: decision.kind === "retry_repeat" ? true : false,
+    hangulInterpretations: result.evaluation.hangulInterpretations,
   };
 }
 
@@ -1118,6 +1133,7 @@ export async function uploadAttemptAudioClip(
           correctionReason: "none",
           improvedSentence: null,
           requireRepeat: false,
+          hangulInterpretations: [],
           retryReason: "incomplete_recording",
           ...((ambiguityState.ambiguityRetries ?? 0) > 0
             ? {
@@ -1169,7 +1185,7 @@ export async function uploadAttemptAudioClip(
         ok: true,
         audioClipId: audioClip.id,
         processingStatus: "transcribed",
-        transcript,
+        displayTranscript: buildLearnerTranscript(transcript, []),
         evaluation,
         starBand: null,
         wordsToPractice: [],
@@ -1226,6 +1242,7 @@ export async function uploadAttemptAudioClip(
             correctionReason: "none",
             improvedSentence: null,
             requireRepeat: false,
+            hangulInterpretations: [],
             retryReason: "minimal_effort",
             minimalEffortBlocks: minimalEffortBlocks + 1,
             minimalEffortKind,
@@ -1290,7 +1307,7 @@ export async function uploadAttemptAudioClip(
           ok: true,
           audioClipId: audioClip.id,
           processingStatus: "transcribed",
-          transcript,
+          displayTranscript: buildLearnerTranscript(transcript, []),
           evaluation,
           starBand: null,
           wordsToPractice: [],
@@ -1303,20 +1320,33 @@ export async function uploadAttemptAudioClip(
     let originalEvaluation: StoredOriginalTurnEvaluation | undefined;
     let repeatEvaluation: StoredRepeatTurnEvaluation | undefined;
 
-    const pronunciationReferenceText =
-      input.clipKind === "original_answer"
-        ? transcript
-        : repeatTarget;
-
     const score = deps.scorePronunciation ?? scorePronunciation;
-    const scoringStartedAt = Date.now();
-    const scoringPromise = score({
-      file: createAudioBlob(),
-      referenceText: pronunciationReferenceText,
-      durationMs: input.durationMs,
-    }).finally(() => {
-      timings.pronunciationTotalMs = elapsedMs(scoringStartedAt);
-    });
+
+    function beginPronunciationScoring(referenceText: string) {
+      const scoringStartedAt = Date.now();
+      return score({
+        file: createAudioBlob(),
+        referenceText,
+        durationMs: input.durationMs,
+      }).finally(() => {
+        timings.pronunciationTotalMs = elapsedMs(scoringStartedAt);
+      });
+    }
+
+    /*
+     * All-English traffic keeps the existing fast path: scoring starts here and
+     * runs concurrently with evaluation. Only a Hangul original answer waits,
+     * because Azure is pinned to English and the reference text has to be the
+     * interpreted reading, which does not exist until the evaluator classifies
+     * the spans. Repeat clips score against the English sentence the learner
+     * was asked to repeat, so they never need to wait.
+     */
+    let scoringPromise =
+      input.clipKind === "repeat_attempt"
+        ? beginPronunciationScoring(repeatTarget)
+        : koreanSpans.length === 0
+          ? beginPronunciationScoring(transcript)
+          : null;
 
     const turnWrite =
       input.clipKind === "original_answer"
@@ -1360,6 +1390,7 @@ export async function uploadAttemptAudioClip(
                     confidence: "high",
                     reviewReason: null,
                     evaluationSource: "deterministic",
+                    hangulInterpretations: [],
                   },
                 }
               : await timeStage("evaluation", () => evaluate(evaluationInput));
@@ -1519,6 +1550,7 @@ export async function uploadAttemptAudioClip(
                     englishLanguage: "english",
                     confidence: "high",
                     reviewReason: null,
+                    hangulInterpretations: [],
                   },
                 }
               : await timeStage("evaluation", () => {
@@ -1734,57 +1766,85 @@ export async function uploadAttemptAudioClip(
       }
     }
 
+    const currentEvaluation = originalEvaluation ?? repeatEvaluation;
+    const displayTranscript = buildLearnerTranscript(
+      transcript,
+      currentEvaluation?.hangulInterpretations ?? [],
+    );
+
+    const hasAccentedEnglish = currentEvaluation?.hangulInterpretations.some(
+      (item) => item.kind === "accented_english",
+    );
+    if (
+      input.clipKind === "original_answer" &&
+      scoringPromise === null &&
+      displayTranscript &&
+      hasAccentedEnglish
+    ) {
+      scoringPromise = beginPronunciationScoring(displayTranscript);
+    }
+
     let starBand: PronunciationStarBand | null = null;
     let wordHighlights: WordHighlight[] = [];
 
-    try {
-      const pronunciationAwaitStartedAt = Date.now();
-      const scoring = await scoringPromise;
-      timings.pronunciationAwaitMs = elapsedMs(pronunciationAwaitStartedAt);
-      if (scoring.ok) {
-        const scoreUpsert = await timeStage("pronunciationScoreWrite", () =>
-          supabase.from("pronunciation_scores").upsert(
-            {
-              audio_clip_id: audioClip.id,
-              provider: "azure_speech",
-              reference_text: scoring.score.referenceText,
-              accuracy_score: scoring.score.accuracyScore,
-              fluency_score: scoring.score.fluencyScore,
-              completeness_score: scoring.score.completenessScore,
-              pronunciation_score: scoring.score.pronunciationScore,
-              star_band: scoring.score.starBand,
-              word_scores: scoring.score.wordScores as unknown as Json,
-            },
-            { onConflict: "audio_clip_id" },
-          ),
-        );
+    // A null promise means scoring was deliberately never started: a Hangul
+    // answer with nothing confirmed as accented English has no English
+    // reference text to score against. That is not a failure and must not
+    // reach the failure log below.
+    if (scoringPromise !== null) {
+      const startedScoring = scoringPromise;
+      try {
+        const pronunciationAwaitStartedAt = Date.now();
+        const scoring = await startedScoring;
+        timings.pronunciationAwaitMs = elapsedMs(pronunciationAwaitStartedAt);
+        if (scoring.ok) {
+          const scoreUpsert = await timeStage("pronunciationScoreWrite", () =>
+            supabase.from("pronunciation_scores").upsert(
+              {
+                audio_clip_id: audioClip.id,
+                provider: "azure_speech",
+                reference_text: scoring.score.referenceText,
+                accuracy_score: scoring.score.accuracyScore,
+                fluency_score: scoring.score.fluencyScore,
+                completeness_score: scoring.score.completenessScore,
+                pronunciation_score: scoring.score.pronunciationScore,
+                star_band: scoring.score.starBand,
+                word_scores: scoring.score.wordScores as unknown as Json,
+              },
+              { onConflict: "audio_clip_id" },
+            ),
+          );
 
-        if (scoreUpsert.error) {
+          if (scoreUpsert.error) {
+            log("warn", "audio.pronunciation_scoring_failed", {
+              assignmentStudentId: input.assignmentStudentId,
+              attemptId: input.attemptId,
+              turnOrder: input.turnOrder,
+              error: scoreUpsert.error.message,
+            });
+          } else {
+            starBand = scoring.score.starBand;
+            wordHighlights = wordsToPractice(
+              scoring.score.wordScores,
+              displayTranscript ?? transcript,
+            );
+          }
+        } else {
           log("warn", "audio.pronunciation_scoring_failed", {
             assignmentStudentId: input.assignmentStudentId,
             attemptId: input.attemptId,
             turnOrder: input.turnOrder,
-            error: scoreUpsert.error.message,
+            error: scoring.error,
           });
-        } else {
-          starBand = scoring.score.starBand;
-          wordHighlights = wordsToPractice(scoring.score.wordScores, transcript);
         }
-      } else {
+      } catch (error) {
         log("warn", "audio.pronunciation_scoring_failed", {
           assignmentStudentId: input.assignmentStudentId,
           attemptId: input.attemptId,
           turnOrder: input.turnOrder,
-          error: scoring.error,
+          error: error instanceof Error ? error.message : String(error),
         });
       }
-    } catch (error) {
-      log("warn", "audio.pronunciation_scoring_failed", {
-        assignmentStudentId: input.assignmentStudentId,
-        attemptId: input.attemptId,
-        turnOrder: input.turnOrder,
-        error: error instanceof Error ? error.message : String(error),
-      });
     }
 
     // ttsWarmup (tts_audio_cache table + tts-audio storage) and finalClipUpdate
@@ -1852,7 +1912,7 @@ export async function uploadAttemptAudioClip(
       ok: true,
       audioClipId: audioClip.id,
       processingStatus: "transcribed",
-      transcript,
+      displayTranscript,
       evaluation: originalEvaluation ?? repeatEvaluation,
       starBand,
       wordsToPractice: wordHighlights,

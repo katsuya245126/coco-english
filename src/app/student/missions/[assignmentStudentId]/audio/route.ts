@@ -80,7 +80,7 @@ export async function POST(request: Request, context: RouteContext) {
       ok: true,
       audioClipId: result.audioClipId,
       processingStatus: result.processingStatus,
-      transcript: result.transcript,
+      displayTranscript: result.displayTranscript,
       evaluation: result.evaluation,
       starBand: result.starBand,
       wordsToPractice: result.wordsToPractice,

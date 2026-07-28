@@ -83,6 +83,7 @@ function originalEvaluation(overrides = {}) {
     transcriptionModel: "test-transcriber",
     transcriptionConfidence: null,
     runtimeVersion: "test-runtime",
+    hangulInterpretations: [],
     ...overrides,
   };
 }
@@ -514,6 +515,9 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
           correctionReason: "grammar",
           improvedSentence:
             "I will swim, and my family will eat 삼겹살.",
+          hangulInterpretations: [
+            { hangul: "삼겹살", kind: "name" as const, englishReading: null },
+          ],
         }),
       });
 
@@ -811,7 +815,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
 
     expect(result).toMatchObject({
       ok: true,
-      transcript: "My family.",
+      displayTranscript: "My family.",
       evaluation: { outcome: "accepted_original", improvedSentence: null },
     });
     expect(evaluateOriginalTurn).toHaveBeenCalledWith(
@@ -2639,6 +2643,7 @@ describe("repeat write preserves the original evaluation (2026-07-25)", () => {
         englishLanguage: "english" as const,
         confidence: "high" as const,
         reviewReason: null,
+        hangulInterpretations: [],
       },
     }));
 

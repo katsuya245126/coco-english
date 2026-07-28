@@ -114,6 +114,7 @@ function successfulOriginalEvaluator(overrides = {}) {
       transcriptionModel: "test-transcriber",
       transcriptionConfidence: null,
       runtimeVersion: "test-runtime",
+      hangulInterpretations: [],
       ...overrides,
     },
   }));
@@ -129,6 +130,7 @@ function successfulRepeatEvaluator(overrides = {}) {
       englishLanguage: "english" as const,
       confidence: "high" as const,
       reviewReason: null,
+      hangulInterpretations: [],
       ...overrides,
     },
   }));
@@ -406,7 +408,11 @@ describe("uploadAttemptAudioClip", () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
     );
-    const evaluateOriginalTurn = successfulOriginalEvaluator();
+    const evaluateOriginalTurn = successfulOriginalEvaluator({
+      hangulInterpretations: [
+        { hangul: "바닐라", kind: "accented_english", englishReading: "vanilla" },
+      ],
+    });
     const koreanSpans = [{ hangul: "바닐라", romanized: "Banilla" }];
 
     const result = await uploadAttemptAudioClip(audioInput(), {
@@ -500,7 +506,7 @@ describe("uploadAttemptAudioClip", () => {
       ok: true,
       audioClipId: "clip-1",
       processingStatus: "transcribed",
-      transcript: "I like apples.",
+      displayTranscript: "I like apples.",
       evaluation: {
         version: "ai-eval-v1",
         outcome: "accepted_original",
@@ -1189,10 +1195,7 @@ describe("uploadAttemptAudioClip", () => {
       evaluateOriginalTurn: evaluateOriginal,
     });
 
-    expect(result).toMatchObject({
-      ok: true,
-      transcript: "I like 축구 after school.",
-    });
+    expect(result).toMatchObject({ ok: true, displayTranscript: null });
     expect(evaluateOriginal).toHaveBeenCalledWith(
       expect.objectContaining({
         transcript: "I like 축구 after school.",
@@ -1234,12 +1237,15 @@ describe("uploadAttemptAudioClip", () => {
         correctionSeverity: "material",
         correctionReason: "vocabulary",
         improvedSentence: "I like soccer after school.",
+        hangulInterpretations: [
+          { hangul: "축구", kind: "korean_vocabulary", englishReading: null },
+        ],
       }),
     });
 
     expect(result).toMatchObject({
       ok: true,
-      transcript: "I like 축구 after school.",
+      displayTranscript: null,
       evaluation: {
         outcome: "needs_correction",
         improvedSentence: "I like soccer after school.",
@@ -1378,7 +1384,10 @@ describe("uploadAttemptAudioClip", () => {
       scorePronunciation: successfulPronunciationScorer(),
     });
 
-    expect(result).toMatchObject({ ok: true, transcript: "I like apples." });
+    expect(result).toMatchObject({
+      ok: true,
+      displayTranscript: "I like apples.",
+    });
     expect(transcribe).toHaveBeenCalledOnce();
   });
 
@@ -1775,6 +1784,7 @@ describe("uploadAttemptAudioClip", () => {
         transcriptionModel: "test-transcriber",
         transcriptionConfidence: null,
         runtimeVersion: "test-runtime",
+        hangulInterpretations: [],
       };
       callOrder.push("evaluate:end");
       return { ok: true as const, evaluation };
@@ -1990,5 +2000,252 @@ describe("minimal-effort answer guard", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("expected ok");
     expect(result.evaluation).toMatchObject({ outcome: "accepted_repeat" });
+  });
+});
+
+describe("learner-safe display transcript at the upload boundary", () => {
+  beforeEach(() => {
+    mockSupabase = createMockSupabase();
+    mockLog.mockClear();
+  });
+
+  function turnWrite(field: "original_transcript" | "repeat_transcript") {
+    return mockSupabase.operations.find(
+      (operation) =>
+        operation.table === "attempt_turns" &&
+        (operation.action === "upsert" || operation.action === "update") &&
+        typeof operation.payload === "object" &&
+        operation.payload !== null &&
+        field in operation.payload,
+    )?.payload as Record<string, unknown> | undefined;
+  }
+
+  it("shows the English reading of accented-English spans and scores against it", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const raw = "바닐라 아이스크림 is tastier than 초콜릿 아이스크림.";
+    const scorePronunciation = successfulPronunciationScorer();
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber(raw, [
+        { hangul: "바닐라", romanized: "Banilla" },
+        { hangul: "아이스크림", romanized: "Aiseukeurim" },
+        { hangul: "초콜릿", romanized: "Chokollit" },
+      ]),
+      evaluateOriginalTurn: successfulOriginalEvaluator({
+        hangulInterpretations: [
+          {
+            hangul: "바닐라",
+            kind: "accented_english",
+            englishReading: "vanilla",
+          },
+          {
+            hangul: "아이스크림",
+            kind: "accented_english",
+            englishReading: "ice cream",
+          },
+          {
+            hangul: "초콜릿",
+            kind: "accented_english",
+            englishReading: "chocolate",
+          },
+        ],
+      }),
+      scorePronunciation,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      displayTranscript:
+        "vanilla ice cream is tastier than chocolate ice cream.",
+    });
+
+    // The stored evidence is what the child actually said, unchanged.
+    expect(turnWrite("original_transcript")).toMatchObject({
+      original_transcript: raw,
+      evaluation: expect.objectContaining({
+        hangulInterpretations: expect.any(Array),
+      }),
+    });
+
+    expect(scorePronunciation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        referenceText:
+          "vanilla ice cream is tastier than chocolate ice cream.",
+      }),
+    );
+  });
+
+  it("hides the whole transcript and skips scoring when a span is Korean vocabulary", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const scorePronunciation = successfulPronunciationScorer();
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like 축구.", [
+        { hangul: "축구", romanized: "Chukgu" },
+      ]),
+      evaluateOriginalTurn: successfulOriginalEvaluator({
+        outcome: "needs_correction",
+        correctionNeeded: true,
+        correctionSeverity: "material",
+        correctionReason: "vocabulary",
+        improvedSentence: "I like soccer.",
+        hangulInterpretations: [
+          { hangul: "축구", kind: "korean_vocabulary", englishReading: null },
+        ],
+      }),
+      scorePronunciation,
+    });
+
+    expect(result).toMatchObject({ ok: true, displayTranscript: null });
+    expect(turnWrite("original_transcript")?.original_transcript).toBe(
+      "I like 축구.",
+    );
+    // Azure would score the Korean word against an English pin, so no call.
+    expect(scorePronunciation).not.toHaveBeenCalled();
+  });
+
+  it("keeps a proper name exactly as spoken in the learner transcript", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I'm going to 거제도.", [
+        { hangul: "거제도", romanized: "Geojedo" },
+      ]),
+      evaluateOriginalTurn: successfulOriginalEvaluator({
+        hangulInterpretations: [
+          { hangul: "거제도", kind: "name", englishReading: null },
+        ],
+      }),
+      scorePronunciation: successfulPronunciationScorer(),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      displayTranscript: "I'm going to 거제도.",
+    });
+  });
+
+  it("fails closed when interpretation metadata is missing for a Hangul transcript", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    // A deterministic decision made before any evaluator ran carries no
+    // classifications, so the learner surface must show nothing at all.
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like 바닐라.", [
+        { hangul: "바닐라", romanized: "Banilla" },
+      ]),
+      evaluateOriginalTurn: vi.fn(async () => ({
+        ok: false as const,
+        error: "schema_failed" as const,
+      })),
+      scorePronunciation: successfulPronunciationScorer(),
+    });
+
+    expect(result).toMatchObject({ ok: true, displayTranscript: null });
+    expect(turnWrite("original_transcript")?.original_transcript).toBe(
+      "I like 바닐라.",
+    );
+  });
+
+  it("gives the repeat turn a learner-safe display while storing the raw repeat", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const result = await uploadAttemptAudioClip(
+      audioInput({ turnOrder: 2, clipKind: "repeat_attempt", body: "repeat" }),
+      {
+        transcribeAudioFile: successfulTranscriber("I like 아이스크림.", [
+          { hangul: "아이스크림", romanized: "Aiseukeurim" },
+        ]),
+        evaluateRepeatTurn: successfulRepeatEvaluator({
+          hangulInterpretations: [
+            {
+              hangul: "아이스크림",
+              kind: "accented_english",
+              englishReading: "ice cream",
+            },
+          ],
+        }),
+        scorePronunciation: successfulPronunciationScorer(),
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      displayTranscript: "I like ice cream.",
+    });
+    expect(turnWrite("repeat_transcript")?.repeat_transcript).toBe(
+      "I like 아이스크림.",
+    );
+  });
+
+  it("leaves all-English uploads on the concurrent scoring fast path", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    let evaluationResolved = false;
+    let scoringStartedBeforeEvaluation = false;
+
+    const scorePronunciation = vi.fn(async () => {
+      scoringStartedBeforeEvaluation = !evaluationResolved;
+      return {
+        ok: true as const,
+        score: {
+          accuracyScore: 88,
+          fluencyScore: 90,
+          completenessScore: 95,
+          pronunciationScore: 87,
+          starBand: 3 as const,
+          referenceText: "I like apples.",
+          wordScores: [],
+        },
+      };
+    });
+
+    const evaluateOriginalTurn = vi.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      evaluationResolved = true;
+      return successfulOriginalEvaluator()();
+    });
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like apples."),
+      evaluateOriginalTurn,
+      scorePronunciation,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      displayTranscript: "I like apples.",
+    });
+    expect(scoringStartedBeforeEvaluation).toBe(true);
+    expect(scorePronunciation).toHaveBeenCalledWith(
+      expect.objectContaining({ referenceText: "I like apples." }),
+    );
+  });
+
+  it("does not expose the raw transcript through the student audio route", async () => {
+    const routeSource = readFileSync(
+      join(
+        process.cwd(),
+        "src/app/student/missions/[assignmentStudentId]/audio/route.ts",
+      ),
+      "utf8",
+    );
+
+    expect(routeSource).toContain("displayTranscript: result.displayTranscript");
+    expect(routeSource).not.toContain("transcript: result.transcript");
   });
 });

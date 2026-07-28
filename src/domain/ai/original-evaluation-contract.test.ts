@@ -80,7 +80,7 @@ describe("original evaluation contract", () => {
           confidence: "high",
           reviewReason: "ambiguous",
           hangulInterpretations: [
-            { hangul: "삼겹살", kind: "name", englishReading: null },
+            { hangul: "삼겹살", kind: "name" as const, englishReading: null },
           ],
         },
         evaluationMode: "conversation",
@@ -163,9 +163,9 @@ describe("original evaluation contract", () => {
       targetPatternAttempted: false,
       englishLanguage: "non_english" as const,
       hangulInterpretations: [
-        { hangul: "바다에", kind: "korean_vocabulary", englishReading: null },
-        { hangul: "갈", kind: "korean_vocabulary", englishReading: null },
-        { hangul: "거예요", kind: "korean_vocabulary", englishReading: null },
+        { hangul: "바다에", kind: "korean_vocabulary" as const, englishReading: null },
+        { hangul: "갈", kind: "korean_vocabulary" as const, englishReading: null },
+        { hangul: "거예요", kind: "korean_vocabulary" as const, englishReading: null },
       ],
     };
 
@@ -196,8 +196,8 @@ describe("original evaluation contract", () => {
       correctionReason: "fragment_completion" as const,
       improvedSentence: "I play games.",
       hangulInterpretations: [
-        { hangul: "플레이", kind: "accented_english", englishReading: "play" },
-        { hangul: "게임즈", kind: "accented_english", englishReading: "games" },
+        { hangul: "플레이", kind: "accented_english" as const, englishReading: "play" },
+        { hangul: "게임즈", kind: "accented_english" as const, englishReading: "games" },
       ],
     };
 
@@ -262,7 +262,7 @@ describe("Hangul interpretation coverage in the original contract", () => {
       evaluation: {
         ...baseEvaluation,
         hangulInterpretations: [
-          { hangul: "바닐라", kind: "accented_english", englishReading: "香草" },
+          { hangul: "바닐라", kind: "accented_english" as const, englishReading: "香草" },
         ],
       },
       evaluationMode: "preset",
@@ -285,7 +285,7 @@ describe("Hangul interpretation coverage in the original contract", () => {
         hangulInterpretations: [
           {
             hangul: "바닐라",
-            kind: "accented_english",
+            kind: "accented_english" as const,
             englishReading: "vanilla",
           },
         ],
