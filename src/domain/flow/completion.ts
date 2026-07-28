@@ -3,7 +3,19 @@
  *
  * Pure module — no DB, server, or AI/LLM imports. Flow control keys
  * on transcript presence plus app-owned acceptance fields.
+ *
+ * Flow control still reads the persisted raw transcripts: they are the
+ * evidence that a turn happened. Only the learner-facing `transcript` fields
+ * are re-derived through the interpretation metadata, so a Hangul span the
+ * evaluator never confirmed as English is withheld from the child without
+ * changing whether the turn counts as answered.
  */
+
+import {
+  buildLearnerTranscript,
+  hangulInterpretationSchema,
+  type HangulInterpretation,
+} from "@/domain/audio/transcript-interpretation";
 
 export type CompletionTurn = {
   turn_order: number;
@@ -25,7 +37,7 @@ export type PendingTurnReview =
         | "retryUnclearMeaning"
         | "retryIncompleteRecording"
         | "retryMinimalEffort";
-      transcript: string;
+      transcript: string | null;
       improvedSentence: string | null;
       clipKind: "original_answer";
       cocoLine: string | null;
@@ -35,12 +47,38 @@ export type PendingTurnReview =
   | {
       step: "repeatFeedback";
       outcome: "repeatAccepted" | "repeatRetry" | "repeatReview";
-      transcript: string;
-      originalTranscript: string;
+      transcript: string | null;
+      originalTranscript: string | null;
       improvedSentence: string | null;
       clipKind: "repeat_attempt";
       cocoLine: string | null;
     };
+
+function readInterpretations(value: unknown): HangulInterpretation[] {
+  const parsed = hangulInterpretationSchema.array().safeParse(value);
+  return parsed.success ? parsed.data : [];
+}
+
+function readEvaluationObject(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+/**
+ * Absent or malformed metadata yields an empty set, which is exactly right in
+ * both directions: a legacy all-English row still displays verbatim, and any
+ * row containing Hangul fails closed to `null`.
+ */
+function displayFor(
+  rawTranscript: string,
+  evaluation: Record<string, unknown> | null,
+): string | null {
+  return buildLearnerTranscript(
+    rawTranscript,
+    readInterpretations(evaluation?.hangulInterpretations),
+  );
+}
 
 function evaluationOutcome(turn: CompletionTurn): string | null {
   if (
@@ -197,11 +235,16 @@ export function getPendingTurnReview(
             : null;
     if (!repeatOutcome) return null;
 
+    const storedEvaluation = readEvaluationObject(turn.evaluation);
+
     return {
       step: "repeatFeedback",
       outcome: repeatOutcome,
-      transcript: repeatTranscript,
-      originalTranscript,
+      transcript: displayFor(repeatTranscript, storedEvaluation),
+      originalTranscript: displayFor(
+        originalTranscript,
+        readEvaluationObject(storedEvaluation?.originalEvaluation),
+      ),
       improvedSentence: turn.improved_sentence ?? null,
       clipKind: "repeat_attempt",
       cocoLine: turn.coco_line?.trim() || null,
@@ -232,7 +275,10 @@ export function getPendingTurnReview(
   return {
     step: "aiFeedback",
     outcome: originalOutcome,
-    transcript: originalTranscript,
+    transcript: displayFor(
+      originalTranscript,
+      readEvaluationObject(turn.evaluation),
+    ),
     improvedSentence: turn.improved_sentence ?? null,
     clipKind: "original_answer",
     cocoLine: turn.coco_line?.trim() || null,

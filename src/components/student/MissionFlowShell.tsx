@@ -69,44 +69,44 @@ export type FlowStep =
 type OriginalFeedback = (
   | {
       kind: "acceptedOriginal";
-      transcript: string;
+      transcript: string | null;
       starBand?: PronunciationStarBand | null;
       wordsToPractice?: WordHighlight[];
     }
   | {
       kind: "needsCorrection";
-      transcript: string;
+      transcript: string | null;
       improvedSentence: string;
       starBand?: PronunciationStarBand | null;
       wordsToPractice?: WordHighlight[];
     }
   | {
       kind: "retryOriginal";
-      transcript: string;
+      transcript: string | null;
       starBand?: PronunciationStarBand | null;
       wordsToPractice?: WordHighlight[];
     }
   | {
       kind: "retryUnclearMeaning";
-      transcript: string;
+      transcript: string | null;
       starBand?: PronunciationStarBand | null;
       wordsToPractice?: WordHighlight[];
     }
   | {
       kind: "retryIncompleteRecording";
-      transcript: string;
+      transcript: string | null;
       starBand?: PronunciationStarBand | null;
       wordsToPractice?: WordHighlight[];
     }
   | {
       kind: "retryMinimalEffort";
-      transcript: string;
+      transcript: string | null;
       starBand?: PronunciationStarBand | null;
       wordsToPractice?: WordHighlight[];
     }
   | {
       kind: "teacherReview";
-      transcript: string;
+      transcript: string | null;
       starBand?: PronunciationStarBand | null;
       wordsToPractice?: WordHighlight[];
     }
@@ -120,19 +120,19 @@ export type RepeatFeedbackCompatibility = "repeatAccepted" | "teacherReview";
 type RepeatFeedback =
   | {
       kind: "repeatAccepted";
-      transcript: string;
+      transcript: string | null;
       starBand?: PronunciationStarBand | null;
       wordsToPractice?: WordHighlight[];
     }
   | {
       kind: "repeatRetry";
-      transcript: string;
+      transcript: string | null;
       starBand?: PronunciationStarBand | null;
       wordsToPractice?: WordHighlight[];
     }
   | {
       kind: "repeatReview";
-      transcript: string;
+      transcript: string | null;
       starBand?: PronunciationStarBand | null;
       wordsToPractice?: WordHighlight[];
     };
@@ -352,7 +352,12 @@ export function MissionFlowShell({
   }
 
   type UploadVoiceClipPayload = {
-    transcript: string;
+    /**
+     * Learner-safe text, or null when the server could not vouch for every
+     * Hangul span. Null is a successful upload — the feedback card simply
+     * hides "You said" and still shows the correction and retry guidance.
+     */
+    displayTranscript: string | null;
     evaluation?: {
       outcome?: string;
       improvedSentence?: string | null;
@@ -395,7 +400,7 @@ export function MissionFlowShell({
     const payload = (await response.json().catch(() => null)) as
       | {
           ok?: boolean;
-          transcript?: string;
+          displayTranscript?: string | null;
           error?: string;
           evaluation?: UploadVoiceClipPayload["evaluation"];
           starBand?: PronunciationStarBand | null;
@@ -406,8 +411,10 @@ export function MissionFlowShell({
     if (
       !response.ok ||
       payload?.ok !== true ||
-      typeof payload.transcript !== "string" ||
-      payload.transcript.trim().length === 0
+      payload.displayTranscript === undefined ||
+      (payload.displayTranscript !== null &&
+        (typeof payload.displayTranscript !== "string" ||
+          payload.displayTranscript.trim().length === 0))
     ) {
       if (payload?.error === "transcription_failed_retryable") {
         throw new Error("I didn't hear you. Try again.");
@@ -416,7 +423,7 @@ export function MissionFlowShell({
     }
 
     return {
-      transcript: payload.transcript,
+      displayTranscript: payload.displayTranscript,
       evaluation: payload.evaluation,
       starBand: payload.starBand,
       wordsToPractice: payload.wordsToPractice,
@@ -425,7 +432,7 @@ export function MissionFlowShell({
   }
 
   function repeatFeedbackFromEvaluation(
-    transcript: string,
+    transcript: string | null,
     evaluation: UploadVoiceClipPayload["evaluation"],
     starBand?: PronunciationStarBand | null,
     wordsToPractice?: WordHighlight[],
@@ -440,7 +447,7 @@ export function MissionFlowShell({
   }
 
   function feedbackFromEvaluation(
-    transcript: string,
+    transcript: string | null,
     evaluation: UploadVoiceClipPayload["evaluation"],
     starBand?: PronunciationStarBand | null,
     wordsToPractice?: WordHighlight[],
@@ -602,7 +609,7 @@ export function MissionFlowShell({
       // stale result so it can never overwrite fresher feedback state.
       if (token !== submissionTokenRef.current) return;
 
-      const transcript = upload.transcript;
+      const transcript = upload.displayTranscript;
       const originalFeedback = feedbackFromEvaluation(
         transcript,
         upload.evaluation,
@@ -677,7 +684,7 @@ export function MissionFlowShell({
       // stale result so it can never overwrite fresher feedback state.
       if (token !== submissionTokenRef.current) return;
 
-      const transcript = upload.transcript;
+      const transcript = upload.displayTranscript;
       const repeatFeedback = repeatFeedbackFromEvaluation(
         transcript,
         upload.evaluation,

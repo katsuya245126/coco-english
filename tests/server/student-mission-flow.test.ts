@@ -414,3 +414,47 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(closingSource).not.toContain("CocoSpeechAudio");
   });
 });
+
+describe("live feedback consumes only the learner-safe transcript", () => {
+  it("reads displayTranscript from the upload response and never the raw transcript", () => {
+    const shellSource = readFileSync(
+      "src/components/student/MissionFlowShell.tsx",
+      "utf8",
+    );
+
+    expect(shellSource).toContain("displayTranscript");
+    // The route no longer sends a raw transcript; reading one would silently
+    // resurrect Hangul the evaluator never vouched for.
+    expect(shellSource).not.toMatch(/payload\.transcript\b/);
+    expect(shellSource).not.toMatch(/transcript\?:\s*string;/);
+  });
+
+  it("accepts a null display transcript as a successful upload", () => {
+    const shellSource = readFileSync(
+      "src/components/student/MissionFlowShell.tsx",
+      "utf8",
+    );
+
+    // Only a non-null value has to be a non-empty string; null is valid and
+    // must not be treated as a failed upload.
+    expect(shellSource).toMatch(
+      /payload\.displayTranscript !== null &&[\s\S]*?typeof payload\.displayTranscript !== "string"/,
+    );
+  });
+
+  it("types feedback transcripts as nullable so the You said block can hide", () => {
+    const shellSource = readFileSync(
+      "src/components/student/MissionFlowShell.tsx",
+      "utf8",
+    );
+    const feedbackSource = readFileSync(
+      "src/components/student/StepAiEvaluationFeedback.tsx",
+      "utf8",
+    );
+
+    expect(shellSource).not.toMatch(/^\s+transcript: string;$/m);
+    // The card already hides "You said" for a null transcript while keeping
+    // the correction, retry guidance, and audio player.
+    expect(feedbackSource).toContain("if (!transcript) return null;");
+  });
+});

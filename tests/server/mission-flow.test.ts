@@ -455,3 +455,148 @@ describe("mission flow: completeMissionAction (FLOW-06)", () => {
     expect(mod.completeMissionAction).toBeDefined();
   });
 });
+
+describe("resume feedback derives learner-safe transcripts", () => {
+  it("resumes an original answer using its persisted accented-English readings", () => {
+    const review = getPendingTurnReview({
+      ...makeTurn(1, { original_transcript: "I like 바닐라." }),
+      evaluation: {
+        version: "ai-eval-v1",
+        outcome: "accepted_original",
+        requireRepeat: false,
+        hangulInterpretations: [
+          {
+            hangul: "바닐라",
+            kind: "accented_english",
+            englishReading: "vanilla",
+          },
+        ],
+      },
+    });
+
+    expect(review).toMatchObject({
+      step: "aiFeedback",
+      transcript: "I like vanilla.",
+    });
+  });
+
+  it("resumes Korean vocabulary with no learner transcript at all", () => {
+    const review = getPendingTurnReview({
+      ...makeTurn(1, { original_transcript: "I like 축구." }),
+      evaluation: {
+        version: "ai-eval-v1",
+        outcome: "needs_correction",
+        requireRepeat: true,
+        hangulInterpretations: [
+          { hangul: "축구", kind: "korean_vocabulary", englishReading: null },
+        ],
+      },
+    });
+
+    // The correction still resumes; only the "You said" text is withheld.
+    expect(review).toMatchObject({
+      step: "aiFeedback",
+      outcome: "needsCorrection",
+      transcript: null,
+    });
+  });
+
+  it("keeps legacy all-English rows readable without interpretation metadata", () => {
+    const review = getPendingTurnReview({
+      ...makeTurn(1, { original_transcript: "I like apples." }),
+      evaluation: {
+        version: "ai-eval-v1",
+        outcome: "accepted_original",
+        requireRepeat: false,
+      },
+    });
+
+    expect(review).toMatchObject({ transcript: "I like apples." });
+  });
+
+  it("fails closed on a legacy Hangul row that has no interpretation metadata", () => {
+    const review = getPendingTurnReview({
+      ...makeTurn(1, { original_transcript: "I like 바닐라." }),
+      evaluation: {
+        version: "ai-eval-v1",
+        outcome: "accepted_original",
+        requireRepeat: false,
+      },
+    });
+
+    expect(review).toMatchObject({ transcript: null });
+  });
+
+  it("fails closed when stored interpretation metadata is malformed", () => {
+    const review = getPendingTurnReview({
+      ...makeTurn(1, { original_transcript: "I like 바닐라." }),
+      evaluation: {
+        version: "ai-eval-v1",
+        outcome: "accepted_original",
+        requireRepeat: false,
+        hangulInterpretations: [{ hangul: "바닐라", kind: "banana" }],
+      },
+    });
+
+    expect(review).toMatchObject({ transcript: null });
+  });
+
+  it("reads repeat and original interpretations from their own evaluation levels", () => {
+    const review = getPendingTurnReview({
+      turn_order: 1,
+      original_transcript: "I like 바닐라.",
+      repeat_transcript: "I like 아이스크림.",
+      repeat_accepted: true,
+      improved_sentence: "I like vanilla.",
+      evaluation: {
+        version: "ai-eval-v1",
+        outcome: "accepted_repeat",
+        repeatAccepted: true,
+        hangulInterpretations: [
+          {
+            hangul: "아이스크림",
+            kind: "accented_english",
+            englishReading: "ice cream",
+          },
+        ],
+        originalEvaluation: {
+          version: "ai-eval-v1",
+          outcome: "needs_correction",
+          hangulInterpretations: [
+            {
+              hangul: "바닐라",
+              kind: "accented_english",
+              englishReading: "vanilla",
+            },
+          ],
+        },
+      },
+    });
+
+    expect(review).toMatchObject({
+      step: "repeatFeedback",
+      transcript: "I like ice cream.",
+      originalTranscript: "I like vanilla.",
+    });
+  });
+
+  it("does not let repeat metadata stand in for a missing original classification", () => {
+    const review = getPendingTurnReview({
+      turn_order: 1,
+      original_transcript: "I like 축구.",
+      repeat_transcript: "I like soccer.",
+      repeat_accepted: true,
+      evaluation: {
+        version: "ai-eval-v1",
+        outcome: "accepted_repeat",
+        repeatAccepted: true,
+        hangulInterpretations: [],
+      },
+    });
+
+    expect(review).toMatchObject({
+      transcript: "I like soccer.",
+      originalTranscript: null,
+    });
+  });
+});
