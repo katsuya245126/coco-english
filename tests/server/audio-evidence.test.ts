@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 let mockSupabase: ReturnType<typeof createMockSupabase>;
 
@@ -17,6 +19,7 @@ type Operation = {
 function createMockSupabase(options: {
   evidenceFound?: boolean;
   clipFound?: boolean;
+  attemptTurns?: unknown[];
   clipObjectKey?: string | null;
   clipStatus?: string;
   clipDeletedAt?: string | null;
@@ -133,7 +136,7 @@ function createMockSupabase(options: {
         operations.push(operation);
         if (table === "attempt_turns") {
           return Promise.resolve({
-            data: [
+            data: options.attemptTurns ?? [
               {
                 id: "turn-1",
                 turn_order: 1,
@@ -420,5 +423,129 @@ describe("teacher audio evidence service", () => {
     ).resolves.toBeNull();
 
     expect(mockSupabase.createSignedUrl).not.toHaveBeenCalled();
+  });
+});
+
+describe("teacher evidence keeps raw transcripts and labels interpretations", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    process.env.STUDENT_AUDIO_BUCKET = "student-audio";
+  });
+
+  async function loadTurns(attemptTurns: unknown[]) {
+    mockSupabase = createMockSupabase({ attemptTurns });
+    const { getAttemptEvidenceForTeacher } = await import(
+      "@/server/teacher/audio-evidence"
+    );
+    const evidence = await getAttemptEvidenceForTeacher({
+      teacherId: "teacher-1",
+      attemptId: "attempt-1",
+    });
+    return evidence?.turns ?? [];
+  }
+
+  it("exposes raw and interpreted forms for accented English", async () => {
+    const turns = await loadTurns([
+      {
+        id: "turn-1",
+        turn_order: 1,
+        original_transcript: "I like 바닐라.",
+        improved_sentence: null,
+        repeat_transcript: "바닐라.",
+        target_attempted: true,
+        repeat_accepted: true,
+        evaluation: {
+          outcome: "accepted_repeat",
+          hangulInterpretations: [
+            { hangul: "바닐라", kind: "accented_english", englishReading: "vanilla" },
+          ],
+          originalEvaluation: {
+            hangulInterpretations: [
+              { hangul: "바닐라", kind: "accented_english", englishReading: "vanilla" },
+            ],
+          },
+        },
+      },
+    ]);
+
+    expect(turns[0]).toMatchObject({
+      originalTranscript: "I like 바닐라.",
+      originalDisplayTranscript: "I like vanilla.",
+      repeatTranscript: "바닐라.",
+      repeatDisplayTranscript: "vanilla.",
+    });
+  });
+
+  it("keeps the raw transcript visible when the interpretation is withheld", async () => {
+    const turns = await loadTurns([
+      {
+        id: "turn-1",
+        turn_order: 1,
+        original_transcript: "I like 축구.",
+        improved_sentence: null,
+        repeat_transcript: null,
+        target_attempted: true,
+        repeat_accepted: null,
+        evaluation: {
+          outcome: "accepted_original",
+          hangulInterpretations: [
+            { hangul: "축구", kind: "korean_vocabulary", englishReading: null },
+          ],
+        },
+      },
+    ]);
+
+    expect(turns[0]).toMatchObject({
+      originalTranscript: "I like 축구.",
+      originalDisplayTranscript: null,
+      repeatTranscript: null,
+      repeatDisplayTranscript: null,
+    });
+  });
+
+  it("leaves a legacy all-English record's interpretation equal to the raw text", async () => {
+    const turns = await loadTurns([
+      {
+        id: "turn-1",
+        turn_order: 1,
+        original_transcript: "I like vanilla.",
+        improved_sentence: null,
+        repeat_transcript: null,
+        target_attempted: true,
+        repeat_accepted: null,
+        evaluation: { outcome: "accepted_original" },
+      },
+    ]);
+
+    expect(turns[0]).toMatchObject({
+      originalTranscript: "I like vanilla.",
+      originalDisplayTranscript: "I like vanilla.",
+    });
+  });
+});
+
+describe("teacher evidence page transcript labelling", () => {
+  const page = readFileSync(
+    resolve(process.cwd(), "src/app/teacher/evidence/[attemptId]/page.tsx"),
+    "utf8",
+  );
+
+  it("labels the learner-facing interpretation without calling it what the student said", () => {
+    expect(page).toContain("Learner-facing interpretation");
+    expect(page).not.toContain("what the student said");
+  });
+
+  it("renders the interpretation only when it differs from the raw transcript", () => {
+    expect(page).toContain("originalDisplayTranscript");
+    expect(page).toContain("repeatDisplayTranscript");
+    expect(page.replace(/\s+/g, " ")).toContain(
+      "interpretation !== null && interpretation !== transcript",
+    );
+  });
+
+  it("explains a withheld interpretation to the teacher", () => {
+    expect(page.replace(/\s+/g, " ")).toContain(
+      "Learner transcript hidden because the Hangul reading was Korean vocabulary or could not be interpreted safely.",
+    );
   });
 });

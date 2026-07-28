@@ -103,3 +103,25 @@ test("audio player requires Load audio before native controls are shown", async 
   await page.getByRole("button", { name: "Load audio" }).click();
   await expect(page.locator("audio[controls]")).toHaveCount(1);
 });
+
+test("teacher evidence page keeps raw transcripts and labels interpretations", () => {
+  const source = readFileSync(pageSourcePath, "utf8").replace(/\s+/g, " ");
+
+  // Raw evidence stays wired to the unmodified transcript fields.
+  expect(source).toContain("transcript={turn.originalTranscript}");
+  expect(source).toContain("transcript={turn.repeatTranscript}");
+
+  // The derived reading is rendered separately and named for what it is.
+  expect(source).toContain("interpretation={turn.originalDisplayTranscript}");
+  expect(source).toContain("interpretation={turn.repeatDisplayTranscript}");
+  expect(source).toContain("Learner-facing interpretation");
+  expect(source).not.toContain("what the student said");
+
+  // Identical readings are not duplicated, and a withheld one is explained.
+  expect(source).toContain(
+    "interpretation !== null && interpretation !== transcript",
+  );
+  expect(source).toContain(
+    "Learner transcript hidden because the Hangul reading was Korean vocabulary or could not be interpreted safely.",
+  );
+});

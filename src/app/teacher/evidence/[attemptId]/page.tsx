@@ -131,6 +131,7 @@ function TurnEvidenceSection({
       <TranscriptBlock
         label="Student answer"
         transcript={turn.originalTranscript}
+        interpretation={turn.originalDisplayTranscript}
       />
       <AnnotationGrid turn={turn} />
       {turn.improvedSentence && (
@@ -142,6 +143,7 @@ function TurnEvidenceSection({
       <TranscriptBlock
         label="Repeat attempt"
         transcript={turn.repeatTranscript}
+        interpretation={turn.repeatDisplayTranscript}
       />
       {turn.reviewReason && (
         <div style={reviewBlockStyle}>
@@ -204,17 +206,45 @@ function friendlyRepeatResult(r: string) {
   return "Needs your review";
 }
 
+const HANGUL = /[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7AF]/u;
+
 function TranscriptBlock({
   label,
   transcript,
+  interpretation,
 }: {
   label: string;
   transcript: string | null;
+  /**
+   * The learner-facing reading of a Hangul transcript. Undefined for blocks
+   * that carry no student speech (the question, the improved sentence).
+   * Explicit `null` means the reading was withheld from the student.
+   */
+  interpretation?: string | null;
 }) {
+  const showsInterpretation =
+    interpretation !== undefined &&
+    interpretation !== null &&
+    interpretation !== transcript;
+  const withheld =
+    interpretation === null && transcript !== null && HANGUL.test(transcript);
+
   return (
     <div style={transcriptBlockStyle}>
       <p style={labelStyle}>{label}</p>
       <p style={transcriptStyle}>{transcript || "No transcript recorded."}</p>
+      {showsInterpretation && (
+        <>
+          <p style={labelStyle}>Learner-facing interpretation</p>
+          <p style={transcriptStyle}>{interpretation}</p>
+        </>
+      )}
+      {withheld && (
+        <p style={withheldNoteStyle}>
+          Learner transcript hidden because the Hangul reading was Korean
+          vocabulary or could not be interpreted safely.
+        </p>
+      )}
     </div>
   );
 }
@@ -361,6 +391,12 @@ const turnHeadingStyle: React.CSSProperties = {
   fontSize: 20,
   fontWeight: 600,
   lineHeight: 1.25,
+};
+
+const withheldNoteStyle: React.CSSProperties = {
+  margin: "6px 0 0",
+  fontSize: 14,
+  color: "#92400E",
 };
 
 const transcriptBlockStyle: React.CSSProperties = {

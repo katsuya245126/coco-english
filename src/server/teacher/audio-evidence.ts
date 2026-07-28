@@ -1,4 +1,9 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
+import {
+  buildLearnerTranscript,
+  hangulInterpretationSchema,
+  type HangulInterpretation,
+} from "@/domain/audio/transcript-interpretation";
 import type { Database } from "@/lib/db/types";
 import {
   errorTypeToLabel,
@@ -99,9 +104,15 @@ export type AttemptTurnEvidence = {
   id: string;
   turnOrder: number;
   question: string | null;
+  /** Raw transcript, retained verbatim as teacher evidence. */
   originalTranscript: string | null;
+  /** Learner-facing reading, or null when it could not be vouched for. */
+  originalDisplayTranscript: string | null;
   improvedSentence: string | null;
+  /** Raw transcript, retained verbatim as teacher evidence. */
   repeatTranscript: string | null;
+  /** Learner-facing reading, or null when it could not be vouched for. */
+  repeatDisplayTranscript: string | null;
   meaningResult: "Understood" | "Try again" | "Needs teacher check";
   targetPatternResult:
     | "Target pattern used"
@@ -279,6 +290,8 @@ function readEvaluation(row: AttemptTurnRow) {
 
   return row.evaluation as {
     outcome?: unknown;
+    hangulInterpretations?: unknown;
+    originalEvaluation?: unknown;
     meaningUnderstood?: unknown;
     targetPatternAttempted?: unknown;
     reviewReason?: unknown;
@@ -329,6 +342,27 @@ function mapReviewReason(row: AttemptTurnRow) {
     : null;
 }
 
+function readInterpretations(value: unknown): HangulInterpretation[] {
+  const parsed = hangulInterpretationSchema.array().safeParse(value);
+  return parsed.success ? parsed.data : [];
+}
+
+/**
+ * Original metadata lives one level down under `originalEvaluation` once a
+ * repeat has overwritten the top-level evaluation; before that the top level
+ * is the original. Same selection rule as the student surfaces.
+ */
+function originalInterpretationsFor(row: AttemptTurnRow) {
+  const evaluation = readEvaluation(row);
+  const nested = evaluation?.originalEvaluation;
+  if (typeof nested === "object" && nested !== null && !Array.isArray(nested)) {
+    return readInterpretations(
+      (nested as { hangulInterpretations?: unknown }).hangulInterpretations,
+    );
+  }
+  return readInterpretations(evaluation?.hangulInterpretations);
+}
+
 function mapTurn(
   row: AttemptTurnRow,
   clipsByTurnId: Map<string, AttemptAudioClipEvidence[]>,
@@ -339,8 +373,20 @@ function mapTurn(
     turnOrder: row.turn_order,
     question: questionsByOrder.get(row.turn_order) ?? null,
     originalTranscript: row.original_transcript,
+    originalDisplayTranscript: row.original_transcript
+      ? buildLearnerTranscript(
+          row.original_transcript,
+          originalInterpretationsFor(row),
+        )
+      : null,
     improvedSentence: row.improved_sentence,
     repeatTranscript: row.repeat_transcript,
+    repeatDisplayTranscript: row.repeat_transcript
+      ? buildLearnerTranscript(
+          row.repeat_transcript,
+          readInterpretations(readEvaluation(row)?.hangulInterpretations),
+        )
+      : null,
     meaningResult: mapMeaningResult(row),
     targetPatternResult: mapTargetPatternResult(row),
     repeatResult: mapRepeatResult(row),
