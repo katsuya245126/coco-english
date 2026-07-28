@@ -1,6 +1,6 @@
 # Learner-Safe Hangul Transcript Interpretation
 
-Status: Complete
+Status: Complete (review fixes applied)
 Branch: main
 Base SHA: ebd762516b1e35d4f063881d3babf7ea373841c8
 Plan: docs/superpowers/plans/2026-07-29-learner-safe-hangul-transcripts.md
@@ -150,10 +150,90 @@ within the existing evaluation JSON and `AI_EVALUATION_VERSION` stays
   `if (scoringPromise !== null)` guard, so a deliberately unscored Hangul answer
   never reaches the scoring-failure log.
 
+## Review Fixes (2026-07-29, second round)
+
+Three findings from the user's diff review, fixed test-first.
+
+| Finding | Commit | Fix |
+| --- | --- | --- |
+| P1 | `7a5da800` | project student evaluation to learner workflow fields |
+| P2 | `5c1ef86a` | start Hangul-original scoring before conversation generation |
+| P3 | `5a8dea59` | label teacher raw transcripts explicitly |
+
+**P1** — added `StudentFacingEvaluation` and `toStudentEvaluation()` in
+`audio-upload.ts`, an explicit allow-list projection (field-by-field reads, no
+spread and no delete-list, so any newly stored field is invisible to students by
+default). The route now calls it instead of serializing `result.evaluation`. The
+five permitted fields are exactly what `MissionFlowShell` consumes: `outcome`,
+`improvedSentence`, `retryReason`, `minimalEffortKind`, `retryExample`. The
+retry fields are read only from an original evaluation; the repeat path in the
+shell reads `outcome` alone. The source-string-only route test was replaced with
+a behavioral canary test whose evaluation carries raw Hangul in
+`hangulInterpretations`, a complete raw transcript in `ambiguityHistory`, a
+nested `originalEvaluation`, provenance, and contract violations; it asserts the
+serialized projection contains none of those keys or values and no nested
+objects.
+
+**P2** — moved display derivation and conditional scoring startup from after
+conversation orchestration to immediately after the `turnWrite.error` check.
+All-English originals and repeats still start scoring concurrently with
+evaluation and unchanged reference text; a Hangul original still starts only
+when a validated `accented_english` span yields a safe display transcript;
+Korean-vocabulary and uncertain cases still never start and never reach the
+failure log. The regression test gates `generateCocoReply` open and waits for
+the scorer: before the fix it deadlocked (5s timeout), after it passes with
+`referenceText: "I like vanilla."` while Coco's reply is still pending.
+
+**P3** — raw transcript labels are now `Raw student transcript` and `Raw repeat
+transcript`; `Learner-facing interpretation` stays the derived label. Audio
+labels (`Student answer audio`, `Repeat attempt audio`) were left unchanged.
+
+### Verification after review fixes
+
+- Narrow suite (audio upload ×2, route projection, mission flow, student
+  mission flow, student history, teacher evidence, three student components):
+  **217 passed / 217**.
+- Playwright `teacher-audio-evidence.spec.ts`: **6 passed** (source-contract
+  assertions, not live browser UAT). Port 3100 verified clear afterwards.
+- `npm run typecheck` exit 0 clean; `npm run lint` exit 0 with the same
+  pre-existing unrelated warning in `scripts/check-student-feedback-states.mjs`;
+  `npm run build` exit 0 including the ffmpeg-trace postbuild check.
+- Broader suite `npx vitest run`: **1421 passed / 4 skipped / 1 failed (1426)**.
+  The one failure remains the pre-existing unrelated
+  `tests/server/student-history-ui.test.ts` "recap-back-btn:hover" case, not
+  fixed by design.
+- Live provider UAT still **not run**. Nothing pushed, deployed, or published;
+  no external system mutated.
+
+### Plan deviation
+
+One assertion in the P2 regression test was written as
+`expect(generate).toHaveBeenCalled()` and removed: because scoring now correctly
+starts *before* conversation generation, that assertion contradicted the
+ordering under test. The gated `generateCocoReply` promise is what proves the
+ordering.
+
+## Original Review Findings (reopened 2026-07-29)
+
+Implementation diff reviewed by the user. Three findings to fix test-first.
+
+- **P1 (privacy)** — `audio/route.ts` returns `result.evaluation` wholesale,
+  which can leak raw Hangul via `hangulInterpretations[].hangul`, full raw
+  transcripts via `ambiguityHistory[].transcript`, and nested
+  `originalEvaluation`. Needs a strict typed student-facing projection limited
+  to `outcome`, `improvedSentence`, `retryReason`, `minimalEffortKind`,
+  `retryExample`, plus a behavioral canary test replacing the source-string test.
+- **P2 (latency)** — delayed pronunciation scoring for a Hangul original starts
+  after conversation generation, moderation, Coco-line persistence, and TTS
+  warmup. Must move to immediately after the successful `turnWrite` check.
+- **P3 (clarity)** — teacher evidence still labels raw values `Student answer` /
+  `Repeat attempt`; needs explicit `Raw student transcript` / `Raw repeat
+  transcript`.
+
 ## Current Position
 
-Complete. All seven plan tasks executed, verified, and committed locally on
-`main`.
+Complete. Seven plan tasks plus three review fixes, all executed, verified, and
+committed locally on `main`. Nothing pushed.
 
 ## Next Step
 
