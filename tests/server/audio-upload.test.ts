@@ -946,6 +946,54 @@ describe("uploadAttemptAudioClip", () => {
     );
   });
 
+  it("passes normalized repeat transcript Korean spans to repeat evaluation", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateRepeat = successfulRepeatEvaluator();
+
+    await uploadAttemptAudioClip(
+      audioInput({ clipKind: "repeat_attempt", body: "repeat" }),
+      {
+        transcribeAudioFile: successfulTranscriber(
+          "바닐라 아이스크림 is tastier than strawberry 아이스크림.",
+        ),
+        evaluateRepeatTurn: evaluateRepeat,
+      },
+    );
+
+    expect(evaluateRepeat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repeatTranscript:
+          "바닐라 아이스크림 is tastier than strawberry 아이스크림.",
+        koreanSpans: [
+          { hangul: "바닐라", romanized: "Banilra" },
+          { hangul: "아이스크림", romanized: "Aiseukeurim" },
+        ],
+      }),
+    );
+  });
+
+  it("still bypasses repeat evaluation for an exact English repeat", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateRepeat = successfulRepeatEvaluator();
+
+    const result = await uploadAttemptAudioClip(
+      audioInput({ clipKind: "repeat_attempt", body: "repeat" }),
+      {
+        transcribeAudioFile: successfulTranscriber(
+          "I like playing soccer after school.",
+        ),
+        evaluateRepeatTurn: evaluateRepeat,
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect(evaluateRepeat).not.toHaveBeenCalled();
+  });
+
   it("marks the clip failed and returns retryable when storage upload fails", async () => {
     mockSupabase = createMockSupabase({
       uploadError: new Error("storage unavailable"),

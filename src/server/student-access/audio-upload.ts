@@ -1529,6 +1529,7 @@ export async function uploadAttemptAudioClip(
                     targetPattern: snapshot.targetPattern,
                     level: snapshot.level,
                     repeatTranscript: transcript,
+                    koreanSpans,
                   });
                 });
             // Count the repeat clips recorded for this turn, this one

@@ -333,7 +333,7 @@ git commit -m "fix: guide repeat evaluator on Hangul accented English"
 - Consumes: `normalizeEnglishTranscript(transcription.text)` output in `src/server/student-access/audio-upload.ts`; `detectHangulSpans` deduplicates repeated Hangul runs.
 - Produces: `evaluateRepeatTurn({ ..., koreanSpans })` call for repeat attempts using normalized transcript spans, not the fake transcriber's supplied span array.
 
-- [ ] **Step 1: Add the failing service test for normalized, deduplicated spans**
+- [x] **Step 1: Add the failing service test for normalized, deduplicated spans**
 
 Add this test near the existing repeat evaluator call assertion in `tests/server/audio-upload.test.ts`:
 
@@ -366,7 +366,7 @@ Add this test near the existing repeat evaluator call assertion in `tests/server
   });
 ```
 
-- [ ] **Step 2: Add the exact English repeat bypass test**
+- [x] **Step 2: Add the exact English repeat bypass test**
 
 Add this test in `tests/server/audio-upload.test.ts` near the repeat evaluation tests:
 
@@ -392,7 +392,7 @@ Add this test in `tests/server/audio-upload.test.ts` near the repeat evaluation 
   });
 ```
 
-- [ ] **Step 3: Run the failing service tests**
+- [x] **Step 3: Run the failing service tests**
 
 Run:
 
@@ -402,7 +402,7 @@ npm test -- tests/server/audio-upload.test.ts --run
 
 Expected: FAIL because `audio-upload.ts` does not pass `koreanSpans` into `evaluateRepeatTurn`. The exact English bypass test should PASS before implementation; if it fails, stop and diagnose because the plan would be touching existing behavior.
 
-- [ ] **Step 4: Pass `koreanSpans` in the repeat evaluator call**
+- [x] **Step 4: Pass `koreanSpans` in the repeat evaluator call**
 
 In `src/server/student-access/audio-upload.ts`, update the repeat evaluation call:
 
@@ -417,7 +417,7 @@ In `src/server/student-access/audio-upload.ts`, update the repeat evaluation cal
                   });
 ```
 
-- [ ] **Step 5: Run the service tests**
+- [x] **Step 5: Run the service tests**
 
 Run:
 
@@ -427,7 +427,7 @@ npm test -- tests/server/audio-upload.test.ts --run
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit the service wiring**
+- [x] **Step 6: Commit the service wiring**
 
 Run:
 
