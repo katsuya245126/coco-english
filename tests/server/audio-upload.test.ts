@@ -2247,5 +2247,105 @@ describe("learner-safe display transcript at the upload boundary", () => {
 
     expect(routeSource).toContain("displayTranscript: result.displayTranscript");
     expect(routeSource).not.toContain("transcript: result.transcript");
+    // The route must project the evaluation, never serialize it wholesale.
+    expect(routeSource).not.toContain("evaluation: result.evaluation");
+    expect(routeSource).toContain("toStudentEvaluation");
+  });
+
+  it("projects the stored evaluation to the five learner-workflow fields", async () => {
+    const { toStudentEvaluation } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    // Canary: every value below is evidence that must never reach a student.
+    const canary = {
+      version: "ai-eval-v1",
+      outcome: "retry_original",
+      improvedSentence: "I like vanilla ice cream.",
+      retryReason: "minimal_effort",
+      minimalEffortKind: "short_answer",
+      retryExample: "I like vanilla.",
+      confidence: "high",
+      reviewReason: null,
+      meaningUnderstood: true,
+      targetPatternAttempted: true,
+      englishLanguage: "english",
+      correctionNeeded: false,
+      correctionSeverity: null,
+      correctionReason: "none",
+      requireRepeat: false,
+      policyVersion: "natural-conversation-v1",
+      evaluationModel: "canary-evaluator",
+      evaluationSource: "model",
+      transcriptionModel: "canary-transcriber",
+      transcriptionConfidence: null,
+      runtimeVersion: "canary-runtime",
+      contractViolations: ["hangul_interpretation_missing"],
+      hangulInterpretations: [
+        { hangul: "\ubc14\ub2d0\ub77c", kind: "accented_english", englishReading: "vanilla" },
+      ],
+      ambiguityHistory: [
+        {
+          transcript: "I like \ubc14\ub2d0\ub77c \uc544\uc774\uc2a4\ud06c\ub9bc.",
+          audioClipId: "clip-canary",
+          evaluation: { outcome: "teacher_review" },
+        },
+      ],
+      originalEvaluation: {
+        outcome: "accepted_original",
+        hangulInterpretations: [
+          { hangul: "\ucd95\uad6c", kind: "korean_vocabulary", englishReading: null },
+        ],
+      },
+    };
+
+    const projected = toStudentEvaluation(
+      canary as unknown as Parameters<typeof toStudentEvaluation>[0],
+    );
+
+    // The five permitted workflow fields survive.
+    expect(projected).toEqual({
+      outcome: "retry_original",
+      improvedSentence: "I like vanilla ice cream.",
+      retryReason: "minimal_effort",
+      minimalEffortKind: "short_answer",
+      retryExample: "I like vanilla.",
+    });
+
+    // Nothing else does — checked recursively over keys and values.
+    const serialized = JSON.stringify(projected);
+    for (const forbidden of [
+      "hangulInterpretations",
+      "ambiguityHistory",
+      "originalEvaluation",
+      "contractViolations",
+      "evaluationModel",
+      "transcriptionModel",
+      "runtimeVersion",
+      "policyVersion",
+      "\ubc14\ub2d0\ub77c",
+      "\ucd95\uad6c",
+      "I like \ubc14\ub2d0\ub77c \uc544\uc774\uc2a4\ud06c\ub9bc.",
+      "clip-canary",
+      "canary-evaluator",
+    ]) {
+      expect(serialized).not.toContain(forbidden);
+    }
+
+    function assertNoNestedObjects(value: unknown, path: string) {
+      if (value === null || typeof value !== "object") return;
+      throw new Error(`projection leaked a nested object at ${path}`);
+    }
+    for (const [key, value] of Object.entries(projected ?? {})) {
+      assertNoNestedObjects(value, key);
+    }
+  });
+
+  it("returns undefined when there is no stored evaluation", async () => {
+    const { toStudentEvaluation } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    expect(toStudentEvaluation(undefined)).toBeUndefined();
   });
 });

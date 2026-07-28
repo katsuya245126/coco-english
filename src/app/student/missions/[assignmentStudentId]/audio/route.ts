@@ -5,6 +5,7 @@ import {
   ALLOWED_AUDIO_MIME_TYPES,
   MAX_AUDIO_BYTES,
   MAX_AUDIO_DURATION_MS,
+  toStudentEvaluation,
   uploadAttemptAudioClip,
 } from "@/server/student-access/audio-upload";
 
@@ -81,7 +82,7 @@ export async function POST(request: Request, context: RouteContext) {
       audioClipId: result.audioClipId,
       processingStatus: result.processingStatus,
       displayTranscript: result.displayTranscript,
-      evaluation: result.evaluation,
+      evaluation: toStudentEvaluation(result.evaluation),
       starBand: result.starBand,
       wordsToPractice: result.wordsToPractice,
       cocoLine: result.cocoLine ?? null,

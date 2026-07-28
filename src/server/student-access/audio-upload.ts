@@ -231,6 +231,59 @@ type StoredOriginalTurnEvaluation = StoredEvaluationProvenance & {
   hangulInterpretations: HangulInterpretation[];
 };
 
+/**
+ * The only evaluation shape a student is ever allowed to receive.
+ *
+ * The stored evaluation is teacher/audit evidence: it carries raw Hangul spans
+ * (`hangulInterpretations`), complete raw transcripts (`ambiguityHistory`), a
+ * nested `originalEvaluation` with both, provenance, and contract violations.
+ * None of that may cross the network to a learner, so the route projects
+ * rather than serializes. These five fields are exactly what `MissionFlowShell`
+ * consumes to pick a feedback card.
+ */
+export type StudentFacingEvaluation = {
+  outcome: string;
+  improvedSentence: string | null;
+  retryReason?: "minimal_effort" | "incomplete_recording" | "unclear_meaning";
+  minimalEffortKind?: MinimalEffortKind;
+  retryExample?: string | null;
+};
+
+/**
+ * Allow-list projection. Written as explicit field reads, never a spread or a
+ * delete-list, so a new stored field is invisible to students by default.
+ */
+export function toStudentEvaluation(
+  evaluation:
+    | StoredOriginalTurnEvaluation
+    | StoredRepeatTurnEvaluation
+    | undefined,
+): StudentFacingEvaluation | undefined {
+  if (!evaluation) return undefined;
+
+  const original =
+    "improvedSentence" in evaluation
+      ? (evaluation as StoredOriginalTurnEvaluation)
+      : null;
+
+  const projected: StudentFacingEvaluation = {
+    outcome: evaluation.outcome,
+    improvedSentence: original?.improvedSentence ?? null,
+  };
+
+  if (original?.retryReason !== undefined) {
+    projected.retryReason = original.retryReason;
+  }
+  if (original?.minimalEffortKind !== undefined) {
+    projected.minimalEffortKind = original.minimalEffortKind;
+  }
+  if (original?.retryExample !== undefined) {
+    projected.retryExample = original.retryExample;
+  }
+
+  return projected;
+}
+
 type OriginalTurnWriteDecision = {
   evaluation: StoredOriginalTurnEvaluation;
   targetAttempted: boolean | null;
