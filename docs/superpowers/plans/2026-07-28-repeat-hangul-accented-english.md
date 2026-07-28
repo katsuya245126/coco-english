@@ -447,7 +447,7 @@ git commit -m "fix: pass repeat Hangul spans to evaluator"
 - Consumes: all changes from Tasks 1-3.
 - Produces: verification evidence that the prompt contract and service wiring are implemented without breaking original Korean/code-switch behavior.
 
-- [ ] **Step 1: Run focused tests**
+- [x] **Step 1: Run focused tests**
 
 Run:
 
@@ -457,7 +457,7 @@ npm test -- tests/server/turn-evaluator.test.ts tests/server/audio-upload.test.t
 
 Expected: PASS.
 
-- [ ] **Step 2: Run typecheck**
+- [x] **Step 2: Run typecheck**
 
 Run:
 
@@ -467,7 +467,7 @@ npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 3: Run lint**
+- [x] **Step 3: Run lint**
 
 Run:
 
@@ -477,7 +477,7 @@ npm run lint
 
 Expected: PASS.
 
-- [ ] **Step 4: Review committed and uncommitted tracked diffs against preflight base**
+- [x] **Step 4: Review committed and uncommitted tracked diffs against preflight base**
 
 Use the `BASE_SHA` recorded in `TASK.md`, not `HEAD~N`.
 
@@ -513,7 +513,7 @@ koreanSpans: 바닐라/Banilra, 아이스크림/Aiseukeurim
 
 Expected: Record the actual provider output as live UAT evidence. If not approved or not run, final acceptance must say only that the prompt contract and service wiring are implemented and locally verified.
 
-- [ ] **Step 6: Commit any remaining intended tracked changes**
+- [x] **Step 6: Commit any remaining intended tracked changes**
 
 Run:
 
@@ -539,7 +539,7 @@ git commit -m "docs: update repeat Hangul plan status"
 
 Expected: The plan artifact is committed if it changed during execution or was still untracked. Any checkbox/status changes in the plan artifact are committed. `TASK.md` is never staged.
 
-- [ ] **Step 7: Confirm clean tracked working tree**
+- [x] **Step 7: Confirm clean tracked working tree**
 
 Run:
 
