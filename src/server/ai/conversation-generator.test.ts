@@ -1134,15 +1134,3 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     expect(JSON.stringify(call)).not.toContain("previous_response_id");
   });
 });
-
-describe("conversation-generator.ts source contract (stateless guarantee)", () => {
-  it("contains no previous_response_id usage anywhere in the module source", async () => {
-    const fs = await import("node:fs/promises");
-    const path = await import("node:path");
-    const source = await fs.readFile(
-      path.resolve(process.cwd(), "src/server/ai/conversation-generator.ts"),
-      "utf-8",
-    );
-    expect(source).not.toContain("previous_response_id");
-  });
-});

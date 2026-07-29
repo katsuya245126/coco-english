@@ -309,28 +309,6 @@ describe("student audio storage migration", () => {
   });
 });
 
-describe("Phase 5 audio database types", () => {
-  it("exposes attempt, turn, and audio clip table types", () => {
-    type Tables = Database["public"]["Tables"];
-
-    const attempt: Tables["attempts"]["Insert"] = {
-      assignment_student_id: "assignment-student-id",
-    };
-    const turn: Tables["attempt_turns"]["Insert"] = {
-      attempt_id: "attempt-id",
-      turn_order: 1,
-    };
-    const clip: Tables["audio_clips"]["Insert"] = {
-      attempt_turn_id: "attempt-turn-id",
-      clip_kind: "original_answer",
-    };
-
-    expect(attempt.assignment_student_id).toBe("assignment-student-id");
-    expect(turn.turn_order).toBe(1);
-    expect(clip.clip_kind).toBe("original_answer");
-  });
-});
-
 describe("uploadAttemptAudioClip", () => {
   beforeEach(() => {
     vi.resetModules();

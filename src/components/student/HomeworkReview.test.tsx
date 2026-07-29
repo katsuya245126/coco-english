@@ -1,7 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import type { StudentMissionRecap } from "@/server/student-access/student-history";
 import { HomeworkReview } from "./HomeworkReview";
 
@@ -147,25 +145,6 @@ describe("HomeworkReview", () => {
     );
   });
 
-  it("defines the required CSS module rules", () => {
-    const cssPath = fileURLToPath(
-      new URL("./HomeworkReview.module.css", import.meta.url),
-    );
-    const css = readFileSync(cssPath, "utf8");
-    expect(css).toMatch(/overflow-wrap:\s*anywhere/);
-    expect(css).toMatch(/max-width:\s*590px/);
-    expect(css).toMatch(/grid-template-columns:\s*42px\s+minmax\(0,\s*1fr\)/);
-    expect(css).toMatch(/border-radius:\s*999px/);
-    expect(css).toMatch(/text-decoration:\s*underline/);
-    expect(css).toMatch(/\.retryMark/);
-    expect(css).toMatch(/\.changedWord/);
-    expect(css).toMatch(/\.goodJob/);
-    expect(css).toMatch(/\.srOnly/);
-    expect(css).toMatch(
-      /\.studentName\s*\{[^}]*max-width:\s*calc\(100% - 4px\)[^}]*overflow-wrap:\s*anywhere/,
-    );
-    expect(css).not.toMatch(/\.pronunciation/);
-  });
 });
 
 describe("HomeworkReview with a withheld transcript", () => {

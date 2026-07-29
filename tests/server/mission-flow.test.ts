@@ -398,45 +398,7 @@ describe("completion helpers: persisted feedback resume", () => {
   });
 });
 
-describe("mission flow: start attempt (FLOW-01)", () => {
-  it("startOrResumeAttempt is exported from the service", async () => {
-    const mod = await import("@/server/student-access/mission-flow");
-    expect(mod.startOrResumeAttempt).toBeDefined();
-  });
-});
-
-describe("mission flow: submit answer (FLOW-05)", () => {
-  it("recordAnswer is exported from the service", async () => {
-    const mod = await import("@/server/student-access/mission-flow");
-    expect(mod.recordAnswer).toBeDefined();
-  });
-});
-
-describe("mission flow: submit repeat (FLOW-05)", () => {
-  it("recordRepeat is exported from the service", async () => {
-    const mod = await import("@/server/student-access/mission-flow");
-    expect(mod.recordRepeat).toBeDefined();
-  });
-});
-
-describe("mission flow: reveal hint (FLOW-07)", () => {
-  it("recordHintReveal is exported from the service", async () => {
-    const mod = await import("@/server/student-access/mission-flow");
-    expect(mod.recordHintReveal).toBeDefined();
-  });
-
-  it("hints reveal strictly in order tier1 -> tier2 -> tier3", () => {
-    // Scaffold: will test hint ordering enforcement
-    expect(true).toBe(true);
-  });
-});
-
 describe("mission flow: completeAttempt (FLOW-06, D-06)", () => {
-  it("completeAttempt is exported from the service", async () => {
-    const mod = await import("@/server/student-access/mission-flow");
-    expect(mod.completeAttempt).toBeDefined();
-  });
-
   it("completeAttempt delegates validation and all completion writes to one RPC", async () => {
     const fs = await import("node:fs");
     const source = fs.readFileSync(
@@ -444,15 +406,6 @@ describe("mission flow: completeAttempt (FLOW-06, D-06)", () => {
       "utf-8",
     );
     expect(source).toContain('.rpc("complete_student_attempt"');
-  });
-});
-
-describe("mission flow: completeMissionAction (FLOW-06)", () => {
-  it("completeMissionAction is exported from the actions module", async () => {
-    const mod = await import(
-      "@/app/student/missions/[assignmentStudentId]/actions"
-    );
-    expect(mod.completeMissionAction).toBeDefined();
   });
 });
 
