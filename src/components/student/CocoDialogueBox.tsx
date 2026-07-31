@@ -42,7 +42,8 @@ type TranslationUiState =
   | { kind: "inactive" }
   | { kind: "loading" }
   | { kind: "ready"; phrases: TranslationPhrase[] }
-  | { kind: "error" };
+  | { kind: "error" }
+  | { kind: "rate_limited" };
 
 export function CocoDialogueBox({
   assignmentStudentId,
@@ -138,6 +139,19 @@ export function CocoDialogueBox({
       );
       const payload: unknown = await response.json();
       if (requestTokenRef.current !== requestToken) return;
+      // A budget denial is a wait-and-retry state, not a provider outage, so it
+      // is mapped before the generic failure parsing below.
+      if (
+        response.status === 429 &&
+        typeof payload === "object" &&
+        payload !== null &&
+        "error" in payload &&
+        payload.error === "rate_limited"
+      ) {
+        setTranslationState({ kind: "rate_limited" });
+        setTranslationVisible(false);
+        return;
+      }
       if (
         !response.ok ||
         typeof payload !== "object" ||
@@ -190,8 +204,12 @@ export function CocoDialogueBox({
     ? buildTranslationSegments(currentPage.text, pagePhrases)
     : null;
   const isHintLoading = translationState.kind === "loading";
-  const hintVisibleLabel =
-    translationState.kind === "error" ? "Retry hint" : "Hint";
+  const isHintRateLimited = translationState.kind === "rate_limited";
+  const hintVisibleLabel = isHintRateLimited
+    ? "Wait, then retry hint"
+    : translationState.kind === "error"
+      ? "Retry hint"
+      : "Hint";
   const hintLabel = isHintLoading ? "Loading hint" : hintVisibleLabel;
 
   return (
@@ -276,6 +294,11 @@ export function CocoDialogueBox({
           </p>
         ) : null}
       </div>
+      {isHintRateLimited ? (
+        <span role="status" style={mascotTranslationBubbleStyle}>
+          Please wait a few minutes, then retry the hint.
+        </span>
+      ) : null}
       {pages.length > 1 ? (
         <nav aria-label="Dialogue pages" style={mascotDialoguePagerStyle}>
           <button

@@ -9,6 +9,7 @@ import {
   type VoiceEligibleLineKind,
 } from "@/domain/audio/tts";
 import { getOrCreateTtsAudio } from "@/server/audio/tts-cache";
+import { consumeRequestBudget } from "@/server/security/request-budget";
 
 /**
  * Student-gated, cache-first Coco TTS route (VOICE-01, VOICE-03, D-05..D-16).
@@ -222,6 +223,23 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json(
       { ok: false, error: "not_found" },
       { status: 404 },
+    );
+  }
+
+  // The requested line is owned and resolved by this point, so a forged or
+  // unresolvable descriptor cannot spend the student's allowance. Consuming
+  // here keeps the cache lookup, signing, and provider call behind admission.
+  const budget = await consumeRequestBudget({
+    actorId: unlock.studentId,
+    operation: "student_helper",
+  });
+  if (!budget.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "rate_limited" },
+      {
+        status: 429,
+        headers: { "Retry-After": String(budget.retryAfterSeconds) },
+      },
     );
   }
 

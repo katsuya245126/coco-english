@@ -90,4 +90,33 @@ describe("CocoSpeechAudio", () => {
     expect(status?.textContent).toBe("Voice unavailable");
     expect(button?.disabled).toBe(true);
   });
+
+  it("shows wait-and-retry copy instead of an outage message when rate limited", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(JSON.stringify({ ok: false, error: "rate_limited" }), {
+          status: 429,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    await act(async () => {
+      root.render(
+        <CocoSpeechAudio
+          assignmentStudentId="assignment-student-1"
+          line={{ lineKind: "mission_prompt", turnOrder: 1 }}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const status = container.querySelector('[role="status"]');
+    expect(status?.textContent).toBe(
+      "Please wait a few minutes, then try Coco’s voice again.",
+    );
+    expect(container.textContent).not.toContain("Voice unavailable");
+  });
 });

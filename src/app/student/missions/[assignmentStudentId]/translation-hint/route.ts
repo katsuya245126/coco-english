@@ -6,6 +6,7 @@ import {
   getOrCreateTranslationHint,
 } from "@/server/ai/translation-hint-cache";
 import { resolveOwnedTranslationSource } from "@/server/student-access/translation-source";
+import { consumeRequestBudget } from "@/server/security/request-budget";
 
 type RouteContext = {
   params: Promise<{ assignmentStudentId: string }>;
@@ -55,6 +56,23 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json(
       { ok: false, error: "translation_unavailable_retryable" },
       { status: 502 },
+    );
+  }
+
+  // The source line is proven owned above, so an unresolvable or foreign
+  // request cannot spend the student's allowance. Consuming here keeps the
+  // cache lookup and translation provider call behind admission.
+  const budget = await consumeRequestBudget({
+    actorId: unlock.studentId,
+    operation: "student_helper",
+  });
+  if (!budget.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "rate_limited" },
+      {
+        status: 429,
+        headers: { "Retry-After": String(budget.retryAfterSeconds) },
+      },
     );
   }
 

@@ -56,7 +56,12 @@ type CocoSpeechAudioProps = {
   onPlayingChange?: (playing: boolean) => void;
 };
 
-type PlaybackState = "loading" | "ready" | "playing" | "error";
+type PlaybackState =
+  | "loading"
+  | "ready"
+  | "playing"
+  | "error"
+  | "rate_limited";
 
 type TtsRouteResult =
   | { ok: true; audioUrl: string; mimeType?: string }
@@ -125,6 +130,16 @@ export function CocoSpeechAudio({
           .catch(() => null)) as TtsRouteResult | null;
 
         if (cancelled) return;
+
+        // A budget denial is a wait-and-retry state, not a provider outage.
+        if (
+          response.status === 429 &&
+          payload?.ok === false &&
+          payload.error === "rate_limited"
+        ) {
+          setState("rate_limited");
+          return;
+        }
 
         if (!response.ok || !payload || payload.ok !== true) {
           setState("error");
@@ -213,7 +228,9 @@ export function CocoSpeechAudio({
     });
   }
 
-  const isError = state === "error";
+  const isRateLimited = state === "rate_limited";
+  // Shares the error affordance (disabled, muted styling) but not its copy.
+  const isError = state === "error" || isRateLimited;
   const isLoading = state === "loading";
   const isPlaying = state === "playing";
 
@@ -240,7 +257,9 @@ export function CocoSpeechAudio({
 
       {isError && presentation !== "dialogue-tab" ? (
         <span role="status" style={errorTextStyle}>
-          Voice unavailable
+          {isRateLimited
+            ? "Please wait a few minutes, then try Coco’s voice again."
+            : "Voice unavailable"}
         </span>
       ) : null}
 

@@ -83,4 +83,50 @@ describe("CocoDialogueBox", () => {
     expect(container.querySelector('button[aria-expanded="true"]')?.textContent)
       .toBe("games");
   });
+
+  it("shows wait-and-retry copy when the hint is rate limited, and retries on the next click", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ ok: false, error: "rate_limited" }), {
+          status: 429,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await act(async () => {
+      root.render(
+        <CocoDialogueBox
+          assignmentStudentId="as-1"
+          displayName="Coco"
+          dialogueText="What games do you play after school?"
+          translationLine={{ lineKind: "mission_prompt", turnOrder: 1 }}
+        />,
+      );
+    });
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="Hint"]')
+        ?.click();
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[role="status"]')?.textContent).toBe(
+      "Please wait a few minutes, then retry the hint.",
+    );
+    expect(container.textContent).toContain("Wait, then retry hint");
+
+    const retryButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Wait, then retry hint"]',
+    );
+    expect(retryButton).not.toBeNull();
+
+    await act(async () => {
+      retryButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });
