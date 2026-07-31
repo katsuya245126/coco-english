@@ -122,6 +122,113 @@ describe("provider request budgets integration", () => {
   );
 
   it(
+    "admits through the limit, then saturates the denied counter",
+    async (context) => {
+      if (!canRunLocally) {
+        context.skip();
+        return;
+      }
+
+      const admin = await createAdminClient();
+      const actorDigest = `test-saturate-${randomBytes(16).toString("hex")}`;
+      const limit = 3;
+      const args = {
+        p_actor_digest: actorDigest,
+        p_operation: "teacher_provider",
+        p_request_limit: limit,
+        p_window_seconds: 600,
+      };
+
+      try {
+        for (let call = 1; call <= limit; call += 1) {
+          expect(
+            (await admin.rpc("consume_request_budget", args)).data?.[0]
+              ?.permitted,
+          ).toBe(true);
+        }
+
+        // Repeated denials must keep failing closed while the stored counter
+        // stops at limit + 1, so sustained abuse cannot drive it toward
+        // integer overflow (which would lock the actor out permanently).
+        for (let denial = 0; denial < 5; denial += 1) {
+          expect(
+            (await admin.rpc("consume_request_budget", args)).data?.[0]
+              ?.permitted,
+          ).toBe(false);
+        }
+
+        const stored = await admin
+          .from("request_budgets")
+          .select("request_count")
+          .eq("actor_digest", actorDigest)
+          .eq("operation", "teacher_provider")
+          .single();
+        expect(stored.data?.request_count).toBe(limit + 1);
+      } finally {
+        await admin
+          .from("request_budgets")
+          .delete()
+          .eq("actor_digest", actorDigest);
+      }
+    },
+    30_000,
+  );
+
+  it(
+    "resets a window whose start sits exactly on the expiry boundary",
+    async (context) => {
+      if (!canRunLocally) {
+        context.skip();
+        return;
+      }
+
+      const admin = await createAdminClient();
+      const actorDigest = `test-boundary-${randomBytes(16).toString("hex")}`;
+      const windowSeconds = 90;
+      const args = {
+        p_actor_digest: actorDigest,
+        p_operation: "evaluator_warmup",
+        p_request_limit: 1,
+        p_window_seconds: windowSeconds,
+      };
+
+      try {
+        expect(
+          (await admin.rpc("consume_request_budget", args)).data?.[0]
+            ?.permitted,
+        ).toBe(true);
+
+        // Backdate far enough that the elapsed time is at least one whole
+        // window even after the RPC's own `clock_timestamp()` advances. The
+        // reset comparison is `<=`, so a start exactly one window old is
+        // expired; a strict `<` would still pass here, which is why the
+        // saturation test above pins the increment and this one pins reset.
+        const backdated = await admin
+          .from("request_budgets")
+          .update({
+            window_started_at: new Date(
+              Date.now() - windowSeconds * 1000,
+            ).toISOString(),
+          })
+          .eq("actor_digest", actorDigest)
+          .eq("operation", "evaluator_warmup");
+        expect(backdated.error).toBeNull();
+
+        expect(
+          (await admin.rpc("consume_request_budget", args)).data?.[0]
+            ?.permitted,
+        ).toBe(true);
+      } finally {
+        await admin
+          .from("request_budgets")
+          .delete()
+          .eq("actor_digest", actorDigest);
+      }
+    },
+    30_000,
+  );
+
+  it(
     "denies table and RPC access to anon and authenticated roles",
     async (context) => {
       if (!canRunLocally) {

@@ -66,7 +66,12 @@ begin
     request_count = case
       when public.request_budgets.window_started_at
         <= v_now - make_interval(secs => p_window_seconds) then 1
-      else public.request_budgets.request_count + 1
+      -- Saturate at limit + 1 rather than counting denials forever: the
+      -- denial test below only needs `> p_request_limit`, and an unbounded
+      -- counter would eventually overflow `integer` and lock the actor out.
+      -- least() is applied before the increment so the overflowing value is
+      -- never evaluated.
+      else least(public.request_budgets.request_count, p_request_limit) + 1
     end,
     window_started_at = case
       when public.request_budgets.window_started_at
