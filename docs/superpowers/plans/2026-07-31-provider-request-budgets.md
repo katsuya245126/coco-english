@@ -1451,3 +1451,39 @@ git commit -m "docs: complete provider request budgets"
 ```
 
 Stop after the local commits. Pushing, applying the migration, deploying, or running paid-provider UAT requires a new approval naming the exact action and environment.
+
+## Deviations and final state
+
+The shipped implementation differs from the task snippets above in three
+places. The snippets are superseded; the code is authoritative.
+
+1. **Rate-limited TTS is visible and recoverable in every presentation.**
+   The plan showed the rate-limited state as a bare `<span role="status">`,
+   which `CocoSpeechAudio` suppressed under `presentation="dialogue-tab"` —
+   the presentation `MissionFlowShell` uses. That left the main student path
+   with a disabled speaker button, no explanation, and no retry. The status
+   text now renders in every presentation (never labelled "Voice
+   unavailable") alongside a "Try again" control that re-requests the line
+   through a reload counter in the fetch effect.
+
+2. **Teacher budget admission fails closed on rejection.**
+   `teacherProviderAllowed` in `src/app/teacher/missions/actions.ts` wraps
+   `consumeRequestBudget` in try/catch and treats a rejection as a denial.
+   `generatePremiseAction` and `generateOpenerAction` have no surrounding
+   try/catch, so without this an unreachable budget RPC would reject out of a
+   server action instead of returning its typed failure. Ownership reads for
+   budget ordering sit inside each action's existing try for the same reason.
+
+3. **Denied counters saturate at `limit + 1`.**
+   `consume_request_budget` clamps with
+   `least(public.request_budgets.request_count, p_request_limit) + 1` in the
+   non-reset branch. Counting denials without bound would eventually overflow
+   `integer`; the RPC then raises and admission fails closed, but the actor
+   stays locked out until the row is deleted manually. The clamp is applied
+   before the increment so the overflowing value is never evaluated, and it
+   changes nothing below the limit — the denial test only needs
+   `> p_request_limit`.
+
+Reviewed and accepted without change: the `teacher_provider` 10/600s quota is
+an accepted product limit, and the pre-admission ownership read in
+`updateMissionAction` is left unoptimised.
