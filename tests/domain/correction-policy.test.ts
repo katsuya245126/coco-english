@@ -85,6 +85,33 @@ describe("validateImprovedSentencePolicy", () => {
     expect(result).toEqual({ ok: false, violations: ["pure_embellishment"] });
   });
 
+  it("rejects pure appended embellishment mislabeled as fragment completion", () => {
+    const result = validateImprovedSentencePolicy({
+      ...base,
+      transcript: "I make sandcastles.",
+      correctionReason: "fragment_completion",
+      improvedSentence: "I make sandcastles at the beach.",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.violations).toContain("pure_embellishment");
+    }
+  });
+
+  it("preserves optional-detail corrections in preset mode", () => {
+    expect(
+      validateImprovedSentencePolicy({
+        ...base,
+        evaluationMode: "preset",
+        missionQuestion: "What do you make at the beach?",
+        targetPattern: "I make ____ at the beach",
+        transcript: "I make sandcastles.",
+        correctionReason: "fragment_completion",
+        improvedSentence: "I make sandcastles at the beach.",
+      }),
+    ).toEqual({ ok: true });
+  });
+
   it("rejects an invented location", () => {
     const result = validateImprovedSentencePolicy({
       ...base,

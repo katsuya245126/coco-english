@@ -25,6 +25,12 @@ describe("conversation reply hint frames", () => {
     ["What do you do in that game?", "I ____ in that game."],
     ["What games do you play inside?", "I play ____ inside."],
     ["What food do you eat for breakfast?", "I eat ____ for breakfast."],
+    ["What do you see when you swim?", "I see ____ when I swim."],
+    ["What do you do when you are tired?", "I ____ when I am tired."],
+    [
+      "What do you use to make your sandcastles?",
+      "I use ____ to make my sandcastles.",
+    ],
   ])("keeps necessary context for present-tense what-action questions: %s", (prompt, frame) => {
     expect(buildReplyHintFrame(prompt)).toBe(frame);
   });

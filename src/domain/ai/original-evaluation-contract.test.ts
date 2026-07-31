@@ -27,6 +27,15 @@ const baseEvaluation: OriginalTurnEvaluation = {
 };
 
 describe("original evaluation contract", () => {
+  const correction = (improvedSentence: string) => ({
+    ...baseEvaluation,
+    outcome: "needs_correction" as const,
+    correctionNeeded: true,
+    correctionSeverity: "minor" as const,
+    correctionReason: "grammar" as const,
+    improvedSentence,
+  });
+
   it("canonicalizes an identical minor correction to no correction", () => {
     expect(
       canonicalizeNoOpOriginalEvaluation(
@@ -47,6 +56,72 @@ describe("original evaluation contract", () => {
       correctionReason: "none",
       improvedSentence: null,
       reviewReason: null,
+    });
+  });
+
+  it.each([
+    ["I make sandcastles at the beach.", "I make sandcastles."],
+    ["I use a shovel at the beach.", "I use a shovel."],
+  ])("canonicalizes an optional-detail addition: %s", (improvedSentence, transcript) => {
+    expect(
+      canonicalizeNoOpOriginalEvaluation(
+        correction(improvedSentence),
+        transcript,
+        "conversation",
+      ),
+    ).toMatchObject({
+      outcome: "correct",
+      correctionNeeded: false,
+      improvedSentence: null,
+    });
+  });
+
+  it("canonicalizes the logged material fragment-completion label when it only appends optional detail", () => {
+    expect(
+      canonicalizeNoOpOriginalEvaluation(
+        {
+          ...correction("I make sandcastles at the beach."),
+          correctionSeverity: "material",
+          correctionReason: "fragment_completion",
+        },
+        "I make sandcastles.",
+        "conversation",
+      ),
+    ).toMatchObject({
+      outcome: "correct",
+      correctionNeeded: false,
+      correctionSeverity: "none",
+      correctionReason: "none",
+      improvedSentence: null,
+    });
+  });
+
+  it("preserves optional-detail corrections in preset mode", () => {
+    const evaluation = {
+      ...correction("I make sandcastles at the beach."),
+      correctionSeverity: "material" as const,
+      correctionReason: "fragment_completion" as const,
+    };
+
+    expect(
+      canonicalizeNoOpOriginalEvaluation(
+        evaluation,
+        "I make sandcastles.",
+        "preset",
+      ),
+    ).toEqual(evaluation);
+  });
+
+  it("keeps a real grammar correction as needs_correction", () => {
+    expect(
+      canonicalizeNoOpOriginalEvaluation(
+        correction("I like puns."),
+        "I like pun.",
+      ),
+    ).toMatchObject({
+      outcome: "needs_correction",
+      correctionNeeded: true,
+      improvedSentence: "I like puns.",
     });
   });
 

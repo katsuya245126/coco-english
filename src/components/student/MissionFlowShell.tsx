@@ -1229,7 +1229,7 @@ function getMascotDialogue({
     flow.originalFeedback?.kind === "retryUnclearMeaning"
   ) {
     return {
-      text: "Hmm... Try again",
+      text: "Hmm... try one more time.",
       line: {
         lineKind: "coco_feedback",
         feedbackVariant: "retry_unclear_meaning",

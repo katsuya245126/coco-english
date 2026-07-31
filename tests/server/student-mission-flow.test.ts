@@ -161,7 +161,7 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
 
     expect(shellSource).toContain('retryReason === "unclear_meaning"');
     expect(shellSource).toContain('kind: "retryUnclearMeaning"');
-    expect(shellSource).toContain('text: "Hmm... Try again"');
+    expect(shellSource).toContain('text: "Hmm... try one more time."');
     expect(shellSource).toContain(
       'feedbackVariant: "retry_unclear_meaning"',
     );
@@ -171,7 +171,7 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(branch).toContain("<RecordingReview onRetry={onRetry} />");
     expect(branch).not.toContain("onContinue");
     expect(ttsSource).toContain('case "retry_unclear_meaning":');
-    expect(ttsSource).toContain('return "Hmm... Try again";');
+    expect(ttsSource).toContain('return "Hmm... try one more time.";');
   });
 
   it("repeat-accepted feedback lets the student review or record again before continuing", () => {

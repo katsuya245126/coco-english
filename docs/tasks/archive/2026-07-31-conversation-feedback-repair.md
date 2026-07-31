@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Paused — switched to approved student-access security remediation; resume only after that task is complete or paused.
+**Status:** Complete
 
 **Goal:** Fix the misleading reply hints and unnecessary corrections found in the inspected attempts, allow one plainly worded retry for an unclear answer, and make Coco continue from the most recent answer she actually understood.
 
@@ -55,7 +55,7 @@ The retry does not consume a turn. The second unclear answer does. If there is n
 
 ### Task 1: Repair the logged hint frames
 
-- [ ] Add these failing cases to `tests/domain/reply-hint-frame.test.ts`:
+- [x] Add these failing cases to `tests/domain/reply-hint-frame.test.ts`:
 
 ```ts
 it.each([
@@ -69,11 +69,11 @@ it.each([
 });
 ```
 
-- [ ] Run `npm test -- --run tests/domain/reply-hint-frame.test.ts`.
+- [x] Run `npm test -- --run tests/domain/reply-hint-frame.test.ts`.
 
   Expected: both new cases fail with the malformed frames from the log.
 
-- [ ] In `src/domain/ai/reply-hint-frame.ts`, convert learner-facing `you` to `I` inside `cleanPhrase`, and handle `What do you use to ...?` before the general present-tense matcher:
+- [x] In `src/domain/ai/reply-hint-frame.ts`, convert learner-facing `you` to `I` inside `cleanPhrase`, and handle `What do you use to ...?` before the general present-tense matcher:
 
 ```ts
 .replace(/\byou\b/giu, "I")
@@ -88,7 +88,7 @@ if (presentUseTo) {
 }
 ```
 
-- [ ] Re-run `npm test -- --run tests/domain/reply-hint-frame.test.ts`.
+- [x] Re-run `npm test -- --run tests/domain/reply-hint-frame.test.ts`.
 
   Expected: PASS.
 
@@ -96,7 +96,7 @@ if (presentUseTo) {
 
 ### Task 2: Stop correcting answers that only omit optional detail
 
-- [ ] Add contract tests showing:
+- [x] Add contract tests showing:
 
 ```ts
 canonicalizeNoOpOriginalEvaluation(correction("I make sandcastles at the beach."), "I make sandcastles.")
@@ -109,11 +109,11 @@ canonicalizeNoOpOriginalEvaluation(correction("I like puns."), "I like pun.")
 // => remains needs_correction
 ```
 
-- [ ] Run `npm test -- --run src/domain/ai/original-evaluation-contract.test.ts`.
+- [x] Run `npm test -- --run src/domain/ai/original-evaluation-contract.test.ts`.
 
   Expected: the optional-detail cases fail; the real grammar correction remains unchanged.
 
-- [ ] Extract the existing prefix-extension condition in `src/domain/ai/correction-policy.ts` as:
+- [x] Extract the existing prefix-extension condition in `src/domain/ai/correction-policy.ts` as:
 
 ```ts
 export function isPureEmbellishment(
@@ -124,11 +124,11 @@ export function isPureEmbellishment(
 
 Use the existing normalization and dangling-fragment guard. Change only the minimum complete-answer floor from four words to three so `I make sandcastles` and `I use a shovel` qualify.
 
-- [ ] Reuse `isPureEmbellishment` in both the correction-policy violation check and `canonicalizeNoOpOriginalEvaluation`. Canonicalize only `needs_correction` evaluations; teacher-review outcomes remain untouched.
+- [x] Reuse `isPureEmbellishment` in both the correction-policy violation check and `canonicalizeNoOpOriginalEvaluation`. Canonicalize only `needs_correction` evaluations; teacher-review outcomes remain untouched.
 
-- [ ] Add one `src/server/student-access/audio-upload.test.ts` regression proving an optional-detail addition is accepted after one evaluator call and does not request a repeat or repair evaluation.
+- [x] Add one `src/server/student-access/audio-upload.test.ts` regression proving an optional-detail addition is accepted after one evaluator call and does not request a repeat or repair evaluation.
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 npm test -- --run src/domain/ai/original-evaluation-contract.test.ts tests/domain/correction-policy.test.ts src/server/student-access/audio-upload.test.ts
@@ -140,15 +140,15 @@ npm test -- --run src/domain/ai/original-evaluation-contract.test.ts tests/domai
 
 ### Task 3: Use one simple retry, then move on
 
-- [ ] Change the visible line in `src/components/student/MissionFlowShell.tsx` and the TTS line in `src/app/student/missions/[assignmentStudentId]/tts/route.ts` to:
+- [x] Change the visible line in `src/components/student/MissionFlowShell.tsx` and the TTS line in `src/app/student/missions/[assignmentStudentId]/tts/route.ts` to:
 
 ```ts
 "Hmm... try one more time."
 ```
 
-- [ ] Update `tests/server/student-mission-flow.test.ts` to require that exact sentence in both locations.
+- [x] Update `tests/server/student-mission-flow.test.ts` to require that exact sentence in both locations.
 
-- [ ] Add or tighten one `tests/domain/turn-evaluation.test.ts` regression:
+- [x] Add or tighten one `tests/domain/turn-evaluation.test.ts` regression:
 
 ```ts
 expect(decideOriginalTurnOutcome(ambiguousReview, "conversation", null, 0))
@@ -160,7 +160,7 @@ expect(decideOriginalTurnOutcome(ambiguousReview, "conversation", null, 1))
 
 No production retry-counter change is planned; the existing `priorAmbiguityRetries` branch already enforces the desired maximum.
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 npm test -- --run tests/domain/turn-evaluation.test.ts tests/server/student-mission-flow.test.ts src/server/student-access/audio-upload.test.ts
@@ -172,7 +172,7 @@ npm test -- --run tests/domain/turn-evaluation.test.ts tests/server/student-miss
 
 ### Task 4: Ground Coco’s pivot in the last understood answer
 
-- [ ] Add a pure helper in `src/domain/ai/conversation-generation.ts`:
+- [x] Add a pure helper in `src/domain/ai/conversation-generation.ts`:
 
 ```ts
 export function mostRecentUnderstoodExchange(
@@ -185,15 +185,15 @@ export function mostRecentUnderstoodExchange(
 
 For normal handling, return the latest exchange. For `review_pending`, skip the latest exchange and scan backward for the first response other than `WITHHELD_STUDENT_RESPONSE`. Return `null` when none exists.
 
-- [ ] Add `src/domain/ai/conversation-generation.test.ts` cases proving:
+- [x] Add `src/domain/ai/conversation-generation.test.ts` cases proving:
 
   - Normal history selects the latest exchange.
   - Waterpark history followed by an unclear answer selects the earlier waterpark exchange.
   - A first-turn unclear answer returns `null` and leaves generation grounded only in `scenePremise`.
 
-- [ ] In `src/server/ai/conversation-generator.ts`, compute the prompt and grounding exchange once. Use that exchange’s `cocoLine` and `studentResponse` for both the first and corrected policy validations.
+- [x] In `src/server/ai/conversation-generator.ts`, compute the prompt and grounding exchange once. Use that exchange’s `cocoLine` and `studentResponse` for both the first and corrected policy validations.
 
-- [ ] Include the rejected candidate in the existing corrected request. The repair instruction must say:
+- [x] Include the rejected candidate in the existing corrected request. The repair instruction must say:
 
 ```text
 The previous candidate was rejected. Do not repeat its question direction.
@@ -203,7 +203,7 @@ WH-question about a different unanswered detail. Never invent a detail.
 
 The structured repair payload must include `rejectedCandidate` and `violations` alongside the existing conversation prompt. This fixes the current blind repair call, which is told that a candidate failed but is not shown what it said.
 
-- [ ] Add `src/server/ai/conversation-generator.test.ts` coverage where:
+- [x] Add `src/server/ai/conversation-generator.test.ts` coverage where:
 
   1. The understood exchange is `I’m going to the waterpark.`
   2. A later exchange is withheld as not understood.
@@ -211,9 +211,9 @@ The structured repair payload must include `rejectedCandidate` and `violations` 
   4. The corrected candidate is `What do you do at the waterpark?`
   5. The result passes without `What else do you want to tell me?`, `What do you like about that?`, or any detail absent from the understood history.
 
-- [ ] Add an `src/server/student-access/audio-upload.test.ts` regression proving the second unclear recording is stored for teacher review, the turn advances, and generation receives both the earlier understood exchange and the withheld latest exchange.
+- [x] Add an `src/server/student-access/audio-upload.test.ts` regression proving the second unclear recording is stored for teacher review, the turn advances, and generation receives both the earlier understood exchange and the withheld latest exchange.
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 npm test -- --run src/domain/ai/conversation-generation.test.ts src/server/ai/conversation-generator.test.ts src/server/student-access/audio-upload.test.ts
@@ -227,7 +227,7 @@ npm test -- --run src/domain/ai/conversation-generation.test.ts src/server/ai/co
 
 ### Task 5: Proportionate verification
 
-- [ ] Run the complete targeted suite:
+- [x] Run the complete targeted suite:
 
 ```bash
 npm test -- --run tests/domain/reply-hint-frame.test.ts tests/domain/correction-policy.test.ts src/domain/ai/original-evaluation-contract.test.ts tests/domain/turn-evaluation.test.ts src/domain/ai/conversation-generation.test.ts src/server/ai/conversation-generator.test.ts src/server/student-access/audio-upload.test.ts tests/server/student-mission-flow.test.ts
@@ -235,7 +235,7 @@ npm test -- --run tests/domain/reply-hint-frame.test.ts tests/domain/correction-
 
   Expected: PASS.
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 npm run typecheck
@@ -244,8 +244,25 @@ npm run lint
 
   Expected: both commands exit successfully.
 
-- [ ] Review the final diff and confirm every changed production line maps to one of the four requested behaviors. Do not modify unrelated files.
+- [x] Review the final diff and confirm every changed production line maps to one of the four requested behaviors. Do not modify unrelated files.
 
 ## Approval gate
 
 Implementation must not begin until the user approves this plan. If deterministic tests show that the final canned outage fallback itself must also be contextual, stop and request a product choice between one extra model call and teacher-authored scene fallback questions.
+
+## Review fixes
+
+- Accepted the logged `material / fragment_completion` optional-detail case only when the original answer already has a declarative verb.
+- Preserved repair/review behavior for other material grammar corrections and genuine fragments.
+- Added first-person `be` agreement to reply hints (`you are` → `I am`, `you were` → `I was`).
+- Made the policy-repair prompt consistently reference the most recent understood student response.
+- Enforced scene-premise topic grounding when the first unclear answer leaves no
+  earlier understood response.
+
+## Point-in-time verification evidence
+
+- `npm test -- --run tests/domain/reply-hint-frame.test.ts tests/domain/correction-policy.test.ts src/domain/ai/original-evaluation-contract.test.ts tests/domain/turn-evaluation.test.ts src/domain/ai/conversation-generation.test.ts src/server/ai/conversation-generator.test.ts src/server/student-access/audio-upload.test.ts tests/server/student-mission-flow.test.ts` — 381 passed.
+- `npm test -- --run` — 1,409 passed, 5 skipped.
+- `npm run typecheck` — passed.
+- `npm run lint` — passed with 0 errors and one unrelated pre-existing warning in `scripts/check-student-feedback-states.mjs`.
+- `git diff --check` — passed.

@@ -140,6 +140,7 @@ const RESPONSE_STOP_WORDS = new Set([
   "their", "this", "that", "it", "myself", "will", "would", "be",
   "been", "being", "am", "was", "were", "very", "just", "also",
   "eat", "eating", "ate",
+  "go", "going", "went", "gone",
   "play", "playing", "played", "plays",
 ]);
 
@@ -336,8 +337,11 @@ function staysOnActiveTopic(
   line: string,
   activeQuestion?: string,
   latestStudentResponse?: string,
+  topicGroundingText?: string,
 ) {
-  if (!activeQuestion) return true;
+  if (!activeQuestion && !latestStudentResponse && !topicGroundingText) {
+    return true;
+  }
   const normalizedResponse = latestStudentResponse
     ?.toLocaleLowerCase("en-US")
     .replace(/[’‘]/gu, "'");
@@ -349,15 +353,25 @@ function staysOnActiveTopic(
   ) {
     return true;
   }
-  const questionTopicWords = normalizedWords(
-    latestQuestionText(activeQuestion),
-  ).filter((word) => word.length >= 3 && !TOPIC_STOP_WORDS.has(word));
-  const responseTopicWords = latestStudentResponse
-    ? normalizedWords(latestStudentResponse).filter(
+  const questionTopicWords = activeQuestion
+    ? normalizedWords(latestQuestionText(activeQuestion)).filter(
         (word) => word.length >= 3 && !TOPIC_STOP_WORDS.has(word),
       )
     : [];
-  const topicWords = [...questionTopicWords, ...responseTopicWords];
+  const responseTopicWords = latestStudentResponse
+    ? activeQuestion
+      ? normalizedWords(latestStudentResponse).filter(
+          (word) => word.length >= 3 && !TOPIC_STOP_WORDS.has(word),
+        )
+      : contentWords(latestStudentResponse)
+    : [];
+  const topicWords = [
+    ...questionTopicWords,
+    ...responseTopicWords,
+    ...(!activeQuestion && !latestStudentResponse && topicGroundingText
+      ? contentWords(topicGroundingText)
+      : []),
+  ];
   if (topicWords.length === 0) return true;
 
   const lineWords = normalizedWords(line);
@@ -390,6 +404,7 @@ export function validateGeneratedCocoReplyParts(
     expectsQuestion: boolean;
     activeQuestion?: string;
     latestStudentResponse?: string;
+    topicGroundingText?: string;
     allowReactionTopicGrounding?: boolean;
     requireClosingGrounding?: boolean;
   },
@@ -421,6 +436,7 @@ export function validateGeneratedCocoReplyParts(
         : (parts.question ?? normalized),
       options.activeQuestion,
       options.latestStudentResponse,
+      options.topicGroundingText,
     )
   ) {
     reasons.push("topic_drift");
@@ -671,6 +687,26 @@ export function conversationReplyMode(input: {
  * the turn happened, only its content is unusable.
  */
 export const WITHHELD_STUDENT_RESPONSE = "(not understood)" as const;
+
+export function mostRecentUnderstoodExchange(
+  input: Pick<
+    GenerateCocoReplyInput,
+    "conversationHistory" | "responseHandling"
+  >,
+): ConversationExchange | null {
+  const { conversationHistory, responseHandling } = input;
+  if (conversationHistory.length === 0) return null;
+  if (responseHandling === "normal") return conversationHistory.at(-1) ?? null;
+
+  for (let index = conversationHistory.length - 2; index >= 0; index -= 1) {
+    const exchange = conversationHistory[index];
+    if (exchange?.studentResponse !== WITHHELD_STUDENT_RESPONSE) {
+      return exchange ?? null;
+    }
+  }
+
+  return null;
+}
 
 /**
  * Replace the latest studentResponse with a marker when the evaluator

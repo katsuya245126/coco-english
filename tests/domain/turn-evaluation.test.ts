@@ -127,6 +127,7 @@ describe("original turn AI evaluation decisions (AI-01, AI-02, AI-03, AI-05)", (
     ).toMatchObject({
       kind: "teacher_review",
       reviewReason: "ambiguous",
+      requireRepeat: false,
     });
   });
 

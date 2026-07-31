@@ -182,6 +182,145 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     expect(secondSystemMessage).toContain("multi_detail_echo");
   });
 
+  it("repairs a review-pending reply from the latest understood waterpark answer", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          output_parsed: {
+            reaction: "Okay, let's talk about your summer plans.",
+            focus: "summer plans",
+            question: "What else are you going to do this summer?",
+          },
+        })
+        .mockResolvedValueOnce({
+          output_parsed: {
+            reaction: "That sounds fun!",
+            focus: "waterpark",
+            question: "What do you do at the waterpark?",
+          },
+        }),
+    );
+
+    const result = await generateCocoReply(
+      {
+        ...baseInput,
+        turnOrder: 2,
+        responseHandling: "review_pending",
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "Where are you going this summer?",
+            studentResponse: "I'm going to the waterpark.",
+          },
+          {
+            turnOrder: 2,
+            cocoLine: "Who are you going with?",
+            studentResponse: "Something unclear.",
+          },
+        ],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      reply: { line: "That sounds fun! What do you do at the waterpark?" },
+    });
+    expect(client.responses.parse).toHaveBeenCalledTimes(2);
+    const repairPayload = JSON.parse(
+      vi.mocked(client.responses.parse).mock.calls[1]?.[0].input.find(
+        (message) => message.role === "user",
+      )?.content ?? "{}",
+    ) as {
+      rejectedCandidate?: unknown;
+      violations?: unknown;
+    };
+    expect(repairPayload).toMatchObject({
+      rejectedCandidate: {
+        reaction: "Okay, let's talk about your summer plans.",
+        focus: "summer plans",
+        question: "What else are you going to do this summer?",
+      },
+      violations: ["topic_drift"],
+    });
+    const repairSystemMessage = vi
+      .mocked(client.responses.parse)
+      .mock.calls[1]?.[0].input.find((message) => message.role === "system")
+      ?.content;
+    expect(repairSystemMessage).toContain(
+      "The previous candidate was rejected. Do not repeat its question direction.",
+    );
+    expect(repairSystemMessage).toContain(
+      "Use the most recent understood student response and ask one short, concrete WH-question about a different unanswered detail. Never invent a detail.",
+    );
+    expect(repairSystemMessage).toContain(
+      "Choose at most one focus from the most recent understood studentResponse.",
+    );
+    expect(repairSystemMessage).not.toContain(
+      "Choose at most one focus from the latest studentResponse.",
+    );
+    expect(result.ok && result.reply.line).not.toContain(
+      "What else do you want to tell me?",
+    );
+    expect(result.ok && result.reply.line).not.toContain(
+      "What do you like about that?",
+    );
+    expect(result.ok && result.reply.line).not.toContain(
+      "What else are you going to do this summer?",
+    );
+    expect(result.ok && result.reply.line).not.toContain("pool");
+    expect(result.ok && result.reply.line).not.toContain("hotel");
+  });
+
+  it("repairs an unrelated first-turn recovery using the scene premise", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          output_parsed: {
+            reaction: "Okay!",
+            focus: "games",
+            question: "What games do you play at home?",
+          },
+        })
+        .mockResolvedValueOnce({
+          output_parsed: {
+            reaction: "Let's try another question.",
+            focus: "cafeteria",
+            question: "What food do you like at the cafeteria?",
+          },
+        }),
+    );
+
+    const result = await generateCocoReply(
+      {
+        ...baseInput,
+        turnOrder: 1,
+        responseHandling: "review_pending",
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "What would you like to eat today?",
+            studentResponse: "Something unclear.",
+          },
+        ],
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(client.responses.parse).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      ok: true,
+      reply: {
+        line:
+          "Let's try another question. What food do you like at the cafeteria?",
+      },
+    });
+  });
+
   it("returns schema_failed when the fake client's output_parsed fails the schema", async () => {
     const { generateCocoReply } = await import("@/server/ai/conversation-generator");
     const client = createFakeClient(async () => ({

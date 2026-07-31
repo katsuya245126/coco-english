@@ -1,6 +1,6 @@
 const WORD_PATTERN = /[\p{L}\p{N}']+/gu;
 const TRAILING_CONTEXT_PATTERN =
-  /\s+(after|before|for|in|inside|outside|on|at|with|near|about|this|next|last|every)(?:\s+[\p{L}\p{N}'\s]*)?$/iu;
+  /\s+(after|before|for|in|inside|outside|on|at|with|near|about|when|this|next|last|every)(?:\s+[\p{L}\p{N}'\s]*)?$/iu;
 const WHO_TRAILING_CONTEXT_PATTERN =
   /\s+(after|before|for|in|inside|outside|on|at|near|about|this|next|last|every)(?:\s+[\p{L}\p{N}'\s]*)?$/iu;
 // Context that reads naturally BEFORE "with" in a who frame, so it can be
@@ -25,6 +25,9 @@ function cleanPhrase(value: string) {
     .replace(/\b(?:today|tomorrow|now)\b/giu, "")
     .replace(/\byourself\b/giu, "myself")
     .replace(/\byour\b/giu, "my")
+    .replace(/\byou\s+are\b/giu, "I am")
+    .replace(/\byou\s+were\b/giu, "I was")
+    .replace(/\byou\b/giu, "I")
     // Coco's "tell me" is the student's "tell you". Without this the student
     // was shown "I want to tell me bye." (UAT 2026-07-27, attempt db9a4297 T5).
     .replace(/\bme\b/giu, "you")
@@ -191,6 +194,13 @@ export function buildReplyHintFrame(prompt: string): string | null {
   const whenQuestion = question.match(/^when\s+do\s+you\s+(.+)\?$/iu);
   if (whenQuestion) {
     return withFinalBlank(`I ${cleanPhrase(whenQuestion[1])}`);
+  }
+
+  const presentUseTo = question.match(
+    /^what\s+do\s+you\s+use\s+to\s+(.+)\?$/iu,
+  );
+  if (presentUseTo) {
+    return completeFrame(`I use ____ to ${cleanPhrase(presentUseTo[1])}`);
   }
 
   const presentWhat = question.match(

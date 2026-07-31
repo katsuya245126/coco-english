@@ -5,6 +5,7 @@ import {
   buildConversationPrompt,
   conversationReplyMode,
   conversationTurnInputSchema,
+  mostRecentUnderstoodExchange,
   parseGeneratedCocoReply,
   withClosingSignOff,
   validateGeneratedCocoReplyParts,
@@ -78,6 +79,65 @@ describe("closing sign-off", () => {
   it("is idempotent", () => {
     const once = withClosingSignOff(closingReply("Nice work."));
     expect(withClosingSignOff(once)).toEqual(once);
+  });
+});
+
+describe("most recent understood conversation grounding", () => {
+  it("selects the latest exchange during normal handling", () => {
+    expect(
+      mostRecentUnderstoodExchange({
+        conversationHistory: history,
+        responseHandling: "normal",
+      }),
+    ).toEqual(history.at(-1));
+  });
+
+  it("skips an unclear latest exchange and selects the earlier waterpark answer", () => {
+    const waterparkHistory = [
+      {
+        turnOrder: 1,
+        cocoLine: "Where are you going this summer?",
+        studentResponse: "I'm going to the waterpark.",
+      },
+      {
+        turnOrder: 2,
+        cocoLine: "Who are you going with?",
+        studentResponse: "Something unclear.",
+      },
+    ];
+
+    expect(
+      mostRecentUnderstoodExchange({
+        conversationHistory: waterparkHistory,
+        responseHandling: "review_pending",
+      }),
+    ).toEqual(waterparkHistory[0]);
+  });
+
+  it("returns no exchange for a first-turn unclear answer and keeps scene premise as the fallback grounding", () => {
+    const prompt = buildConversationPrompt({
+      ...input,
+      turnOrder: 1,
+      responseHandling: "review_pending",
+      conversationHistory: [
+        {
+          turnOrder: 1,
+          cocoLine: "Where are you going this summer?",
+          studentResponse: "Something unclear.",
+        },
+      ],
+    });
+
+    expect(
+      mostRecentUnderstoodExchange({
+        conversationHistory: prompt.conversationHistory,
+        responseHandling: "review_pending",
+      }),
+    ).toBeNull();
+    expect(prompt.scenePremise).toBe(input.scenePremise);
+    expect(prompt.instructions.join(" ")).toContain(
+      "If no studentResponse is usable, ask one short neutral question grounded in scenePremise.",
+    );
   });
 });
 

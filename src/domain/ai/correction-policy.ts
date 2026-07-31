@@ -288,6 +288,21 @@ function normalized(text: string) {
   return words(text).join(" ");
 }
 
+export function isPureEmbellishment(
+  transcript: string,
+  improvedSentence: string,
+): boolean {
+  const transcriptWords = words(transcript);
+  const improvedWords = words(improvedSentence);
+  return (
+    transcriptWords.length >= 3 &&
+    hasDeclarativeShape(transcript, null) &&
+    !DANGLING_END.test(normalized(transcript)) &&
+    transcriptWords.length < improvedWords.length &&
+    transcriptWords.every((word, index) => improvedWords[index] === word)
+  );
+}
+
 function contentWords(text: string) {
   return words(text).filter((word) => !FUNCTION_WORDS.has(word));
 }
@@ -610,10 +625,8 @@ export function validateImprovedSentencePolicy(
   }
 
   if (
-    transcriptWords.length >= 4 &&
-    !DANGLING_END.test(normalizedTranscript) &&
-    transcriptWords.length < improvedWords.length &&
-    transcriptWords.every((word, index) => improvedWords[index] === word)
+    input.evaluationMode === "conversation" &&
+    isPureEmbellishment(input.transcript, input.improvedSentence)
   ) {
     addViolation("pure_embellishment");
   }

@@ -1,4 +1,5 @@
 import {
+  isPureEmbellishment,
   validateImprovedSentencePolicy,
   type CorrectionPolicyViolation,
 } from "@/domain/ai/correction-policy";
@@ -42,13 +43,18 @@ function normalizeSentence(value: string) {
 export function canonicalizeNoOpOriginalEvaluation(
   evaluation: OriginalTurnEvaluation,
   transcript: string,
+  evaluationMode: "preset" | "conversation" = "preset",
 ): OriginalTurnEvaluation {
   if (
     evaluation.outcome !== "needs_correction" ||
     !evaluation.correctionNeeded ||
     !evaluation.improvedSentence ||
-    normalizeSentence(evaluation.improvedSentence) !==
-      normalizeSentence(transcript)
+    (normalizeSentence(evaluation.improvedSentence) !==
+      normalizeSentence(transcript) &&
+      (evaluationMode !== "conversation" ||
+        (evaluation.correctionSeverity !== "minor" &&
+          evaluation.correctionReason !== "fragment_completion") ||
+        !isPureEmbellishment(transcript, evaluation.improvedSentence)))
   ) {
     return evaluation;
   }

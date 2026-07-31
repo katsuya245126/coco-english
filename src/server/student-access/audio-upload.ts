@@ -52,6 +52,7 @@ import {
   transcribeAudioFile,
   type TranscriptionEvidence,
 } from "@/server/audio/transcription";
+import { isLowConfidenceTranscript } from "@/domain/audio/transcript-confidence";
 import { DEFAULT_COCO_TTS_VOICE } from "@/domain/audio/tts";
 import { warmTtsAudioCache } from "@/server/audio/tts-cache";
 import { scorePronunciation } from "@/server/audio/pronunciation-scorer";
@@ -90,6 +91,7 @@ import {
   selectFollowUpFallbackLine,
 } from "@/domain/conversation/fallback-lines";
 import {
+  WITHHELD_STUDENT_RESPONSE,
   conversationReplyMode,
   type ConversationExchange,
   type GenerateCocoReplyInput,
@@ -1453,6 +1455,7 @@ export async function uploadAttemptAudioClip(
               const canonicalEvaluation = canonicalizeNoOpOriginalEvaluation(
                 evaluationResult.evaluation,
                 transcript,
+                evaluationInput.evaluationMode,
               );
               const firstContract = validateOriginalEvaluationContract({
                 evaluation: canonicalEvaluation,
@@ -1483,6 +1486,7 @@ export async function uploadAttemptAudioClip(
                   const canonicalRepair = canonicalizeNoOpOriginalEvaluation(
                     repaired.evaluation,
                     transcript,
+                    evaluationInput.evaluationMode,
                   );
                   const repairedContract = validateOriginalEvaluationContract({
                     evaluation: canonicalRepair,
@@ -1510,6 +1514,33 @@ export async function uploadAttemptAudioClip(
                   }
                 }
               }
+            }
+
+            if (
+              !evaluationResult.ok &&
+              evaluationResult.error === "schema_failed" &&
+              snapshot.conversationMode === true &&
+              isLowConfidenceTranscript(transcriptionEvidence.confidence)
+            ) {
+              evaluationResult = {
+                ok: true,
+                evaluation: {
+                  ...fallbackProvenance,
+                  version: AI_EVALUATION_VERSION,
+                  outcome: "teacher_review",
+                  meaningUnderstood: false,
+                  targetPatternAttempted: false,
+                  correctionNeeded: false,
+                  correctionSeverity: "none",
+                  correctionReason: "none",
+                  improvedSentence: null,
+                  englishLanguage: "uncertain",
+                  confidence: "low",
+                  reviewReason: "low_confidence",
+                  evaluationSource: "deterministic",
+                  hangulInterpretations: [],
+                },
+              };
             }
 
             const decision = applyOriginalTurnEvaluation(evaluationResult, {
@@ -1744,7 +1775,9 @@ export async function uploadAttemptAudioClip(
       originalEvaluation?.retryReason !== "unclear_meaning"
     ) {
       const currentStudentResponse =
-        originalEvaluation?.improvedSentence?.trim() || transcript;
+        originalEvaluation?.outcome === "teacher_review"
+          ? WITHHELD_STUDENT_RESPONSE
+          : originalEvaluation?.improvedSentence?.trim() || transcript;
       const historyResult = buildConversationHistory({
         openerLine: snapshot.turns[0]?.prompt ?? "",
         currentTurnOrder: input.turnOrder,

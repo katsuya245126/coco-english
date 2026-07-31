@@ -21,6 +21,7 @@ import {
   generatedCocoReplyPartsSchema,
   parseGeneratedCocoReply,
   buildConversationPrompt,
+  mostRecentUnderstoodExchange,
   validateGeneratedCocoReplyParts,
   withClosingSignOff,
   type ConversationSafetyMode,
@@ -182,7 +183,10 @@ function replyPolicyCorrection(
     expectsQuestion
       ? "Regenerate the full line once with complete, correctly punctuated sentences and one open question that stays on the active activity."
       : "Regenerate the full line once as one complete, correctly punctuated closing line with no question.",
-    "Return reaction, focus, and question separately. Choose at most one focus from the latest studentResponse.",
+    expectsQuestion
+      ? "The previous candidate was rejected. Do not repeat its question direction. Use the most recent understood student response and ask one short, concrete WH-question about a different unanswered detail. Never invent a detail."
+      : "The previous candidate was rejected. Regenerate the closing without inventing a detail.",
+    "Return reaction, focus, and question separately. Choose at most one focus from the most recent understood studentResponse.",
     "A follow-up may react briefly or mention one learner-owned detail, but must not summarize a list.",
     expectsQuestion
       ? "For a closing, set focus and question to null; otherwise include exactly one question."
@@ -215,6 +219,19 @@ export async function generateCocoReply(
   }
 
   const systemMessage = systemMessageFor(validInput.data.safetyMode);
+  const conversationPrompt = buildConversationPrompt(validInput.data);
+  const groundingExchange = mostRecentUnderstoodExchange(validInput.data);
+  const activeQuestion =
+    validInput.data.responseHandling === "review_pending"
+      ? undefined
+      : groundingExchange?.cocoLine;
+  const latestResponse = groundingExchange?.studentResponse;
+  const topicGroundingText =
+    validInput.data.responseHandling === "review_pending" && !groundingExchange
+      ? validInput.data.scenePremise
+      : undefined;
+  const replyMode = conversationReplyMode(validInput.data);
+  const expectsQuestion = replyMode === "follow_up";
 
   try {
     const client = deps?.client ?? createClient(apiKey);
@@ -227,7 +244,7 @@ export async function generateCocoReply(
         },
         {
           role: "user",
-          content: JSON.stringify(buildConversationPrompt(validInput.data)),
+          content: JSON.stringify(conversationPrompt),
         },
       ],
       text: {
@@ -240,14 +257,11 @@ export async function generateCocoReply(
       return { ok: false, error: "schema_failed" };
     }
 
-    const latestResponse = validInput.data.conversationHistory.at(-1)?.studentResponse;
-    const replyMode = conversationReplyMode(validInput.data);
-    const expectsQuestion = replyMode === "follow_up";
-    const activeQuestion = validInput.data.conversationHistory.at(-1)?.cocoLine;
     const linePolicy = validateGeneratedCocoReplyParts(parsed.reply, {
       expectsQuestion,
       activeQuestion,
       latestStudentResponse: latestResponse,
+      topicGroundingText,
       requireClosingGrounding:
         !expectsQuestion && validInput.data.responseHandling === "normal",
     });
@@ -266,7 +280,15 @@ export async function generateCocoReply(
             },
             {
               role: "user",
-              content: JSON.stringify(buildConversationPrompt(validInput.data)),
+              content: JSON.stringify({
+                ...conversationPrompt,
+                rejectedCandidate: {
+                  reaction: parsed.reply.reaction,
+                  focus: parsed.reply.focus,
+                  question: parsed.reply.question,
+                },
+                violations: linePolicy.reasons,
+              }),
             },
           ],
           text: {
@@ -281,6 +303,7 @@ export async function generateCocoReply(
           expectsQuestion,
           activeQuestion,
           latestStudentResponse: latestResponse,
+          topicGroundingText,
           requireClosingGrounding:
             !expectsQuestion && validInput.data.responseHandling === "normal",
         });

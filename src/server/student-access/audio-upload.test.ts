@@ -592,6 +592,53 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     });
   });
 
+  it("uses the one unclear retry for a low-confidence schema failure", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "This should not be generated." },
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: vi.fn(async () => ({
+        ok: true as const,
+        text: "All right, I want how we are.",
+        koreanSpans: [],
+        model: "test-transcriber",
+        confidence: {
+          minLogprob: -0.9235518574714661,
+          tokenCount: 9,
+        },
+      })),
+      evaluateOriginalTurn: vi.fn(async () => ({
+        ok: false as const,
+        error: "schema_failed" as const,
+      })),
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(generate).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "retry_original",
+        retryReason: "unclear_meaning",
+        ambiguityRetries: 1,
+        transcriptionConfidence: {
+          minLogprob: -0.9235518574714661,
+          tokenCount: 9,
+        },
+      },
+      cocoLine: null,
+    });
+  });
+
   it("preserves first-try ambiguity evidence when the retry is still unclear", async () => {
     mockSupabase = createMockSupabase({
       turnEvaluation: {
@@ -725,6 +772,114 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         requireRepeat: false,
       },
     });
+  });
+
+  it("stores the second unclear answer for review and pivots from the earlier understood exchange", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        turns: [
+          {
+            ...conversationMissionSnapshotFixture.turns[0],
+            prompt: "Where are you going this summer?",
+          },
+        ],
+      },
+      previousTurns: [
+        {
+          turn_order: 1,
+          original_transcript: "I'm going to the waterpark.",
+          improved_sentence: null,
+          coco_line: "Who are you going with?",
+          evaluation: originalEvaluation(),
+        },
+      ],
+      turnEvaluation: {
+        ...originalEvaluation({
+          outcome: "retry_original",
+          meaningUnderstood: false,
+          targetPatternAttempted: false,
+          confidence: "medium",
+          reviewReason: null,
+        }),
+        retryReason: "unclear_meaning",
+        ambiguityRetries: 1,
+        ambiguityHistory: [
+          {
+            transcript: "Maybe my friend.",
+            audioClipId: "clip-first",
+            evaluation: originalEvaluation({
+              outcome: "teacher_review",
+              meaningUnderstood: false,
+              targetPatternAttempted: false,
+              confidence: "medium",
+              reviewReason: "ambiguous",
+            }),
+          },
+        ],
+      },
+    });
+
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "That sounds fun! What do you do at the waterpark?" },
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+      transcribeAudioFile: successfulTranscriber("Something unclear."),
+      evaluateOriginalTurn: successfulOriginalEvaluator({
+        outcome: "teacher_review",
+        meaningUnderstood: false,
+        targetPatternAttempted: false,
+        confidence: "medium",
+        reviewReason: "ambiguous",
+      }),
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "teacher_review",
+        requireRepeat: false,
+        ambiguityRetries: 1,
+      },
+      cocoLine: "That sounds fun! What do you do at the waterpark?",
+    });
+    expect(generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        responseHandling: "review_pending",
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "Where are you going this summer?",
+            studentResponse: "I'm going to the waterpark.",
+          },
+          {
+            turnOrder: 2,
+            cocoLine: "Who are you going with?",
+            studentResponse: "(not understood)",
+          },
+        ],
+      }),
+    );
+    expect(mockSupabase.operations).toContainEqual(
+      expect.objectContaining({
+        table: "attempt_turns",
+        action: "upsert",
+        payload: expect.objectContaining({
+          original_transcript: "Something unclear.",
+          evaluation: expect.objectContaining({ outcome: "teacher_review" }),
+        }),
+      }),
+    );
   });
 
   it("routes a second unsafe correction to review without repeat or correction TTS", async () => {
@@ -1122,6 +1277,55 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     expect(warmTtsAudioCache).toHaveBeenCalledWith(
       expect.objectContaining({ texts: ["Which cartoon is your favourite?"] }),
     );
+  });
+
+  it("accepts an optional-detail correction without repair or repeat", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        turns: [
+          {
+            ...conversationMissionSnapshotFixture.turns[0],
+            prompt: "What do you make at the beach?",
+            targetExample: "I make sandcastles.",
+          },
+        ],
+      },
+    });
+
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginalTurn = successfulOriginalEvaluator({
+      outcome: "needs_correction",
+      correctionNeeded: true,
+      correctionSeverity: "material",
+      correctionReason: "fragment_completion",
+      improvedSentence: "I make sandcastles at the beach.",
+    });
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I make sandcastles."),
+      evaluateOriginalTurn,
+      generateCocoReply: fakeGenerateCocoReply(async () => ({
+        ok: true,
+        reply: { line: "What do you build there?" },
+      })),
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(evaluateOriginalTurn).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "accepted_original",
+        improvedSentence: null,
+        requireRepeat: false,
+      },
+    });
   });
 
   it("persists an accepted minor recast, grounds Coco with it, and does not warm correction TTS", async () => {
