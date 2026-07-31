@@ -30,6 +30,12 @@ export function PronunciationDiagnosticPanel({
           audioClipId,
           attemptId,
         });
+        if (!result.ok && result.error === "rate_limited") {
+          setRescoreError(
+            "You’ve made several AI requests. Wait a few minutes and try again.",
+          );
+          return;
+        }
         if (!result.ok && result.error !== "already_scored") {
           setRescoreError(
             "Re-scoring didn't work this time. Please try again in a moment.",
@@ -49,7 +55,11 @@ export function PronunciationDiagnosticPanel({
         >
           {isPending ? "Re-scoring…" : "Re-score pronunciation"}
         </button>
-        {rescoreError && <p style={rescoreErrorStyle}>{rescoreError}</p>}
+        {rescoreError && (
+          <p role="alert" style={rescoreErrorStyle}>
+            {rescoreError}
+          </p>
+        )}
       </div>
     );
   }

@@ -9,6 +9,7 @@ import {
   teacherOwnsAudioClip,
 } from "@/server/teacher/audio-evidence";
 import { reprocessClipPronunciation } from "@/server/audio/pronunciation-reprocess";
+import { consumeRequestBudget } from "@/server/security/request-budget";
 
 export type LoadAudioClipUrlActionResult =
   | { ok: true; signedUrl: string }
@@ -40,7 +41,12 @@ export type ReprocessPronunciationActionResult =
   | { ok: true }
   | {
       ok: false;
-      error: "unauthorized" | "already_scored" | "unavailable" | "failed";
+      error:
+        | "unauthorized"
+        | "already_scored"
+        | "unavailable"
+        | "failed"
+        | "rate_limited";
     };
 
 /**
@@ -67,6 +73,16 @@ export async function reprocessPronunciationAction(input: {
   });
   if (!owns) {
     return { ok: false, error: "unauthorized" };
+  }
+
+  // Consumed only for a clip this teacher owns, and before the scoring
+  // provider call the reprocess path makes.
+  const budget = await consumeRequestBudget({
+    actorId: profile.id,
+    operation: "teacher_provider",
+  });
+  if (!budget.allowed) {
+    return { ok: false, error: "rate_limited" };
   }
 
   const result = await reprocessClipPronunciation({
