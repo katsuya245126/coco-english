@@ -381,6 +381,34 @@ export type Database = {
         >;
         Relationships: [];
       };
+      request_budgets: {
+        Row: {
+          actor_digest: string;
+          operation:
+            | "student_audio"
+            | "student_helper"
+            | "teacher_provider"
+            | "evaluator_warmup";
+          window_started_at: string;
+          request_count: number;
+          updated_at: string;
+        };
+        Insert: {
+          actor_digest: string;
+          operation:
+            | "student_audio"
+            | "student_helper"
+            | "teacher_provider"
+            | "evaluator_warmup";
+          window_started_at?: string;
+          request_count?: number;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["request_budgets"]["Insert"]
+        >;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -419,6 +447,18 @@ export type Database = {
           p_network_digest: string;
         };
         Returns: boolean;
+      };
+      consume_request_budget: {
+        Args: {
+          p_actor_digest: string;
+          p_operation: string;
+          p_request_limit: number;
+          p_window_seconds: number;
+        };
+        Returns: {
+          permitted: boolean;
+          retry_after_seconds: number;
+        }[];
       };
     };
     Enums: {
