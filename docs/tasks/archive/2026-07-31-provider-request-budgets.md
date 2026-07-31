@@ -69,6 +69,8 @@ task-sized local commits.
 - `42b373fd` feat: budget pronunciation reprocessing
 - `84246541` feat: budget evaluator warmups
 - `292110b7` fix: repair budget denial UX and teacher action error contract
+- `78cbe4c4` fix: saturate denied request budget counters
+- `50bfd4f8` docs: record budget plan deviations and final state
 
 ## Code review
 
@@ -92,10 +94,27 @@ Two findings were raised against the initial implementation and fixed in
    fails closed on rejection — an unreachable budget RPC denies rather than
    escaping the result union. Foreign resources still consume no budget.
 
+A second review over the full branch (`origin/main`..HEAD) raised no critical
+findings and one required pre-deployment fix, applied in `78cbe4c4`:
+
+3. **Denied request counters grew without bound.** Every call incremented
+   `request_count`, including denials, so sustained abuse could drive the
+   column toward `integer` overflow. On overflow the RPC raises and admission
+   fails closed, but the actor stays locked out until the row is deleted by
+   hand. The non-reset branch now clamps with
+   `least(public.request_budgets.request_count, p_request_limit) + 1`, applied
+   before the increment so the overflowing value is never evaluated. Denied
+   rows settle at `limit + 1`, which is all the `> p_request_limit` denial test
+   needs, so behaviour below the limit is unchanged.
+
+Accepted without change: the `teacher_provider` 10/600s quota is an accepted
+product limit, and the pre-admission ownership read in `updateMissionAction`
+was left unoptimised.
+
 ## Verification
 
 - Focused provider-budget tests: PASS.
-- Database integration tests: PASS 3/3 against an isolated local PostgreSQL 17 Supabase project.
+- Database integration tests: PASS 5/5 against an isolated local PostgreSQL 17 Supabase project.
 - Full Vitest: PASS.
 - Typecheck: PASS.
 - Lint: PASS.
@@ -105,10 +124,10 @@ Two findings were raised against the initial implementation and fixed in
 
 ### Verification detail
 
-- Focused budget suites: 15 files, 191 passed, 3 skipped (the skips are the
+- Focused budget suites: 11 files, 54 passed, 5 skipped (the skips are the
   integration cases, which skip under the default environment and were executed
   separately below).
-- **Database verification gap closed.** The three integration cases in
+- **Database verification gap closed.** The five integration cases in
   `tests/server/provider-request-budgets.integration.test.ts` were executed
   against an isolated local Supabase project (`coco-budget-verify`, PostgreSQL
   17.6) and all passed:
@@ -117,6 +136,15 @@ Two findings were raised against the initial implementation and fixed in
     genuine concurrency.
   - `resets an expired window and admits one global warm-up` — PASS. Confirms
     fixed-window rollover and the 1/90s warm-up ceiling.
+  - `admits through the limit, then saturates the denied counter` — PASS.
+    Confirms repeated denials keep failing closed while the stored counter
+    stops at `limit + 1`. This case fails against the pre-`78cbe4c4` function
+    definition, where the counter reached 8 instead of 4.
+  - `resets a window whose start is at least one window old` — PASS. Confirms
+    the reset branch fires on an expired window. It does not distinguish `<=`
+    from `<` — the RPC's own `clock_timestamp()` advances past the boundary
+    before the comparison runs — so the `<=` operator is pinned statically in
+    `tests/schema/provider-request-budgets-schema.test.ts` instead.
   - `denies table and RPC access to anon and authenticated roles` — PASS.
     Confirms RLS plus the service-role-only grants.
   - Isolation followed the precedent in
@@ -128,7 +156,9 @@ Two findings were raised against the initial implementation and fixed in
     stopped with `--no-backup`, deleted, or modified, and remains present. The
     repository's own `supabase/config.toml` was not edited. Keys were passed as
     one-shot environment variables; no `.env` file was written.
-- Full Vitest: 114 files, 1465 passed, 8 skipped.
+- Full Vitest: 114 files, 1467 passed, 10 skipped. The skips are the five
+  integration cases, which skip without local Supabase environment variables,
+  plus five pre-existing unrelated skips.
 - Lint: 0 errors, 1 warning — pre-existing and unrelated
   (`scripts/check-student-feedback-states.mjs:435`, unused `label`, last touched
   by `6312cbc9`). Not introduced and not fixed by this work.

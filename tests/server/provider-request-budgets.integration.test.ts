@@ -175,7 +175,7 @@ describe("provider request budgets integration", () => {
   );
 
   it(
-    "resets a window whose start sits exactly on the expiry boundary",
+    "resets a window whose start is at least one window old",
     async (context) => {
       if (!canRunLocally) {
         context.skip();
@@ -198,11 +198,9 @@ describe("provider request budgets integration", () => {
             ?.permitted,
         ).toBe(true);
 
-        // Backdate far enough that the elapsed time is at least one whole
-        // window even after the RPC's own `clock_timestamp()` advances. The
-        // reset comparison is `<=`, so a start exactly one window old is
-        // expired; a strict `<` would still pass here, which is why the
-        // saturation test above pins the increment and this one pins reset.
+        // Backdate by one whole window so the start is expired by the time
+        // the RPC runs. This proves the reset branch fires; it does not
+        // distinguish `<=` from `<`, which the schema test pins statically.
         const backdated = await admin
           .from("request_budgets")
           .update({

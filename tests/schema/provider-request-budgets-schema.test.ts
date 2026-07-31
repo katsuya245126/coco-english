@@ -48,4 +48,19 @@ describe("provider request budgets migration", () => {
     expect(sql).toContain("return query");
     expect(sql).toContain("retry_after_seconds");
   });
+
+  it("expires a window whose start is exactly one window old", () => {
+    // Pins `<=` rather than `<` statically: a behavioural test cannot tell the
+    // two apart, because the RPC's own clock_timestamp() advances past the
+    // boundary before the comparison runs.
+    expect(sql).toContain(
+      "public.request_budgets.window_started_at <= v_now - make_interval(secs => p_window_seconds)",
+    );
+  });
+
+  it("saturates the denied counter instead of incrementing without bound", () => {
+    expect(sql).toContain(
+      "least(public.request_budgets.request_count, p_request_limit) + 1",
+    );
+  });
 });
