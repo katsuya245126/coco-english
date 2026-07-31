@@ -9,7 +9,7 @@ import { generateJoinCode } from "@/domain/classroom/join-code";
 // can only see or mutate their own classes (AUTH-04, D-15). The caller is also
 // expected to have passed requireTeacherProfile() before reaching these.
 //
-// Per-query `.error` checks mirror src/server/foundation/createFoundationSmokeRecord.ts.
+// Keep per-query `.error` checks so partial Supabase failures never look successful.
 
 export type TeacherClass = {
   id: string;

@@ -2,15 +2,11 @@
 
 Teacher-linked AI speaking homework app for elementary ESL learners.
 
-## Phase 1 Foundation Smoke
+## Current App
 
-This slice proves the data, privacy, and workflow foundation:
-
-- Next.js App Router + TypeScript scaffold.
-- Supabase SQL migration for teacher, class, student, mission, assignment, per-student status, attempt, turn, audio metadata, and status audit tables.
-- Server-owned assignment status rules.
-- Internal smoke screen at `/` with one button that calls `POST /api/foundation`.
-- Demo records are marked with `data_mode = 'demo'`.
+- The root route `/` links teachers to `/auth/login` and students to `/join`.
+- Teachers use the authenticated workspace at `/teacher`.
+- Students enter their class code, name, and PIN at `/join`.
 
 ## Local Full-Stack Run
 
@@ -28,7 +24,7 @@ Fill `.env.local` with the local Supabase values for:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
-Then open `http://localhost:3000/`, click `Create foundation smoke record`, and confirm the UI shows a demo class, a foundation smoke assignment, `assigned`, and `data-mode: demo`.
+Then open `http://localhost:3000/` and choose the teacher or student entrypoint.
 
 ## Remote Dev Database Alternative
 
@@ -36,10 +32,7 @@ Set `NEXT_PUBLIC_SUPABASE_URL` and server-only `SUPABASE_SERVICE_ROLE_KEY` for a
 
 ```bash
 npm run dev
-npm run test:db:smoke
 ```
-
-Without Supabase env vars, the live DB smoke test skips the insert/read path and the UI shows an internal setup state. Static schema and domain tests still run.
 
 ## Verification
 
@@ -48,7 +41,6 @@ npm run lint
 npm run typecheck
 npm test
 npm run test:schema
-npm run test:db:smoke
 npm run test:e2e
 npm run build
 ```
