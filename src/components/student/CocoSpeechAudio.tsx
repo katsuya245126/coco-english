@@ -94,6 +94,9 @@ export function CocoSpeechAudio({
   const autoplayedUrlRef = useRef<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [state, setState] = useState<PlaybackState>("loading");
+  // Bumping this re-runs the fetch effect so a rate-limited student can retry
+  // after waiting without reloading the mission.
+  const [reloadCount, setReloadCount] = useState(0);
 
   // Fetch the signed URL and attempt opportunistic autoplay whenever the
   // descriptor changes. A blocked autoplay leaves the control in a ready state.
@@ -173,6 +176,7 @@ export function CocoSpeechAudio({
     line.feedbackVariant,
     line.characterId,
     onPlayingChange,
+    reloadCount,
   ]);
 
   useEffect(() => {
@@ -255,11 +259,29 @@ export function CocoSpeechAudio({
         <SpeakerIcon state={state} />
       </button>
 
-      {isError && presentation !== "dialogue-tab" ? (
+      {/*
+        The dialogue tab suppresses the generic outage text to keep the tab
+        compact, but a budget denial is recoverable and must stay visible in
+        every presentation — otherwise the main student path shows a dead
+        speaker button with no explanation and no way back.
+      */}
+      {isRateLimited ? (
+        <>
+          <span role="status" style={errorTextStyle}>
+            Please wait a few minutes, then try Coco’s voice again.
+          </span>
+          <button
+            type="button"
+            aria-label="Try Coco’s voice again"
+            onClick={() => setReloadCount((count) => count + 1)}
+            style={retryButtonStyle}
+          >
+            Try again
+          </button>
+        </>
+      ) : state === "error" && presentation !== "dialogue-tab" ? (
         <span role="status" style={errorTextStyle}>
-          {isRateLimited
-            ? "Please wait a few minutes, then try Coco’s voice again."
-            : "Voice unavailable"}
+          Voice unavailable
         </span>
       ) : null}
 
@@ -406,6 +428,16 @@ const errorButtonStyle: React.CSSProperties = {
 const errorTextStyle: React.CSSProperties = {
   fontSize: 12,
   color: "#9CA3AF",
+};
+
+const retryButtonStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: "#2563EB",
+  background: "none",
+  border: "none",
+  padding: 0,
+  cursor: "pointer",
+  textDecoration: "underline",
 };
 
 const hiddenAudioStyle: React.CSSProperties = {

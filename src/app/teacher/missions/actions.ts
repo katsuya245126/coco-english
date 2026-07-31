@@ -52,13 +52,22 @@ const GENERATE_OPENER_FAILURE =
 const PROVIDER_RATE_LIMIT_FAILURE =
   "You’ve made several AI requests. Wait a few minutes and try again.";
 
+/**
+ * Fails closed: the admission module already denies on RPC error, and a
+ * rejection here (an unreachable database) must never escape a server action's
+ * typed result union, so it is treated as a denial too.
+ */
 async function teacherProviderAllowed(teacherId: string): Promise<boolean> {
-  return (
-    await consumeRequestBudget({
-      actorId: teacherId,
-      operation: "teacher_provider",
-    })
-  ).allowed;
+  try {
+    return (
+      await consumeRequestBudget({
+        actorId: teacherId,
+        operation: "teacher_provider",
+      })
+    ).allowed;
+  } catch {
+    return false;
+  }
 }
 
 export type MissionActionResult =
@@ -159,13 +168,13 @@ export async function createMissionAction(
     };
   }
 
-  // Create references no stored resource, so admission runs straight after
-  // input validation and before answer-shape classification or any insert.
-  if (!(await teacherProviderAllowed(profile.id))) {
-    return { ok: false, error: PROVIDER_RATE_LIMIT_FAILURE };
-  }
-
   try {
+    // Create references no stored resource, so admission runs straight after
+    // input validation and before answer-shape classification or any insert.
+    if (!(await teacherProviderAllowed(profile.id))) {
+      return { ok: false, error: PROVIDER_RATE_LIMIT_FAILURE };
+    }
+
     const mission = await createMission({
       ...parsed.data,
       // Explicit for clarity: chat-mode fields persist alongside the rest of
@@ -200,21 +209,23 @@ export async function updateMissionAction(
     };
   }
 
-  // Ownership first: a foreign mission id must never spend this teacher's
-  // allowance, so the budget is consumed only for a mission they own.
-  const ownedMission = await getMissionForTeacher({
-    teacherId: profile.id,
-    missionId: missionId.data.missionId,
-  });
-  if (!ownedMission) {
-    return { ok: false, error: GENERIC_FAILURE };
-  }
-
-  if (!(await teacherProviderAllowed(profile.id))) {
-    return { ok: false, error: PROVIDER_RATE_LIMIT_FAILURE };
-  }
-
   try {
+    // Ownership first: a foreign mission id must never spend this teacher's
+    // allowance, so the budget is consumed only for a mission they own. Both
+    // reads stay inside the try so a database failure returns this action's
+    // typed failure instead of rejecting into the caller.
+    const ownedMission = await getMissionForTeacher({
+      teacherId: profile.id,
+      missionId: missionId.data.missionId,
+    });
+    if (!ownedMission) {
+      return { ok: false, error: GENERIC_FAILURE };
+    }
+
+    if (!(await teacherProviderAllowed(profile.id))) {
+      return { ok: false, error: PROVIDER_RATE_LIMIT_FAILURE };
+    }
+
     const mission = await updateMission({
       ...parsed.data,
       // Explicit for clarity: chat-mode fields persist alongside the rest of
@@ -388,28 +399,29 @@ export async function assignMissionAction(
     return { ok: false, error: ASSIGN_FAILURE };
   }
 
-  // Both referenced resources are proven owned before admission, so a forged
-  // mission or class id cannot spend this teacher's allowance. The assignment
-  // RPC and its TTS warm-up stay behind the gate.
-  const [assignedMission, ownedClasses] = await Promise.all([
-    getMissionForTeacher({
-      teacherId: profile.id,
-      missionId: parsed.data.missionId,
-    }),
-    listAssignableClassesForTeacher({ teacherId: profile.id }),
-  ]);
-  if (
-    !assignedMission ||
-    !ownedClasses.some(({ id }) => id === parsed.data.classId)
-  ) {
-    return { ok: false, error: ASSIGN_FAILURE };
-  }
-
-  if (!(await teacherProviderAllowed(profile.id))) {
-    return { ok: false, error: PROVIDER_RATE_LIMIT_FAILURE };
-  }
-
   try {
+    // Both referenced resources are proven owned before admission, so a forged
+    // mission or class id cannot spend this teacher's allowance. The assignment
+    // RPC and its TTS warm-up stay behind the gate. These reads stay inside the
+    // try so a database failure returns ASSIGN_FAILURE rather than rejecting.
+    const [assignedMission, ownedClasses] = await Promise.all([
+      getMissionForTeacher({
+        teacherId: profile.id,
+        missionId: parsed.data.missionId,
+      }),
+      listAssignableClassesForTeacher({ teacherId: profile.id }),
+    ]);
+    if (
+      !assignedMission ||
+      !ownedClasses.some(({ id }) => id === parsed.data.classId)
+    ) {
+      return { ok: false, error: ASSIGN_FAILURE };
+    }
+
+    if (!(await teacherProviderAllowed(profile.id))) {
+      return { ok: false, error: PROVIDER_RATE_LIMIT_FAILURE };
+    }
+
     const result = await assignMissionToClass({
       teacherId: profile.id,
       missionId: parsed.data.missionId,

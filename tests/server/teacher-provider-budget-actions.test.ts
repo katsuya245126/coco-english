@@ -255,6 +255,81 @@ describe("teacher provider budget actions", () => {
     expect(mockAssignMissionToClass).not.toHaveBeenCalled();
   });
 
+  it("returns a typed failure when the update ownership read rejects", async () => {
+    mockGetMissionForTeacher.mockRejectedValue(new Error("db down"));
+
+    const { updateMissionAction } = await actions();
+    await expect(
+      updateMissionAction(validMissionFormData()),
+    ).resolves.toEqual({
+      ok: false,
+      error:
+        "We could not save the mission. Check the highlighted fields and try again.",
+    });
+    expect(mockConsume).not.toHaveBeenCalled();
+    expect(mockUpdateMission).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["mission", () => mockGetMissionForTeacher],
+    ["class", () => mockListAssignableClassesForTeacher],
+  ])(
+    "returns a typed failure when the assignment %s ownership read rejects",
+    async (_name, reader) => {
+      reader().mockRejectedValue(new Error("db down"));
+
+      const { assignMissionAction } = await actions();
+      await expect(
+        assignMissionAction(validAssignmentFormData()),
+      ).resolves.toEqual({
+        ok: false,
+        error: "We could not assign this mission. Please try again.",
+      });
+      expect(mockConsume).not.toHaveBeenCalled();
+      expect(mockAssignMissionToClass).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    [
+      "premise",
+      async () =>
+        (await actions()).generatePremiseAction(validPremiseInput),
+      () => mockPremise,
+    ],
+    [
+      "opener",
+      async () => (await actions()).generateOpenerAction(validOpenerInput),
+      () => mockOpener,
+    ],
+    [
+      "create",
+      async () => (await actions()).createMissionAction(validMissionFormData()),
+      () => mockCreateMission,
+    ],
+  ])(
+    "fails %s closed without provider work when the budget check rejects",
+    async (_name, invoke, blocked) => {
+      mockConsume.mockRejectedValue(new Error("budget rpc down"));
+
+      await expect(invoke()).resolves.toEqual({
+        ok: false,
+        error: RATE_LIMIT_COPY,
+      });
+      expect(blocked()).not.toHaveBeenCalled();
+    },
+  );
+
+  it("returns a typed failure when the update budget check rejects", async () => {
+    mockConsume.mockRejectedValue(new Error("budget rpc down"));
+
+    const { updateMissionAction } = await actions();
+    await expect(
+      updateMissionAction(validMissionFormData()),
+    ).resolves.toMatchObject({ ok: false });
+    expect(mockUpdateMission).not.toHaveBeenCalled();
+  });
+
   it("admits an owned assignment and assigns once", async () => {
     const { assignMissionAction } = await actions();
     await expect(

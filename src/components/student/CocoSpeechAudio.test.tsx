@@ -119,4 +119,47 @@ describe("CocoSpeechAudio", () => {
     );
     expect(container.textContent).not.toContain("Voice unavailable");
   });
+
+  it("shows the wait-and-retry message and a working retry in the dialogue tab", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ ok: false, error: "rate_limited" }), {
+        status: 429,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await act(async () => {
+      root.render(
+        <CocoSpeechAudio
+          assignmentStudentId="assignment-student-1"
+          line={{ lineKind: "mission_prompt", turnOrder: 1 }}
+          presentation="dialogue-tab"
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // The dialogue tab suppresses the generic outage text, but a budget denial
+    // must still be visible and recoverable without reloading the mission.
+    expect(container.querySelector('[role="status"]')?.textContent).toBe(
+      "Please wait a few minutes, then try Coco’s voice again.",
+    );
+    expect(container.textContent).not.toContain("Voice unavailable");
+
+    const retry = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Try Coco’s voice again"]',
+    );
+    expect(retry).not.toBeNull();
+    expect(retry?.disabled).toBe(false);
+
+    await act(async () => {
+      retry?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });
