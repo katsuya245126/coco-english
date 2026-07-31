@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { studentUnlockSchema } from "@/domain/classroom/student-access-schemas";
 import {
   resolveClassById,
@@ -43,6 +43,16 @@ const GENERIC_MISMATCH: UnlockActionResult = {
 // student still re-enters their PIN on every fresh visit (D-13).
 const UNLOCK_COOKIE = "coco_student_unlock";
 
+async function studentNetworkSignal(): Promise<string> {
+  const headerStore = await headers();
+  return (
+    headerStore.get("x-vercel-forwarded-for")?.trim() ||
+    headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    headerStore.get("x-real-ip") ||
+    "unknown"
+  );
+}
+
 export type { StudentUnlockCookie } from "@/server/student-access/student-session";
 
 // Unlock a student. Validates shape; on ANY validation failure returns the same
@@ -59,7 +69,10 @@ export async function unlockStudentAction(input: {
     return GENERIC_MISMATCH;
   }
 
-  const result = await unlockStudent(parsed.data);
+  const result = await unlockStudent(
+    parsed.data,
+    await studentNetworkSignal(),
+  );
 
   if (result.ok) {
     const payload: StudentUnlockCookie = {

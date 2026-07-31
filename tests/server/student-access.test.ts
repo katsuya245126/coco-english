@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { unlockStudent } from "@/server/student-access/unlock";
 
@@ -14,6 +15,7 @@ import { unlockStudent } from "@/server/student-access/unlock";
 const hasSupabaseEnv = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
 );
+const TEST_NETWORK = "test-network";
 
 describe("unlockStudent generic-mismatch invariant (D-16)", () => {
   it("returns generic_mismatch for a malformed PIN without performing a lookup", async () => {
@@ -21,7 +23,7 @@ describe("unlockStudent generic-mismatch invariant (D-16)", () => {
       joinCode: "ABC123",
       typedName: "Jamie Lee",
       pin: "12", // not 4 digits -> short-circuits before any DB lookup
-    });
+    }, TEST_NETWORK);
 
     expect(result).toEqual({ ok: false, error: "generic_mismatch" });
   });
@@ -31,7 +33,7 @@ describe("unlockStudent generic-mismatch invariant (D-16)", () => {
       joinCode: "ABC123",
       typedName: "Jamie Lee",
       pin: "abcd",
-    });
+    }, TEST_NETWORK);
 
     expect(result).toEqual({ ok: false, error: "generic_mismatch" });
   });
@@ -43,12 +45,12 @@ describe("unlockStudent generic-mismatch invariant (D-16)", () => {
       joinCode: "WRONGCODE",
       typedName: "Someone Else",
       pin: "1",
-    });
+    }, TEST_NETWORK);
     const b = await unlockStudent({
       joinCode: "ANOTHER",
       typedName: "Different Name",
       pin: "99999",
-    });
+    }, TEST_NETWORK);
 
     expect(a).toEqual(b);
     expect(a).toEqual({ ok: false, error: "generic_mismatch" });
@@ -112,48 +114,99 @@ describe("unlockStudent generic-mismatch invariant (D-16)", () => {
         .single();
       expect(student.error).toBeNull();
 
-      // Happy path: correct tuple unlocks.
-      const ok = await unlockStudent({
-        joinCode,
-        typedName: realName,
-        pin: realPin,
-      });
-      expect(ok.ok).toBe(true);
-      if (ok.ok) {
-        expect(ok.classId).toBe(klass.data!.id);
-        expect(ok.studentId).toBe(student.data!.id);
+      const rateLimitNetwork = `rate-limit-test-${stamp}`;
+      const secret = process.env.STUDENT_ACCESS_SECRET ?? "";
+      const digest = (purpose: string, value: string) =>
+        createHmac("sha256", secret)
+          .update(`${purpose}:v1:${value}`)
+          .digest("base64url");
+      const targetDigest = digest("student-unlock-target", student.data!.id);
+      const networkDigest = digest(
+        "student-unlock-network",
+        rateLimitNetwork,
+      );
+      const clearLimiter = () =>
+        supabase
+          .from("student_unlock_attempts")
+          .delete()
+          .eq("target_digest", targetDigest)
+          .eq("network_digest", networkDigest);
+
+      try {
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+          expect(
+            await unlockStudent(
+              { joinCode, typedName: realName, pin: "0000" },
+              rateLimitNetwork,
+            ),
+          ).toEqual({ ok: false, error: "generic_mismatch" });
+        }
+
+        expect(
+          await unlockStudent(
+            { joinCode, typedName: realName, pin: realPin },
+            rateLimitNetwork,
+          ),
+        ).toEqual({ ok: false, error: "generic_mismatch" });
+
+        const exhaustedRow = await supabase
+          .from("student_unlock_attempts")
+          .select("attempt_count")
+          .eq("target_digest", targetDigest)
+          .eq("network_digest", networkDigest)
+          .single();
+        expect(exhaustedRow.error).toBeNull();
+        expect(exhaustedRow.data?.attempt_count).toBe(6);
+
+        const reset = await clearLimiter();
+        expect(reset.error).toBeNull();
+
+        const ok = await unlockStudent(
+          { joinCode, typedName: realName, pin: realPin },
+          rateLimitNetwork,
+        );
+        expect(ok.ok).toBe(true);
+        if (ok.ok) {
+          expect(ok.classId).toBe(klass.data!.id);
+          expect(ok.studentId).toBe(student.data!.id);
+        }
+
+        const afterSuccess = await supabase
+          .from("student_unlock_attempts")
+          .select("target_digest")
+          .eq("target_digest", targetDigest)
+          .eq("network_digest", networkDigest);
+        expect(afterSuccess.error).toBeNull();
+        expect(afterSuccess.data).toHaveLength(0);
+
+        // Three distinct failure branches must produce one identical value.
+        const wrongCode = await unlockStudent(
+          { joinCode: "ZZZZZZ", typedName: realName, pin: realPin },
+          rateLimitNetwork,
+        );
+        const wrongName = await unlockStudent(
+          { joinCode, typedName: "Totally Different Person", pin: realPin },
+          rateLimitNetwork,
+        );
+        const wrongPin = await unlockStudent(
+          { joinCode, typedName: realName, pin: "0000" },
+          rateLimitNetwork,
+        );
+
+        const generic = { ok: false, error: "generic_mismatch" };
+        expect(wrongCode).toEqual(generic);
+        expect(wrongName).toEqual(generic);
+        expect(wrongPin).toEqual(generic);
+        // Identical across all three (the core D-16 assertion).
+        expect(wrongCode).toEqual(wrongName);
+        expect(wrongName).toEqual(wrongPin);
+      } finally {
+        await clearLimiter();
+        await supabase
+          .from("teacher_profiles")
+          .delete()
+          .eq("id", teacher.data!.id);
       }
-
-      // Three distinct failure branches must produce one identical value.
-      const wrongCode = await unlockStudent({
-        joinCode: "ZZZZZZ",
-        typedName: realName,
-        pin: realPin,
-      });
-      const wrongName = await unlockStudent({
-        joinCode,
-        typedName: "Totally Different Person",
-        pin: realPin,
-      });
-      const wrongPin = await unlockStudent({
-        joinCode,
-        typedName: realName,
-        pin: "0000",
-      });
-
-      const generic = { ok: false, error: "generic_mismatch" };
-      expect(wrongCode).toEqual(generic);
-      expect(wrongName).toEqual(generic);
-      expect(wrongPin).toEqual(generic);
-      // Identical across all three (the core D-16 assertion).
-      expect(wrongCode).toEqual(wrongName);
-      expect(wrongName).toEqual(wrongPin);
-
-      // Cleanup (cascades remove class + student).
-      await supabase
-        .from("teacher_profiles")
-        .delete()
-        .eq("id", teacher.data!.id);
     },
   );
 

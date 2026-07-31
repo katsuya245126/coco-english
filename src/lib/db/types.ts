@@ -361,6 +361,26 @@ export type Database = {
         >;
         Relationships: [];
       };
+      student_unlock_attempts: {
+        Row: {
+          target_digest: string;
+          network_digest: string;
+          window_started_at: string;
+          attempt_count: number;
+          updated_at: string;
+        };
+        Insert: {
+          target_digest: string;
+          network_digest: string;
+          window_started_at?: string;
+          attempt_count?: number;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["student_unlock_attempts"]["Insert"]
+        >;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -392,6 +412,13 @@ export type Database = {
       request_submission_retry: {
         Args: { p_teacher_id: string; p_attempt_id: string; p_reason_note: string };
         Returns: "ok" | "not_found" | "invalid_status";
+      };
+      consume_student_unlock_attempt: {
+        Args: {
+          p_target_digest: string;
+          p_network_digest: string;
+        };
+        Returns: boolean;
       };
     };
     Enums: {

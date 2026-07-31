@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { normalizeRosterName } from "@/domain/classroom/roster-parser";
 import { verifyPin } from "@/domain/classroom/pin";
@@ -39,7 +40,7 @@ export async function unlockStudent(input: {
   joinCode: string;
   typedName: string;
   pin: string;
-}): Promise<StudentUnlockResult> {
+}, networkSignal: string): Promise<StudentUnlockResult> {
   // 1. Reject a malformed PIN BEFORE any lookup. A wrong-shape PIN costs no DB
   //    work and reads as the same generic failure as everything else.
   if (!/^\d{4}$/.test(input.pin)) {
@@ -51,6 +52,13 @@ export async function unlockStudent(input: {
   if (joinCode.length === 0 || normalizedName.length === 0) {
     return GENERIC_MISMATCH;
   }
+
+  const secret = process.env.STUDENT_ACCESS_SECRET ?? "";
+  if (Buffer.byteLength(secret) < 32) return GENERIC_MISMATCH;
+  const digest = (purpose: string, value: string) =>
+    createHmac("sha256", secret)
+      .update(`${purpose}:v1:${value}`)
+      .digest("base64url");
 
   try {
     const supabase = createSupabaseServiceClient();
@@ -82,10 +90,28 @@ export async function unlockStudent(input: {
       return GENERIC_MISMATCH;
     }
 
+    const targetDigest = digest("student-unlock-target", student.data.id);
+    const networkDigest = digest(
+      "student-unlock-network",
+      networkSignal || "unknown",
+    );
+    const permitted = await supabase.rpc("consume_student_unlock_attempt", {
+      p_target_digest: targetDigest,
+      p_network_digest: networkDigest,
+    });
+    if (permitted.error || permitted.data !== true) return GENERIC_MISMATCH;
+
     // 4. Verify the PIN hash (constant-time, never throws). Wrong PIN -> generic.
     if (!verifyPin(input.pin, student.data.pin_hash)) {
       return GENERIC_MISMATCH;
     }
+
+    const cleared = await supabase
+      .from("student_unlock_attempts")
+      .delete()
+      .eq("target_digest", targetDigest)
+      .eq("network_digest", networkDigest);
+    if (cleared.error) return GENERIC_MISMATCH;
 
     // 5. Full match. Return minimal student/class context for the home shell.
     return {
