@@ -38,6 +38,9 @@ supabase/.temp/
 docs/DESIGN-DECISIONS.md
 docs/PROBLEMS-SOLVED.md
 
+# Temporary local agent/session documentation
+docs/local/
+
 # One-off production DB management scripts — not for public repo
 scripts/list-recent-assignments.mjs
 scripts/inspect-attempts.mjs
