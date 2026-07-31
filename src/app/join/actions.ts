@@ -11,6 +11,11 @@ import {
   unlockStudent,
   type StudentUnlockResult,
 } from "@/server/student-access/unlock";
+import {
+  openStudentSession,
+  sealStudentSession,
+  type StudentUnlockCookie,
+} from "@/server/student-access/student-session";
 
 // Student-access server actions (the browser-facing boundary).
 //
@@ -38,12 +43,7 @@ const GENERIC_MISMATCH: UnlockActionResult = {
 // student still re-enters their PIN on every fresh visit (D-13).
 const UNLOCK_COOKIE = "coco_student_unlock";
 
-export type StudentUnlockCookie = {
-  classId: string;
-  studentId: string;
-  className: string;
-  displayName: string;
-};
+export type { StudentUnlockCookie } from "@/server/student-access/student-session";
 
 // Unlock a student. Validates shape; on ANY validation failure returns the same
 // generic mismatch (a malformed PIN/name/code must not be distinguishable from a
@@ -68,8 +68,16 @@ export async function unlockStudentAction(input: {
       className: result.className,
       displayName: result.displayName,
     };
+    const secret = process.env.STUDENT_ACCESS_SECRET ?? "";
+    let token: string;
+    try {
+      token = sealStudentSession(payload, secret);
+    } catch {
+      return GENERIC_MISMATCH;
+    }
+
     const cookieStore = await cookies();
-    cookieStore.set(UNLOCK_COOKIE, JSON.stringify(payload), {
+    cookieStore.set(UNLOCK_COOKIE, token, {
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
@@ -88,25 +96,7 @@ export async function readStudentUnlock(): Promise<StudentUnlockCookie | null> {
   const cookieStore = await cookies();
   const raw = cookieStore.get(UNLOCK_COOKIE)?.value;
   if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as Partial<StudentUnlockCookie>;
-    if (
-      typeof parsed.classId === "string" &&
-      typeof parsed.studentId === "string" &&
-      typeof parsed.className === "string" &&
-      typeof parsed.displayName === "string"
-    ) {
-      return {
-        classId: parsed.classId,
-        studentId: parsed.studentId,
-        className: parsed.className,
-        displayName: parsed.displayName,
-      };
-    }
-    return null;
-  } catch {
-    return null;
-  }
+  return openStudentSession(raw, process.env.STUDENT_ACCESS_SECRET ?? "");
 }
 
 // Clear the unlock cookie (switch class / sign out of the shell).
