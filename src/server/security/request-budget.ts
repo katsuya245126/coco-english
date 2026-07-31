@@ -4,7 +4,7 @@ import { createSupabaseServiceClient } from "@/lib/supabase/server";
 const BUDGETS = {
   student_audio: { requestLimit: 24, windowSeconds: 600 },
   student_helper: { requestLimit: 60, windowSeconds: 600 },
-  teacher_provider: { requestLimit: 10, windowSeconds: 600 },
+  teacher_provider: { requestLimit: 50, windowSeconds: 600 },
   evaluator_warmup: { requestLimit: 1, windowSeconds: 90 },
 } as const;
 

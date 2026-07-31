@@ -50,6 +50,31 @@ describe("consumeRequestBudget", () => {
     ).resolves.toEqual({ allowed: false, retryAfterSeconds: 321 });
   });
 
+  it("uses the approved 50-request teacher quota", async () => {
+    vi.stubEnv("STUDENT_ACCESS_SECRET", "t".repeat(32));
+    const rpc = vi.fn(async () => ({
+      data: [{ permitted: true, retry_after_seconds: 0 }],
+      error: null,
+    }));
+    const { consumeRequestBudget } = await import(
+      "@/server/security/request-budget"
+    );
+
+    await consumeRequestBudget(
+      { actorId: "teacher-1", operation: "teacher_provider" },
+      { rpc },
+    );
+
+    expect(rpc).toHaveBeenCalledWith(
+      "consume_request_budget",
+      expect.objectContaining({
+        p_operation: "teacher_provider",
+        p_request_limit: 50,
+        p_window_seconds: 600,
+      }),
+    );
+  });
+
   it.each(["", "short", "replace-with-a-random-secret-at-least-32-bytes"])(
     "fails closed without an RPC for invalid secret %j",
     async (secret) => {

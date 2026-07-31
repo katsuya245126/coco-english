@@ -27,7 +27,7 @@ A server-only `request-budget` module derives HMAC-SHA-256 actor digests from `S
 | --- | --- | --- |
 | `student_audio` | student ID | 24 requests / 10 minutes |
 | `student_helper` | student ID | 60 TTS-or-translation requests / 10 minutes |
-| `teacher_provider` | teacher profile ID | 10 provider-triggering actions / 10 minutes |
+| `teacher_provider` | teacher profile ID | 50 provider-triggering actions / 10 minutes |
 | `evaluator_warmup` | fixed system actor | 1 admission / 90 seconds |
 
 The fixed system actor is never derived from student data. It exists solely to coordinate provider-schema warm-up across server instances.

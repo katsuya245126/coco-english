@@ -16,7 +16,7 @@
 - Do not store or log raw student IDs, teacher IDs, network addresses, transcripts, or provider input in limiter state.
 - Do not apply migrations, deploy, push, or mutate a remote environment.
 - Keep evaluator warm-up; it protects first-recording latency.
-- Use literal budgets: `student_audio` 24/600 seconds, `student_helper` 60/600 seconds, `teacher_provider` 10/600 seconds, and `evaluator_warmup` 1/90 seconds.
+- Use literal budgets: `student_audio` 24/600 seconds, `student_helper` 60/600 seconds, `teacher_provider` 50/600 seconds, and `evaluator_warmup` 1/90 seconds.
 - Tests use fake provider functions only; no paid OpenAI or Azure request is authorized by this plan.
 - Implementation is consequential. Do not begin Task 1 until the user explicitly approves this plan.
 
@@ -487,7 +487,7 @@ import { createSupabaseServiceClient } from "@/lib/supabase/server";
 const BUDGETS = {
   student_audio: { requestLimit: 24, windowSeconds: 600 },
   student_helper: { requestLimit: 60, windowSeconds: 600 },
-  teacher_provider: { requestLimit: 10, windowSeconds: 600 },
+  teacher_provider: { requestLimit: 50, windowSeconds: 600 },
   evaluator_warmup: { requestLimit: 1, windowSeconds: 90 },
 } as const;
 
@@ -1484,6 +1484,6 @@ places. The snippets are superseded; the code is authoritative.
    changes nothing below the limit — the denial test only needs
    `> p_request_limit`.
 
-Reviewed and accepted without change: the `teacher_provider` 10/600s quota is
-an accepted product limit, and the pre-admission ownership read in
-`updateMissionAction` is left unoptimised.
+After implementation review, the owner raised `teacher_provider` from 10/600s
+to 50/600s so normal lesson preparation does not exhaust the shared bucket.
+The pre-admission ownership read in `updateMissionAction` remains unoptimised.

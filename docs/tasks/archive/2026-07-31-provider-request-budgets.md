@@ -51,7 +51,7 @@ task-sized local commits.
   under the `request-budget:v1:` purpose prefix from `STUDENT_ACCESS_SECRET` and
   fails closed on an invalid secret, an RPC error, or a malformed row.
 - Literal budgets: `student_audio` 24/600s, `student_helper` 60/600s,
-  `teacher_provider` 10/600s, `evaluator_warmup` 1/90s.
+  `teacher_provider` 50/600s, `evaluator_warmup` 1/90s.
 - Gates run after authentication, input validation, and ownership resolution,
   and before every provider call, cache lookup, blob read, Storage upload, and
   state mutation.
@@ -107,9 +107,9 @@ findings and one required pre-deployment fix, applied in `78cbe4c4`:
    rows settle at `limit + 1`, which is all the `> p_request_limit` denial test
    needs, so behaviour below the limit is unchanged.
 
-Accepted without change: the `teacher_provider` 10/600s quota is an accepted
-product limit, and the pre-admission ownership read in `updateMissionAction`
-was left unoptimised.
+After review, the owner raised `teacher_provider` from 10/600s to 50/600s so
+normal lesson preparation does not exhaust the shared bucket. The
+pre-admission ownership read in `updateMissionAction` was left unoptimised.
 
 ## Verification
 
