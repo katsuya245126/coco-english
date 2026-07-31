@@ -1,0 +1,265 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const {
+  mockRequireTeacherProfile,
+  mockConsume,
+  mockPremise,
+  mockOpener,
+  mockCreateMission,
+  mockUpdateMission,
+  mockAssignMissionToClass,
+  mockGetMissionForTeacher,
+  mockListAssignableClassesForTeacher,
+} = vi.hoisted(() => ({
+  mockRequireTeacherProfile: vi.fn(),
+  mockConsume: vi.fn(),
+  mockPremise: vi.fn(),
+  mockOpener: vi.fn(),
+  mockCreateMission: vi.fn(),
+  mockUpdateMission: vi.fn(),
+  mockAssignMissionToClass: vi.fn(),
+  mockGetMissionForTeacher: vi.fn(),
+  mockListAssignableClassesForTeacher: vi.fn(),
+}));
+
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+
+vi.mock("@/server/auth/teacher-profile", () => ({
+  requireTeacherProfile: mockRequireTeacherProfile,
+}));
+
+vi.mock("@/server/security/request-budget", () => ({
+  consumeRequestBudget: mockConsume,
+}));
+
+vi.mock("@/server/ai/scene-premise-generator", () => ({
+  generateScenePremise: mockPremise,
+}));
+
+vi.mock("@/server/ai/opener-generator", () => ({
+  generateOpener: mockOpener,
+}));
+
+vi.mock("@/server/mission/mission-service", () => ({
+  createMission: mockCreateMission,
+  updateMission: mockUpdateMission,
+  getMissionForTeacher: mockGetMissionForTeacher,
+  archiveMission: vi.fn(),
+  restoreMission: vi.fn(),
+  cancelMissionAssignment: vi.fn(),
+  listMissionAssignmentsForTeacher: vi.fn(),
+}));
+
+vi.mock("@/server/mission/assign-service", () => ({
+  assignMissionToClass: mockAssignMissionToClass,
+  listAssignableClassesForTeacher: mockListAssignableClassesForTeacher,
+}));
+
+const RATE_LIMIT_COPY =
+  "You’ve made several AI requests. Wait a few minutes and try again.";
+
+const MISSION_ID = "11111111-1111-4111-8111-111111111111";
+const CLASS_ID = "22222222-2222-4222-8222-222222222222";
+
+const ownedMission = { id: MISSION_ID, title: "Ordering food", turns: [] };
+const ownedClass = { id: CLASS_ID, name: "Class A" };
+
+const validPremiseInput = {
+  title: "Ordering food",
+  topic: "Food",
+  level: "elementary",
+  targetPattern: "I would like _____",
+};
+
+const validOpenerInput = {
+  ...validPremiseInput,
+  scenePremise: "Coco is at a food stall with the student.",
+};
+
+function validMissionFormData(missionId = MISSION_ID) {
+  const formData = new FormData();
+  formData.set("missionId", missionId);
+  formData.set("title", "Ordering food");
+  formData.set("topic", "Food");
+  formData.set("level", "elementary");
+  formData.set("targetPattern", "I would like _____");
+  formData.set("conversationMode", "on");
+  formData.set("scenePremise", "Coco is at a food stall with the student.");
+  formData.set("requireCompleteSentenceAnswers", "on");
+  // Conversation-mode missions must declare between 3 and 8 required turns.
+  formData.set("requiredTurns", "3");
+  formData.set(
+    "turns",
+    JSON.stringify([
+      {
+        turnOrder: 1,
+        prompt: "What would you like to eat?",
+        targetExample: "I would like pizza.",
+        answerShape: "open",
+        hintLadder: {
+          tier1: "I would like _____",
+          tier2: "pizza",
+          tier3: "I would like pizza.",
+        },
+      },
+    ]),
+  );
+  return formData;
+}
+
+function validAssignmentFormData() {
+  const formData = new FormData();
+  formData.set("missionId", MISSION_ID);
+  formData.set("classId", CLASS_ID);
+  formData.set("dueAt", "");
+  return formData;
+}
+
+async function actions() {
+  return await import("@/app/teacher/missions/actions");
+}
+
+describe("teacher provider budget actions", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    mockRequireTeacherProfile.mockReset();
+    mockConsume.mockReset();
+    mockPremise.mockReset();
+    mockOpener.mockReset();
+    mockCreateMission.mockReset();
+    mockUpdateMission.mockReset();
+    mockAssignMissionToClass.mockReset();
+    mockGetMissionForTeacher.mockReset();
+    mockListAssignableClassesForTeacher.mockReset();
+
+    mockRequireTeacherProfile.mockResolvedValue({ id: "teacher-1" });
+    mockConsume.mockResolvedValue({ allowed: true });
+    mockPremise.mockResolvedValue({
+      ok: true,
+      scenePremise: "Coco is at a food stall with the student.",
+    });
+    mockOpener.mockResolvedValue({ ok: true, opener: "Hi! What's good here?" });
+    mockCreateMission.mockResolvedValue({ id: MISSION_ID });
+    mockUpdateMission.mockResolvedValue({ id: MISSION_ID });
+    mockAssignMissionToClass.mockResolvedValue({
+      className: "Class A",
+      activeStudentCount: 3,
+    });
+    mockGetMissionForTeacher.mockResolvedValue(ownedMission);
+    mockListAssignableClassesForTeacher.mockResolvedValue([ownedClass]);
+  });
+
+  it.each([
+    [
+      "premise",
+      async () =>
+        (await actions()).generatePremiseAction(validPremiseInput),
+      () => mockPremise,
+    ],
+    [
+      "opener",
+      async () => (await actions()).generateOpenerAction(validOpenerInput),
+      () => mockOpener,
+    ],
+  ])(
+    "denies %s generation before provider work",
+    async (_name, invoke, provider) => {
+      mockConsume.mockResolvedValue({ allowed: false, retryAfterSeconds: 300 });
+
+      await expect(invoke()).resolves.toEqual({
+        ok: false,
+        error: RATE_LIMIT_COPY,
+      });
+      expect(provider()).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    [
+      "premise",
+      async () =>
+        (await actions()).generatePremiseAction(validPremiseInput),
+      () => mockPremise,
+    ],
+    [
+      "opener",
+      async () => (await actions()).generateOpenerAction(validOpenerInput),
+      () => mockOpener,
+    ],
+  ])("admits %s generation exactly once", async (_name, invoke, provider) => {
+    await expect(invoke()).resolves.toMatchObject({ ok: true });
+    expect(mockConsume).toHaveBeenCalledWith({
+      actorId: "teacher-1",
+      operation: "teacher_provider",
+    });
+    expect(provider()).toHaveBeenCalledTimes(1);
+  });
+
+  it("denies mission create before classification or database mutation", async () => {
+    mockConsume.mockResolvedValue({ allowed: false, retryAfterSeconds: 300 });
+
+    const { createMissionAction } = await actions();
+    await expect(createMissionAction(validMissionFormData())).resolves.toEqual({
+      ok: false,
+      error: RATE_LIMIT_COPY,
+    });
+    expect(mockCreateMission).not.toHaveBeenCalled();
+  });
+
+  it("admits mission create and mutates once", async () => {
+    const { createMissionAction } = await actions();
+    await expect(
+      createMissionAction(validMissionFormData()),
+    ).resolves.toMatchObject({ ok: true });
+    expect(mockCreateMission).toHaveBeenCalledTimes(1);
+  });
+
+  it("checks mission ownership before consuming update budget", async () => {
+    mockGetMissionForTeacher.mockResolvedValue(null);
+
+    const { updateMissionAction } = await actions();
+    await updateMissionAction(validMissionFormData("foreign-mission-id"));
+
+    expect(mockConsume).not.toHaveBeenCalled();
+    expect(mockUpdateMission).not.toHaveBeenCalled();
+  });
+
+  it("denies an owned mission update before database mutation", async () => {
+    mockConsume.mockResolvedValue({ allowed: false, retryAfterSeconds: 300 });
+
+    const { updateMissionAction } = await actions();
+    await expect(
+      updateMissionAction(validMissionFormData()),
+    ).resolves.toEqual({ ok: false, error: RATE_LIMIT_COPY });
+    expect(mockUpdateMission).not.toHaveBeenCalled();
+  });
+
+  it("checks mission and class ownership before consuming assignment budget", async () => {
+    mockGetMissionForTeacher.mockResolvedValue(ownedMission);
+    mockListAssignableClassesForTeacher.mockResolvedValue([]);
+
+    const { assignMissionAction } = await actions();
+    await assignMissionAction(validAssignmentFormData());
+
+    expect(mockConsume).not.toHaveBeenCalled();
+    expect(mockAssignMissionToClass).not.toHaveBeenCalled();
+  });
+
+  it("denies an owned assignment before RPC mutation or TTS warm-up", async () => {
+    mockConsume.mockResolvedValue({ allowed: false, retryAfterSeconds: 300 });
+
+    const { assignMissionAction } = await actions();
+    await expect(
+      assignMissionAction(validAssignmentFormData()),
+    ).resolves.toEqual({ ok: false, error: RATE_LIMIT_COPY });
+    expect(mockAssignMissionToClass).not.toHaveBeenCalled();
+  });
+
+  it("admits an owned assignment and assigns once", async () => {
+    const { assignMissionAction } = await actions();
+    await expect(
+      assignMissionAction(validAssignmentFormData()),
+    ).resolves.toMatchObject({ ok: true });
+    expect(mockAssignMissionToClass).toHaveBeenCalledTimes(1);
+  });
+});

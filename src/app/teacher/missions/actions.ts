@@ -10,16 +10,21 @@ import {
 } from "@/domain/mission/schemas";
 import { openerGenerationInputSchema } from "@/domain/ai/opener-generation";
 import { scenePremiseInputSchema } from "@/domain/ai/scene-premise";
-import { assignMissionToClass } from "@/server/mission/assign-service";
+import {
+  assignMissionToClass,
+  listAssignableClassesForTeacher,
+} from "@/server/mission/assign-service";
 import {
   archiveMission,
   cancelMissionAssignment,
   createMission,
+  getMissionForTeacher,
   listMissionAssignmentsForTeacher,
   restoreMission,
   updateMission,
   type MissionAssignmentSummary,
 } from "@/server/mission/mission-service";
+import { consumeRequestBudget } from "@/server/security/request-budget";
 import { generateScenePremise } from "@/server/ai/scene-premise-generator";
 import { generateOpener } from "@/server/ai/opener-generator";
 
@@ -43,6 +48,18 @@ const GENERATE_PREMISE_FAILURE =
 
 const GENERATE_OPENER_FAILURE =
   "We could not generate Coco's opening line. You can write one yourself or try again.";
+
+const PROVIDER_RATE_LIMIT_FAILURE =
+  "You’ve made several AI requests. Wait a few minutes and try again.";
+
+async function teacherProviderAllowed(teacherId: string): Promise<boolean> {
+  return (
+    await consumeRequestBudget({
+      actorId: teacherId,
+      operation: "teacher_provider",
+    })
+  ).allowed;
+}
 
 export type MissionActionResult =
   | { ok: true; missionId: string }
@@ -142,6 +159,12 @@ export async function createMissionAction(
     };
   }
 
+  // Create references no stored resource, so admission runs straight after
+  // input validation and before answer-shape classification or any insert.
+  if (!(await teacherProviderAllowed(profile.id))) {
+    return { ok: false, error: PROVIDER_RATE_LIMIT_FAILURE };
+  }
+
   try {
     const mission = await createMission({
       ...parsed.data,
@@ -175,6 +198,20 @@ export async function updateMissionAction(
           ? parsed.error.issues[0]?.message ?? GENERIC_FAILURE
           : GENERIC_FAILURE,
     };
+  }
+
+  // Ownership first: a foreign mission id must never spend this teacher's
+  // allowance, so the budget is consumed only for a mission they own.
+  const ownedMission = await getMissionForTeacher({
+    teacherId: profile.id,
+    missionId: missionId.data.missionId,
+  });
+  if (!ownedMission) {
+    return { ok: false, error: GENERIC_FAILURE };
+  }
+
+  if (!(await teacherProviderAllowed(profile.id))) {
+    return { ok: false, error: PROVIDER_RATE_LIMIT_FAILURE };
   }
 
   try {
@@ -268,7 +305,7 @@ export async function cancelMissionAssignmentAction(
 export async function generatePremiseAction(
   input: unknown,
 ): Promise<GeneratePremiseActionResult> {
-  await requireTeacherProfile();
+  const profile = await requireTeacherProfile();
   const parsed = scenePremiseInputSchema.safeParse(input);
 
   if (!parsed.success) {
@@ -276,6 +313,10 @@ export async function generatePremiseAction(
       ok: false,
       error: parsed.error.issues[0]?.message ?? GENERATE_PREMISE_FAILURE,
     };
+  }
+
+  if (!(await teacherProviderAllowed(profile.id))) {
+    return { ok: false, error: PROVIDER_RATE_LIMIT_FAILURE };
   }
 
   const result = await generateScenePremise(parsed.data);
@@ -289,11 +330,15 @@ export async function generatePremiseAction(
 export async function generateOpenerAction(
   input: unknown,
 ): Promise<GenerateOpenerActionResult> {
-  await requireTeacherProfile();
+  const profile = await requireTeacherProfile();
   const parsed = openerGenerationInputSchema.safeParse(input);
 
   if (!parsed.success) {
     return { ok: false, error: GENERATE_OPENER_FAILURE };
+  }
+
+  if (!(await teacherProviderAllowed(profile.id))) {
+    return { ok: false, error: PROVIDER_RATE_LIMIT_FAILURE };
   }
 
   const result = await generateOpener(parsed.data);
@@ -341,6 +386,27 @@ export async function assignMissionAction(
 
   if (!parsed.success) {
     return { ok: false, error: ASSIGN_FAILURE };
+  }
+
+  // Both referenced resources are proven owned before admission, so a forged
+  // mission or class id cannot spend this teacher's allowance. The assignment
+  // RPC and its TTS warm-up stay behind the gate.
+  const [assignedMission, ownedClasses] = await Promise.all([
+    getMissionForTeacher({
+      teacherId: profile.id,
+      missionId: parsed.data.missionId,
+    }),
+    listAssignableClassesForTeacher({ teacherId: profile.id }),
+  ]);
+  if (
+    !assignedMission ||
+    !ownedClasses.some(({ id }) => id === parsed.data.classId)
+  ) {
+    return { ok: false, error: ASSIGN_FAILURE };
+  }
+
+  if (!(await teacherProviderAllowed(profile.id))) {
+    return { ok: false, error: PROVIDER_RATE_LIMIT_FAILURE };
   }
 
   try {
