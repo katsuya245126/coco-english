@@ -9,6 +9,10 @@ const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 export const metadata: Metadata = {
   title: "Coco English",
   description: "Speaking practice for classrooms",
+  // iOS ignores the manifest for the home-screen icon and standalone mode, so
+  // these have to be declared separately from manifest.ts.
+  appleWebApp: { capable: true, title: "Coco", statusBarStyle: "default" },
+  icons: { icon: "/icon-192.png", apple: "/apple-touch-icon.png" },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
