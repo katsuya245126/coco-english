@@ -195,15 +195,15 @@ describe("teacher provider budget actions", () => {
     expect(provider()).toHaveBeenCalledTimes(1);
   });
 
-  it("denies mission create before classification or database mutation", async () => {
+  it("creates a mission without consuming the provider budget", async () => {
     mockConsume.mockResolvedValue({ allowed: false, retryAfterSeconds: 300 });
 
     const { createMissionAction } = await actions();
-    await expect(createMissionAction(validMissionFormData())).resolves.toEqual({
-      ok: false,
-      error: RATE_LIMIT_COPY,
+    await expect(createMissionAction(validMissionFormData())).resolves.toMatchObject({
+      ok: true,
     });
-    expect(mockCreateMission).not.toHaveBeenCalled();
+    expect(mockConsume).not.toHaveBeenCalled();
+    expect(mockCreateMission).toHaveBeenCalledTimes(1);
   });
 
   it("admits mission create and mutates once", async () => {
@@ -224,14 +224,15 @@ describe("teacher provider budget actions", () => {
     expect(mockUpdateMission).not.toHaveBeenCalled();
   });
 
-  it("denies an owned mission update before database mutation", async () => {
+  it("updates an owned mission without consuming the provider budget", async () => {
     mockConsume.mockResolvedValue({ allowed: false, retryAfterSeconds: 300 });
 
     const { updateMissionAction } = await actions();
     await expect(
       updateMissionAction(validMissionFormData()),
-    ).resolves.toEqual({ ok: false, error: RATE_LIMIT_COPY });
-    expect(mockUpdateMission).not.toHaveBeenCalled();
+    ).resolves.toMatchObject({ ok: true });
+    expect(mockConsume).not.toHaveBeenCalled();
+    expect(mockUpdateMission).toHaveBeenCalledTimes(1);
   });
 
   it("checks mission and class ownership before consuming assignment budget", async () => {
@@ -302,11 +303,6 @@ describe("teacher provider budget actions", () => {
       async () => (await actions()).generateOpenerAction(validOpenerInput),
       () => mockOpener,
     ],
-    [
-      "create",
-      async () => (await actions()).createMissionAction(validMissionFormData()),
-      () => mockCreateMission,
-    ],
   ])(
     "fails %s closed without provider work when the budget check rejects",
     async (_name, invoke, blocked) => {
@@ -319,16 +315,6 @@ describe("teacher provider budget actions", () => {
       expect(blocked()).not.toHaveBeenCalled();
     },
   );
-
-  it("returns a typed failure when the update budget check rejects", async () => {
-    mockConsume.mockRejectedValue(new Error("budget rpc down"));
-
-    const { updateMissionAction } = await actions();
-    await expect(
-      updateMissionAction(validMissionFormData()),
-    ).resolves.toMatchObject({ ok: false });
-    expect(mockUpdateMission).not.toHaveBeenCalled();
-  });
 
   it("admits an owned assignment and assigns once", async () => {
     const { assignMissionAction } = await actions();

@@ -169,12 +169,6 @@ export async function createMissionAction(
   }
 
   try {
-    // Create references no stored resource, so admission runs straight after
-    // input validation and before answer-shape classification or any insert.
-    if (!(await teacherProviderAllowed(profile.id))) {
-      return { ok: false, error: PROVIDER_RATE_LIMIT_FAILURE };
-    }
-
     const mission = await createMission({
       ...parsed.data,
       // Explicit for clarity: chat-mode fields persist alongside the rest of
@@ -220,10 +214,6 @@ export async function updateMissionAction(
     });
     if (!ownedMission) {
       return { ok: false, error: GENERIC_FAILURE };
-    }
-
-    if (!(await teacherProviderAllowed(profile.id))) {
-      return { ok: false, error: PROVIDER_RATE_LIMIT_FAILURE };
     }
 
     const mission = await updateMission({
