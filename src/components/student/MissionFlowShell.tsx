@@ -416,6 +416,11 @@ export function MissionFlowShell({
         (typeof payload.displayTranscript !== "string" ||
           payload.displayTranscript.trim().length === 0))
     ) {
+      if (payload?.error === "rate_limited") {
+        throw new Error(
+          "You’ve practiced a lot in a short time. Wait a few minutes, then try again.",
+        );
+      }
       if (payload?.error === "transcription_failed_retryable") {
         throw new Error("I didn't hear you. Try again.");
       }

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/lib/db/types";
 import type { GenerateCocoReplyResult } from "@/server/ai/conversation-generator";
@@ -13,7 +15,10 @@ import type {
 // canned-fallback path, and idempotent coco_line/moderation_event persistence.
 
 let mockSupabase: ReturnType<typeof createMockSupabase>;
-const { mockLog } = vi.hoisted(() => ({ mockLog: vi.fn() }));
+const { mockLog, mockConsumeRequestBudget } = vi.hoisted(() => ({
+  mockLog: vi.fn(),
+  mockConsumeRequestBudget: vi.fn(),
+}));
 
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServiceClient: () => mockSupabase,
@@ -21,6 +26,13 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@/server/logging/logger", () => ({
   log: mockLog,
+}));
+
+// The real module fails closed without a configured STUDENT_ACCESS_SECRET.
+// These tests cover conversation orchestration, not admission, so the budget
+// admits by default.
+vi.mock("@/server/security/request-budget", () => ({
+  consumeRequestBudget: mockConsumeRequestBudget,
 }));
 
 type Operation = {
@@ -333,10 +345,26 @@ function fakeIsContentSafe(
   return vi.fn(impl);
 }
 
+describe("student audio rate-limit presentation", () => {
+  const missionFlowSource = readFileSync(
+    join(process.cwd(), "src/components/student/MissionFlowShell.tsx"),
+    "utf8",
+  );
+
+  it("shows distinct wait-and-retry copy instead of a provider-outage message", () => {
+    expect(missionFlowSource).toContain('payload?.error === "rate_limited"');
+    expect(missionFlowSource).toContain(
+      "You’ve practiced a lot in a short time. Wait a few minutes, then try again.",
+    );
+  });
+});
+
 describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   beforeEach(() => {
     vi.resetModules();
     mockLog.mockClear();
+    mockConsumeRequestBudget.mockReset();
+    mockConsumeRequestBudget.mockResolvedValue({ allowed: true });
     mockSupabase = createMockSupabase();
     process.env.STUDENT_AUDIO_BUCKET = "student-audio";
   });

@@ -98,6 +98,18 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
   }
 
+  if (result.error === "rate_limited") {
+    return NextResponse.json(
+      { ok: false, error: "rate_limited" },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(result.retryAfterSeconds ?? 600),
+        },
+      },
+    );
+  }
+
   if (result.error === "transcription_failed_retryable") {
     return NextResponse.json(
       { ok: false, error: "transcription_failed_retryable" },

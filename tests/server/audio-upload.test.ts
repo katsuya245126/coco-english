@@ -4,10 +4,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/lib/db/types";
 
 let mockSupabase: ReturnType<typeof createMockSupabase>;
-const { mockLog } = vi.hoisted(() => ({ mockLog: vi.fn() }));
+const { mockLog, mockConsumeRequestBudget } = vi.hoisted(() => ({
+  mockLog: vi.fn(),
+  mockConsumeRequestBudget: vi.fn(),
+}));
 
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServiceClient: () => mockSupabase,
+}));
+
+// The real module fails closed without a configured STUDENT_ACCESS_SECRET.
+// These tests cover upload behavior, not admission, so the budget admits by
+// default; the budget-specific tests inject their own denying fake.
+vi.mock("@/server/security/request-budget", () => ({
+  consumeRequestBudget: mockConsumeRequestBudget,
 }));
 
 vi.mock("@/server/logging/logger", () => ({
@@ -313,8 +323,80 @@ describe("uploadAttemptAudioClip", () => {
   beforeEach(() => {
     vi.resetModules();
     mockLog.mockClear();
+    mockConsumeRequestBudget.mockReset();
+    mockConsumeRequestBudget.mockResolvedValue({ allowed: true });
     mockSupabase = createMockSupabase();
     process.env.STUDENT_AUDIO_BUCKET = "student-audio";
+  });
+
+  it("denies after ownership checks and before blob, row, storage, or provider work", async () => {
+    const consumeRequestBudget = vi.fn(async () => ({
+      allowed: false as const,
+      retryAfterSeconds: 287,
+    }));
+    const transcribeAudioFile = vi.fn();
+    const file = new Blob(["voice"], { type: "audio/webm" });
+    const arrayBuffer = vi.spyOn(file, "arrayBuffer");
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const result = await uploadAttemptAudioClip(
+      audioInput({ file, body: "voice" }),
+      { consumeRequestBudget, transcribeAudioFile },
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: "rate_limited",
+      retryable: true,
+      retryAfterSeconds: 287,
+    });
+    expect(consumeRequestBudget).toHaveBeenCalledWith({
+      actorId: "student-1",
+      operation: "student_audio",
+    });
+    expect(
+      mockSupabase.operations.some(({ action }) => action === "select"),
+    ).toBe(true);
+    expect(
+      mockSupabase.operations.some(({ action }) => action === "insert"),
+    ).toBe(false);
+    expect(mockSupabase.storage.from).not.toHaveBeenCalled();
+    expect(arrayBuffer).not.toHaveBeenCalled();
+    expect(transcribeAudioFile).not.toHaveBeenCalled();
+  });
+
+  it("still uploads, inserts, and transcribes when the audio budget admits", async () => {
+    const consumeRequestBudget = vi.fn(async () => ({ allowed: true as const }));
+    const transcribeAudioFile = successfulTranscriber("I like apples.");
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      consumeRequestBudget,
+      transcribeAudioFile,
+      evaluateOriginalTurn: vi.fn(async () => ({
+        ok: false as const,
+        error: "provider_failed" as const,
+      })),
+      scorePronunciation: vi.fn(async () => ({
+        ok: false as const,
+        error: "provider_failed" as const,
+      })),
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(consumeRequestBudget).toHaveBeenCalledWith({
+      actorId: "student-1",
+      operation: "student_audio",
+    });
+    expect(
+      mockSupabase.operations.some(({ action }) => action === "insert"),
+    ).toBe(true);
+    expect(mockSupabase.storage.from).toHaveBeenCalled();
+    expect(transcribeAudioFile).toHaveBeenCalled();
   });
 
   it("accepts an authored open frame with the learner's own choice without evaluation", async () => {
@@ -1803,6 +1885,8 @@ describe("minimal-effort answer guard", () => {
   beforeEach(() => {
     vi.resetModules();
     mockLog.mockClear();
+    mockConsumeRequestBudget.mockReset();
+    mockConsumeRequestBudget.mockResolvedValue({ allowed: true });
     mockSupabase = createMockSupabase();
     process.env.STUDENT_AUDIO_BUCKET = "student-audio";
   });

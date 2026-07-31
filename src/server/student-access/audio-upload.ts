@@ -85,6 +85,7 @@ import {
   type GenerateCocoReplyResult,
 } from "@/server/ai/conversation-generator";
 import { isContentSafe } from "@/server/ai/content-moderation";
+import { consumeRequestBudget } from "@/server/security/request-budget";
 import {
   classifyFollowUpFallbackKind,
   selectClosingFallbackLine,
@@ -182,11 +183,14 @@ export type UploadAttemptAudioClipResult =
         | "invalid_audio"
         | "upload_failed_retryable"
         | "transcription_failed_retryable"
-        | "db_error";
+        | "db_error"
+        | "rate_limited";
       retryable: boolean;
+      retryAfterSeconds?: number;
     };
 
 export type UploadAttemptAudioClipDeps = {
+  consumeRequestBudget?: typeof consumeRequestBudget;
   transcribeAudioFile?: typeof transcribeAudioFile;
   evaluateOriginalTurn?: typeof evaluateOriginalTurn;
   evaluateRepeatTurn?: typeof evaluateRepeatTurn;
@@ -925,6 +929,26 @@ export async function uploadAttemptAudioClip(
     if (!snapshotTurn && !isDynamicChatTurn) {
       logTiming("failed", { error: "invalid_audio", step: "mission_snapshot" });
       return { ok: false, error: "invalid_audio", retryable: false };
+    }
+
+    // Admission runs only after assignment/attempt ownership, status,
+    // cancellation, and mission-snapshot turn checks have all passed, so a
+    // malformed or foreign request can never spend a student's allowance. It
+    // runs before the conversation-history read, `file.arrayBuffer()`, the
+    // attempt_turns upsert, the audio_clips insert, Storage, and every
+    // provider call — a denied request causes no growth and no paid work.
+    const budget = await (deps.consumeRequestBudget ?? consumeRequestBudget)({
+      actorId: input.studentId,
+      operation: "student_audio",
+    });
+    if (!budget.allowed) {
+      logTiming("failed", { error: "rate_limited", step: "request_budget" });
+      return {
+        ok: false,
+        error: "rate_limited",
+        retryable: true,
+        retryAfterSeconds: budget.retryAfterSeconds,
+      };
     }
 
     let priorConversationTurns: PersistedConversationTurn[] = [];
