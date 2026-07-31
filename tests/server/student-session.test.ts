@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   openStudentSession,
@@ -37,5 +38,19 @@ describe("student session token", () => {
   it("refuses a short or missing secret", () => {
     expect(() => sealStudentSession(payload, "short", 1_000)).toThrow();
     expect(openStudentSession("anything", "", 1_000)).toBeNull();
+  });
+
+  it("refuses the public placeholder from .env.example", () => {
+    const example = readFileSync(".env.example", "utf8");
+    const placeholder = example.match(/^STUDENT_ACCESS_SECRET=(.+)$/m)?.[1];
+    expect(placeholder).toBeDefined();
+    expect(() => sealStudentSession(payload, placeholder!, 1_000)).toThrow();
+    expect(() =>
+      sealStudentSession(
+        payload,
+        "replace-with-an-independent-long-random-secret",
+        1_000,
+      ),
+    ).toThrow();
   });
 });

@@ -18,17 +18,18 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Fill `.env.local` with the local Supabase values for:
+Fill `.env.local` with:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `STUDENT_ACCESS_SECRET` (`openssl rand -hex 32`)
 
 Then open `http://localhost:3000/` and choose the teacher or student entrypoint.
 
 ## Remote Dev Database Alternative
 
-Set `NEXT_PUBLIC_SUPABASE_URL` and server-only `SUPABASE_SERVICE_ROLE_KEY` for a migrated Supabase project, then run:
+Set `NEXT_PUBLIC_SUPABASE_URL`, server-only `SUPABASE_SERVICE_ROLE_KEY`, and a generated server-only `STUDENT_ACCESS_SECRET` for a migrated Supabase project, then run:
 
 ```bash
 npm run dev

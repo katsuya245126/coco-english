@@ -44,7 +44,7 @@ Add `student_unlock_attempts`, keyed by HMAC digests of:
 
 The browser-facing action obtains Vercel's deployment-provided `x-vercel-forwarded-for` network address header, then `x-forwarded-for` for local/proxy compatibility, falling back to a fixed `unknown` value when absent. Vercel documents that it overwrites `x-forwarded-for` to prevent spoofing. The action passes the signal separately to `unlockStudent`; raw values are HMACed before database access.
 
-After the existing class and student lookup succeeds, an atomic PostgreSQL RPC consumes one attempt immediately before PIN verification. It permits five valid-shaped submissions per student/network pair in a rolling ten-minute window. Concurrent requests update the same row atomically. The sixth and later attempts return the existing generic mismatch without calling `verifyPin`. A successful PIN verification clears that pair's counter. Unknown identifiers do not allocate limiter rows.
+After the existing class and student lookup succeeds, an atomic PostgreSQL RPC consumes one attempt immediately before PIN verification. It permits five valid-shaped submissions per student/network pair in a fixed ten-minute window anchored to the first attempt. Concurrent requests update the same row atomically. The sixth and later attempts return the existing generic mismatch without calling `verifyPin`. A successful PIN verification clears that pair's counter. Unknown identifiers do not allocate limiter rows.
 
 Malformed PINs and empty normalized identifiers keep their current pre-database generic short-circuit. Limiter tables use RLS and grant access only to `service_role`; RPC execution is revoked from `public`, `anon`, and `authenticated`.
 

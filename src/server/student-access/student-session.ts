@@ -21,7 +21,7 @@ function signature(body: string, secret: string): Buffer {
 }
 
 function validSecret(secret: string): boolean {
-  return Buffer.byteLength(secret) >= 32;
+  return Buffer.byteLength(secret) >= 32 && !secret.startsWith("replace-with-");
 }
 
 export function sealStudentSession(
