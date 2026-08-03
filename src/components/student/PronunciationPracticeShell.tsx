@@ -85,6 +85,7 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
   const [feedbackVariant, setFeedbackVariant] = useState<string | null>(null);
   const [wordAudioUrls, setWordAudioUrls] = useState<Record<number, string>>({});
   const wordAudioCache = useRef(new Map<number, string>());
+  const autoPlayedWordOrders = useRef(new Set<number>());
   const soundAudioRef = useRef<HTMLAudioElement | null>(null);
   const wordAudioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -110,6 +111,24 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
       cancelled = true;
     };
   }, [currentWordOrder, page.assignmentStudentId]);
+
+  const currentWordAudioUrl = currentWordOrder === null
+    ? null
+    : wordAudioUrls[currentWordOrder] ?? null;
+
+  useEffect(() => {
+    if (
+      currentWordOrder === null ||
+      !currentWordAudioUrl ||
+      autoPlayedWordOrders.current.has(currentWordOrder) ||
+      !wordAudioRef.current
+    ) {
+      return;
+    }
+    autoPlayedWordOrders.current.add(currentWordOrder);
+    wordAudioRef.current.currentTime = 0;
+    void wordAudioRef.current.play().catch(() => undefined);
+  }, [currentWordAudioUrl, currentWordOrder]);
 
   function replay(audioRef: { current: HTMLAudioElement | null }) {
     if (!audioRef.current) return;

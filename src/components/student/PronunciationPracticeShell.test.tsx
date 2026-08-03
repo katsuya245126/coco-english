@@ -146,6 +146,7 @@ describe("PronunciationPracticeShell", () => {
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ body: JSON.stringify({ wordOrder: 1 }) });
     expect(container.querySelector('button[aria-label="Play sound"]')).not.toBeNull();
     expect(container.querySelector('button[aria-label="Play word"]')).not.toBeNull();
+    expect(play).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       container.querySelector<HTMLButtonElement>('button[aria-label="Play sound"]')?.click();
@@ -154,7 +155,7 @@ describe("PronunciationPracticeShell", () => {
       container.querySelector<HTMLButtonElement>('button[aria-label="Play word"]')?.click();
     });
 
-    expect(play).toHaveBeenCalledTimes(4);
+    expect(play).toHaveBeenCalledTimes(5);
     expect(container.textContent).not.toContain("Skip");
     expect(container.textContent).not.toContain("transcript");
   });
