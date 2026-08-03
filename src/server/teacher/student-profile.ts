@@ -47,6 +47,21 @@ function clipsFromMissionRows(rows: ProfileScoreRow[]): StudentClipScore[] {
   }));
 }
 
+type PronunciationProfileRow = {
+  try_number: number;
+  transcript: string | null;
+  audio_clips: {
+    pronunciation_scores:
+      | { word_scores: unknown }
+      | { word_scores: unknown }[]
+      | null;
+  } | { pronunciation_scores: { word_scores: unknown } | { word_scores: unknown }[] | null }[] | null;
+};
+
+function firstRelation<T>(value: T | T[] | null | undefined): T | null {
+  return Array.isArray(value) ? value[0] ?? null : value ?? null;
+}
+
 type ConfirmedSampleProfileRow = {
   id?: string;
   provisional_result?: unknown;
@@ -158,6 +173,7 @@ export async function getStudentSoundProfile(
             assignment_students!attempts_assignment_student_id_fkey!inner(
               student_id,
               assignments!inner(
+                assignment_kind,
                 classes!inner(teacher_id)
               )
             )
@@ -174,6 +190,10 @@ export async function getStudentSoundProfile(
     .eq(
       "audio_clips.attempt_turns.attempts.assignment_students.assignments.classes.teacher_id",
       teacherId,
+    )
+    .eq(
+      "audio_clips.attempt_turns.attempts.assignment_students.assignments.assignment_kind",
+      "mission",
     );
 
   if (scores.error) {
@@ -215,10 +235,54 @@ export async function getStudentSoundProfile(
     );
   }
 
-  return buildStudentSoundProfile(
-    rows.data,
-    sampleRows.data,
-  );
+  const pronunciationTries = await supabase
+    .from("pronunciation_word_tries")
+    .select(
+      `
+      transcript,
+      try_number,
+      audio_clips!inner(
+        pronunciation_scores!inner(word_scores)
+      ),
+      attempt_turns!inner(
+        attempts!inner(
+          assignment_students!inner(
+            student_id,
+            assignments!inner(
+              classes!inner(teacher_id)
+            )
+          )
+        )
+      )
+    `,
+    )
+    .eq("try_number", 1)
+    .eq("attempt_turns.attempts.assignment_students.student_id", studentId)
+    .eq(
+      "attempt_turns.attempts.assignment_students.assignments.classes.teacher_id",
+      teacherId,
+    );
+
+  if (pronunciationTries.error) {
+    throw new Error(
+      `Unable to load pronunciation practice scores: ${pronunciationTries.error.message}`,
+    );
+  }
+
+  const practiceRows: ProfileScoreRow[] = [];
+  for (const row of (pronunciationTries.data ?? []) as unknown as PronunciationProfileRow[]) {
+    if (row.try_number !== 1) continue;
+    const clip = firstRelation(row.audio_clips);
+    const score = firstRelation(clip?.pronunciation_scores);
+    if (score) {
+      practiceRows.push({
+        reference_text: row.transcript,
+        word_scores: score.word_scores,
+      });
+    }
+  }
+
+  return buildStudentSoundProfile([...rows.data, ...practiceRows], sampleRows.data);
 }
 
 export type StudentProfileHeader = {

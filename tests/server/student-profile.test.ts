@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildStudentSoundProfile } from "@/server/teacher/student-profile";
+
+let profileClient: { from: ReturnType<typeof vi.fn> };
+
+vi.mock("@/lib/supabase/server-auth", () => ({
+  createSupabaseServerClient: () => profileClient,
+}));
 
 describe("buildStudentSoundProfile", () => {
   it("scopes to original_answer clips and aggregates weak phonemes", () => {
@@ -152,5 +158,120 @@ describe("buildStudentSoundProfile", () => {
         teacherSampleIds: ["sample-strong"],
       },
     ]);
+  });
+});
+
+describe("getStudentSoundProfile", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    const rowsByTable = {
+      pronunciation_scores: [
+        {
+          reference_text: "red",
+          word_scores: [
+            {
+              word: "red",
+              accuracyScore: 20,
+              errorType: "Mispronunciation",
+              phonemes: [{ phoneme: "r", accuracyScore: 20 }],
+            },
+          ],
+        },
+      ],
+      pronunciation_word_tries: [
+        {
+          try_number: 1,
+          transcript: "river",
+          audio_clips: {
+            pronunciation_scores: [
+              {
+                word_scores: [
+                  {
+                    word: "river",
+                    accuracyScore: 20,
+                    errorType: "Mispronunciation",
+                    phonemes: [{ phoneme: "r", accuracyScore: 20 }],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        {
+          try_number: 1,
+          transcript: "road",
+          audio_clips: {
+            pronunciation_scores: [
+              {
+                word_scores: [
+                  {
+                    word: "road",
+                    accuracyScore: 20,
+                    errorType: "Mispronunciation",
+                    phonemes: [{ phoneme: "r", accuracyScore: 20 }],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        {
+          try_number: 1,
+          transcript: "right",
+          audio_clips: {
+            pronunciation_scores: [
+              {
+                word_scores: [
+                  {
+                    word: "right",
+                    accuracyScore: 20,
+                    errorType: "Mispronunciation",
+                    phonemes: [{ phoneme: "r", accuracyScore: 20 }],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        {
+          try_number: 1,
+          transcript: "rain",
+          audio_clips: {
+            pronunciation_scores: [
+              {
+                word_scores: [
+                  {
+                    word: "rain",
+                    accuracyScore: 20,
+                    errorType: "Mispronunciation",
+                    phonemes: [{ phoneme: "r", accuracyScore: 20 }],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    };
+    profileClient = {
+      from: vi.fn((table: keyof typeof rowsByTable) => {
+        const chain: Record<string, unknown> = {};
+        chain.select = () => chain;
+        chain.eq = () => chain;
+        chain.is = () => chain;
+        chain.then = (resolve: (value: unknown) => void) =>
+          Promise.resolve({ data: rowsByTable[table], error: null }).then(resolve);
+        return chain;
+      }),
+    };
+  });
+
+  it("adds only pronunciation try one to the existing mission profile", async () => {
+    const { getStudentSoundProfile } = await import("@/server/teacher/student-profile");
+
+    const result = await getStudentSoundProfile("student-1", "teacher-1");
+
+    expect(result[0]).toMatchObject({ label: "r", weakCount: 5, totalCount: 5 });
+    expect(profileClient.from).toHaveBeenCalledWith("pronunciation_word_tries");
   });
 });

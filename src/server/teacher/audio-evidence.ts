@@ -41,6 +41,10 @@ import {
   storedOriginalOf,
   storedOriginalMetadataOf,
 } from "@/domain/ai/stored-evaluation";
+import {
+  getPronunciationEvidenceForTeacher,
+  type PronunciationWordEvidence,
+} from "@/server/teacher/pronunciation-evidence";
 
 const DEFAULT_AUDIO_BUCKET = "student-audio";
 const SIGNED_AUDIO_URL_TTL_SECONDS = 300;
@@ -115,6 +119,7 @@ export type AttemptTurnEvidence = {
 };
 
 export type AttemptEvidence = {
+  assignmentKind: "mission" | "pronunciation";
   attemptId: string;
   assignmentStudentId: string;
   assignmentId: string;
@@ -133,6 +138,7 @@ export type AttemptEvidence = {
   /** Free-talking mission: the target pattern is soft context, not a per-turn goal. */
   conversationMode: boolean;
   turns: AttemptTurnEvidence[];
+  pronunciationWords?: PronunciationWordEvidence[];
 };
 
 function getStudentAudioBucketId() {
@@ -489,6 +495,12 @@ export async function getAttemptEvidenceForTeacher(input: {
     return null;
   }
 
+  const ownershipRow = attempt.data as AttemptOwnershipRow;
+  const assignment = one(one(ownershipRow.assignment_students)?.assignments);
+  if (assignment?.assignment_kind === "pronunciation") {
+    return getPronunciationEvidenceForTeacher(input);
+  }
+
   const turns = await listOwnedAttemptTurnsForTeacher(input);
 
   if (turns.error) {
@@ -545,11 +557,11 @@ export async function getAttemptEvidenceForTeacher(input: {
     }
   }
 
-  const ownershipRow = attempt.data as AttemptOwnershipRow;
   const metadata = mapAttemptMetadata(ownershipRow);
   const missionContext = readAttemptMissionContext(ownershipRow);
 
   return {
+    assignmentKind: "mission",
     attemptId: attempt.data.id,
     assignmentStudentId: metadata.assignmentStudentId,
     assignmentId: metadata.assignmentId,

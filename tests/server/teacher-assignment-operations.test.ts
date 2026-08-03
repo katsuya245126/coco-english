@@ -10,7 +10,8 @@ function client(rows: unknown[]) {
 
 const ownedRow = (overrides: Record<string, unknown> = {}) => ({
   id: "attempt-1", status: "completed", completed_at: "2026-07-12T00:00:00Z", needs_review_reason: null,
-  assignment_students: { id: "as-1", status: "completed", submitted_at: "2026-07-12T00:00:00Z", latest_attempt_id: "attempt-1", students: { display_name: "Mina" }, assignments: { id: "a-1", title: "Hello", classes: { id: "c-1", name: "A", review_policy: "every_submission" } } },
+  attempt_turns: [],
+  assignment_students: { id: "as-1", status: "completed", submitted_at: "2026-07-12T00:00:00Z", latest_attempt_id: "attempt-1", students: { display_name: "Mina" }, assignments: { id: "a-1", title: "Hello", assignment_kind: "mission", classes: { id: "c-1", name: "A", review_policy: "every_submission" } } },
   submission_review_receipts: [], ...overrides,
 });
 
@@ -64,6 +65,29 @@ describe("teacher assignment reads", () => {
 
   it("returns empty owned results without leaking another tenant", async () => {
     expect(await listNeedsReviewForTeacher({ teacherId: "teacher-2" }, client([]))).toEqual([]);
+  });
+
+  it("summarizes pronunciation words passed without changing mission rows", async () => {
+    const row = ownedRow({
+      assignment_students: {
+        ...ownedRow().assignment_students,
+        assignments: {
+          ...ownedRow().assignment_students.assignments,
+          assignment_kind: "pronunciation",
+        },
+      },
+      attempt_turns: [
+        { pronunciation_word_tries: [{ outcome: "passed" }] },
+        { pronunciation_word_tries: [{ outcome: "target_weak" }] },
+        { pronunciation_word_tries: [{ outcome: "passed" }] },
+      ],
+    });
+
+    expect((await listNeedsReviewForTeacher({ teacherId: "teacher-1" }, client([row])))[0]).toMatchObject({
+      assignmentKind: "pronunciation",
+      resultSummary: "2 of 5 words passed",
+    });
+    expect((await listNeedsReviewForTeacher({ teacherId: "teacher-1" }, client([ownedRow()])))[0].resultSummary).toBeNull();
   });
 });
 

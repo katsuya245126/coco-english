@@ -32,6 +32,7 @@ type OwnedStudent = { display_name: string };
 type OwnedAssignment = {
   id?: string;
   title?: string;
+  assignment_kind?: Database["public"]["Enums"]["assignment_kind"];
   due_at?: string | null;
   canceled_at?: string | null;
   class_id?: string;
@@ -208,9 +209,10 @@ export async function getOwnedAttemptForTeacher(
           highest_hint_level,
           students!inner(display_name),
           assignments!inner(
-            id,
-            title,
-            mission_snapshot,
+        id,
+        title,
+        assignment_kind,
+        mission_snapshot,
             classes!inner(id, name, teacher_id)
           )
         )
@@ -232,10 +234,12 @@ export async function listOwnedAttemptsForTeacher(
     .select(`
       id, status, completed_at, needs_review_reason,
       assignment_students!attempts_assignment_student_id_fkey!inner(
-        id, status, submitted_at, latest_attempt_id,
+      id, status, submitted_at, latest_attempt_id,
+        dismissed_at,
         students!inner(display_name),
-        assignments!inner(id, title, due_at, classes!inner(id, name, teacher_id, review_policy))
+        assignments!inner(id, title, due_at, assignment_kind, classes!inner(id, name, teacher_id, review_policy))
       ),
+      attempt_turns(pronunciation_word_tries(outcome)),
       submission_review_receipts(first_viewed_at, reviewed_at)
     `)
     .eq(attemptTeacherPath, input.teacherId);
