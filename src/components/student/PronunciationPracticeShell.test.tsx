@@ -104,6 +104,7 @@ beforeEach(() => {
   (
     globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
   ).IS_REACT_ACT_ENVIRONMENT = true;
+  vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -138,7 +139,7 @@ afterEach(async () => {
 
 describe("PronunciationPracticeShell", () => {
   it("loads one word clip and keeps both replay controls unlimited without Skip or transcript text", async () => {
-    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
     await renderShell(page());
 
     expect(fetchMock).toHaveBeenCalledTimes(1);

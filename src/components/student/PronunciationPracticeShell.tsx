@@ -126,8 +126,13 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
       return;
     }
     autoPlayedWordOrders.current.add(currentWordOrder);
-    wordAudioRef.current.currentTime = 0;
-    void wordAudioRef.current.play().catch(() => undefined);
+    const audio = wordAudioRef.current;
+    audio.currentTime = 0;
+    try {
+      void Promise.resolve(audio.play()).catch(() => undefined);
+    } catch {
+      // Autoplay is optional when the browser cannot start media playback.
+    }
   }, [currentWordAudioUrl, currentWordOrder]);
 
   function replay(audioRef: { current: HTMLAudioElement | null }) {
