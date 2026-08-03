@@ -27,7 +27,6 @@ import { isLowConfidenceTranscript } from "@/domain/audio/transcript-confidence"
 import { consumeRequestBudget } from "@/server/security/request-budget";
 
 export const MAX_PRONUNCIATION_DURATION_MS = 10_000;
-const CLIP_KIND = "original_answer" as const;
 
 type Client = ReturnType<typeof createSupabaseServiceClient>;
 
@@ -315,6 +314,7 @@ export async function uploadPronunciationTry(
       return failure("word_finished", false);
     }
     const tryNumber = (currentTries.length + 1) as 1 | 2 | 3;
+    const clipKind = tryNumber === 1 ? "original_answer" : "repeat_attempt";
 
     const budget = await (deps.consumeRequestBudget ?? consumeRequestBudget)({
       actorId: input.studentId,
@@ -328,7 +328,7 @@ export async function uploadPronunciationTry(
       .from("audio_clips")
       .insert({
         attempt_turn_id: owned.turnId,
-        clip_kind: CLIP_KIND,
+        clip_kind: clipKind,
         processing_status: "pending_upload",
       })
       .select("id")
@@ -353,7 +353,7 @@ export async function uploadPronunciationTry(
       assignmentStudentId: input.assignmentStudentId,
       attemptId: input.attemptId,
       turnOrder: input.turnOrder,
-      clipKind: CLIP_KIND,
+      clipKind,
       audioClipId,
       mimeType: input.mimeType,
     });

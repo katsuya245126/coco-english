@@ -14,6 +14,7 @@ type UploadState = {
   }>;
   audioClip: { id: string };
   storageError: unknown;
+  storageUploads: Array<{ path: string }>;
   operations: Array<{ table: string; method: string; value?: unknown }>;
   updates: Array<{ table: string; value: unknown }>;
 };
@@ -69,7 +70,10 @@ const mockSupabase = {
   from: vi.fn((table: string) => queryFor(table)),
   storage: {
     from: vi.fn(() => ({
-      upload: vi.fn(async () => ({ error: state.storageError })),
+      upload: vi.fn(async (path: string) => {
+        state.storageUploads.push({ path });
+        return { error: state.storageError };
+      }),
     })),
   },
 };
@@ -131,6 +135,7 @@ function resetState() {
     tries: [],
     audioClip: { id: "clip-1" },
     storageError: null,
+    storageUploads: [],
     operations: [],
     updates: [],
   };
@@ -292,6 +297,75 @@ describe("uploadPronunciationTry", () => {
       ]),
     );
     expect(score).not.toHaveBeenCalled();
+  });
+
+  it("uses repeat_attempt for failed recordings and valid tries two and three", async () => {
+    const { uploadPronunciationTry } = await import(
+      "@/server/student-access/pronunciation-upload"
+    );
+
+    state.tries = [{
+      id: "try-1",
+      attempt_turn_id: "turn-1",
+      try_number: 1,
+      outcome: "target_weak",
+    }];
+    const failed = await uploadPronunciationTry(input(), {
+      consumeRequestBudget: allowBudget,
+      transcribeAudioFile: vi.fn(async () => ({ ok: false as const, error: "no_speech" as const })),
+      scorePronunciation: vi.fn(),
+    });
+    expect(failed).toMatchObject({ ok: false, error: "transcription_failed" });
+    expect(state.operations).toContainEqual({
+      table: "audio_clips",
+      method: "insert",
+      value: {
+        attempt_turn_id: "turn-1",
+        clip_kind: "repeat_attempt",
+        processing_status: "pending_upload",
+      },
+    });
+    expect(state.storageUploads[0]?.path).toContain("repeat_attempt-clip-1");
+
+    resetState();
+    state.tries = [{
+      id: "try-1",
+      attempt_turn_id: "turn-1",
+      try_number: 1,
+      outcome: "target_weak",
+    }];
+    const second = await uploadPronunciationTry(input(), {
+      consumeRequestBudget: allowBudget,
+      transcribeAudioFile: vi.fn(async () => transcribed()),
+      scorePronunciation: vi.fn(async () => scored(60, 50)),
+    });
+    expect(second).toMatchObject({ ok: true, tryNumber: 2 });
+    expect(state.operations).toContainEqual({
+      table: "audio_clips",
+      method: "insert",
+      value: expect.objectContaining({ clip_kind: "repeat_attempt" }),
+    });
+    expect(state.storageUploads[0]?.path).toContain("repeat_attempt-clip-1");
+
+    resetState();
+    state.tries = [1, 2].map((tryNumber) => ({
+      id: `try-${tryNumber}`,
+      attempt_turn_id: "turn-1",
+      try_number: tryNumber,
+      outcome: "target_weak" as const,
+    }));
+    const third = await uploadPronunciationTry(input(), {
+      consumeRequestBudget: allowBudget,
+      transcribeAudioFile: vi.fn(async () => transcribed()),
+      scorePronunciation: vi.fn(async () => scored(60, 50)),
+    });
+    expect(third).toMatchObject({ ok: true, tryNumber: 3 });
+    expect(state.operations).toContainEqual({
+      table: "audio_clips",
+      method: "insert",
+      value: expect.objectContaining({ clip_kind: "repeat_attempt" }),
+    });
+    expect(state.storageUploads[0]?.path).toContain("repeat_attempt-clip-1");
   });
 
   it("stores the clip when scoring fails without consuming a try", async () => {
