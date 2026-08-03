@@ -213,6 +213,7 @@ async function withMissionCounts(
 
   const assignmentCounts = new Map<string, number>();
   for (const assignment of assignments.data ?? []) {
+    if (!assignment.mission_id) continue;
     assignmentCounts.set(
       assignment.mission_id,
       (assignmentCounts.get(assignment.mission_id) ?? 0) + 1,

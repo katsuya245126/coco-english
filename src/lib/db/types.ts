@@ -136,7 +136,8 @@ export type Database = {
         Row: {
           id: string;
           class_id: string;
-          mission_id: string;
+          mission_id: string | null;
+          assignment_kind: Database["public"]["Enums"]["assignment_kind"];
           title: string;
           mission_snapshot: Json;
           data_mode: "demo" | "real";
@@ -149,7 +150,8 @@ export type Database = {
         Insert: {
           id?: string;
           class_id: string;
-          mission_id: string;
+          mission_id?: string | null;
+          assignment_kind?: Database["public"]["Enums"]["assignment_kind"];
           title: string;
           mission_snapshot: Json;
           data_mode: "demo" | "real";
@@ -326,6 +328,42 @@ export type Database = {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["pronunciation_scores"]["Insert"]>;
+        Relationships: [];
+      };
+      pronunciation_word_tries: {
+        Row: {
+          id: string;
+          attempt_turn_id: string;
+          audio_clip_id: string;
+          try_number: number;
+          transcript: string;
+          transcription_evidence: Json | null;
+          outcome: "passed" | "target_weak" | "word_weak" | "different_word";
+          word_accuracy: number | null;
+          star_band: number | null;
+          full_word_passed: boolean | null;
+          target_sound_accuracy: number | null;
+          target_sound_passed: boolean | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          attempt_turn_id: string;
+          audio_clip_id: string;
+          try_number: number;
+          transcript: string;
+          transcription_evidence?: Json | null;
+          outcome: "passed" | "target_weak" | "word_weak" | "different_word";
+          word_accuracy?: number | null;
+          star_band?: number | null;
+          full_word_passed?: boolean | null;
+          target_sound_accuracy?: number | null;
+          target_sound_passed?: boolean | null;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["pronunciation_word_tries"]["Insert"]
+        >;
         Relationships: [];
       };
       pronunciation_samples: {
@@ -562,6 +600,17 @@ export type Database = {
         };
         Returns: Json;
       };
+      assign_pronunciation_practice: {
+        Args: {
+          p_student_id: string;
+          p_pronunciation_snapshot: Json;
+          p_due_at?: string | null;
+        };
+        Returns: {
+          out_assignment_id: string;
+          out_assignment_student_id: string;
+        }[];
+      };
       assign_mission_to_class: {
         Args: {
           p_class_id: string;
@@ -598,6 +647,24 @@ export type Database = {
         Returns: "ok" | "not_found" | "invalid_hint_level" | "no_turn_row";
       };
       complete_student_attempt: {
+        Args: {
+          p_student_id: string;
+          p_assignment_student_id: string;
+          p_attempt_id: string;
+        };
+        Returns: "ok" | "not_found" | "not_complete";
+      };
+      start_pronunciation_attempt: {
+        Args: {
+          p_student_id: string;
+          p_assignment_student_id: string;
+        };
+        Returns: {
+          out_attempt_id: string;
+          out_created: boolean;
+        }[];
+      };
+      complete_pronunciation_attempt: {
         Args: {
           p_student_id: string;
           p_assignment_student_id: string;
@@ -863,6 +930,7 @@ export type Database = {
     };
     Enums: {
       data_mode: "demo" | "real";
+      assignment_kind: "mission" | "pronunciation";
       class_review_policy: "every_submission" | "flagged_only";
       assignment_student_status:
         | "assigned"
