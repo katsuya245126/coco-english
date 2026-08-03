@@ -340,7 +340,19 @@ describe("uploadPronunciationTry", () => {
         expect.objectContaining({
           table: "pronunciation_word_tries",
           method: "insert",
-          value: expect.objectContaining({ outcome: "different_word", try_number: 1 }),
+          value: {
+            attempt_turn_id: "turn-1",
+            audio_clip_id: "clip-1",
+            try_number: 1,
+            transcript: "ship",
+            transcription_evidence: expect.any(Object),
+            outcome: "different_word",
+            word_accuracy: null,
+            star_band: null,
+            full_word_passed: null,
+            target_sound_accuracy: null,
+            target_sound_passed: null,
+          },
         }),
       ]),
     );

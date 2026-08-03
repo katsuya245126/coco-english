@@ -454,9 +454,9 @@ export async function uploadPronunciationTry(
         outcome: initialGrade.outcome,
         word_accuracy: null,
         star_band: null,
-        full_word_passed: false,
+        full_word_passed: null,
         target_sound_accuracy: null,
-        target_sound_passed: false,
+        target_sound_passed: null,
       });
       if (tryInsert.error) return failure("db_error", true);
       return {
