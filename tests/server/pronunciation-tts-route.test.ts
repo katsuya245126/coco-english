@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolvePronunciationFeedbackLineText } from "@/app/student/missions/[assignmentStudentId]/tts/route";
+import { resolvePronunciationFeedbackLineText } from "@/domain/pronunciation/practice";
 
 describe("pronunciation feedback speech", () => {
   it.each([

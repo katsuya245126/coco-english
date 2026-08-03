@@ -3,9 +3,8 @@ import { readStudentUnlock } from "@/app/join/actions";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { requireOwnedAssignmentStudent } from "@/server/student-access/owned-assignment";
 import {
-  PRACTICE_SOUNDS,
   pronunciationPracticeSnapshotSchema,
-  type PracticeSoundId,
+  resolvePronunciationFeedbackLineText,
 } from "@/domain/pronunciation/practice";
 import { getCharacterProfile } from "@/domain/character/profile";
 import {
@@ -96,28 +95,6 @@ function resolveFeedbackLineText(feedbackVariant?: string): string | null {
       return "Your teacher will check this answer.";
     case "repeat_accepted":
       return "Good repeat.";
-    default:
-      return null;
-  }
-}
-
-export function resolvePronunciationFeedbackLineText(
-  feedbackVariant?: string,
-  input: { soundId?: PracticeSoundId; word?: string } = {},
-): string | null {
-  switch (feedbackVariant) {
-    case "pronunciation_good":
-      return "Good job!";
-    case "pronunciation_target_weak":
-      return input.soundId
-        ? `Try ${PRACTICE_SOUNDS[input.soundId].label} again!`
-        : null;
-    case "pronunciation_word_weak":
-      return "Try again!";
-    case "pronunciation_different_word":
-      return input.word ? `Try again! Say: ${input.word}` : null;
-    case "pronunciation_good_try":
-      return "Good try!";
     default:
       return null;
   }
