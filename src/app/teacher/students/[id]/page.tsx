@@ -88,6 +88,19 @@ export default async function StudentProfilePage({
             >
               Sounds to work on
             </h2>
+            <Link
+              href={`/teacher/students/${header.studentId}/pronunciation-practice/new`}
+              style={{
+                display: "inline-block",
+                marginBottom: 16,
+                color: "#2563EB",
+                fontSize: 14,
+                fontWeight: 600,
+                textDecoration: "none",
+              }}
+            >
+              Assign pronunciation practice
+            </Link>
 
             {weaknesses.length === 0 ? (
               <div
