@@ -30,6 +30,7 @@ export type OwnedAssignmentStudent = {
   submittedAt: string | null;
   canceledAt: string | null;
   assignmentTitle: string | null;
+  assignmentKind: Database["public"]["Enums"]["assignment_kind"];
   /** Parsed only when the stored snapshot interprets as `complete`. */
   snapshot: MissionSnapshot | null;
 };
@@ -63,11 +64,13 @@ type OwnedRow = {
   assignments:
     | {
         title: string;
+        assignment_kind?: Database["public"]["Enums"]["assignment_kind"];
         mission_snapshot?: unknown;
         canceled_at?: string | null;
       }
     | Array<{
         title: string;
+        assignment_kind?: Database["public"]["Enums"]["assignment_kind"];
         mission_snapshot?: unknown;
         canceled_at?: string | null;
       }>
@@ -75,7 +78,7 @@ type OwnedRow = {
 };
 
 const OWNED_ASSIGNMENT_COLUMNS =
-  "id, assignment_id, student_id, status, latest_attempt_id, attempt_count, highest_hint_level, submitted_at, assignments(title, mission_snapshot, canceled_at)";
+  "id, assignment_id, student_id, status, latest_attempt_id, attempt_count, highest_hint_level, submitted_at, assignments(title, assignment_kind, mission_snapshot, canceled_at)";
 
 function toOwned(
   row: OwnedRow,
@@ -97,6 +100,7 @@ function toOwned(
     submittedAt: row.submitted_at,
     canceledAt: assignment?.canceled_at ?? null,
     assignmentTitle: assignment?.title ?? null,
+    assignmentKind: assignment?.assignment_kind ?? "mission",
     snapshot:
       interpretation.kind === "complete" ? interpretation.snapshot : null,
   };

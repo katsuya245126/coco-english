@@ -96,6 +96,25 @@ function resolveFeedbackLineText(feedbackVariant?: string): string | null {
   }
 }
 
+function resolvePronunciationFeedbackLineText(
+  feedbackVariant?: string,
+): string | null {
+  switch (feedbackVariant) {
+    case "pronunciation_good":
+      return "Good job!";
+    case "pronunciation_target_weak":
+      return "Practice the target sound again.";
+    case "pronunciation_word_weak":
+      return "Try the word again.";
+    case "pronunciation_different_word":
+      return "Try again. Say the word.";
+    case "pronunciation_good_try":
+      return "Good try!";
+    default:
+      return null;
+  }
+}
+
 export async function POST(request: Request, context: RouteContext) {
   const unlock = await readStudentUnlock();
   if (!unlock) {
@@ -132,16 +151,33 @@ export async function POST(request: Request, context: RouteContext) {
     studentId: unlock.studentId,
     assignmentStudentId,
   });
-  if (!owned.ok || !owned.owned.snapshot) {
+  if (!owned.ok) {
     return NextResponse.json(
       { ok: false, error: "not_found" },
       { status: 404 },
     );
   }
   const snapshot = owned.owned.snapshot;
-
-  // Keep accepting characterId for client compatibility, but never trust it.
-  const characterId = snapshot.characterId;
+  const isPronunciationAssignment = owned.owned.assignmentKind === "pronunciation";
+  if (!isPronunciationAssignment && !snapshot) {
+    return NextResponse.json(
+      { ok: false, error: "not_found" },
+      { status: 404 },
+    );
+  }
+  if (
+    isPronunciationAssignment &&
+    (parsed.data.lineKind !== "coco_feedback" ||
+      !resolvePronunciationFeedbackLineText(parsed.data.feedbackVariant))
+  ) {
+    return NextResponse.json(
+      { ok: false, error: "not_found" },
+      { status: 404 },
+    );
+  }
+  const characterId = isPronunciationAssignment
+    ? "pronunciation-practice"
+    : snapshot!.characterId;
   // A restarted/retried mission produces additional attempts whose
   // attempt_turns reuse the same turn_order values, so the per-turn lookups
   // below must pin to the current attempt — an assignment-wide join returns
@@ -149,7 +185,7 @@ export async function POST(request: Request, context: RouteContext) {
   const latestAttemptId = owned.owned.latestAttemptId;
 
   let resolvedTurn: ResolvedSnapshotTurn | null = null;
-  if (parsed.data.turnOrder) {
+  if (parsed.data.turnOrder && snapshot) {
     // Conversation-mode missions generate turns dynamically and may have zero
     // or few pre-authored snapshot turns — the dynamic-line lookup does not
     // depend on a matching snapshotTurn existing.
@@ -192,12 +228,14 @@ export async function POST(request: Request, context: RouteContext) {
     }
   }
 
-  const text = resolveLineText(
-    parsed.data.lineKind,
-    characterId,
-    resolvedTurn,
-    parsed.data.feedbackVariant,
-  );
+  const text = isPronunciationAssignment
+    ? resolvePronunciationFeedbackLineText(parsed.data.feedbackVariant)
+    : resolveLineText(
+        parsed.data.lineKind,
+        characterId,
+        resolvedTurn,
+        parsed.data.feedbackVariant,
+      );
 
   if (!text || text.trim().length === 0) {
     return NextResponse.json(
