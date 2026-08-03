@@ -35,7 +35,7 @@ const CMU_TO_SAPI: Record<string, string> = {
   D: "d",
   DH: "dh",
   EH: "eh",
-  ER: "er",
+  ER: "er r",
   EY: "ey",
   F: "f",
   G: "g",
@@ -64,6 +64,24 @@ const CMU_TO_SAPI: Record<string, string> = {
   Z: "z",
   ZH: "zh",
 };
+
+const CMU_VOWELS = new Set([
+  "AA",
+  "AE",
+  "AH",
+  "AO",
+  "AW",
+  "AY",
+  "EH",
+  "ER",
+  "EY",
+  "IH",
+  "IY",
+  "OW",
+  "OY",
+  "UH",
+  "UW",
+]);
 
 export type PronunciationWordAudioInput = {
   word: string;
@@ -159,15 +177,27 @@ function xmlEscape(value: string): string {
   });
 }
 
-function toSapiPhone(phone: string): string {
+function toSapiPhone(phone: string): string[] {
   const match = /^([A-Z]+)([012]?)$/u.exec(phone);
-  const mapped = match ? CMU_TO_SAPI[match[1]] : undefined;
+  const base = match?.[1];
+  const stress = match?.[2];
+  const mapped = base ? CMU_TO_SAPI[base] : undefined;
   if (!mapped) throw new Error("unsupported pronunciation phone");
-  return `${mapped}${match?.[2] ?? ""}`;
+  if (!stress) return mapped.split(" ");
+  if (!base || !CMU_VOWELS.has(base)) {
+    throw new Error("stress must follow a vowel phone");
+  }
+  if (stress === "0") {
+    if (base === "AH") return ["ax"];
+    if (base === "ER") return ["ax", "r"];
+    return mapped.split(" ");
+  }
+  const [vowel, ...rest] = mapped.split(" ");
+  return [vowel, stress, ...rest];
 }
 
 export function toSapiPhonemes(phones: string[]): string[] {
-  return phones.map(toSapiPhone);
+  return phones.flatMap(toSapiPhone);
 }
 
 function buildSsml(input: {

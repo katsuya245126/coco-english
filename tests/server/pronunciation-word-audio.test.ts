@@ -123,7 +123,7 @@ describe("pronunciation word audio", () => {
       expect(input.voice).toBe("en-US-AvaNeural");
       expect(input.outputFormat).toBe("audio-24khz-48kbitrate-mono-mp3");
       expect(input.ssml).toContain('<voice name="en-US-AvaNeural">');
-      expect(input.ssml).toContain('alphabet="sapi" ph="f ih1 sh"');
+      expect(input.ssml).toContain('alphabet="sapi" ph="f ih 1 sh"');
       expect(input.ssml).toContain(">fish</phoneme>");
       expect(input.ssml).not.toContain("student");
       return {
@@ -144,6 +144,20 @@ describe("pronunciation word audio", () => {
     });
     expect(render).toHaveBeenCalledTimes(1);
     expect(mockSupabase.storage.from).toHaveBeenCalledWith("tts-audio");
+  });
+
+  it.each([
+    [["AH0"], ["ax"]],
+    [["AH1"], ["ah", "1"]],
+    [["ER0"], ["ax", "r"]],
+    [["ER1"], ["er", "1", "r"]],
+    [["B", "ER1", "G", "ER0"], ["b", "er", "1", "r", "g", "ax", "r"]],
+  ] as const)("converts CMUdict stress and schwa phones to Azure SAPI", async (phones, expected) => {
+    const { toSapiPhonemes } = await import(
+      "@/server/audio/pronunciation-word-audio"
+    );
+
+    expect(toSapiPhonemes(phones)).toEqual(expected);
   });
 
   it("reuses the cache for identical word and pronunciation input", async () => {
