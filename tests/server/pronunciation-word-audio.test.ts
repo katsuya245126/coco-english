@@ -151,6 +151,7 @@ describe("pronunciation word audio", () => {
     [["AH1"], ["ah", "1"]],
     [["ER0"], ["ax", "r"]],
     [["ER1"], ["er", "1", "r"]],
+    [["HH"], ["h"]],
     [["B", "ER1", "G", "ER0"], ["b", "er", "1", "r", "g", "ax", "r"]],
   ] as const)("converts CMUdict stress and schwa phones to Azure SAPI", async (phones, expected) => {
     const { toSapiPhonemes } = await import(
@@ -158,6 +159,57 @@ describe("pronunciation word audio", () => {
     );
 
     expect(toSapiPhonemes([...phones])).toEqual(expected);
+  });
+
+  it("maps every CMUdict base phone to the en-US SAPI table", async () => {
+    const { toSapiPhonemes } = await import(
+      "@/server/audio/pronunciation-word-audio"
+    );
+    const expected: Record<string, string[]> = {
+      AA: ["aa"],
+      AE: ["ae"],
+      AH: ["ah"],
+      AO: ["ao"],
+      AW: ["aw"],
+      AY: ["ay"],
+      B: ["b"],
+      CH: ["ch"],
+      D: ["d"],
+      DH: ["dh"],
+      EH: ["eh"],
+      ER: ["er", "r"],
+      EY: ["ey"],
+      F: ["f"],
+      G: ["g"],
+      HH: ["h"],
+      IH: ["ih"],
+      IY: ["iy"],
+      JH: ["jh"],
+      K: ["k"],
+      L: ["l"],
+      M: ["m"],
+      N: ["n"],
+      NG: ["ng"],
+      OW: ["ow"],
+      OY: ["oy"],
+      P: ["p"],
+      R: ["r"],
+      S: ["s"],
+      SH: ["sh"],
+      T: ["t"],
+      TH: ["th"],
+      UH: ["uh"],
+      UW: ["uw"],
+      V: ["v"],
+      W: ["w"],
+      Y: ["y"],
+      Z: ["z"],
+      ZH: ["zh"],
+    };
+
+    for (const [phone, sapiPhones] of Object.entries(expected)) {
+      expect(toSapiPhonemes([phone])).toEqual(sapiPhones);
+    }
   });
 
   it("reuses the cache for identical word and pronunciation input", async () => {

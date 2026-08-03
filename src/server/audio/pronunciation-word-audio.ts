@@ -39,7 +39,7 @@ const CMU_TO_SAPI: Record<string, string> = {
   EY: "ey",
   F: "f",
   G: "g",
-  HH: "hh",
+  HH: "h",
   IH: "ih",
   IY: "iy",
   JH: "jh",
