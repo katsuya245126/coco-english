@@ -252,4 +252,43 @@ describe("pronunciation word audio", () => {
       3600,
     );
   });
+
+  it("signs the exact snapshot cache hash and render metadata", async () => {
+    const { signPronunciationWordAudioFromSnapshot } = await import(
+      "@/server/audio/pronunciation-word-audio"
+    );
+    mockSupabase = createMockSupabase({
+      cacheRow: {
+        id: "cache-legacy",
+        content_hash: "legacy-hash",
+        object_key: "azure_speech/legacy-word/legacy-hash.mp3",
+        mime_type: "audio/mpeg",
+        voice: "en-US-AvaNeural",
+        response_format: "audio-24khz-48kbitrate-mono-mp3",
+      },
+    });
+
+    const result = await signPronunciationWordAudioFromSnapshot({
+      schemaVersion: 1,
+      contentHash: "legacy-hash",
+      voice: "en-US-AvaNeural",
+      format: "audio-24khz-48kbitrate-mono-mp3",
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      contentHash: "legacy-hash",
+      audioUrl: "https://signed.example/tts-audio/pronunciation.mp3",
+    });
+    const lookup = mockSupabase.operations.find(
+      (operation) => operation.table === "tts_audio_cache",
+    );
+    expect(lookup?.filters).toEqual(
+      expect.arrayContaining([
+        ["content_hash", "legacy-hash"],
+        ["voice", "en-US-AvaNeural"],
+        ["response_format", "audio-24khz-48kbitrate-mono-mp3"],
+      ]),
+    );
+  });
 });

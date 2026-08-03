@@ -466,3 +466,47 @@ export async function signPronunciationWordAudio(input: {
     mimeType: cacheRow.mime_type ?? "audio/mpeg",
   };
 }
+
+export async function signPronunciationWordAudioFromSnapshot(input: {
+  schemaVersion: number;
+  contentHash: string;
+  voice: string;
+  format: string;
+}): Promise<
+  | { ok: true; contentHash: string; audioUrl: string; mimeType: string }
+  | { ok: false; error: "not_found" | "cache_failed" | "storage_failed" }
+> {
+  const contentHash = input.contentHash.trim();
+  const voice = input.voice.trim();
+  const format = input.format.trim();
+  if (!contentHash || !voice || !format || !Number.isInteger(input.schemaVersion)) {
+    return { ok: false, error: "not_found" };
+  }
+
+  const supabase = createSupabaseServiceClient();
+  const { data: cacheRow, error: lookupError } = await supabase
+    .from("tts_audio_cache")
+    .select("content_hash, object_key, mime_type")
+    .eq("content_hash", contentHash)
+    .eq("voice", voice)
+    .eq("response_format", format)
+    .maybeSingle();
+  if (lookupError) return { ok: false, error: "cache_failed" };
+  if (!cacheRow?.object_key) return { ok: false, error: "not_found" };
+
+  const signed = await supabase.storage
+    .from(PRONUNCIATION_WORD_AUDIO_BUCKET)
+    .createSignedUrl(
+      cacheRow.object_key,
+      SIGNED_PRONUNCIATION_WORD_AUDIO_TTL_SECONDS,
+    );
+  if (signed.error || !signed.data?.signedUrl) {
+    return { ok: false, error: "storage_failed" };
+  }
+  return {
+    ok: true,
+    contentHash,
+    audioUrl: signed.data.signedUrl,
+    mimeType: cacheRow.mime_type ?? "audio/mpeg",
+  };
+}

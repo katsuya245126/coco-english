@@ -3,7 +3,7 @@ import { z } from "zod";
 import { readStudentUnlock } from "@/app/join/actions";
 import { pronunciationPracticeSnapshotSchema } from "@/domain/pronunciation/practice";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
-import { signPronunciationWordAudio } from "@/server/audio/pronunciation-word-audio";
+import { signPronunciationWordAudioFromSnapshot } from "@/server/audio/pronunciation-word-audio";
 
 const wordAudioInput = z.object({
   wordOrder: z.number().int().min(1).max(5),
@@ -68,9 +68,11 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
-  const result = await signPronunciationWordAudio({
-    word: word.text,
-    phones: word.pronunciation.phones,
+  const result = await signPronunciationWordAudioFromSnapshot({
+    schemaVersion: word.wordAudio.schemaVersion,
+    contentHash: word.wordAudio.contentHash,
+    voice: word.wordAudio.voice,
+    format: word.wordAudio.format,
   });
   if (!result.ok) {
     return NextResponse.json(
