@@ -124,6 +124,7 @@ describe("gradePronunciationTry", () => {
         targetPhoneIndex: 0,
         tryNumber: 3,
         ...input,
+        phonemes: input.phonemes?.map((phoneme) => ({ ...phoneme })) ?? null,
       }),
     ).toMatchObject({ outcome: _expectedOutcome, feedback: "Good try!" });
   });

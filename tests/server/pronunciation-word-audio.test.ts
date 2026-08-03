@@ -157,7 +157,7 @@ describe("pronunciation word audio", () => {
       "@/server/audio/pronunciation-word-audio"
     );
 
-    expect(toSapiPhonemes(phones)).toEqual(expected);
+    expect(toSapiPhonemes([...phones])).toEqual(expected);
   });
 
   it("reuses the cache for identical word and pronunciation input", async () => {
