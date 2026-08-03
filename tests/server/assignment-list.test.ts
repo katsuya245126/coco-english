@@ -27,8 +27,8 @@ const legacySnapshot = {
 
 function row(id: string, status: string, dueAt: string | null = null, completedAt: string | null = null, missionSnapshot: unknown = snapshot): {
   id: string; status: string; submitted_at: string | null; latest_attempt_id: string | null;
-  assignments: { title: string; mission_snapshot: unknown; due_at: string | null; canceled_at: string | null };
-  latest_attempt: { completed_at: string | null } | null;
+  assignments: { title: string; mission_snapshot: unknown; assignment_kind?: "mission" | "pronunciation"; due_at: string | null; canceled_at: string | null };
+  latest_attempt: { completed_at: string | null; attempt_turns?: Array<{ turn_order?: number; count?: number; pronunciation_word_tries?: Array<{ try_number: number; outcome: string }> }> } | null;
 } {
   return { id, status, submitted_at: completedAt, latest_attempt_id: completedAt ? `attempt-${id}` : null,
     assignments: { title: id, mission_snapshot: missionSnapshot, due_at: dueAt, canceled_at: null },
@@ -58,13 +58,56 @@ describe("listStudentAssignmentPage", () => {
     ]);
   });
 
+  it("labels pronunciation work and counts finished words instead of mission turns", async () => {
+    const pronunciation = row("pronunciation", "started");
+    pronunciation.assignments.assignment_kind = "pronunciation";
+    pronunciation.assignments.mission_snapshot = {
+      kind: "pronunciation",
+      version: 1,
+      soundId: "s",
+      difficulty: "easy",
+      requiredWords: 5,
+      soundClipVersion: "v1",
+      words: [1, 2, 3, 4, 5].map((order) => ({
+        order,
+        text: `word-${order}`,
+        highlightStart: 0,
+        highlightLength: 1,
+        source: "verified",
+        pronunciation: { phones: ["S"], targetPhoneIndex: 0, cmuVariant: 1 },
+        wordAudio: { schemaVersion: 1, contentHash: `hash-${order}`, voice: "en-US-AvaNeural", format: "audio-24khz-48kbitrate-mono-mp3" },
+      })),
+    } as never;
+    pronunciation.latest_attempt = {
+      completed_at: null,
+      attempt_turns: [
+        { turn_order: 1, pronunciation_word_tries: [{ try_number: 1, outcome: "passed" }] },
+        { turn_order: 2, pronunciation_word_tries: [{ try_number: 3, outcome: "different_word" }] },
+        { turn_order: 3, pronunciation_word_tries: [{ try_number: 1, outcome: "target_weak" }] },
+      ],
+    };
+    rows = [pronunciation];
+
+    const { listStudentAssignmentPage } = await import("@/server/student-access/assignment-list");
+    const page = await listStudentAssignmentPage("student-1", { tab: "current", page: 1 });
+
+    expect(page.items[0]).toMatchObject({
+      assignmentKind: "pronunciation",
+      label: "Pronunciation",
+      turnCount: 5,
+      completedTurnCount: 2,
+    });
+  });
+
   it("orders retry, due within exactly 24h, then later/no-date stably", async () => {
     rows = [row("later", "assigned", "2026-07-14T12:00:00Z"), row("boundary", "started", "2026-07-13T12:00:00Z"), row("soon", "assigned", "2026-07-12T13:00:00Z"), row("retry", "needs_retry")];
     const { listStudentAssignmentPage } = await import("@/server/student-access/assignment-list");
     const page = await listStudentAssignmentPage("student-1", { tab: "current", page: 1 });
     expect(page.items.map((item) => item.assignmentStudentId)).toEqual(["retry", "soon", "boundary", "later"]);
-    expect(page.items[0]).toMatchObject({ completedTurnCount: 0 });
-    expect(page.items[0]).not.toHaveProperty("targetPattern");
+    expect(page.items[0]).toMatchObject({
+      completedTurnCount: 0,
+      targetPattern: "I like X.",
+    });
     expect(eq).toHaveBeenCalledWith("student_id", "student-1");
   });
 

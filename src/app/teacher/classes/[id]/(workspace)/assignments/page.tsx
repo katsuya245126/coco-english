@@ -37,7 +37,7 @@ export default async function ClassAssignmentsPage({ params }: { params: Promise
   await getOwnedClass(classId);
   const supabase = await createSupabaseServerClient();
   const [result, progressByAssignment] = await Promise.all([
-    supabase.from("assignments").select("id, title, due_at, created_at").eq("class_id", classId).is("canceled_at", null).order("due_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }),
+    supabase.from("assignments").select("id, title, assignment_kind, due_at, created_at").eq("class_id", classId).is("canceled_at", null).order("due_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }),
     listAssignmentProgressForClass({ teacherId: profile.id, classId }),
   ]);
   if (result.error) throw new Error(`Unable to load assignments: ${result.error.message}`);
@@ -45,6 +45,6 @@ export default async function ClassAssignmentsPage({ params }: { params: Promise
 
   return <section className="class-review-section">
     <div className="class-section-heading"><div><h2>Assignments</h2><p>Newest homework, due dates, and student progress for this class.</p></div><span>{assignments.length}</span></div>
-    {assignments.length === 0 ? <div className="class-empty"><strong>No assignments yet</strong><p>Assign a mission to this class to see student homework here.</p></div> : <div className="class-card-grid">{assignments.map((assignment) => <article className="class-assignment-card" key={assignment.id}><div><strong>{assignment.title}</strong><p>{formatDate(assignment.due_at)}</p><AssignmentProgressSummary progress={progressByAssignment.get(assignment.id)}/></div><Link href={`/teacher/classes/${classId}/review/${assignment.id}`}>View results →</Link></article>)}</div>}
+    {assignments.length === 0 ? <div className="class-empty"><strong>No assignments yet</strong><p>Assign a mission to this class to see student homework here.</p></div> : <div className="class-card-grid">{assignments.map((assignment) => <article className="class-assignment-card" key={assignment.id}><div>{assignment.assignment_kind === "pronunciation" && <small>Pronunciation</small>}<strong>{assignment.title}</strong><p>{formatDate(assignment.due_at)}</p><AssignmentProgressSummary progress={progressByAssignment.get(assignment.id)}/></div><Link href={`/teacher/classes/${classId}/review/${assignment.id}`}>View results →</Link></article>)}</div>}
   </section>;
 }
