@@ -44,6 +44,12 @@ const FEEDBACK_VARIANTS = {
   different_word: "pronunciation_different_word",
 } as const;
 
+function feedbackVariantFor(result: UploadResponse & { ok: true }) {
+  return result.outcome !== "passed" && result.tryNumber === 3
+    ? "pronunciation_good_try"
+    : FEEDBACK_VARIANTS[result.outcome];
+}
+
 function highlightedWord(word: PronunciationPracticeWordState) {
   const start = Math.max(0, Math.min(word.text.length, word.highlightStart));
   const end = Math.max(start, Math.min(word.text.length, start + word.highlightLength));
@@ -160,7 +166,7 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
     });
     setWords(updatedWords);
     setFeedback({ message: result.feedback });
-    setFeedbackVariant(FEEDBACK_VARIANTS[result.outcome]);
+    setFeedbackVariant(feedbackVariantFor(result));
 
     const nextWord = nextPracticeWordOrder({
       words: updatedWords.map((word) => ({
@@ -252,7 +258,11 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
                 {feedbackVariant ? (
                   <CocoSpeechAudio
                     assignmentStudentId={page.assignmentStudentId}
-                    line={{ lineKind: "coco_feedback", feedbackVariant }}
+                    line={{
+                      lineKind: "coco_feedback",
+                      turnOrder: currentWord.order,
+                      feedbackVariant,
+                    }}
                   />
                 ) : null}
               </div>

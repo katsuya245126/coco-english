@@ -31,6 +31,7 @@ export type OwnedAssignmentStudent = {
   canceledAt: string | null;
   assignmentTitle: string | null;
   assignmentKind: Database["public"]["Enums"]["assignment_kind"];
+  rawSnapshot: unknown;
   /** Parsed only when the stored snapshot interprets as `complete`. */
   snapshot: MissionSnapshot | null;
 };
@@ -101,6 +102,7 @@ function toOwned(
     canceledAt: assignment?.canceled_at ?? null,
     assignmentTitle: assignment?.title ?? null,
     assignmentKind: assignment?.assignment_kind ?? "mission",
+    rawSnapshot: assignment?.mission_snapshot ?? null,
     snapshot:
       interpretation.kind === "complete" ? interpretation.snapshot : null,
   };

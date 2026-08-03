@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { readStudentUnlock } from "@/app/join/actions";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { requireOwnedAssignmentStudent } from "@/server/student-access/owned-assignment";
+import {
+  PRACTICE_SOUNDS,
+  pronunciationPracticeSnapshotSchema,
+  type PracticeSoundId,
+} from "@/domain/pronunciation/practice";
 import { getCharacterProfile } from "@/domain/character/profile";
 import {
   DEFAULT_COCO_TTS_VOICE,
@@ -96,18 +101,21 @@ function resolveFeedbackLineText(feedbackVariant?: string): string | null {
   }
 }
 
-function resolvePronunciationFeedbackLineText(
+export function resolvePronunciationFeedbackLineText(
   feedbackVariant?: string,
+  input: { soundId?: PracticeSoundId; word?: string } = {},
 ): string | null {
   switch (feedbackVariant) {
     case "pronunciation_good":
       return "Good job!";
     case "pronunciation_target_weak":
-      return "Practice the target sound again.";
+      return input.soundId
+        ? `Try ${PRACTICE_SOUNDS[input.soundId].label} again!`
+        : null;
     case "pronunciation_word_weak":
-      return "Try the word again.";
+      return "Try again!";
     case "pronunciation_different_word":
-      return "Try again. Say the word.";
+      return input.word ? `Try again! Say: ${input.word}` : null;
     case "pronunciation_good_try":
       return "Good try!";
     default:
@@ -165,10 +173,26 @@ export async function POST(request: Request, context: RouteContext) {
       { status: 404 },
     );
   }
+  const pronunciationSnapshotResult = isPronunciationAssignment
+    ? pronunciationPracticeSnapshotSchema.safeParse(owned.owned.rawSnapshot)
+    : null;
+  const pronunciationSnapshot = pronunciationSnapshotResult?.success
+    ? pronunciationSnapshotResult.data
+    : null;
+  const pronunciationWord = pronunciationSnapshot?.words.find(
+    (word) => word.order === parsed.data.turnOrder,
+  );
+  const pronunciationFeedbackText = resolvePronunciationFeedbackLineText(
+    parsed.data.feedbackVariant,
+    {
+      soundId: pronunciationSnapshot?.soundId,
+      word: pronunciationWord?.text,
+    },
+  );
   if (
     isPronunciationAssignment &&
     (parsed.data.lineKind !== "coco_feedback" ||
-      !resolvePronunciationFeedbackLineText(parsed.data.feedbackVariant))
+      !pronunciationFeedbackText)
   ) {
     return NextResponse.json(
       { ok: false, error: "not_found" },
@@ -229,7 +253,7 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const text = isPronunciationAssignment
-    ? resolvePronunciationFeedbackLineText(parsed.data.feedbackVariant)
+    ? pronunciationFeedbackText
     : resolveLineText(
         parsed.data.lineKind,
         characterId,

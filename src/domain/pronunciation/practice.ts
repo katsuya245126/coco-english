@@ -101,7 +101,7 @@ export type GradePronunciationTryInput = {
   transcript: string;
   transcriptConfidence: TranscriptConfidence | null;
   wordAccuracy: number | null;
-  phonemes: PhonemeScore[] | null;
+  phonemes: ReadonlyArray<PhonemeScore> | null;
 };
 
 export type PronunciationTryGrade = {
@@ -161,6 +161,14 @@ export function gradePronunciationTry(
       : !targetSoundPassed
         ? "target_weak"
         : "word_weak";
+  const feedback =
+    outcome === "passed"
+      ? "Good job!"
+      : input.tryNumber === 3
+        ? "Good try!"
+        : outcome === "target_weak"
+          ? `Try ${soundLabelForFeedback(input.soundId)} again!`
+          : "Try again!";
 
   return {
     outcome,
@@ -168,12 +176,7 @@ export function gradePronunciationTry(
     fullWordPassed,
     targetSoundAccuracy,
     targetSoundPassed,
-    feedback:
-      outcome === "passed"
-        ? "Good job!"
-        : outcome === "target_weak"
-          ? `Try ${soundLabelForFeedback(input.soundId)} again!`
-          : "Try again!",
+    feedback,
   };
 }
 

@@ -88,6 +88,46 @@ describe("gradePronunciationTry", () => {
     ).toMatchObject({ outcome: "different_word", feedback: "Good try!" });
   });
 
+  it.each([
+    [
+      "target_weak",
+      {
+        transcript: "fish",
+        transcriptConfidence: null,
+        wordAccuracy: 80,
+        phonemes: [{ phoneme: "f", accuracyScore: 49 }],
+      },
+    ],
+    [
+      "word_weak",
+      {
+        transcript: "fish",
+        transcriptConfidence: null,
+        wordAccuracy: 59,
+        phonemes: [{ phoneme: "f", accuracyScore: 80 }],
+      },
+    ],
+    [
+      "different_word",
+      {
+        transcript: "dish",
+        transcriptConfidence: { minLogprob: -0.01, tokenCount: 1 },
+        wordAccuracy: null,
+        phonemes: null,
+      },
+    ],
+  ] as const)("uses Good try for a third %s result", (_expectedOutcome, input) => {
+    expect(
+      gradePronunciationTry({
+        expectedWord: "fish",
+        soundId: "f",
+        targetPhoneIndex: 0,
+        tryNumber: 3,
+        ...input,
+      }),
+    ).toMatchObject({ outcome: _expectedOutcome, feedback: "Good try!" });
+  });
+
   it("does not classify an unclear different transcript as a different word", () => {
     expect(
       gradePronunciationTry({

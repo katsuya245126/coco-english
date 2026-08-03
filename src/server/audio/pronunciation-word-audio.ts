@@ -85,7 +85,7 @@ const CMU_VOWELS = new Set([
 
 export type PronunciationWordAudioInput = {
   word: string;
-  phones: string[];
+  phones: readonly string[];
 };
 
 export type PronunciationWordAudioSpecInput = PronunciationWordAudioInput & {
@@ -196,7 +196,7 @@ function toSapiPhone(phone: string): string[] {
   return [vowel, stress, ...rest];
 }
 
-export function toSapiPhonemes(phones: string[]): string[] {
+export function toSapiPhonemes(phones: readonly string[]): string[] {
   return phones.flatMap(toSapiPhone);
 }
 
@@ -427,7 +427,7 @@ export async function warmPronunciationWordAudio(input: {
 
 export async function signPronunciationWordAudio(input: {
   word: string;
-  phones: string[];
+  phones: readonly string[];
   /** Ignored when supplied by a browser; the hash is rebuilt from word data. */
   contentHash?: string;
 }): Promise<

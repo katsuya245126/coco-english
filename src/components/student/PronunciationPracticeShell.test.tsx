@@ -237,6 +237,33 @@ describe("PronunciationPracticeShell", () => {
     expect(container.querySelector('[data-testid="practice-recorder"]')).toBeNull();
   });
 
+  it.each([
+    ["target_weak", "pronunciation_good_try"],
+    ["word_weak", "pronunciation_good_try"],
+    ["different_word", "pronunciation_good_try"],
+  ] as const)("uses the Good try spoken variant for a third %s result", async (outcome, expectedVariant) => {
+    uploadResult = {
+      ...uploadResult,
+      tryNumber: 3,
+      outcome,
+      feedback: "Good try!",
+      starBand: outcome === "different_word" ? null : 1,
+      fullWordPassed: false,
+      targetSoundAccuracy: outcome === "different_word" ? null : 49,
+      targetSoundPassed: false,
+    };
+    await renderShell(page());
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="practice-recorder"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("Good try!");
+    expect(container.querySelector('[data-testid="feedback-audio"]')?.textContent).toBe(expectedVariant);
+  });
+
   it("opens a resumed practice on the unfinished word", async () => {
     await renderShell(page({ currentWordOrder: 3, isResume: true }));
     expect(container.textContent).toContain("Word 3 of 5");
