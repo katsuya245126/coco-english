@@ -8,6 +8,10 @@ import type {
 } from "@/server/student-access/pronunciation-flow";
 import { PronunciationPracticeShell } from "./PronunciationPracticeShell";
 
+const completionState = vi.hoisted(() => ({
+  result: { ok: true } as { ok: boolean; error?: string },
+}));
+
 vi.mock("./VoiceRecorderControl", () => ({
   VoiceRecorderControl: ({
     disabled,
@@ -39,7 +43,7 @@ vi.mock("./CocoSpeechAudio", () => ({
 }));
 
 vi.mock("@/app/student/pronunciation/[assignmentStudentId]/actions", () => ({
-  completePronunciationAttemptAction: vi.fn(async () => ({ ok: true })),
+  completePronunciationAttemptAction: vi.fn(async () => completionState.result),
 }));
 
 let container: HTMLDivElement;
@@ -104,6 +108,8 @@ beforeEach(() => {
   (
     globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
   ).IS_REACT_ACT_ENVIRONMENT = true;
+  completionState.result = { ok: true };
+  vi.clearAllMocks();
   vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
   container = document.createElement("div");
   document.body.append(container);
@@ -203,6 +209,98 @@ describe("PronunciationPracticeShell", () => {
     });
     expect(container.textContent).toContain("Word 2 of 5");
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps the fifth-word feedback until an explicit Next word completes practice", async () => {
+    uploadResult = {
+      ...uploadResult,
+      outcome: "passed",
+      targetSoundAccuracy: 80,
+      targetSoundPassed: true,
+      feedback: "Good job!",
+      starBand: 2,
+    };
+    const finishedWords = [1, 2, 3, 4].map((order) =>
+      word(order as 1 | 2 | 3 | 4, {
+        validTryCount: 1,
+        remainingTryCount: 2,
+        passed: true,
+        finished: true,
+      }),
+    );
+    await renderShell(page({ currentWordOrder: 5, words: [...finishedWords, word(5)] }));
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="practice-recorder"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const { completePronunciationAttemptAction } = await import(
+      "@/app/student/pronunciation/[assignmentStudentId]/actions"
+    );
+    expect(container.textContent).toContain("Good job!");
+    expect(container.textContent).toContain("Word 5 of 5");
+    expect(container.querySelector('button[aria-label="Next word"]')).not.toBeNull();
+    expect(vi.mocked(completePronunciationAttemptAction)).not.toHaveBeenCalled();
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button[aria-label="Next word"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(vi.mocked(completePronunciationAttemptAction)).toHaveBeenCalledWith({
+      assignmentStudentId: "assignment-student-1",
+      attemptId: "attempt-1",
+    });
+    expect(container.textContent).toContain("Practice result");
+  });
+
+  it("keeps a failed final completion retryable with bounded feedback", async () => {
+    completionState.result = { ok: false, error: "db_error" };
+    uploadResult = {
+      ...uploadResult,
+      outcome: "passed",
+      targetSoundAccuracy: 80,
+      targetSoundPassed: true,
+      feedback: "Good job!",
+      starBand: 2,
+    };
+    const finishedWords = [1, 2, 3, 4].map((order) =>
+      word(order as 1 | 2 | 3 | 4, {
+        validTryCount: 1,
+        remainingTryCount: 2,
+        passed: true,
+        finished: true,
+      }),
+    );
+    await renderShell(page({ currentWordOrder: 5, words: [...finishedWords, word(5)] }));
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="practice-recorder"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button[aria-label="Next word"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("We couldn't finish this practice. Try again.");
+    expect(container.textContent).toContain("Word 5 of 5");
+    expect(container.querySelector('button[aria-label="Next word"]')).not.toBeNull();
+    expect(container.textContent).not.toContain("Practice result");
+
+    completionState.result = { ok: true };
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button[aria-label="Next word"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("Practice result");
   });
 
   it("shows three empty stars and Good try for a different-word result", async () => {

@@ -317,9 +317,9 @@ export async function getPronunciationPracticePage(input: {
 
     let attemptId: string | null = null;
     let isResume = true;
-    const readOnly = TERMINAL_STATUSES.has(assignment.status);
+    const assignmentReadOnly = TERMINAL_STATUSES.has(assignment.status);
 
-    if (readOnly) {
+    if (assignmentReadOnly) {
       attemptId = assignment.latest_attempt_id;
     } else {
       const started = await startOrResumePronunciationAttempt(input);
@@ -338,13 +338,17 @@ export async function getPronunciationPracticePage(input: {
     const words = await loadWords(supabase, { ...input, attemptId }, assignment.snapshot);
     if (!words) return { ok: false, error: "db_error" };
 
-    const currentWordOrder = nextPracticeWordOrder({
+    const nextWordOrder = nextPracticeWordOrder({
       words: words.map((word) => ({
         order: word.order,
         passed: word.passed,
         validTryCount: word.validTryCount,
       })),
     });
+    const terminal = assignmentReadOnly || TERMINAL_STATUSES.has(attempt.status);
+    const currentWordOrder = terminal
+      ? null
+      : nextWordOrder ?? words.at(-1)?.order ?? null;
 
     return {
       ok: true,
@@ -361,8 +365,8 @@ export async function getPronunciationPracticePage(input: {
         currentWordOrder,
         passedWordCount: words.filter((word) => word.passed).length,
         finishedWordCount: words.filter((word) => word.finished).length,
-        completed: currentWordOrder === null,
-        readOnly,
+        completed: terminal,
+        readOnly: terminal,
         isResume,
       },
     };

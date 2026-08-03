@@ -83,6 +83,7 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
   const [completed, setCompleted] = useState(page.completed);
   const [feedback, setFeedback] = useState<{ message: string } | null>(null);
   const [feedbackVariant, setFeedbackVariant] = useState<string | null>(null);
+  const [completionError, setCompletionError] = useState<string | null>(null);
   const [wordAudioUrls, setWordAudioUrls] = useState<Record<number, string>>({});
   const wordAudioCache = useRef(new Map<number, string>());
   const autoPlayedWordOrders = useRef(new Set<number>());
@@ -191,28 +192,10 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
     setWords(updatedWords);
     setFeedback({ message: result.feedback });
     setFeedbackVariant(feedbackVariantFor(result));
-
-    const nextWord = nextPracticeWordOrder({
-      words: updatedWords.map((word) => ({
-        order: word.order,
-        passed: word.passed,
-        validTryCount: word.validTryCount,
-      })),
-    });
-    if (nextWord === null) {
-      const completion = await completePronunciationAttemptAction({
-        assignmentStudentId: page.assignmentStudentId,
-        attemptId: page.attemptId,
-      });
-      if (completion.ok) {
-        setCompleted(true);
-        setReadOnly(true);
-        setCurrentWordOrder(null);
-      }
-    }
+    setCompletionError(null);
   }
 
-  function nextWord() {
+  async function nextWord() {
     const next = nextPracticeWordOrder({
       words: words.map((word) => ({
         order: word.order,
@@ -220,10 +203,26 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
         validTryCount: word.validTryCount,
       })),
     });
-    if (next === null) return;
-    setCurrentWordOrder(next);
-    setFeedback(null);
-    setFeedbackVariant(null);
+    if (next !== null) {
+      setCurrentWordOrder(next);
+      setFeedback(null);
+      setFeedbackVariant(null);
+      setCompletionError(null);
+      return;
+    }
+
+    const completion = await completePronunciationAttemptAction({
+      assignmentStudentId: page.assignmentStudentId,
+      attemptId: page.attemptId,
+    });
+    if (!completion.ok) {
+      setCompletionError("We couldn't finish this practice. Try again.");
+      return;
+    }
+    setCompleted(true);
+    setReadOnly(true);
+    setCurrentWordOrder(null);
+    setCompletionError(null);
   }
 
   const progress = Math.round((words.filter((word) => word.finished).length / words.length) * 100);
@@ -291,8 +290,9 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
                 ) : null}
               </div>
             ) : null}
-            {currentWord.finished && nextPracticeWordOrder({ words: words.map((word) => ({ order: word.order, passed: word.passed, validTryCount: word.validTryCount })) }) !== null ? (
-              <button type="button" aria-label="Next word" style={{ ...primaryButtonStyle, marginTop: 16 }} onClick={nextWord}>
+            {completionError ? <p role="alert" style={bodyStyle}>{completionError}</p> : null}
+            {currentWord.finished ? (
+              <button type="button" aria-label="Next word" style={{ ...primaryButtonStyle, marginTop: 16 }} onClick={() => void nextWord()}>
                 Next word
               </button>
             ) : null}

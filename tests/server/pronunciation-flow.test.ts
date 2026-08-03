@@ -339,6 +339,31 @@ describe("pronunciation flow", () => {
     expect(state.rpcCalls).toHaveLength(0);
   });
 
+  it("keeps an open all-finished practice on its final word for completion retry", async () => {
+    state.assignment = assignment("started");
+    state.rpcResults = [{ out_attempt_id: "attempt-1", out_created: false }];
+    state.tries = [1, 2, 3, 4, 5].map((order) => wordTry(order, 1, "passed"));
+
+    const { getPronunciationPracticePage } = await import(
+      "@/server/student-access/pronunciation-flow"
+    );
+    const result = await getPronunciationPracticePage({
+      studentId: "student-1",
+      assignmentStudentId: "assignment-student-1",
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      page: {
+        readOnly: false,
+        completed: false,
+        currentWordOrder: 5,
+        passedWordCount: 5,
+        finishedWordCount: 5,
+      },
+    });
+  });
+
   it("blocks overdue and canceled work", async () => {
     const { getPronunciationPracticePage } = await import(
       "@/server/student-access/pronunciation-flow"
