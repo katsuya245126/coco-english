@@ -15,9 +15,10 @@ independently verified.
 | V | `~/Downloads/v.wav` | `a0e9909aad11adaa7dcd7d2874ff6f4ea808b7439dabd20a6a151b34ecfa61b7` |
 | Z | `~/Downloads/z.wav` | `958db61f46a718786448d43a1ad7034bae75b308a7ff379a94a84b10549dc665` |
 
-The supplied sources are mono, 48 kHz, 16-bit PCM WAV. The approved
-implementation accepts this source depth; no synthetic or replacement clips
-were made.
+The supplied sources are mono, 48 kHz, 16-bit PCM WAV. This does not satisfy
+the approved 24-bit master requirement. Acceptance of these 16-bit masters or
+rerecording 24-bit masters remains pending owner approval; no synthetic or
+replacement clips were made.
 
 ## Conversion
 
