@@ -5,6 +5,17 @@ const migration = readFileSync(
   "supabase/migrations/202608030001_pronunciation_practice.sql",
   "utf8",
 ).toLowerCase();
+const e2eSpec = readFileSync(
+  "tests/e2e/pronunciation-practice.spec.ts",
+  "utf8",
+);
+const pronunciationQuerySources = [
+  "src/server/teacher/student-profile.ts",
+  "src/server/teacher/pronunciation-evidence.ts",
+  "src/server/pronunciation/teacher-service.ts",
+  "src/server/student-access/pronunciation-flow.ts",
+  "src/server/student-access/pronunciation-upload.ts",
+].map((file) => readFileSync(file, "utf8"));
 
 describe("pronunciation practice persistence migration", () => {
   it("adds a bounded assignment kind and valid-try table", () => {
@@ -44,5 +55,22 @@ describe("pronunciation practice persistence migration", () => {
     expect(migration).not.toContain("update public.assignments");
     expect(migration).not.toContain("create or replace function public.complete_student_attempt");
     expect(migration).not.toContain("mission_completed");
+  });
+
+  it("limits the writable end-to-end path to local Supabase", () => {
+    expect(e2eSpec).toContain("const SUPABASE_IS_LOCAL");
+    expect(e2eSpec).toContain("127\\.0\\.0\\.1|localhost");
+    expect(e2eSpec).toContain("!SUPABASE_IS_LOCAL");
+  });
+
+  it("names the owned attempt relationship in every pronunciation query", () => {
+    for (const source of pronunciationQuerySources) {
+      expect(source).not.toMatch(
+        /attempts!inner\(\s*(?:id,\s*)?assignment_students!inner\(/u,
+      );
+      expect(source).not.toMatch(
+        /\.from\("attempts"\)[\s\S]{0,400}?assignment_students!inner\(/u,
+      );
+    }
   });
 });

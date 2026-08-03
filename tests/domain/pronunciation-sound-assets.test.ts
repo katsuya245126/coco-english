@@ -14,15 +14,15 @@ describe("pronunciation sound assets", () => {
     }
   });
 
-  it("keeps the source-depth decision pending", () => {
+  it("records approval of the supplied 16-bit masters", () => {
     const licenseNote = readFileSync(
       path.join(process.cwd(), "docs/licenses/pronunciation-sound-clips.md"),
       "utf8",
     );
 
     expect(licenseNote).toContain("16-bit PCM WAV");
-    expect(licenseNote).toContain("approved 24-bit master requirement");
-    expect(licenseNote).toContain("remains pending owner approval");
+    expect(licenseNote).toContain("approved for this feature");
     expect(licenseNote).not.toContain("approved implementation accepts this source depth");
+    expect(licenseNote).not.toContain("remains pending owner approval");
   });
 });

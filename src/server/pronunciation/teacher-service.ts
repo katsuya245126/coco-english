@@ -220,7 +220,7 @@ async function loadWordHistory(
        attempt_turns!inner(
          turn_order,
          attempts!inner(
-           assignment_students!inner(
+           assignment_students!attempts_assignment_student_id_fkey!inner(
              student_id,
              assignments!inner(
                assignment_kind,

@@ -39,9 +39,33 @@ The Playwright path is gated so it cannot write to a database accidentally:
 E2E_PRONUNCIATION=true npm run test:e2e -- tests/e2e/pronunciation-practice.spec.ts
 ```
 
-Run it only against a disposable non-production environment after separate
-approval naming that exact environment. The approved pronunciation migration
-must already be applied there; this test never applies migrations.
+Run it only against local Supabase. The test refuses hosted Supabase URLs, even
+when `E2E_PRONUNCIATION=true`.
+
+Start the local database:
+
+```bash
+npx supabase start
+```
+
+Load the generated local URL and new API keys. Then run the test:
+
+```bash
+eval "$(npx supabase status -o env)"
+NEXT_PUBLIC_SUPABASE_URL="$API_URL" \
+NEXT_PUBLIC_SUPABASE_ANON_KEY="$PUBLISHABLE_KEY" \
+SUPABASE_SERVICE_ROLE_KEY="$SECRET_KEY" \
+PIN_HASH_PEPPER="coco-local-pronunciation-test" \
+E2E_PRONUNCIATION=true \
+npm run test:e2e -- tests/e2e/pronunciation-practice.spec.ts
+```
+
+Use `PUBLISHABLE_KEY` and `SECRET_KEY`. Current local Supabase versions can
+reject the legacy `ANON_KEY` and `SERVICE_ROLE_KEY` values.
+
+Run `npx supabase stop` when local database work is complete. Use
+`npx supabase db reset --local` only when you want to delete and rebuild the
+local database from the tracked migrations.
 
 The test creates a teacher, class, and student; creates an F practice through
 the teacher UI; starts the student flow; reloads after the first valid try to

@@ -173,7 +173,7 @@ async function loadOwnedPractice(
 
   const attemptResult = await supabase
     .from("attempts")
-    .select("id, assignment_student_id, status, assignment_students!inner(student_id)")
+    .select("id, assignment_student_id, status, assignment_students!attempts_assignment_student_id_fkey!inner(student_id)")
     .eq("id", input.attemptId)
     .eq("assignment_student_id", input.assignmentStudentId)
     .eq("assignment_students.student_id", input.studentId)
@@ -189,7 +189,7 @@ async function loadOwnedPractice(
   const turnsResult = await supabase
     .from("attempt_turns")
     .select(
-      "id, turn_order, attempts!inner(assignment_students!inner(student_id))",
+      "id, turn_order, attempts!inner(assignment_students!attempts_assignment_student_id_fkey!inner(student_id))",
     )
     .eq("attempt_id", input.attemptId)
     .eq("attempts.assignment_students.student_id", input.studentId)
@@ -207,7 +207,7 @@ async function loadOwnedPractice(
   const triesResult = await supabase
     .from("pronunciation_word_tries")
     .select(
-      "attempt_turn_id, try_number, outcome, attempt_turns!inner(attempt_id, attempts!inner(assignment_students!inner(student_id)))",
+      "attempt_turn_id, try_number, outcome, attempt_turns!inner(attempt_id, attempts!inner(assignment_students!attempts_assignment_student_id_fkey!inner(student_id)))",
     )
     .eq("attempt_turns.attempt_id", input.attemptId)
     .eq("attempt_turns.attempts.assignment_students.student_id", input.studentId)
@@ -339,7 +339,7 @@ export async function uploadPronunciationTry(
     const ownedAudioClip = await supabase
       .from("audio_clips")
       .select(
-        "id, attempt_turn_id, attempt_turns!inner(attempt_id, attempts!inner(assignment_students!inner(student_id)))",
+        "id, attempt_turn_id, attempt_turns!inner(attempt_id, attempts!inner(assignment_students!attempts_assignment_student_id_fkey!inner(student_id)))",
       )
       .eq("id", audioClipId)
       .eq("attempt_turn_id", owned.turnId)

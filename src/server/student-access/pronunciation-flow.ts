@@ -176,7 +176,7 @@ async function loadOwnedAttempt(
   const result = await supabase
     .from("attempts")
     .select(
-      "id, assignment_student_id, status, assignment_students!inner(student_id)",
+      "id, assignment_student_id, status, assignment_students!attempts_assignment_student_id_fkey!inner(student_id)",
     )
     .eq("id", input.attemptId)
     .eq("assignment_student_id", input.assignmentStudentId)
@@ -217,7 +217,7 @@ async function loadWords(
   const turnsResult = await supabase
     .from("attempt_turns")
     .select(
-      "id, turn_order, attempts!inner(assignment_students!inner(student_id))",
+      "id, turn_order, attempts!inner(assignment_students!attempts_assignment_student_id_fkey!inner(student_id))",
     )
     .eq("attempt_id", input.attemptId)
     .eq("attempts.assignment_students.student_id", input.studentId)
@@ -230,7 +230,7 @@ async function loadWords(
       `id, attempt_turn_id, try_number, transcript, outcome,
        word_accuracy, star_band, full_word_passed,
        target_sound_accuracy, target_sound_passed, created_at,
-       attempt_turns!inner(attempt_id, attempts!inner(assignment_students!inner(student_id)))`,
+       attempt_turns!inner(attempt_id, attempts!inner(assignment_students!attempts_assignment_student_id_fkey!inner(student_id)))`,
     )
     .eq("attempt_turns.attempt_id", input.attemptId)
     .eq("attempt_turns.attempts.assignment_students.student_id", input.studentId)

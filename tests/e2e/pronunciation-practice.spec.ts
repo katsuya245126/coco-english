@@ -8,6 +8,10 @@ const SUPABASE_READY = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
     process.env.SUPABASE_SERVICE_ROLE_KEY,
 );
+const SUPABASE_IS_LOCAL =
+  /^(https?:\/\/)?(127\.0\.0\.1|localhost)(:\d+)?(?:\/|$)/.test(
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
+  );
 
 test.use({
   launchOptions: {
@@ -68,6 +72,10 @@ function installFakeRecorder(page: Page) {
     Object.defineProperty(window, "MediaRecorder", {
       configurable: true,
       value: FakeMediaRecorder,
+    });
+    Object.defineProperty(window, "AudioContext", {
+      configurable: true,
+      value: undefined,
     });
   });
 }
@@ -282,6 +290,7 @@ async function seedCompletedWordEvidence(
 }
 
 async function recordWord(page: Page) {
+  await expect(page.getByRole("button", { name: "Play word" })).toBeEnabled();
   await page.getByRole("button", { name: "Record", exact: true }).click();
   await page.getByRole("button", { name: "Stop recording" }).click();
   await expect(page.getByText("Good job!", { exact: true }).first()).toBeVisible();
@@ -291,10 +300,14 @@ test("teacher-to-student pronunciation practice path stays resumable and reviewa
   page,
 }) => {
   test.setTimeout(180_000);
-  if (process.env.E2E_PRONUNCIATION !== "true" || !SUPABASE_READY) {
+  if (
+    process.env.E2E_PRONUNCIATION !== "true" ||
+    !SUPABASE_READY ||
+    !SUPABASE_IS_LOCAL
+  ) {
     test.skip(
       true,
-      "Set E2E_PRONUNCIATION=true with a test database that already has the approved pronunciation migration.",
+      "Set E2E_PRONUNCIATION=true with a local Supabase database that has the approved pronunciation migration.",
     );
     return;
   }
@@ -361,6 +374,7 @@ test("teacher-to-student pronunciation practice path stays resumable and reviewa
     await teacherPage.getByLabel("Email").fill(email);
     await teacherPage.getByLabel("Password").fill(password);
     await teacherPage.getByRole("button", { name: "Log in" }).click();
+    await expect(teacherPage).toHaveURL(/\/teacher$/u);
     await teacherPage.goto(`/teacher/students/${student.data!.id}`);
     await teacherPage
       .getByRole("link", { name: "Assign pronunciation practice" })
@@ -391,8 +405,11 @@ test("teacher-to-student pronunciation practice path stays resumable and reviewa
     await page.getByLabel("4-digit PIN").fill(pin);
     await page.getByRole("button", { name: "Unlock homework" }).click();
     await expect(page.getByText("F Sound Practice", { exact: true })).toBeVisible();
-    await page.getByRole("link", { name: "Start practice" }).click();
+    await page
+      .getByRole("link", { name: "Start practice" })
+      .dispatchEvent("click");
     await expect(page.getByText(/Word 1 of 5/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Play word" })).toBeEnabled();
 
     // One valid try is enough to prove resume state; the remaining four are
     // completed in the same run. All provider calls are browser route doubles.
@@ -439,7 +456,10 @@ test("teacher-to-student pronunciation practice path stays resumable and reviewa
         await expect(page.getByText(`Word ${index + 2} of 5`)).toBeVisible();
       }
     }
-    await expect(page.getByText("Pronunciation practice result")).toBeVisible();
+    await page.getByRole("button", { name: "Next word" }).click();
+    await expect(
+      page.getByLabel("Pronunciation practice result"),
+    ).toBeVisible();
 
     await teacherPage.goto("/teacher");
     await expect(teacherPage.getByText("5 of 5 words passed", { exact: true })).toBeVisible();

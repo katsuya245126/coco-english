@@ -154,7 +154,7 @@ export async function getPronunciationEvidenceForTeacher(input: {
         status,
         completed_at,
         needs_review_reason,
-        assignment_students!inner(
+        assignment_students!attempts_assignment_student_id_fkey!inner(
           id,
           status,
           dismissed_at,
@@ -218,7 +218,7 @@ export async function getPronunciationEvidenceForTeacher(input: {
           turn_order,
           attempts!inner(
             id,
-            assignment_students!inner(
+            assignment_students!attempts_assignment_student_id_fkey!inner(
               assignments!inner(classes!inner(teacher_id))
             )
           )
