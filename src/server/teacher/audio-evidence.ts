@@ -60,6 +60,7 @@ type AttemptTurnRow = {
   target_attempted: boolean | null;
   repeat_accepted: boolean | null;
   evaluation: unknown;
+  coco_line: string | null;
 };
 
 type AudioClipEvidenceRow = {
@@ -207,6 +208,33 @@ function readTurnQuestionsByOrder(row: AttemptOwnershipRow): Map<number, string>
     if (order === null || typeof turn.prompt !== "string") continue;
     const prompt = turn.prompt.trim();
     if (prompt) questionsByOrder.set(order, prompt);
+  }
+
+  return questionsByOrder;
+}
+
+/**
+ * Fill in the questions a conversation mission asked after its opening turn.
+ *
+ * Free-talking missions only carry turn 1's prompt in the snapshot; every later
+ * question is generated during the attempt and stored on the *previous* turn as
+ * `coco_line`. Without this the evidence page shows a question on turn 1 and
+ * nothing after it. Mirrors the student recap in `student-history.ts`.
+ *
+ * Preset missions already have every prompt in the snapshot, so entries added
+ * here never overwrite one that is already present.
+ */
+export function addDynamicTurnQuestions(
+  questionsByOrder: Map<number, string>,
+  turnRows: AttemptTurnRow[],
+): Map<number, string> {
+  for (const row of turnRows) {
+    const cocoLine = row.coco_line?.trim();
+    if (!cocoLine) continue;
+    const nextOrder = row.turn_order + 1;
+    if (!questionsByOrder.has(nextOrder)) {
+      questionsByOrder.set(nextOrder, cocoLine);
+    }
   }
 
   return questionsByOrder;
@@ -442,7 +470,7 @@ export async function getAttemptEvidenceForTeacher(input: {
   const turns = await supabase
     .from("attempt_turns")
     .select(
-      "id, turn_order, original_transcript, improved_sentence, repeat_transcript, target_attempted, repeat_accepted, evaluation",
+      "id, turn_order, original_transcript, improved_sentence, repeat_transcript, target_attempted, repeat_accepted, evaluation, coco_line",
     )
     .eq("attempt_id", input.attemptId)
     .order("turn_order", { ascending: true });
@@ -503,7 +531,10 @@ export async function getAttemptEvidenceForTeacher(input: {
 
   const ownershipRow = attempt.data as AttemptOwnershipRow;
   const metadata = mapAttemptMetadata(ownershipRow);
-  const questionsByOrder = readTurnQuestionsByOrder(ownershipRow);
+  const questionsByOrder = addDynamicTurnQuestions(
+    readTurnQuestionsByOrder(ownershipRow),
+    turnRows,
+  );
 
   return {
     attemptId: attempt.data.id,
