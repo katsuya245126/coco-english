@@ -61,6 +61,8 @@ type AttemptTurnRow = {
   repeat_accepted: boolean | null;
   evaluation: unknown;
   coco_line: string | null;
+  reply_hint_frame: string | null;
+  hint_level_used: number | null;
 };
 
 type AudioClipEvidenceRow = {
@@ -121,6 +123,10 @@ export type AttemptTurnEvidence = {
     | "Needs teacher check";
   repeatResult: "Accepted" | "Try again" | "Needs teacher check" | null;
   reviewReason: string | null;
+  /** The reply hint frame offered for this question; null for preset missions. */
+  replyHintFrame: string | null;
+  /** 0 = student did not expand the hint; higher = leaned on it. */
+  hintLevelUsed: number;
   audioClips: AttemptAudioClipEvidence[];
 };
 
@@ -140,6 +146,8 @@ export type AttemptEvidence = {
   reviewReason: string | null;
   attemptCount: number;
   highestHintLevel: number;
+  /** Free-talking mission: the target pattern is soft context, not a per-turn goal. */
+  conversationMode: boolean;
   turns: AttemptTurnEvidence[];
 };
 
@@ -211,6 +219,13 @@ function readTurnQuestionsByOrder(row: AttemptOwnershipRow): Map<number, string>
   }
 
   return questionsByOrder;
+}
+
+/** Read conversationMode off the snapshot; missing/legacy snapshots read as preset. */
+function readConversationMode(row: AttemptOwnershipRow): boolean {
+  const snapshot = one(one(row.assignment_students)?.assignments)?.mission_snapshot;
+  if (typeof snapshot !== "object" || snapshot === null) return false;
+  return (snapshot as { conversationMode?: unknown }).conversationMode === true;
 }
 
 /**
@@ -419,6 +434,8 @@ function mapTurn(
     targetPatternResult: mapTargetPatternResult(row),
     repeatResult: mapRepeatResult(row),
     reviewReason: mapReviewReason(row),
+    replyHintFrame: row.reply_hint_frame,
+    hintLevelUsed: row.hint_level_used ?? 0,
     audioClips: clipsByTurnId.get(row.id) ?? [],
   };
 }
@@ -470,7 +487,7 @@ export async function getAttemptEvidenceForTeacher(input: {
   const turns = await supabase
     .from("attempt_turns")
     .select(
-      "id, turn_order, original_transcript, improved_sentence, repeat_transcript, target_attempted, repeat_accepted, evaluation, coco_line",
+      "id, turn_order, original_transcript, improved_sentence, repeat_transcript, target_attempted, repeat_accepted, evaluation, coco_line, reply_hint_frame, hint_level_used",
     )
     .eq("attempt_id", input.attemptId)
     .order("turn_order", { ascending: true });
@@ -552,6 +569,7 @@ export async function getAttemptEvidenceForTeacher(input: {
     reviewReason: attempt.data.needs_review_reason,
     attemptCount: metadata.attemptCount,
     highestHintLevel: metadata.highestHintLevel,
+    conversationMode: readConversationMode(ownershipRow),
     turns: turnRows.map((turn) =>
       mapTurn(turn, clipsByTurnId, questionsByOrder),
     ),

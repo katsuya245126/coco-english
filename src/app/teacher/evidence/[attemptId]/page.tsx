@@ -88,10 +88,6 @@ export default async function AttemptEvidencePage({
             <p style={labelStyle}>Attempts</p>
             <p style={valueStyle}>{evidence.attemptCount}</p>
           </div>
-          <div>
-            <p style={labelStyle}>Highest hint used</p>
-            <p style={valueStyle}>{hintLevelLabel(evidence.highestHintLevel)}</p>
-          </div>
         </section>
 
         <section aria-label="Turn transcripts" style={turnListStyle}>
@@ -100,6 +96,7 @@ export default async function AttemptEvidencePage({
               key={turn.id}
               turn={turn}
               attemptId={evidence.attemptId}
+              conversationMode={evidence.conversationMode}
             />
           ))}
         </section>
@@ -111,9 +108,11 @@ export default async function AttemptEvidencePage({
 function TurnEvidenceSection({
   turn,
   attemptId,
+  conversationMode,
 }: {
   turn: AttemptTurnEvidence;
   attemptId: string;
+  conversationMode: boolean;
 }) {
   const originalClips = turn.audioClips.filter(
     (clip) => clip.clipKind === "original_answer",
@@ -128,23 +127,36 @@ function TurnEvidenceSection({
       {turn.question && (
         <TranscriptBlock label="Question asked" transcript={turn.question} />
       )}
+      {turn.replyHintFrame && (
+        <div style={transcriptBlockStyle}>
+          <div style={hintHeaderStyle}>
+            <p style={labelStyle}>Hint</p>
+            {turn.hintLevelUsed > 0 && (
+              <span style={hintExpandedChipStyle}>Expanded</span>
+            )}
+          </div>
+          <p style={transcriptStyle}>{turn.replyHintFrame}</p>
+        </div>
+      )}
       <TranscriptBlock
         label="Raw student transcript"
         transcript={turn.originalTranscript}
         interpretation={turn.originalDisplayTranscript}
       />
-      <AnnotationGrid turn={turn} />
+      <AnnotationGrid turn={turn} conversationMode={conversationMode} />
       {turn.improvedSentence && (
         <TranscriptBlock
           label="Improved sentence"
           transcript={turn.improvedSentence}
         />
       )}
-      <TranscriptBlock
-        label="Raw repeat transcript"
-        transcript={turn.repeatTranscript}
-        interpretation={turn.repeatDisplayTranscript}
-      />
+      {turn.repeatTranscript && (
+        <TranscriptBlock
+          label="Raw repeat transcript"
+          transcript={turn.repeatTranscript}
+          interpretation={turn.repeatDisplayTranscript}
+        />
+      )}
       {turn.reviewReason && (
         <div style={reviewBlockStyle}>
           <p style={reviewBadgeStyle}>Teacher review</p>
@@ -167,10 +179,25 @@ function TurnEvidenceSection({
   );
 }
 
-function AnnotationGrid({ turn }: { turn: AttemptTurnEvidence }) {
+function AnnotationGrid({
+  turn,
+  conversationMode,
+}: {
+  turn: AttemptTurnEvidence;
+  conversationMode: boolean;
+}) {
+  // Free-talking missions treat the target pattern as soft context, not a
+  // per-turn goal, so "Not found" there reads as a failure that isn't one.
   const rows: [string, string | null][] = [
-    ["Meaning result", friendlyMeaningResult(turn.meaningResult)],
-    ["Target pattern result", friendlyPatternResult(turn.targetPatternResult)],
+    ["Meaning understood", friendlyMeaningResult(turn.meaningResult)],
+    ...(conversationMode
+      ? []
+      : [
+          [
+            "Target pattern result",
+            friendlyPatternResult(turn.targetPatternResult),
+          ] as [string, string],
+        ]),
     ...(turn.repeatResult !== null
       ? [["Repeat result", friendlyRepeatResult(turn.repeatResult)] as [string, string]]
       : []),
@@ -294,13 +321,6 @@ function formatDateTime(value: string | null) {
   }).format(new Date(value));
 }
 
-function hintLevelLabel(level: number): string {
-  if (level === 0) return "No hints used";
-  if (level === 1) return "Pattern hint";
-  if (level === 2) return "Word bank";
-  return "Full example";
-}
-
 function reviewReasonLabel(reason: string) {
   if (reason === "low_confidence") {
     return "AI was not confident enough to decide.";
@@ -397,6 +417,23 @@ const withheldNoteStyle: React.CSSProperties = {
   margin: "6px 0 0",
   fontSize: 14,
   color: "#92400E",
+};
+
+const hintHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+};
+
+// Highlighted: the student expanded the hint — the teacher likely cares.
+const hintExpandedChipStyle: React.CSSProperties = {
+  margin: "0 0 6px",
+  padding: "1px 8px",
+  borderRadius: 9999,
+  fontSize: 12,
+  fontWeight: 600,
+  background: "#DCFCE7",
+  color: "#166534",
 };
 
 const transcriptBlockStyle: React.CSSProperties = {

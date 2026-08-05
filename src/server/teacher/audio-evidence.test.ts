@@ -15,6 +15,8 @@ function turn(turnOrder: number, cocoLine: string | null): TurnRow {
     repeat_accepted: null,
     evaluation: null,
     coco_line: cocoLine,
+    reply_hint_frame: null,
+    hint_level_used: null,
   };
 }
 
