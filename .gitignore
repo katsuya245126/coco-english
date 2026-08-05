@@ -41,6 +41,9 @@ docs/PROBLEMS-SOLVED.md
 # Temporary local agent/session documentation
 docs/local/
 
+# Local-only scripts (dev launchers, local seeders); not for the repo
+scripts/local/
+
 # One-off production DB management scripts — not for public repo
 scripts/list-recent-assignments.mjs
 scripts/inspect-attempts.mjs
@@ -50,3 +53,6 @@ scripts/output/
 
 # Personal DB-management migration (resets test-class data); not applied to prod, kept local only
 supabase/migrations/202607200001_reset_class_assignments.sql
+
+# Supabase CLI local branch state (generated)
+supabase/.branches/
