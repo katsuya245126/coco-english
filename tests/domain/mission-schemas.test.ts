@@ -19,7 +19,6 @@ describe("missionFormSchema manual authoring contract (MISS-01, MISS-04)", () =>
     const parsed = missionFormSchema.parse({
       title: "After-school likes",
       targetPattern: "I like ___ing.",
-      topic: "After school",
       level: "elementary",
       requiredTurns: 2,
       turns: [
@@ -41,7 +40,6 @@ describe("missionFormSchema manual authoring contract (MISS-01, MISS-04)", () =>
     const parsed = missionFormSchema.safeParse({
       title: "Mismatch",
       targetPattern: "I can ___.",
-      topic: "Abilities",
       level: "beginner",
       requiredTurns: 3,
       turns: [completeTurn],
@@ -54,7 +52,6 @@ describe("missionFormSchema manual authoring contract (MISS-01, MISS-04)", () =>
     const invalid = missionFormSchema.safeParse({
       title: "Invalid level",
       targetPattern: "I want ___.",
-      topic: "Wants",
       level: "advanced",
       requiredTurns: 1,
       turns: [completeTurn],
@@ -62,7 +59,6 @@ describe("missionFormSchema manual authoring contract (MISS-01, MISS-04)", () =>
     const valid = missionFormSchema.parse({
       title: "Default buddy",
       targetPattern: "I want ___.",
-      topic: "Wants",
       level: "beginner",
       requiredTurns: 1,
       turns: [completeTurn],
@@ -79,7 +75,6 @@ describe("missionSnapshotSchema reusable assignment contract (D-07)", () => {
       missionId: "11111111-1111-4111-8111-111111111111",
       title: "Snapshot mission",
       targetPattern: "I like ___.",
-      topic: "Food",
       level: "elementary",
       requiredTurns: 1,
       characterId: "default-buddy",

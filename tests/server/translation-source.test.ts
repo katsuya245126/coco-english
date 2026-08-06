@@ -4,12 +4,10 @@ const snapshot = {
   missionId: "11111111-1111-4111-8111-111111111111",
   title: "Soccer chat",
   targetPattern: "How often do you _____?",
-  topic: "Sports",
   level: "elementary",
   requiredTurns: 5,
   characterId: "default-buddy",
   conversationMode: true,
-  scenePremise: null,
   turns: [
     {
       turnOrder: 1,

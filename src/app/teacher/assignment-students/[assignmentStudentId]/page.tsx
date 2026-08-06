@@ -61,12 +61,9 @@ export default async function AssignmentStudentPage({
             This is the work that was assigned.
           </p>
 
-          {(evidence.targetPattern || evidence.topic) && (
+          {evidence.targetPattern && (
             <div style={missionMetaStyle}>
-              {evidence.topic && <SummaryItem label="Topic" value={evidence.topic} />}
-              {evidence.targetPattern && (
-                <SummaryItem label="Target pattern" value={evidence.targetPattern} />
-              )}
+              <SummaryItem label="Target pattern" value={evidence.targetPattern} />
             </div>
           )}
 

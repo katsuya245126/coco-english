@@ -618,7 +618,6 @@ type ConversationTurnContext = {
   assignmentStudentId: string;
   attemptId: string;
   turnOrder: number;
-  scenePremise: string | null;
   targetPattern: string;
   requiredTurns: number;
   studentTranscript: string;
@@ -715,7 +714,6 @@ async function runConversationTurn(
   }
 
   const generationInput: GenerateCocoReplyInput = {
-    scenePremise: context.scenePremise ?? "",
     targetPattern: context.targetPattern,
     turnOrder: context.turnOrder,
     requiredTurns: context.requiredTurns,
@@ -1817,7 +1815,6 @@ export async function uploadAttemptAudioClip(
             assignmentStudentId: input.assignmentStudentId,
             attemptId: input.attemptId,
             turnOrder: input.turnOrder,
-            scenePremise: snapshot.scenePremise,
             targetPattern: snapshot.targetPattern,
             requiredTurns: snapshot.requiredTurns,
             studentTranscript: transcript,

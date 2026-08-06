@@ -34,7 +34,6 @@ export type AssignmentStudentEvidence = {
   // attempt there is no evidence to show, so the page shows the work itself
   // rather than a grid of empty stats.
   targetPattern: string | null;
-  topic: string | null;
   turns: AssignmentStudentMissionTurn[];
 };
 
@@ -78,7 +77,6 @@ export async function getAssignmentStudentEvidenceForTeacher(
     assignmentId: String(assignment.id),
     dismissedAt: row.dismissed_at ? String(row.dismissed_at) : null,
     targetPattern: snapshot.success ? snapshot.data.targetPattern : null,
-    topic: snapshot.success ? snapshot.data.topic : null,
     turns: snapshot.success
       ? snapshot.data.turns.map((turn) => ({
           turnOrder: turn.turnOrder,

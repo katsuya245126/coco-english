@@ -27,11 +27,10 @@ function throwingClient(): OpenerResponsesClient {
 }
 
 describe("generateOpener", () => {
-  it("returns a scene- and pattern-grounded Coco opener from an injected client", async () => {
+  it("returns a target-pattern-grounded Coco opener from an injected client", async () => {
     const requests: unknown[] = [];
     const result = await generateOpener(
       {
-        scenePremise: "You meet Coco at the school snack stand.",
         targetPattern: "Can I have ___, please?",
       },
       {
@@ -47,7 +46,6 @@ describe("generateOpener", () => {
       opener: "Hi! I am choosing a snack. Can I have an apple, please? What would you like?",
     });
     expect(requests).toHaveLength(1);
-    expect(JSON.stringify(requests[0])).toContain("school snack stand");
     expect(JSON.stringify(requests[0])).toContain("Can I have ___, please?");
   });
 
@@ -55,7 +53,7 @@ describe("generateOpener", () => {
     "fails schema_failed for malformed opener output %#",
     async (output) => {
       const result = await generateOpener(
-        { scenePremise: "Coco is at the library.", targetPattern: "I like ___." },
+        { targetPattern: "I like ___." },
         { client: fakeClient(output) },
       );
 
@@ -66,7 +64,7 @@ describe("generateOpener", () => {
   it("fails schema_failed for invalid input without calling the client", async () => {
     const requests: unknown[] = [];
     const result = await generateOpener(
-      { scenePremise: "", targetPattern: "I like ___." },
+      { targetPattern: "" },
       { client: fakeClient({ opener: "Should never be reached." }, requests) },
     );
 
@@ -76,7 +74,7 @@ describe("generateOpener", () => {
 
   it("fails provider_error when the injected client throws", async () => {
     const result = await generateOpener(
-      { scenePremise: "Coco is at the library.", targetPattern: "I like ___." },
+      { targetPattern: "I like ___." },
       { client: throwingClient() },
     );
 
@@ -85,7 +83,7 @@ describe("generateOpener", () => {
 
   it("fails missing_api_key without creating a provider client", async () => {
     const result = await generateOpener(
-      { scenePremise: "Coco is at the library.", targetPattern: "I like ___." },
+      { targetPattern: "I like ___." },
       { apiKey: "" },
     );
 

@@ -11,7 +11,6 @@ import {
 const baseFormFields = {
   title: "Ordering food",
   targetPattern: "Can I have a...?",
-  topic: "Restaurant",
   level: "elementary" as const,
   characterId: DEFAULT_CHARACTER_ID,
 };
@@ -34,7 +33,6 @@ const baseSnapshotFields = {
   missionId: "11111111-1111-1111-1111-111111111111",
   title: "Ordering food",
   targetPattern: "Can I have a...?",
-  topic: "Restaurant",
   level: "elementary" as const,
   characterId: DEFAULT_CHARACTER_ID,
 };
@@ -211,17 +209,20 @@ describe("missionSnapshotSchema", () => {
     }
   });
 
-  it("defaults scenePremise to null when omitted", () => {
+  it("strips retired topic and scene-premise fields from legacy snapshots", () => {
     const result = missionSnapshotSchema.safeParse({
       ...baseSnapshotFields,
       requiredTurns: 5,
       conversationMode: true,
+      topic: "Restaurant",
+      scenePremise: "You and Coco are exploring a busy market.",
       turns: makeSnapshotTurns(1),
     });
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.scenePremise).toBeNull();
+      expect(result.data).not.toHaveProperty("topic");
+      expect(result.data).not.toHaveProperty("scenePremise");
     }
   });
 

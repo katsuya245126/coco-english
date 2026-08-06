@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockRequireTeacherProfile,
   mockConsume,
-  mockPremise,
   mockOpener,
   mockCreateMission,
   mockUpdateMission,
@@ -13,7 +12,6 @@ const {
 } = vi.hoisted(() => ({
   mockRequireTeacherProfile: vi.fn(),
   mockConsume: vi.fn(),
-  mockPremise: vi.fn(),
   mockOpener: vi.fn(),
   mockCreateMission: vi.fn(),
   mockUpdateMission: vi.fn(),
@@ -30,10 +28,6 @@ vi.mock("@/server/auth/teacher-profile", () => ({
 
 vi.mock("@/server/security/request-budget", () => ({
   consumeRequestBudget: mockConsume,
-}));
-
-vi.mock("@/server/ai/scene-premise-generator", () => ({
-  generateScenePremise: mockPremise,
 }));
 
 vi.mock("@/server/ai/opener-generator", () => ({
@@ -64,27 +58,17 @@ const CLASS_ID = "22222222-2222-4222-8222-222222222222";
 const ownedMission = { id: MISSION_ID, title: "Ordering food", turns: [] };
 const ownedClass = { id: CLASS_ID, name: "Class A" };
 
-const validPremiseInput = {
-  title: "Ordering food",
-  topic: "Food",
-  level: "elementary",
-  targetPattern: "I would like _____",
-};
-
 const validOpenerInput = {
-  ...validPremiseInput,
-  scenePremise: "Coco is at a food stall with the student.",
+  targetPattern: "I would like _____",
 };
 
 function validMissionFormData(missionId = MISSION_ID) {
   const formData = new FormData();
   formData.set("missionId", missionId);
   formData.set("title", "Ordering food");
-  formData.set("topic", "Food");
   formData.set("level", "elementary");
   formData.set("targetPattern", "I would like _____");
   formData.set("conversationMode", "on");
-  formData.set("scenePremise", "Coco is at a food stall with the student.");
   formData.set("requireCompleteSentenceAnswers", "on");
   // Conversation-mode missions must declare between 3 and 8 required turns.
   formData.set("requiredTurns", "3");
@@ -124,7 +108,6 @@ describe("teacher provider budget actions", () => {
     vi.resetModules();
     mockRequireTeacherProfile.mockReset();
     mockConsume.mockReset();
-    mockPremise.mockReset();
     mockOpener.mockReset();
     mockCreateMission.mockReset();
     mockUpdateMission.mockReset();
@@ -134,10 +117,6 @@ describe("teacher provider budget actions", () => {
 
     mockRequireTeacherProfile.mockResolvedValue({ id: "teacher-1" });
     mockConsume.mockResolvedValue({ allowed: true });
-    mockPremise.mockResolvedValue({
-      ok: true,
-      scenePremise: "Coco is at a food stall with the student.",
-    });
     mockOpener.mockResolvedValue({ ok: true, opener: "Hi! What's good here?" });
     mockCreateMission.mockResolvedValue({ id: MISSION_ID });
     mockUpdateMission.mockResolvedValue({ id: MISSION_ID });
@@ -149,50 +128,27 @@ describe("teacher provider budget actions", () => {
     mockListAssignableClassesForTeacher.mockResolvedValue([ownedClass]);
   });
 
-  it.each([
-    [
-      "premise",
-      async () =>
-        (await actions()).generatePremiseAction(validPremiseInput),
-      () => mockPremise,
-    ],
-    [
-      "opener",
-      async () => (await actions()).generateOpenerAction(validOpenerInput),
-      () => mockOpener,
-    ],
-  ])(
-    "denies %s generation before provider work",
-    async (_name, invoke, provider) => {
-      mockConsume.mockResolvedValue({ allowed: false, retryAfterSeconds: 300 });
+  it("denies opener generation before provider work", async () => {
+    mockConsume.mockResolvedValue({ allowed: false, retryAfterSeconds: 300 });
 
-      await expect(invoke()).resolves.toEqual({
-        ok: false,
-        error: RATE_LIMIT_COPY,
-      });
-      expect(provider()).not.toHaveBeenCalled();
-    },
-  );
+    await expect(
+      (await actions()).generateOpenerAction(validOpenerInput),
+    ).resolves.toEqual({
+      ok: false,
+      error: RATE_LIMIT_COPY,
+    });
+    expect(mockOpener).not.toHaveBeenCalled();
+  });
 
-  it.each([
-    [
-      "premise",
-      async () =>
-        (await actions()).generatePremiseAction(validPremiseInput),
-      () => mockPremise,
-    ],
-    [
-      "opener",
-      async () => (await actions()).generateOpenerAction(validOpenerInput),
-      () => mockOpener,
-    ],
-  ])("admits %s generation exactly once", async (_name, invoke, provider) => {
-    await expect(invoke()).resolves.toMatchObject({ ok: true });
+  it("admits opener generation exactly once", async () => {
+    await expect(
+      (await actions()).generateOpenerAction(validOpenerInput),
+    ).resolves.toMatchObject({ ok: true });
     expect(mockConsume).toHaveBeenCalledWith({
       actorId: "teacher-1",
       operation: "teacher_provider",
     });
-    expect(provider()).toHaveBeenCalledTimes(1);
+    expect(mockOpener).toHaveBeenCalledTimes(1);
   });
 
   it("creates a mission without consuming the provider budget", async () => {
@@ -291,30 +247,17 @@ describe("teacher provider budget actions", () => {
     },
   );
 
-  it.each([
-    [
-      "premise",
-      async () =>
-        (await actions()).generatePremiseAction(validPremiseInput),
-      () => mockPremise,
-    ],
-    [
-      "opener",
-      async () => (await actions()).generateOpenerAction(validOpenerInput),
-      () => mockOpener,
-    ],
-  ])(
-    "fails %s closed without provider work when the budget check rejects",
-    async (_name, invoke, blocked) => {
-      mockConsume.mockRejectedValue(new Error("budget rpc down"));
+  it("fails opener generation closed when the budget check rejects", async () => {
+    mockConsume.mockRejectedValue(new Error("budget rpc down"));
 
-      await expect(invoke()).resolves.toEqual({
-        ok: false,
-        error: RATE_LIMIT_COPY,
-      });
-      expect(blocked()).not.toHaveBeenCalled();
-    },
-  );
+    await expect(
+      (await actions()).generateOpenerAction(validOpenerInput),
+    ).resolves.toEqual({
+      ok: false,
+      error: RATE_LIMIT_COPY,
+    });
+    expect(mockOpener).not.toHaveBeenCalled();
+  });
 
   it("admits an owned assignment and assigns once", async () => {
     const { assignMissionAction } = await actions();
