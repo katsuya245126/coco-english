@@ -6,6 +6,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { TeacherClass } from "@/server/classroom/class-service";
 import type { TeacherQueueSnapshot } from "@/server/teacher/assignment-operations";
 import { TeacherClassNavLink } from "@/components/teacher/TeacherClassNavLink";
+import { FlashNotice } from "@/components/ui/FlashNotice";
 
 const POLL_INTERVAL_MS = 30000;
 const fingerprint = (snapshot: TeacherQueueSnapshot) => `${snapshot.needsReviewCount}:${snapshot.unreadCount}:${snapshot.newest?.attemptId ?? ""}`;
@@ -82,7 +83,7 @@ export function TeacherWorkspaceShell({ profileName, classes, initialSnapshot, i
     </aside>
     <div className="workspace"><header><strong>Teacher home</strong><span>{profileName} · <form action="/auth/logout" method="post"><button type="submit">Log out</button></form></span></header>
       {pendingInboxSnapshot && <button className="banner" type="button" onClick={applyInboxRefresh}>{pendingInboxSnapshot.needsReviewCount} new submissions — Show now</button>}
-      {notice && <div className="notice"><span><strong>{notice.studentName}</strong> · {notice.assignmentTitle} · {notice.className}</span><Link href={notice.href}>View</Link><button type="button" aria-label="Dismiss" onClick={() => setNotice(null)}>×</button></div>}
+      {notice && <div style={{ position: "fixed", top: 24, right: 24, zIndex: 1000 }}><FlashNotice variant="info" message={`${notice.studentName} · ${notice.className}`} onDismiss={() => setNotice(null)} autoHideMs={6000} action={<Link href={notice.href} style={{ color: "#2563EB", fontWeight: 600, fontSize: 13, textDecoration: "none", whiteSpace: "nowrap" }}>View</Link>}>{notice.assignmentTitle}</FlashNotice></div>}
       <main>{children}</main>
     </div>
   </div>;

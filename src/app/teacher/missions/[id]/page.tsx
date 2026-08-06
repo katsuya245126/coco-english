@@ -80,3 +80,4 @@ const linkStyle: React.CSSProperties = {
   borderRadius: 6,
   transition: "background 0.15s ease",
 };
+

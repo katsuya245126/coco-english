@@ -25,7 +25,7 @@ import { deriveResumedDynamicPrompt } from "@/domain/mission/student-question-st
 // parses it with missionSnapshotSchema (Pitfall 5: parse failure -> redirect
 // home). Resolves the Coco character profile. Determines the resume position
 // by loading any existing in_progress attempt turns. Redirects home for
-// missing, completed, or expired/closed assignments (D-14).
+// missing, completed, or closed assignments (D-14).
 
 type MissionPageProps = {
   params: Promise<{ assignmentStudentId: string }>;
@@ -58,12 +58,15 @@ export default async function MissionPage({ params }: MissionPageProps) {
   }
 
   // 2. Guard: only recordable statuses may enter the mission flow. A student
-  // who already submitted (teacher_review), finished (completed), or missed the
-  // due date should never land on the recorder — the audio route rejects those
-  // uploads with not_found, which previously surfaced as a dead-end
-  // "audio_upload_failed". Any non-recordable status redirects home, where the
+  // who already submitted (teacher_review) or finished (completed) should never
+  // land on the recorder. Any non-recordable status redirects home, where the
   // assignment list shows the real status (D-14).
-  const RECORDABLE_STATUSES = new Set(["assigned", "started", "needs_retry"]);
+  const RECORDABLE_STATUSES = new Set([
+    "assigned",
+    "started",
+    "missed",
+    "needs_retry",
+  ]);
   if (!RECORDABLE_STATUSES.has(asRow.status)) {
     redirect("/student/home");
   }
@@ -71,7 +74,7 @@ export default async function MissionPage({ params }: MissionPageProps) {
   // 3. Load the assignment row + mission_snapshot.
   const { data: assignment, error: assignmentError } = await supabase
     .from("assignments")
-    .select("id, mission_snapshot, due_at, canceled_at")
+    .select("id, mission_snapshot, canceled_at")
     .eq("id", asRow.assignment_id)
     .single();
 
@@ -80,16 +83,6 @@ export default async function MissionPage({ params }: MissionPageProps) {
   }
 
   if (assignment.canceled_at) {
-    redirect("/student/home");
-  }
-
-  // Guard: expired (due_at in the past). A teacher-reopened retry explicitly
-  // overrides the original deadline, matching the launchable Retry card.
-  if (
-    asRow.status !== "needs_retry" &&
-    assignment.due_at &&
-    new Date(assignment.due_at) < new Date()
-  ) {
     redirect("/student/home");
   }
 

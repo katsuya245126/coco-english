@@ -29,9 +29,9 @@ describe("student mission resume state", () => {
     expect(shellSource).toContain("initialReview.step");
   });
 
-  it("allows teacher-reopened retry missions after the original due date", () => {
-    expect(pageSource).toContain('asRow.status !== "needs_retry"');
-    expect(pageSource).toContain("assignment.due_at");
+  it("allows assigned and started missions to launch after their due date", () => {
+    expect(pageSource).not.toContain("assignment.due_at");
+    expect(pageSource).not.toContain('asRow.status !== "needs_retry"');
   });
 
   it("restores the pending Coco line for a resumed correction or repeat review (D-11.1)", () => {
@@ -60,7 +60,9 @@ describe("student mission resume state", () => {
   });
 
   it("keeps completed assignments out of the recorder on reload", () => {
-    expect(pageSource).toContain('const RECORDABLE_STATUSES = new Set(["assigned", "started", "needs_retry"])');
+    expect(pageSource).toMatch(
+      /const RECORDABLE_STATUSES = new Set\(\[[\s\S]*?"assigned"[\s\S]*?"started"[\s\S]*?"missed"[\s\S]*?"needs_retry"[\s\S]*?\]\)/,
+    );
     expect(pageSource.indexOf("RECORDABLE_STATUSES")).toBeLessThan(
       pageSource.indexOf("<MissionFlowShell"),
     );
