@@ -399,22 +399,28 @@ describe("uploadAttemptAudioClip", () => {
     expect(transcribeAudioFile).toHaveBeenCalled();
   });
 
-  it("accepts an authored open frame with the learner's own choice without evaluation", async () => {
+  it("sends an on-frame open answer to the evaluator so grammar is still checked", async () => {
+    // The frame regex proves shape ("I'd rather ___ because ___"), not grammar,
+    // so an on-frame answer must still reach the model. A prior fast path
+    // accepted any on-frame answer without evaluation, which let ungrammatical
+    // answers through as "correct" (regression found via the 8/5 mission:
+    // "I'd rather big city because more things to do").
     mockSupabase = createMockSupabase({
       missionSnapshot: {
         ...missionSnapshotFixture,
         requiredTurns: 1,
-        targetPattern: "I think _____ is the best",
+        targetPattern: "I'd rather _____ because _____",
         turns: [
           {
             ...missionSnapshotFixture.turns[0],
-            prompt:
-              "Which ice cream is the best: vanilla, strawberry, or chocolate?",
-            targetExample: "I think vanilla ice cream is the best.",
+            prompt: "Would you rather live in a big city or a small town?",
+            targetExample:
+              "I'd rather live in a big city because there are more things to do.",
             hintLadder: {
-              tier1: "I think _______ is the best",
-              tier2: "vanilla",
-              tier3: "I think vanilla ice cream is the best.",
+              tier1: "I'd rather _______ because _______",
+              tier2: "live in a big city / there are more things to do",
+              tier3:
+                "I'd rather live in a big city because there are more things to do.",
             },
             answerShape: "open",
           },
@@ -424,23 +430,19 @@ describe("uploadAttemptAudioClip", () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
     );
-    const evaluateOriginalTurn = vi.fn();
+    const evaluateOriginalTurn = successfulOriginalEvaluator();
     const result = await uploadAttemptAudioClip(audioInput(), {
       transcribeAudioFile: successfulTranscriber(
-        "I think chocolate ice cream is the best.",
+        "I'd rather big city because more things to do.",
       ),
       evaluateOriginalTurn,
     });
 
     expect(result).toMatchObject({
       ok: true,
-      evaluation: {
-        outcome: "accepted_original",
-        requireRepeat: false,
-        evaluationSource: "deterministic",
-      },
+      evaluation: { evaluationSource: "model" },
     });
-    expect(evaluateOriginalTurn).not.toHaveBeenCalled();
+    expect(evaluateOriginalTurn).toHaveBeenCalledTimes(1);
   });
 
   it("defers an open-frame match with Hangul to evaluator language judgment", async () => {
