@@ -27,7 +27,6 @@ const history = [
 ];
 
 const input: GenerateCocoReplyInput = {
-  scenePremise: "Friends talk together during the school day.",
   targetPattern: "I talk with ___ in ___.",
   turnOrder: 2,
   requiredTurns: 5,
@@ -114,7 +113,7 @@ describe("most recent understood conversation grounding", () => {
     ).toEqual(waterparkHistory[0]);
   });
 
-  it("returns no exchange for a first-turn unclear answer and keeps scene premise as the fallback grounding", () => {
+  it("returns no exchange for a first-turn unclear answer and keeps the saved opener as fallback grounding", () => {
     const prompt = buildConversationPrompt({
       ...input,
       turnOrder: 1,
@@ -134,9 +133,9 @@ describe("most recent understood conversation grounding", () => {
         responseHandling: "review_pending",
       }),
     ).toBeNull();
-    expect(prompt.scenePremise).toBe(input.scenePremise);
+    expect(prompt).not.toHaveProperty("scenePremise");
     expect(prompt.instructions.join(" ")).toContain(
-      "If no studentResponse is usable, ask one short neutral question grounded in scenePremise.",
+      "If no studentResponse is usable, ask one short neutral question grounded in Coco's saved opening question.",
     );
   });
 });
@@ -1141,7 +1140,7 @@ describe("conversation history generation contract", () => {
 
     expect(prompt.responseHandling).toBe("review_pending");
     expect(instructions).toContain("most recent earlier studentResponse");
-    expect(instructions).toContain("scenePremise");
+    expect(instructions).toContain("Coco's saved opening question");
     expect(instructions).toContain("Do not invent");
     expect(instructions).toContain("has been withheld");
   });
@@ -1203,7 +1202,6 @@ describe("conversation history generation contract", () => {
 
 describe("withheld-response instruction is unconditional", () => {
   const withheldHistoryInput = {
-    scenePremise: "You talk about summer vacation plans.",
     targetPattern: "I'm going to ________",
     turnOrder: 3,
     requiredTurns: 3,

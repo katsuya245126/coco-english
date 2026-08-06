@@ -24,12 +24,10 @@ const completeInput = {
   teacherId: "teacher-1",
   title: "Daily routines",
   targetPattern: "I ___ at seven.",
-  topic: "Routines",
   level: "elementary" as const,
   requiredTurns: 1,
   characterId: "default-buddy",
   conversationMode: false,
-  scenePremise: null,
   requireCompleteSentenceAnswers: true,
   turns: [
     {
@@ -69,7 +67,7 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
                         id: missionId,
                         title: completeInput.title,
                         target_pattern: completeInput.targetPattern,
-                        topic: completeInput.topic,
+                        topic: "",
                         level: completeInput.level,
                         required_turns: completeInput.requiredTurns,
                         character_id: "default-buddy",
@@ -93,7 +91,58 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
     expect(calls.some((call) => call.table === "questions")).toBe(false);
     expect(calls.find((call) => call.table === "missions")?.payload).toMatchObject({
       require_complete_sentence_answers: true,
+      topic: "",
     });
+    expect(calls.find((call) => call.table === "missions")?.payload).not.toHaveProperty(
+      "scene_premise",
+    );
+  });
+
+  it("does not overwrite retired metadata when updating an existing mission", async () => {
+    let missionPayload: unknown;
+    const missionRow = {
+      id: "mission-1",
+      title: completeInput.title,
+      target_pattern: completeInput.targetPattern,
+      level: completeInput.level,
+      required_turns: completeInput.requiredTurns,
+      character_id: "default-buddy",
+      conversation_mode: false,
+      require_complete_sentence_answers: true,
+      archived_at: null,
+    };
+    mockSupabase = {
+      from: vi.fn((table: string) => {
+        if (table === "missions") {
+          return {
+            update: vi.fn((payload: unknown) => {
+              missionPayload = payload;
+              return {
+                eq: vi.fn(() => ({
+                  eq: vi.fn(() => ({
+                    select: vi.fn(() => ({
+                      single: vi.fn(async () => ({ data: missionRow, error: null })),
+                    })),
+                  })),
+                })),
+              };
+            }),
+          };
+        }
+        return {
+          delete: vi.fn(() => ({
+            eq: vi.fn(async () => ({ error: null })),
+          })),
+          insert: vi.fn(async () => ({ error: null })),
+        };
+      }),
+    };
+
+    await updateMission({ ...completeInput, missionId: "mission-1" });
+
+    expect(missionPayload).not.toHaveProperty("topic");
+    expect(missionPayload).not.toHaveProperty("scene_premise");
+    expect(missionPayload).not.toHaveProperty("teacher_id");
   });
 
   it("rejects D-02 required turn count mismatch on create and update", async () => {

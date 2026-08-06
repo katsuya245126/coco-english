@@ -68,11 +68,12 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
       missionId: missionRow.id,
       title: "Food likes",
       targetPattern: "I like ___.",
-      topic: "Food",
       level: "elementary",
       requiredTurns: 1,
       characterId: "default-buddy",
     });
+    expect(snapshot).not.toHaveProperty("topic");
+    expect(snapshot).not.toHaveProperty("scenePremise");
     expect(snapshot.turns[0]).toMatchObject({
       turnOrder: 1,
       prompt: "What food do you like?",
@@ -250,7 +251,7 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
     // Deep-clone to simulate what the RPC stored
     const storedSnapshot = JSON.parse(JSON.stringify(snapshotAtAssign));
 
-    // Simulate live mission edit: title, topic, and turn prompt change
+    // Simulate live mission edit: title, legacy metadata, and turn prompt change
     const editedMission = {
       ...missionRow,
       title: "Edited Food Opinions",
@@ -274,12 +275,10 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
 
     // The stored snapshot must NOT have changed
     expect(storedSnapshot.title).toBe("Food likes");
-    expect(storedSnapshot.topic).toBe("Food");
     expect(storedSnapshot.turns[0].prompt).toBe("What food do you like?");
 
     // The fresh snapshot reflects the edit
     expect(freshSnapshot.title).toBe("Edited Food Opinions");
-    expect(freshSnapshot.topic).toBe("Cooking");
     expect(freshSnapshot.turns[0].prompt).toBe("What cooking do you enjoy?");
 
     // Confirm they are structurally different

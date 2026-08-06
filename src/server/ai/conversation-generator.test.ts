@@ -43,7 +43,6 @@ function createFakeClient(
 }
 
 const baseInput: GenerateCocoReplyInput = {
-  scenePremise: "You are ordering lunch at a school cafeteria.",
   targetPattern: "I would like ___.",
   turnOrder: 2,
   requiredTurns: 4,
@@ -274,7 +273,7 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     expect(result.ok && result.reply.line).not.toContain("hotel");
   });
 
-  it("repairs an unrelated first-turn recovery using the scene premise", async () => {
+  it("repairs an unrelated first-turn recovery using Coco's saved opener", async () => {
     const { generateCocoReply } = await import("@/server/ai/conversation-generator");
     const client = createFakeClient(
       vi
@@ -289,8 +288,8 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
         .mockResolvedValueOnce({
           output_parsed: {
             reaction: "Let's try another question.",
-            focus: "cafeteria",
-            question: "What food do you like at the cafeteria?",
+            focus: "eat",
+            question: "What would you like to eat?",
           },
         }),
     );
@@ -315,8 +314,7 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     expect(result).toMatchObject({
       ok: true,
       reply: {
-        line:
-          "Let's try another question. What food do you like at the cafeteria?",
+        line: "Let's try another question. What would you like to eat?",
       },
     });
   });

@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 export const openerGenerationInputSchema = z.object({
-  scenePremise: z.string().trim().min(1).max(280),
   targetPattern: z.string().trim().min(1).max(160),
 });
 

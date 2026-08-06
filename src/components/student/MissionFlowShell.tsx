@@ -35,7 +35,6 @@ import { StepAiEvaluationFeedback } from "@/components/student/StepAiEvaluationF
 import { StepTurnTransition } from "@/components/student/StepTurnTransition";
 import { StepConversationClosing } from "@/components/student/StepConversationClosing";
 import { StepMissionComplete } from "@/components/student/StepMissionComplete";
-import { ScenePremiseCard } from "@/components/student/ScenePremiseCard";
 import { MascotStage } from "@/components/student/MascotStage";
 import {
   CocoSpeechAudio,
@@ -174,7 +173,6 @@ export type MissionFlowShellProps = {
   missionTitle: string;
   turns: MissionSnapshotTurn[];
   requiredTurns: number;
-  scenePremise: string | null;
   conversationMode: boolean;
   characterProfile: CharacterProfileLines;
   startingTurnIndex: number;
@@ -263,7 +261,6 @@ export function MissionFlowShell({
   missionTitle,
   turns,
   requiredTurns,
-  scenePremise,
   conversationMode,
   characterProfile,
   startingTurnIndex,
@@ -884,10 +881,6 @@ export function MissionFlowShell({
       {/* Scene premise (SCENE-01): preset missions may render it once above turn 1.
           Conversation missions keep the premise as AI grounding but do not repeat it
           as a separate student-facing card. */}
-      {!conversationMode && startingTurnIndex === 0 && (
-        <ScenePremiseCard scenePremise={scenePremise} />
-      )}
-
       {/* Resume notice (D-04) */}
       {showResumeNotice && (
         <div

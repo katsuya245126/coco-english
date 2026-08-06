@@ -9,7 +9,7 @@ vi.mock("@/lib/supabase/server", () => ({
 
 const snapshot = {
   missionId: "00000000-0000-0000-0000-000000000001", title: "Mission", targetPattern: "I like X.",
-  topic: "Daily routines", level: "beginner", requiredTurns: 1, characterId: "default-buddy",
+  level: "beginner", requiredTurns: 1, characterId: "default-buddy",
   turns: [{ turnOrder: 1, prompt: "What?", targetExample: "I like it.", hintLadder: { tier1: "One", tier2: "Two", tier3: "Three" } }],
 };
 

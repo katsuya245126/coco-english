@@ -5,7 +5,6 @@ const snapshot = {
   missionId: "11111111-1111-4111-8111-111111111111",
   title: "July 1st Homework",
   targetPattern: "I like ...",
-  topic: "favorites",
   level: "elementary",
   requiredTurns: 1,
   characterId: "default-buddy",
@@ -47,7 +46,7 @@ describe("assignment student evidence", () => {
       className: "Test class", assignmentId: "assignment-1", dismissedAt: null,
       // Mission content is carried through so a no-attempt row can show the
       // assigned work instead of a grid of empty stats.
-      targetPattern: "I like ...", topic: "favorites",
+      targetPattern: "I like ...",
       turns: [{ turnOrder: 1, prompt: "What do you like?", targetExample: "I like apples." }],
     });
     expect(filters).toContainEqual(["assignments.classes.teacher_id", "teacher-1"]);

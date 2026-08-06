@@ -5,7 +5,6 @@ import { useState } from "react";
 import {
   createMissionAction,
   generateOpenerAction,
-  generatePremiseAction,
   updateMissionAction,
   type MissionActionResult,
 } from "@/app/teacher/missions/actions";
@@ -42,7 +41,6 @@ export function MissionForm({
   const [targetPattern, setTargetPattern] = useState(
     mission?.targetPattern ?? "",
   );
-  const [topic, setTopic] = useState(mission?.topic ?? "");
   const [level, setLevel] = useState<MissionLevel>(
     mission?.level ?? "elementary",
   );
@@ -60,38 +58,21 @@ export function MissionForm({
   const [requiredTurns, setRequiredTurns] = useState(
     mission?.conversationMode ? mission.requiredTurns : 5,
   );
-  const [scenePremise, setScenePremise] = useState(
-    mission?.scenePremise ?? "",
-  );
   const [requireCompleteSentenceAnswers, setRequireCompleteSentenceAnswers] =
     useState(mission?.requireCompleteSentenceAnswers ?? true);
   const [opener, setOpener] = useState(
     mission?.conversationMode ? mission.turns[0]?.prompt ?? "" : "",
   );
-  const [generatingPremise, setGeneratingPremise] = useState(false);
-  const [premiseError, setPremiseError] = useState<string | null>(null);
   const [generatingOpener, setGeneratingOpener] = useState(false);
   const [openerError, setOpenerError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  async function handleGeneratePremise() {
-    setPremiseError(null);
-    setGeneratingPremise(true);
-    const result = await generatePremiseAction({ targetPattern, level });
-    setGeneratingPremise(false);
-    if (result.ok) {
-      setScenePremise(result.scenePremise);
-    } else {
-      setPremiseError(result.error);
-    }
-  }
-
   async function handleGenerateOpener() {
     setOpenerError(null);
     setGeneratingOpener(true);
-    const result = await generateOpenerAction({ scenePremise, targetPattern });
+    const result = await generateOpenerAction({ targetPattern });
     setGeneratingOpener(false);
     if (result.ok) {
       setOpener(result.opener);
@@ -111,7 +92,6 @@ export function MissionForm({
     }
     formData.set("title", title);
     formData.set("targetPattern", targetPattern);
-    formData.set("topic", topic);
     formData.set("level", level);
     formData.set(
       "requiredTurns",
@@ -129,7 +109,6 @@ export function MissionForm({
       ),
     );
     formData.set("conversationMode", conversationMode ? "true" : "false");
-    formData.set("scenePremise", scenePremise);
     formData.set(
       "requireCompleteSentenceAnswers",
       requireCompleteSentenceAnswers ? "true" : "false",
@@ -192,59 +171,6 @@ export function MissionForm({
           onChange={setTargetPattern}
         />
 
-        <div style={{ marginTop: 16 }}>
-          <label htmlFor="scene-premise" style={labelStyle}>
-            Scene premise
-          </label>
-          <p id="scene-premise-help" style={helpTextStyle}>
-            A short setting Coco and your student share at the start of this
-            mission (e.g. &quot;You arrive at school and meet Coco —
-            introduce yourself&quot;).
-          </p>
-          <textarea
-            id="scene-premise"
-            name="scenePremise"
-            value={scenePremise}
-            onChange={(event) => setScenePremise(event.target.value)}
-            aria-describedby="scene-premise-help"
-            rows={3}
-            style={{ ...inputStyle, resize: "vertical" }}
-          />
-          <div style={{ marginTop: 8 }}>
-            <HoverButton
-              type="button"
-              onClick={handleGeneratePremise}
-              disabled={generatingPremise}
-              style={secondaryButtonStyle}
-              hoverStyle={secondaryHover}
-            >
-              {generatingPremise ? (
-                <span
-                  style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
-                >
-                  <span className="spinner" aria-hidden="true" />
-                  Generating…
-                </span>
-              ) : (
-                "Generate premise"
-              )}
-            </HoverButton>
-          </div>
-          {premiseError ? (
-            <p role="alert" style={fieldErrorStyle}>
-              {premiseError}
-            </p>
-          ) : null}
-        </div>
-
-        <Field
-          id="topic"
-          name="topic"
-          label="Topic"
-          value={topic}
-          onChange={setTopic}
-        />
-
         <div style={{ marginTop: 16, maxWidth: 240 }}>
           <label htmlFor="level" style={labelStyle}>
             Level
@@ -302,9 +228,7 @@ export function MissionForm({
               style={{ ...inputStyle, marginTop: 8 }}
             />
             <p id="required-turns-help" style={helpTextStyle}>
-              Your student earns credit after this many turns. They can keep
-              chatting a little longer if they want — Coco will wrap up
-              naturally.
+              {"How many turns the student needs to complete this mission."}
             </p>
             {requiredTurns < 3 || requiredTurns > 8 ? (
               <p role="alert" style={fieldErrorStyle}>
@@ -318,7 +242,6 @@ export function MissionForm({
               </label>
               <p id="coco-opening-line-help" style={helpTextStyle}>
                 {"Coco's first question for every student in this mission."}
-                Generate a draft, then edit it before saving.
               </p>
               <textarea
                 id="coco-opening-line"
@@ -387,15 +310,7 @@ export function MissionForm({
         ) : null}
       </section>
 
-      {conversationMode ? (
-        <section style={panelStyle}>
-          <h2 style={headingStyle}>Turns (optional preview)</h2>
-          <p style={helpTextStyle}>
-            Coco generates turns live in dynamic conversation mode — authoring
-            turns below is optional and only used as a fallback reference.
-          </p>
-        </section>
-      ) : (
+      {conversationMode ? null : (
         <TurnEditor turns={turns} onChange={setTurns} />
       )}
 
@@ -434,10 +349,7 @@ export function MissionForm({
 
 function Field(props: {
   id: string;
-  name: keyof Pick<
-    MissionFormInput,
-    "title" | "targetPattern" | "topic"
-  >;
+  name: keyof Pick<MissionFormInput, "title" | "targetPattern">;
   label: string;
   value: string;
   onChange: (value: string) => void;

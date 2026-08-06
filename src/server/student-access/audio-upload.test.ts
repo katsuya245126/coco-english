@@ -122,12 +122,10 @@ const conversationMissionSnapshotFixture = {
   missionId: "11111111-1111-4111-8111-111111111111",
   title: "Coffee shop scene",
   targetPattern: "Can I have ___, please?",
-  topic: "ordering food",
   level: "elementary",
   requiredTurns: 4,
   characterId: "default-buddy",
   conversationMode: true,
-  scenePremise: "You walk into Coco's coffee shop after school.",
   turns: [
     {
     turnOrder: 1,

@@ -228,7 +228,7 @@ export async function generateCocoReply(
   const latestResponse = groundingExchange?.studentResponse;
   const topicGroundingText =
     validInput.data.responseHandling === "review_pending" && !groundingExchange
-      ? validInput.data.scenePremise
+      ? validInput.data.conversationHistory[0]?.cocoLine
       : undefined;
   const replyMode = conversationReplyMode(validInput.data);
   const expectsQuestion = replyMode === "follow_up";

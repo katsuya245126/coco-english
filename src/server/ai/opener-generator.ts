@@ -68,10 +68,9 @@ const OPENER_SYSTEM_MESSAGE = [
 
 function buildOpenerPrompt(input: OpenerGenerationInput) {
   return {
-    scenePremise: input.scenePremise,
     targetPattern: input.targetPattern,
     instructions: [
-      "Ground Coco's opening in this scene and target pattern.",
+      "Ground Coco's opening in this target pattern.",
       "Coco shares before asking the child a single natural response question.",
     ],
   };

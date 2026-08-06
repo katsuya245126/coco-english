@@ -53,15 +53,10 @@ describe("student mission resume state", () => {
     );
   });
 
-  it("hides the scene card in conversation mode without removing scene grounding", () => {
-    expect(pageSource).toContain("scenePremise={snapshot.scenePremise}");
-    expect(shellSource).toContain("scenePremise: string | null");
-    expect(shellSource).toContain(
-      'import { ScenePremiseCard } from "@/components/student/ScenePremiseCard";',
-    );
-    expect(shellSource).toMatch(
-      /\{!conversationMode && startingTurnIndex === 0 && \([\s\S]*?<ScenePremiseCard scenePremise=\{scenePremise\} \/>[\s\S]*?\)\}/,
-    );
+  it("does not render retired scene-premise metadata", () => {
+    expect(pageSource).not.toContain("scenePremise");
+    expect(shellSource).not.toContain("scenePremise");
+    expect(shellSource).not.toContain("ScenePremiseCard");
   });
 
   it("keeps completed assignments out of the recorder on reload", () => {

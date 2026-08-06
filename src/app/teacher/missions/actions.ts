@@ -9,7 +9,6 @@ import {
   missionIdSchema,
 } from "@/domain/mission/schemas";
 import { openerGenerationInputSchema } from "@/domain/ai/opener-generation";
-import { scenePremiseInputSchema } from "@/domain/ai/scene-premise";
 import {
   assignMissionToClass,
   listAssignableClassesForTeacher,
@@ -25,7 +24,6 @@ import {
   type MissionAssignmentSummary,
 } from "@/server/mission/mission-service";
 import { consumeRequestBudget } from "@/server/security/request-budget";
-import { generateScenePremise } from "@/server/ai/scene-premise-generator";
 import { generateOpener } from "@/server/ai/opener-generator";
 
 const GENERIC_FAILURE =
@@ -42,9 +40,6 @@ const RESTORE_FAILURE =
 
 const CANCEL_ASSIGNMENT_FAILURE =
   "We could not cancel this assignment. Please try again.";
-
-const GENERATE_PREMISE_FAILURE =
-  "We could not generate a scene premise. You can write one yourself or try again.";
 
 const GENERATE_OPENER_FAILURE =
   "We could not generate Coco's opening line. You can write one yourself or try again.";
@@ -94,10 +89,6 @@ export type ListMissionAssignmentsActionResult =
   | { ok: true; assignments: MissionAssignmentSummary[] }
   | { ok: false; error: string };
 
-export type GeneratePremiseActionResult =
-  | { ok: true; scenePremise: string }
-  | { ok: false; error: string };
-
 export type GenerateOpenerActionResult =
   | { ok: true; opener: string }
   | { ok: false; error: string };
@@ -122,14 +113,6 @@ function parseConversationMode(value: FormDataEntryValue | null): boolean {
   return value === "true" || value === "on" || value === "1";
 }
 
-function parseScenePremise(value: FormDataEntryValue | null): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
 function parseBooleanSetting(
   value: FormDataEntryValue | null,
   defaultValue: boolean,
@@ -142,12 +125,10 @@ function missionPayloadFromFormData(formData: FormData) {
   return {
     title: formData.get("title"),
     targetPattern: formData.get("targetPattern"),
-    topic: formData.get("topic"),
     level: formData.get("level"),
     requiredTurns: formData.get("requiredTurns"),
     turns: parseTurns(formData.get("turns")),
     conversationMode: parseConversationMode(formData.get("conversationMode")),
-    scenePremise: parseScenePremise(formData.get("scenePremise")),
     requireCompleteSentenceAnswers: parseBooleanSetting(
       formData.get("requireCompleteSentenceAnswers"),
       true,
@@ -171,10 +152,6 @@ export async function createMissionAction(
   try {
     const mission = await createMission({
       ...parsed.data,
-      // Explicit for clarity: chat-mode fields persist alongside the rest of
-      // the mission payload (conversation_mode/scene_premise on the row).
-      conversationMode: parsed.data.conversationMode,
-      scenePremise: parsed.data.scenePremise,
       teacherId: profile.id,
     });
     revalidatePath("/teacher/missions");
@@ -218,10 +195,6 @@ export async function updateMissionAction(
 
     const mission = await updateMission({
       ...parsed.data,
-      // Explicit for clarity: chat-mode fields persist alongside the rest of
-      // the mission payload (conversation_mode/scene_premise on the row).
-      conversationMode: parsed.data.conversationMode,
-      scenePremise: parsed.data.scenePremise,
       teacherId: profile.id,
       missionId: missionId.data.missionId,
     });
@@ -301,31 +274,6 @@ export async function cancelMissionAssignmentAction(
   } catch {
     return { ok: false, error: CANCEL_ASSIGNMENT_FAILURE };
   }
-}
-
-export async function generatePremiseAction(
-  input: unknown,
-): Promise<GeneratePremiseActionResult> {
-  const profile = await requireTeacherProfile();
-  const parsed = scenePremiseInputSchema.safeParse(input);
-
-  if (!parsed.success) {
-    return {
-      ok: false,
-      error: parsed.error.issues[0]?.message ?? GENERATE_PREMISE_FAILURE,
-    };
-  }
-
-  if (!(await teacherProviderAllowed(profile.id))) {
-    return { ok: false, error: PROVIDER_RATE_LIMIT_FAILURE };
-  }
-
-  const result = await generateScenePremise(parsed.data);
-  if (!result.ok) {
-    return { ok: false, error: GENERATE_PREMISE_FAILURE };
-  }
-
-  return { ok: true, scenePremise: result.scenePremise };
 }
 
 export async function generateOpenerAction(

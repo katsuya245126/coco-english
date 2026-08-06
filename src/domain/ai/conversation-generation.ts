@@ -54,7 +54,6 @@ export const conversationHistorySchema = z
 
 export const conversationTurnInputSchema = z
   .object({
-    scenePremise: z.string().trim().min(1),
     targetPattern: z.string().trim().min(1),
     turnOrder: z.number().int().min(1).max(HARD_TURN_CAP),
     requiredTurns: z.number().int().min(3).max(8),
@@ -752,7 +751,7 @@ export function buildConversationPrompt(input: GenerateCocoReplyInput) {
       ? [
           "The latest studentResponse could not be understood and has been withheld; you are not being shown it. Do not invent, guess, or reconstruct any detail about what the student just said.",
           "Continue from the most recent earlier studentResponse with understandable meaning.",
-          "If no studentResponse is usable, ask one short neutral question grounded in scenePremise.",
+          "If no studentResponse is usable, ask one short neutral question grounded in Coco's saved opening question.",
         ]
       : [];
 
@@ -762,7 +761,6 @@ export function buildConversationPrompt(input: GenerateCocoReplyInput) {
   );
 
   return {
-    scenePremise: input.scenePremise,
     targetPattern: input.targetPattern,
     turnOrder: input.turnOrder,
     requiredTurns: input.requiredTurns,

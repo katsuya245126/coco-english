@@ -48,11 +48,6 @@ export const missionFormSchema = z
       .trim()
       .min(1, "Target pattern is required.")
       .max(160, "Target pattern is too long."),
-    topic: z
-      .string()
-      .trim()
-      .min(1, "Topic is required.")
-      .max(120, "Topic is too long."),
     level: missionLevelSchema,
     requiredTurns: z.coerce
       .number()
@@ -65,7 +60,6 @@ export const missionFormSchema = z
       .min(1)
       .default(DEFAULT_CHARACTER_ID),
     conversationMode: z.boolean().default(false),
-    scenePremise: z.string().trim().nullable().default(null),
     requireCompleteSentenceAnswers: z.boolean().default(true),
     turns: z.array(missionTurnInputSchema).default([]),
   })
@@ -111,12 +105,10 @@ export const missionSnapshotSchema = z
     missionId: z.string().uuid("Invalid mission reference."),
     title: z.string().trim().min(1),
     targetPattern: z.string().trim().min(1),
-    topic: z.string().trim().min(1),
     level: missionLevelSchema,
     requiredTurns: z.number().int().min(1),
     characterId: z.string().trim().min(1).default(DEFAULT_CHARACTER_ID),
     conversationMode: z.boolean().default(false),
-    scenePremise: z.string().trim().nullable().default(null),
     requireCompleteSentenceAnswers: z.boolean().default(true),
     turns: z.array(missionSnapshotTurnSchema).default([]),
   })

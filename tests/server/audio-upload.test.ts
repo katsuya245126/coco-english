@@ -150,7 +150,6 @@ const missionSnapshotFixture: {
   missionId: string;
   title: string;
   targetPattern: string;
-  topic: string;
   level: string;
   requiredTurns: number;
   characterId: string;
@@ -165,7 +164,6 @@ const missionSnapshotFixture: {
   missionId: "11111111-1111-4111-8111-111111111111",
   title: "After school",
   targetPattern: "I like ___ing.",
-  topic: "sports",
   level: "elementary",
   requiredTurns: 2,
   characterId: "default-buddy",
