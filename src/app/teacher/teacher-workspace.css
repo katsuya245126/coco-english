@@ -26,9 +26,6 @@
 .teacher-shell .workspace > main { padding: 24px; }
 .teacher-shell .mobile-trigger { display: none; }
 .teacher-shell .banner { display: block; width: calc(100% - 48px); margin: 16px 24px 0; padding: 10px; border: 1px solid #93c5fd; border-radius: 8px; background: #eff6ff; color: #1d4ed8; font-weight: 700; cursor: pointer; }
-.teacher-shell .notice { position: fixed; z-index: 5; right: 20px; bottom: 20px; max-width: 440px; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid #bfdbfe; border-radius: 9px; background: #fff; box-shadow: 0 8px 28px #0f172a22; font-size: 13px; }
-.teacher-shell .notice a { color: #2563eb; font-weight: 700; }
-.teacher-shell .notice button { border: 0; background: none; font-size: 18px; cursor: pointer; }
 .teacher-shell .pagination { display: grid; grid-template-columns: 90px 1fr 90px; align-items: center; margin-top: 18px; font-size: 12px; }
 .teacher-shell .pagination strong { text-align: center; color: #475569; }
 .teacher-shell .pagination a, .teacher-shell .pagination span { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; color: #2563eb; text-align: center; text-decoration: none; }

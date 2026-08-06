@@ -67,7 +67,6 @@ export function MissionForm({
   const [openerError, setOpenerError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [saved, setSaved] = useState(false);
 
   async function handleGenerateOpener() {
     setOpenerError(null);
@@ -120,13 +119,7 @@ export function MissionForm({
         : await createMissionAction(formData);
 
     if (result.ok) {
-      setSaved(true);
-      // Keep the "Saved" confirmation visible briefly before navigating so the
-      // teacher gets feedback instead of a silent scroll-to-top.
-      setTimeout(() => {
-        router.push(`/teacher/missions/${result.missionId}`);
-        router.refresh();
-      }, 900);
+      window.location.href = "/teacher/missions?saved=1";
     } else {
       setSubmitting(false);
       setError(result.error);
@@ -145,12 +138,6 @@ export function MissionForm({
       {error ? (
         <p role="alert" style={errorStyle}>
           {error}
-        </p>
-      ) : null}
-
-      {saved ? (
-        <p role="status" style={successStyle}>
-          Saved ✓
         </p>
       ) : null}
 
@@ -329,9 +316,7 @@ export function MissionForm({
           style={primaryButtonStyle}
           hoverStyle={primaryHover}
         >
-          {saved ? (
-            "Saved ✓"
-          ) : submitting ? (
+          {submitting ? (
             <span
               style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
             >
@@ -461,17 +446,6 @@ const secondaryButtonStyle: React.CSSProperties = {
 const errorStyle: React.CSSProperties = {
   fontSize: 14,
   color: "#B42318",
-  margin: 0,
-};
-
-const successStyle: React.CSSProperties = {
-  fontSize: 14,
-  fontWeight: 600,
-  color: "#166534",
-  background: "#F0FDF4",
-  border: "1px solid #BBF7D0",
-  borderRadius: 8,
-  padding: 16,
   margin: 0,
 };
 

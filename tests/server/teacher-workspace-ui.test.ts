@@ -12,6 +12,17 @@ const sourceFilesUnder = (dir: string): string[] =>
   });
 
 describe("teacher workspace source contract", () => {
+  it("navigates to the list after mission save and confirms it on the destination", () => {
+    const form = source("src/components/teacher/MissionForm.tsx");
+    const list = source("src/app/teacher/missions/page.tsx");
+
+    expect(form).toContain('window.location.href = "/teacher/missions?saved=1"');
+    expect(form).not.toContain("setTimeout");
+    expect(form).not.toContain("router.refresh()");
+    expect(list).toContain("searchParams");
+    expect(list).toContain("FlashNotice");
+  });
+
   it("uses a controlled, non-optimistic class review-policy control", () => {
     const path = "src/components/teacher/ClassReviewPolicyControl.tsx";
     expect(existsSync(path)).toBe(true);
@@ -92,7 +103,6 @@ describe("teacher workspace source contract", () => {
     // now ship in the stylesheet, or those elements flash unstyled.
     expect(styles).toContain(".teacher-shell .mobile-trigger");
     expect(styles).toContain(".teacher-shell .banner");
-    expect(styles).toContain(".teacher-shell .notice");
     expect(styles).toContain(".teacher-shell .workspace > header button");
     expect(styles).toContain("@media (max-width: 800px)");
     expect(styles).toContain("review-policy-control");
