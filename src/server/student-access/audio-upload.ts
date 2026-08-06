@@ -12,7 +12,6 @@ import type { Database, Json } from "@/lib/db/types";
 import { missionSnapshotSchema } from "@/domain/mission/schemas";
 import { isExactTargetMatch } from "@/domain/ai/fast-path";
 import { isIncompleteUtterance } from "@/domain/ai/incomplete-utterance";
-import { matchesOpenAnswerFrame } from "@/domain/ai/open-answer-frame";
 import { buildReplyHintFrame } from "@/domain/ai/reply-hint-frame";
 import {
   canonicalizeNoOpOriginalEvaluation,
@@ -1273,14 +1272,6 @@ export async function uploadAttemptAudioClip(
       };
     }
 
-    const openFrameMatched =
-      input.clipKind === "original_answer" &&
-      !exactTargetMatched &&
-      snapshot.conversationMode !== true &&
-      answerShape === "open" &&
-      koreanSpans.length === 0 &&
-      matchesOpenAnswerFrame(transcript, snapshotTurn?.hintLadder?.tier1);
-
     // Minimal-effort answer guard (phone-UAT item 6, design approved
     // 2026-07-20). Deterministic blocklist only; an exact target-example
     // match ("Yes, I do." as an authored target) always wins; after
@@ -1430,10 +1421,13 @@ export async function uploadAttemptAudioClip(
     const turnWrite =
       input.clipKind === "original_answer"
         ? await (async () => {
-            // Skip the evaluator for exact authored targets and safe open
-            // frames. Open-ended answers outside an authored frame still need
-            // semantic evaluation against the mission question.
-            const fastPathMatched = exactTargetMatched || openFrameMatched;
+            // Skip the evaluator only for an exact authored-target match. An
+            // open answer that merely fits the frame shape (e.g. "I'd rather
+            // big city because more things to do") is structurally on-frame but
+            // may be ungrammatical, so it still needs the model — the frame
+            // regex proves shape, not grammar. The model prompt already keeps
+            // the child's own choice while correcting genuinely-wrong English.
+            const fastPathMatched = exactTargetMatched;
             timings.evaluationFastPath = fastPathMatched ? 1 : 0;
             const evaluate = deps.evaluateOriginalTurn ?? evaluateOriginalTurn;
             const evaluationInput = {
