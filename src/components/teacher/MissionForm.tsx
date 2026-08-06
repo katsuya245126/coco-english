@@ -228,9 +228,7 @@ export function MissionForm({
               style={{ ...inputStyle, marginTop: 8 }}
             />
             <p id="required-turns-help" style={helpTextStyle}>
-              Your student earns credit after this many turns. They can keep
-              chatting a little longer if they want — Coco will wrap up
-              naturally.
+              {"How many turns the student needs to complete this mission."}
             </p>
             {requiredTurns < 3 || requiredTurns > 8 ? (
               <p role="alert" style={fieldErrorStyle}>
@@ -244,7 +242,6 @@ export function MissionForm({
               </label>
               <p id="coco-opening-line-help" style={helpTextStyle}>
                 {"Coco's first question for every student in this mission."}
-                Generate a draft, then edit it before saving.
               </p>
               <textarea
                 id="coco-opening-line"
@@ -313,15 +310,7 @@ export function MissionForm({
         ) : null}
       </section>
 
-      {conversationMode ? (
-        <section style={panelStyle}>
-          <h2 style={headingStyle}>Turns (optional preview)</h2>
-          <p style={helpTextStyle}>
-            Coco generates turns live in dynamic conversation mode — authoring
-            turns below is optional and only used as a fallback reference.
-          </p>
-        </section>
-      ) : (
+      {conversationMode ? null : (
         <TurnEditor turns={turns} onChange={setTurns} />
       )}
 
