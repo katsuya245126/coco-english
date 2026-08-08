@@ -56,3 +56,7 @@ supabase/migrations/202607200001_reset_class_assignments.sql
 
 # Supabase CLI local branch state (generated)
 supabase/.branches/
+
+# Codex-vendored Matt Pocock skills (used locally, not committed)
+.agents/
+skills-lock.json
