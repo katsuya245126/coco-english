@@ -261,6 +261,7 @@ export type Database = {
           audio_expires_at: string;
           deleted_at: string | null;
           deleted_reason: string | null;
+          pronunciation_reprocessing_started_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -276,6 +277,7 @@ export type Database = {
           audio_expires_at?: string;
           deleted_at?: string | null;
           deleted_reason?: string | null;
+          pronunciation_reprocessing_started_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -459,6 +461,32 @@ export type Database = {
           permitted: boolean;
           retry_after_seconds: number;
         }[];
+      };
+      begin_pronunciation_reprocessing: {
+        Args: { p_teacher_id: string; p_audio_clip_id: string };
+        Returns: {
+          outcome: string;
+          object_key: string | null;
+          duration_ms: number | null;
+          reference_text: string | null;
+        }[];
+      };
+      complete_pronunciation_reprocessing: {
+        Args: {
+          p_teacher_id: string;
+          p_audio_clip_id: string;
+          p_accuracy_score: number;
+          p_fluency_score: number | null;
+          p_completeness_score: number | null;
+          p_pronunciation_score: number;
+          p_star_band: number;
+          p_word_scores: Json;
+        };
+        Returns: "ok" | "already_scored" | "not_found";
+      };
+      clear_pronunciation_reprocessing: {
+        Args: { p_teacher_id: string; p_audio_clip_id: string };
+        Returns: "ok" | "not_found";
       };
     };
     Enums: {
