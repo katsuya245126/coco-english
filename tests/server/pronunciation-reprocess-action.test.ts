@@ -56,6 +56,7 @@ describe("reprocessPronunciationAction", () => {
   it("passes the authenticated teacher and clip to the reprocessor once", async () => {
     await expect(reprocess()).resolves.toEqual({ ok: true });
 
+    expect(mockRequireTeacherProfile).toHaveBeenCalledTimes(1);
     expect(mockReprocessClipPronunciation).toHaveBeenCalledTimes(1);
     expect(mockReprocessClipPronunciation).toHaveBeenCalledWith({
       teacherId: "teacher-1",
