@@ -18,6 +18,11 @@ const DEFAULT_BEGIN = {
   reference_text: "I wake up at seven.",
 };
 
+const LIFECYCLE_ARGS = {
+  p_teacher_id: "teacher-1",
+  p_audio_clip_id: "clip-1",
+};
+
 type BeginRow = typeof DEFAULT_BEGIN;
 type Outcome = "ok" | "already_scored" | "not_found";
 
@@ -158,6 +163,24 @@ describe("reprocessClipPronunciation", () => {
 
     expect(result).toEqual({ ok: true, scored: true });
     expect(supabase.events).toEqual(["begin", "download", "budget", "azure", "complete"]);
+    expect(supabase.rpc).toHaveBeenNthCalledWith(
+      1,
+      "begin_pronunciation_reprocessing",
+      LIFECYCLE_ARGS,
+    );
+    expect(supabase.rpc).toHaveBeenNthCalledWith(
+      2,
+      "complete_pronunciation_reprocessing",
+      {
+        ...LIFECYCLE_ARGS,
+        p_accuracy_score: 74,
+        p_fluency_score: 60,
+        p_completeness_score: 80,
+        p_pronunciation_score: 65.8,
+        p_star_band: 2,
+        p_word_scores: [{ word: "I", accuracyScore: 90, errorType: "None" }],
+      },
+    );
     expect(budget).toHaveBeenCalledWith({ actorId: "teacher-1", operation: "teacher_provider" });
     expect(scorer).toHaveBeenCalledWith(expect.objectContaining({
       file: expect.any(Blob), referenceText: "I wake up at seven.", durationMs: 4200,
@@ -168,6 +191,11 @@ describe("reprocessClipPronunciation", () => {
     const { result, supabase } = await reprocess({ downloadOk: false });
     expect(result).toEqual({ ok: false, error: "failed" });
     expect(supabase.events).toEqual(["begin", "download", "clear"]);
+    expect(supabase.rpc).toHaveBeenNthCalledWith(
+      2,
+      "clear_pronunciation_reprocessing",
+      LIFECYCLE_ARGS,
+    );
   });
 
   it("clears its claim when budget admission is denied", async () => {
@@ -224,6 +252,15 @@ describe("reprocessClipPronunciation", () => {
     });
     expect(JSON.stringify(mockLog.mock.calls)).not.toContain("teacher-1");
     expect(JSON.stringify(mockLog.mock.calls)).not.toContain("I wake up at seven.");
+  });
+
+  it("logs a not_found cleanup and leaves the active marker for manual repair", async () => {
+    const { result, supabase } = await reprocess({ downloadOk: false, clear: "not_found" });
+    expect(result).toEqual({ ok: false, error: "failed" });
+    expect(supabase.markerActive()).toBe(true);
+    expect(mockLog).toHaveBeenCalledWith("warn", "audio.pronunciation_reprocess_cleanup_failed", {
+      audioClipId: "clip-1", outcome: "not_found",
+    });
   });
 
   it("allows only one held scorer to run for a clip", async () => {
