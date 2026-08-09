@@ -1,6 +1,6 @@
 # Teacher-Owned Pronunciation Reprocessing Implementation Plan
 
-> For agentic workers: use the executing-plans or subagent-driven-development workflow to implement this plan task by task. Each step uses checkbox syntax and ends with a runnable check.
+> For agentic workers: do not start Task 1 until Task 0 records owner approval of this exact tracked plan revision. After approval, use the executing-plans or subagent-driven-development workflow to implement this plan task by task. Each step uses checkbox syntax and ends with a runnable check.
 
 **Goal:** Let a teacher create one missing pronunciation assessment for an owned audio clip while the server-owned operation proves ownership, prevents duplicate Azure work, admits provider work in the required order, and cleans up handled failures.
 
@@ -13,11 +13,13 @@
 - Preserve teacher authentication, action results unauthorized/already_scored/unavailable/failed/rate_limited, evidence-page revalidation, signed audio playback, student mission behavior, mission snapshots, RLS, and per-turn audio storage.
 - Every new database function independently joins audio_clips through attempt_turns, attempts, assignment_students, assignments, and classes and matches classes.teacher_id to p_teacher_id.
 - The three new functions are security definer, set search_path = public, revoke execution from public/anon/authenticated, and grant execution only to service_role.
+- Revoke insert, update, and delete on audio_clips from authenticated. Existing application audio mutations already use the service-role client; authenticated keeps select access narrowed by the existing ownership RLS policy. This prevents direct marker writes outside the three RPCs.
 - The active marker is nullable audio_clips.pronunciation_reprocessing_started_at. Add no timeout and no automatic abandoned-marker clearing.
 - begin returns clip values only for ok. Unauthorized, already_scored, and unavailable rows contain null clip values.
 - Ordering is begin/ownership and marker claim, private Storage download, teacher_provider budget admission, Azure scoring, ownership-proving score persistence.
 - Handled download, budget, scorer, and persistence failures clear the marker through clear_pronunciation_reprocessing. A stopped process may leave an abandoned marker for the documented manual repair path.
 - Unit tests inject the scorer and budget decision. No test calls Azure. Do not apply a migration to a remote environment.
+- Apply the migration to the local Supabase stack and require the database integration test to run without skips before completion. A missing or unavailable local stack blocks completion; it is not a passing substitute.
 - Add no dependency, direct audio_clips repair SQL, public repair endpoint, application repair page, or unrelated refactor.
 - Preserve the pre-existing untracked CONTEXT.md and docs/adr/0001-prevent-concurrent-pronunciation-reprocessing.md. Stage only the files listed in each task.
 
@@ -31,7 +33,7 @@
 - Modify src/app/teacher/evidence/[attemptId]/actions.ts and tests/server/pronunciation-reprocess-action.test.ts.
 - Modify src/server/teacher/audio-evidence.ts only to remove the now-unused caller-side ownership helper.
 - Create docs/operations/pronunciation-reprocessing.md.
-- Update and archive TASK.md only after implementation and verification.
+- Update the local TASK.md at approval and verification milestones; archive it only after implementation and verification.
 
 ## Public Interfaces
 
@@ -91,6 +93,22 @@ begin outcomes are unauthorized, already_scored, unavailable, and ok. complete o
 
 ---
 
+### Task 0: Confirm approval and capture the review base
+
+**Files:**
+
+- Modify: TASK.md (local and intentionally ignored; do not stage it)
+
+- [ ] Step 1: Confirm approval of the tracked plan revision.
+
+Record the owner's explicit approval and the approved plan commit in TASK.md. Stop if approval names an older revision or is absent.
+
+- [ ] Step 2: Capture the implementation base before editing code.
+
+Run `git rev-parse HEAD`, record the exact commit in TASK.md as the review base, and confirm `git status --short` contains only the preserved pre-existing CONTEXT.md and ADR artifacts. Use this recorded commit for every `<base-sha>` command in Task 5.
+
+---
+
 ### Task 1: Add the ownership-proving database seam
 
 **Files:**
@@ -118,20 +136,49 @@ Read the new migration with readFileSync, lowercase it, and normalize whitespace
     insert into public.pronunciation_scores
     on conflict (audio_clip_id) do nothing
     set pronunciation_reprocessing_started_at = null
+    revoke insert, update, delete on table public.audio_clips from authenticated
+    grant select on table public.audio_clips to authenticated
 
-Assert that the normalized SQL contains c.teacher_id = p_teacher_id and each of the five ownership joins three times. Assert that it contains security definer, set search_path = public, and the revoke/grant pair three times, with each grant ending in to service_role. Assert that the marker column is not declared not null.
+Assert that the normalized SQL contains c.teacher_id = p_teacher_id and each of the five ownership joins three times. Assert that it contains security definer, set search_path = public, and the revoke/grant pair three times, with each grant ending in to service_role. Assert that the marker column is not declared not null. Assert that authenticated keeps select access to audio_clips but has insert, update, and delete revoked; do not replace the existing ownership RLS policy.
 
-- [ ] Step 2: Run the schema test and verify red.
+- [ ] Step 2: Write the local-Supabase integration test.
 
-Run:
+Create tests/server/pronunciation-reprocessing.integration.test.ts. Reuse the local-only environment gate and inert realtime transport from tests/server/provider-request-budgets.integration.test.ts. Seed one teacher, class, student, mission, assignment, assignment student, attempt, attempt turn, and audio_clips row with the service-role client. Create a second teacher for cross-owner calls. Use unique auth emails and delete auth users and teacher profiles in finally; cascading foreign keys remove linked fixtures.
 
-    npm test -- --run tests/schema/pronunciation-reprocessing-schema.test.ts
+Cover these exact cases:
 
-Expected: FAIL because the migration file does not exist.
+1. Two concurrent begin calls for the same owned clip return one ok and one unavailable, and the unavailable row has null object_key, duration_ms, and reference_text.
+2. A begin call with the other teacher returns unauthorized.
+3. After the owner begins, complete and clear called with the other teacher return not_found and leave the active marker non-null.
+4. Owner begin followed by clear returns ok and leaves the marker null; a subsequent owner begin returns ok, proving a cleared claim permits retry.
+5. Owner begin followed by complete creates exactly one pronunciation_scores row and leaves the marker null.
+6. A second begin after completion returns already_scored.
+7. An original-answer fixture returns the original transcript; a repeat-attempt fixture returns improved_sentence before repeat_transcript.
+8. An anon client and a signed-in authenticated client receive errors from all three RPCs.
+9. The authenticated owner can select the owned audio clip but receives errors when directly inserting an audio clip, updating pronunciation_reprocessing_started_at, or deleting the clip. The marker remains unchanged after the denied update.
+10. The second authenticated teacher selects the owner's audio clip by ID and receives zero rows.
 
-- [ ] Step 3: Add the migration.
+Keep the local-only environment gate so the repository-wide suite remains safe outside local development. The dedicated Task 1 and final verification commands must load keys from supabase status and must report zero skipped tests. Delete only the test fixtures created by this file.
+
+- [ ] Step 3: Run the schema and integration tests and verify red.
+
+Start the local stack without the new migration, load only its credentials, reject a non-local URL, and run:
+
+    supabase start
+    eval "$(supabase status -o env)"
+    case "$API_URL" in http://127.0.0.1:*|http://localhost:*) ;; *) exit 1 ;; esac
+    export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
+    export NEXT_PUBLIC_SUPABASE_ANON_KEY="$PUBLISHABLE_KEY"
+    export SUPABASE_SERVICE_ROLE_KEY="$SECRET_KEY"
+    npm test -- --run tests/schema/pronunciation-reprocessing-schema.test.ts tests/server/pronunciation-reprocessing.integration.test.ts
+
+Expected: FAIL because the migration file and RPCs do not exist. Confirm the schema test reports the missing migration and the integration test reports missing RPCs; an environment-gated skip is not red evidence.
+
+- [ ] Step 4: Add the migration.
 
 Create the marker column without a default and without not null.
+
+Revoke insert, update, and delete on public.audio_clips from authenticated, then explicitly grant select so the intended privilege surface is visible in this migration. Keep the existing ownership RLS policy. Do not add column-specific grants: table-level update would override a column-level revoke, and no current application path uses an authenticated client to mutate audio_clips.
 
 Implement begin_pronunciation_reprocessing as security definer with search_path public. Select the clip and turn fields through this exact ownership chain:
 
@@ -152,7 +199,7 @@ Implement clear_pronunciation_reprocessing with the same ownership join and p_te
 
 For each function, add security definer, set search_path = public, revoke all on the exact function signature from public, anon, authenticated, and grant execute on the exact signature to service_role. Do not grant authenticated or public execution.
 
-- [ ] Step 4: Extend the generated database type shape.
+- [ ] Step 5: Extend the generated database type shape.
 
 In src/lib/db/types.ts, add pronunciation_reprocessing_started_at: string | null to audio_clips.Row and an optional nullable field to audio_clips.Insert.
 
@@ -185,32 +232,31 @@ Add these exact function declarations:
       Returns: "ok" | "not_found";
     };
 
-- [ ] Step 5: Write the local-Supabase integration test.
+- [ ] Step 6: Apply and lint the migration locally.
 
-Create tests/server/pronunciation-reprocessing.integration.test.ts. Reuse the local-only environment gate and inert realtime transport from tests/server/provider-request-budgets.integration.test.ts. Seed one teacher, class, student, mission, assignment, assignment student, attempt, attempt turn, and audio_clips row with the service-role client. Create a second teacher for cross-owner calls. Use unique auth emails and delete auth users and teacher profiles in finally; cascading foreign keys remove linked fixtures.
+Start the repository's local Supabase stack, apply pending migrations only to that local stack, and lint the resulting public schema:
 
-Cover these exact cases:
+    supabase start
+    supabase migration up --local
+    supabase db lint --local --schema public --level error --fail-on error
 
-1. Two concurrent begin calls for the same owned clip return one ok and one unavailable, and the unavailable row has null object_key, duration_ms, and reference_text.
-2. A begin call with the other teacher returns unauthorized.
-3. After the owner begins, complete and clear called with the other teacher return not_found and leave the active marker non-null.
-4. Owner begin followed by complete creates exactly one pronunciation_scores row and leaves the marker null.
-5. A second begin after completion returns already_scored.
-6. An original-answer fixture returns the original transcript; a repeat-attempt fixture returns improved_sentence before repeat_transcript.
-7. An anon client and a signed-in authenticated client receive errors from all three RPCs.
+Expected: the migration applies and lint exits 0. Do not use --linked, a remote database URL, or the repository's remote .env.local values. If the local stack cannot run, stop; do not mark Task 1 or the final task complete.
 
-Skip only when local Supabase URL, anon key, or service-role key is absent. Delete only the test fixtures created by this file.
+- [ ] Step 7: Run database seam checks.
 
-- [ ] Step 6: Run database seam checks.
+Load only the running local stack's values, reject a non-local URL, and run:
 
-Run:
-
+    eval "$(supabase status -o env)"
+    case "$API_URL" in http://127.0.0.1:*|http://localhost:*) ;; *) exit 1 ;; esac
+    export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
+    export NEXT_PUBLIC_SUPABASE_ANON_KEY="$PUBLISHABLE_KEY"
+    export SUPABASE_SERVICE_ROLE_KEY="$SECRET_KEY"
     npm test -- --run tests/schema/pronunciation-reprocessing-schema.test.ts tests/server/pronunciation-reprocessing.integration.test.ts
     npm run typecheck
 
-Expected: schema tests pass; the integration test passes against local Supabase or is explicitly skipped by its environment gate; typecheck passes.
+Expected: schema and integration tests pass with zero skips; typecheck passes. A skipped integration test fails this task's completion gate.
 
-- [ ] Step 7: Commit the database seam.
+- [ ] Step 8: Commit the database seam.
 
 Stage only:
 
@@ -254,7 +300,10 @@ The fake complete RPC returns ok and the fake clear RPC returns ok. Add tests th
 - scorer failure calls clear once and returns failed;
 - complete RPC error calls clear once and returns failed;
 - complete already_scored returns already_scored without a second clear;
-- two concurrent calls sharing a begin fake produce one scorer call when the second begin outcome is unavailable;
+- an ok begin row missing object_key or reference_text calls clear once before returning failed;
+- a scorer failure clears the fake marker, and a second call for the same clip can begin and score successfully;
+- a clear RPC error or non-ok result is logged without leaking teacher ID or reference text and leaves the fake marker active for manual repair;
+- while the first call's scorer is held on a deferred promise, a second call resolves unavailable before that promise is released, and the two calls produce one scorer call total;
 - repeat-attempt begin data is passed to the scorer unchanged.
 
 - [ ] Step 2: Run focused module tests and verify red.
@@ -270,15 +319,15 @@ Expected: the new tests fail because the module accepts only audioClipId, does n
 In src/server/audio/pronunciation-reprocess.ts:
 
 1. Import consumeRequestBudget and add it to ReprocessPronunciationDeps.
-2. Call begin_pronunciation_reprocessing with both IDs. Treat RPC errors, missing rows, unknown outcomes, or an ok row missing object_key/reference_text as failed.
+2. Call begin_pronunciation_reprocessing with both IDs. Treat RPC errors, missing rows, and unknown outcomes as failed. An ok row missing object_key or reference_text claimed the marker, so clear it once before returning failed.
 3. Map begin unauthorized, already_scored, and unavailable directly to the public result.
 4. Download the returned object_key from the configured private bucket.
 5. On download failure, call clear_pronunciation_reprocessing once and return failed.
 6. Call the injected/default consumeRequestBudget with the teacher ID and teacher_provider. On denial, clear once and return rate_limited.
 7. Call the injected/default scorer with the Blob, returned reference text, and duration defaulted to zero when null. On scorer failure, log the existing failure event, clear once, and return failed.
 8. Call complete_pronunciation_reprocessing with teacher ID, clip ID, accuracy, fluency, completeness, pronunciation, star band, and word scores. Return ok for ok and already_scored for already_scored. On RPC error or not_found, clear once and return failed.
-9. Use a local cleanup helper that invokes clear through the service client. Do not clear a marker for a begin outcome that did not claim it.
-10. Keep logging limited to the existing clip ID and score outcome. Do not log audio, reference text, teacher IDs, or provider input.
+9. Use a local cleanup helper that invokes clear through the service client and returns true only when the RPC has no error and returns ok. Log a cleanup failure with only the clip ID and RPC outcome; the documented manual repair path handles a marker that could not be cleared. Do not clear a marker for a begin outcome that did not claim it.
+10. Keep logging limited to the existing clip ID, score outcome, and cleanup outcome. Do not log audio, reference text, teacher IDs, or provider input.
 
 The direct service-role from audio_clips and from pronunciation_scores queries must disappear from this module. All service-role audio and score access must flow through the ownership-proving RPCs.
 
@@ -403,9 +452,15 @@ Confirm it contains no reusable access value, secret, direct audio_clips update,
 
 - [ ] Step 1: Run the complete focused test set.
 
+    supabase migration up --local
+    eval "$(supabase status -o env)"
+    case "$API_URL" in http://127.0.0.1:*|http://localhost:*) ;; *) exit 1 ;; esac
+    export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
+    export NEXT_PUBLIC_SUPABASE_ANON_KEY="$PUBLISHABLE_KEY"
+    export SUPABASE_SERVICE_ROLE_KEY="$SECRET_KEY"
     npm test -- --run tests/server/pronunciation-reprocess.test.ts tests/server/pronunciation-reprocess-action.test.ts tests/schema/pronunciation-reprocessing-schema.test.ts tests/server/pronunciation-reprocessing.integration.test.ts
 
-Expected: all non-environment-gated tests pass. The local integration test may skip only when its local Supabase environment is absent.
+Expected: every focused test passes with zero skips. If the local migration cannot be applied or the integration test skips, stop and leave the task incomplete.
 
 - [ ] Step 2: Run repository checks separately.
 
@@ -413,8 +468,9 @@ Expected: all non-environment-gated tests pass. The local integration test may s
     npm run lint
     npm test -- --run
     npm run build
+    supabase db lint --local --schema public --level error --fail-on error
 
-Each command must exit 0. Record exact output summaries. A skipped local integration test remains skipped; do not apply a remote migration or mutate production to make it run.
+Each command must exit 0. Record exact output summaries. The dedicated focused run above supplies the required local database evidence; a later environment-gated skip in the repository-wide test command does not replace or invalidate that recorded run. Do not apply a remote migration or mutate production.
 
 - [ ] Step 3: Inspect the final ownership surface.
 
@@ -430,16 +486,20 @@ Expected: no direct service-role audio/score table access or caller-side ownersh
 
 Use the fixed base commit and review git diff <base-sha>...HEAD against PROJECT.md, AGENTS.md, TASK.md, CONTEXT.md, the pronunciation ADR, and issue #16. Check every acceptance criterion: ownership in all three RPCs, role denial, no provider work for unauthorized calls, marker concurrency, download/budget/Azure ordering, handled-failure cleanup, retry behavior, unchanged action results, and no unrelated diff. Resolve every actionable finding, rerun its focused test, and rerun the full checks after review edits.
 
-- [ ] Step 5: Update and archive TASK.md.
+- [ ] Step 5: Commit review fixes when the review changed tracked files.
+
+If Step 4 changes source, tests, migrations, or documentation, stage only those reviewed files and commit them with `git commit -m "fix: address pronunciation reprocessing review"`. Rerun Steps 1-4 against the same recorded base after that commit. If the review required no tracked changes, record that result in TASK.md and do not create an empty commit.
+
+- [ ] Step 6: Update and archive TASK.md.
 
 Only after evidence exists, mark the plan and done checks complete, record commit IDs and test summaries, set status complete, set current position implemented and verified, and move the completed task text to docs/tasks/archive/2026-08-09-teacher-owned-pronunciation-reprocessing.md with Status: Complete. Do not remove the active task until the archive contains final evidence.
 
-- [ ] Step 6: Commit the final task record.
+- [ ] Step 7: Commit the final task record.
 
-    git add TASK.md docs/tasks/archive/2026-08-09-teacher-owned-pronunciation-reprocessing.md
+    git add docs/tasks/archive/2026-08-09-teacher-owned-pronunciation-reprocessing.md
     git commit -m "chore: close teacher pronunciation reprocessing task"
 
-The final handoff must include the commit ID, fresh verification output, skipped local integration checks, and confirmation that no push, deployment, production migration, or paid Azure request occurred.
+The final handoff must include the commit ID, fresh verification output including the zero-skip local integration run, and confirmation that no push, deployment, production migration, or paid Azure request occurred.
 
 ## Self-Review Checklist
 
@@ -448,7 +508,10 @@ The final handoff must include the commit ID, fresh verification output, skipped
 - [ ] TypeScript RPC names, argument names, return values, and migration signatures match in every task.
 - [ ] The only public caller passes teacherId and audioClipId; no caller-supplied ID is authorization without the database ownership join.
 - [ ] A denied budget clears the marker, and no Azure scorer call occurs before budget admission.
+- [ ] Authenticated callers can read owned audio evidence but cannot directly insert, update, or delete audio_clips or mutate the active marker.
 - [ ] A failed or concurrent begin does not clear a marker it did not claim.
+- [ ] Every handled claimed-marker failure attempts cleanup, verifies the cleanup outcome, and a successful cleanup permits a retry.
 - [ ] Score persistence and marker clearing occur in the ownership-proving complete RPC.
+- [ ] The migration applies and lints locally, and the database integration test completes with zero skips.
 - [ ] Manual repair uses the ownership-proving clear RPC, never a direct table update.
 - [ ] The plan does not authorize remote mutation, deployment, push, or paid-provider testing.
