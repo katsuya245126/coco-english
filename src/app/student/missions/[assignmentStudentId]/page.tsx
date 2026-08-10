@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { readStudentUnlock } from "@/app/join/actions";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
-import { missionSnapshotSchema } from "@/domain/mission/schemas";
+import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
 import { getCharacterProfile } from "@/domain/character/profile";
 import {
   getPendingTurnReview,
@@ -22,8 +22,9 @@ import { deriveResumedDynamicPrompt } from "@/domain/mission/student-question-st
 // Server-rendered. Replicates the home-page unlock gate: if no fresh
 // unlock cookie, redirect to /join. Verifies ownership (assignmentStudentId
 // belongs to the unlocked student). Loads the assignment's mission_snapshot,
-// parses it with missionSnapshotSchema (Pitfall 5: parse failure -> redirect
-// home). Resolves the Coco character profile. Determines the resume position
+// interprets it through the shared mission snapshot contract (Pitfall 5: any
+// result other than complete -> redirect home).
+// Resolves the Coco character profile. Determines the resume position
 // by loading any existing in_progress attempt turns. Redirects home for
 // missing, completed, or closed assignments (D-14).
 
@@ -86,13 +87,12 @@ export default async function MissionPage({ params }: MissionPageProps) {
     redirect("/student/home");
   }
 
-  // 4. Parse the snapshot (Pitfall 5: on parse failure redirect home).
-  let snapshot;
-  try {
-    snapshot = missionSnapshotSchema.parse(assignment.mission_snapshot);
-  } catch {
+  // 4. Interpret the snapshot (Pitfall 5: any result other than complete -> redirect home).
+  const snapshotResult = interpretMissionSnapshot(assignment.mission_snapshot);
+  if (snapshotResult.kind !== "complete") {
     redirect("/student/home");
   }
+  const snapshot = snapshotResult.snapshot;
 
   // 5. Resolve the character profile (Coco default buddy).
   const characterProfile = getCharacterProfile(snapshot.characterId);

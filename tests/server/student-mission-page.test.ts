@@ -16,6 +16,19 @@ const shellSource = readFileSync(
 );
 
 describe("student mission resume state", () => {
+  it("requires a complete interpreted snapshot before live work", () => {
+    expect(pageSource).toContain("interpretMissionSnapshot");
+    expect(pageSource).toContain('snapshotResult.kind !== "complete"');
+    expect(pageSource).toContain("snapshotResult.snapshot");
+    expect(pageSource).not.toContain("missionSnapshotSchema");
+    expect(pageSource.indexOf('snapshotResult.kind !== "complete"')).toBeLessThan(
+      pageSource.indexOf("after(() => warmEvaluators"),
+    );
+    expect(pageSource.indexOf('snapshotResult.kind !== "complete"')).toBeLessThan(
+      pageSource.indexOf("<MissionFlowShell"),
+    );
+  });
+
   it("loads evaluation and persisted feedback fields", () => {
     expect(pageSource).toContain("evaluation");
     expect(pageSource).toContain("improved_sentence");
