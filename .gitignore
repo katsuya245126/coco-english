@@ -19,6 +19,9 @@ playwright-report/
 # Local task state for the active checkout/thread
 TASK.md
 
+# Local understand-anything artifacts
+.ua/
+
 # Supabase CLI local cache (linked project ref, pooler URL, version stamps)
 supabase/.temp/
 
