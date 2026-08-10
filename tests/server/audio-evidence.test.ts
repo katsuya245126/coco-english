@@ -16,10 +16,50 @@ type Operation = {
   orderBy: Array<[string, unknown]>;
 };
 
+const legacySnapshot = {
+  missionId: "22222222-2222-4222-8222-222222222222",
+  title: "Daily routines",
+  requiredTurns: 2,
+  characterId: "default-buddy",
+  turns: [
+    {
+      order: 1,
+      prompt: "What time do you wake up?",
+      targetExample: "I wake up at seven.",
+    },
+    {
+      order: 2,
+      prompt: "What do you eat for breakfast?",
+      targetExample: "I eat breakfast.",
+    },
+  ],
+};
+
+const completeConversationSnapshot = {
+  missionId: "33333333-3333-4333-8333-333333333333",
+  title: "Weekend conversation",
+  targetPattern: "I am going to...",
+  level: "beginner",
+  requiredTurns: 3,
+  characterId: "default-buddy",
+  conversationMode: true,
+  turns: [{
+    turnOrder: 1,
+    prompt: "What are you doing this weekend?",
+    targetExample: "I am going to play soccer.",
+    hintLadder: {
+      tier1: "Use I am going to.",
+      tier2: "Choose a weekend activity.",
+      tier3: "I am going to play soccer.",
+    },
+  }],
+};
+
 function createMockSupabase(options: {
   evidenceFound?: boolean;
   clipFound?: boolean;
   attemptTurns?: unknown[];
+  missionSnapshot?: unknown;
   clipObjectKey?: string | null;
   clipStatus?: string;
   clipDeletedAt?: string | null;
@@ -83,27 +123,10 @@ function createMockSupabase(options: {
                       students: { display_name: "Mina" },
                       assignments: {
                         title: "Daily routines",
-                        // Minimal/seeded snapshot shape: uses `order` (not
-                        // `turnOrder`) and omits strict-schema fields. The
-                        // evidence reader must still surface prompts.
-                        mission_snapshot: {
-                          missionId: "11111111-1111-1111-1111-111111111111",
-                          title: "Daily routines",
-                          requiredTurns: 2,
-                          characterId: "default-buddy",
-                          turns: [
-                            {
-                              order: 1,
-                              prompt: "What time do you wake up?",
-                              targetExample: "I wake up at seven.",
-                            },
-                            {
-                              order: 2,
-                              prompt: "What do you eat for breakfast?",
-                              targetExample: "I eat breakfast.",
-                            },
-                          ],
-                        },
+                        mission_snapshot:
+                          options.missionSnapshot === undefined
+                            ? legacySnapshot
+                            : options.missionSnapshot,
                         classes: { teacher_id: "teacher-1" },
                       },
                     },
@@ -313,6 +336,118 @@ describe("teacher audio evidence service", () => {
     expect(JSON.stringify(evidence)).not.toContain("accuracy_score");
     expect(JSON.stringify(evidence)).not.toContain("accuracyScore");
     expect(JSON.stringify(evidence)).not.toContain("pronunciation_score");
+  });
+
+  it("uses complete conversation context for opening and stored follow-up questions", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: completeConversationSnapshot,
+      attemptTurns: [
+        {
+          id: "turn-1",
+          turn_order: 1,
+          original_transcript: "I am going to play soccer.",
+          improved_sentence: null,
+          repeat_transcript: null,
+          target_attempted: true,
+          repeat_accepted: null,
+          evaluation: {
+            outcome: "accepted_original",
+            meaningUnderstood: true,
+            targetPatternAttempted: true,
+          },
+          coco_line: "Who are you going with?",
+          reply_hint_frame: null,
+          hint_level_used: 0,
+        },
+        {
+          id: "turn-2",
+          turn_order: 2,
+          original_transcript: "I am going with my friend.",
+          improved_sentence: null,
+          repeat_transcript: null,
+          target_attempted: true,
+          repeat_accepted: null,
+          evaluation: {
+            outcome: "accepted_original",
+            meaningUnderstood: true,
+            targetPatternAttempted: true,
+          },
+          coco_line: null,
+          reply_hint_frame: null,
+          hint_level_used: 0,
+        },
+      ],
+    });
+    const { getAttemptEvidenceForTeacher } = await import(
+      "@/server/teacher/audio-evidence"
+    );
+
+    const evidence = await getAttemptEvidenceForTeacher({
+      teacherId: "teacher-1",
+      attemptId: "attempt-1",
+    });
+
+    expect(evidence).toMatchObject({
+      conversationMode: true,
+      turns: [
+        { turnOrder: 1, question: "What are you doing this weekend?" },
+        { turnOrder: 2, question: "Who are you going with?" },
+      ],
+    });
+  });
+
+  it("keeps evidence but removes mission context for an invalid snapshot", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        conversationMode: true,
+        turns: [{ turnOrder: 1, prompt: "Untrusted question" }],
+      },
+      attemptTurns: [{
+        id: "turn-1",
+        turn_order: 1,
+        original_transcript: "I wake up at seven.",
+        improved_sentence: "I wake up at seven.",
+        repeat_transcript: null,
+        target_attempted: true,
+        repeat_accepted: null,
+        evaluation: {
+          outcome: "accepted_original",
+          meaningUnderstood: true,
+          targetPatternAttempted: true,
+        },
+        coco_line: "Untrusted follow-up question",
+        reply_hint_frame: null,
+        hint_level_used: 1,
+      }],
+    });
+    const { getAttemptEvidenceForTeacher } = await import(
+      "@/server/teacher/audio-evidence"
+    );
+
+    const evidence = await getAttemptEvidenceForTeacher({
+      teacherId: "teacher-1",
+      attemptId: "attempt-1",
+    });
+
+    expect(evidence).toMatchObject({
+      conversationMode: false,
+      turns: [{
+        question: null,
+        originalTranscript: "I wake up at seven.",
+        improvedSentence: "I wake up at seven.",
+        meaningResult: "Understood",
+        targetPatternResult: "Target pattern used",
+        hintLevelUsed: 1,
+        audioClips: [
+          {
+            id: "clip-1",
+            clipKind: "original_answer",
+            pronunciationScore: { starBand: 3 },
+          },
+          { id: "clip-2", clipKind: "repeat_attempt" },
+        ],
+      }],
+    });
   });
 
   it("attaches null pronunciationScore for a clip with no matching score row", async () => {
