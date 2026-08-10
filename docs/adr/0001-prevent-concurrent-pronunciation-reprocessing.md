@@ -1,0 +1,3 @@
+# Prevent Concurrent Pronunciation Reprocessing
+
+Pronunciation reprocessing uses an active marker on each audio clip. Service-role database operations begin, complete, and clear reprocessing after they prove teacher ownership. This design prevents concurrent Azure requests for one clip. A handled failure clears the marker and permits a retry. A stopped server can leave an abandoned marker. We do not use an automatic timeout because a timeout can permit concurrent Azure requests. An authorized database maintainer can clear an abandoned marker after separate approval for the exact environment and action.
