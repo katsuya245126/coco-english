@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const {
   mockReadStudentUnlock,
@@ -66,12 +68,29 @@ const missionSnapshot = {
   ],
 };
 
+const legacyMissionSnapshot = {
+  missionId: "33333333-3333-4333-8333-333333333333",
+  title: "Foundation Smoke Assignment",
+  characterId: "default-buddy",
+  requiredTurns: 1,
+  turns: [
+    {
+      order: 1,
+      prompt: "What are you going to do this weekend?",
+      targetExample: "I am going to play soccer.",
+    },
+  ],
+};
+
 /**
  * The TTS route reads owned assignment state through the service client before
  * resolving the line text, so the ownership read is stubbed rather than mocked
  * away — the budget must be consumed only after it succeeds.
  */
-function stubOwnedAssignment() {
+function stubOwnedAssignment(options: {
+  snapshot?: unknown;
+  latestAttemptId?: string | null;
+} = {}) {
   mockSupabaseFrom.mockImplementation((table: string) => {
     if (table === "assignment_students") {
       return {
@@ -82,9 +101,15 @@ function stubOwnedAssignment() {
                 data: {
                   id: ASSIGNMENT_STUDENT_ID,
                   student_id: "student-1",
-                  latest_attempt_id: null,
+                  latest_attempt_id:
+                    "latestAttemptId" in options
+                      ? options.latestAttemptId
+                      : null,
                   assignments: {
-                    mission_snapshot: missionSnapshot,
+                    mission_snapshot:
+                      "snapshot" in options
+                        ? options.snapshot
+                        : missionSnapshot,
                     canceled_at: null,
                   },
                 },
@@ -131,6 +156,22 @@ function translationRequest(
   });
 }
 
+const unsupportedVoiceCases = [
+  ["legacy", legacyMissionSnapshot],
+  ["invalid", { requiredTurns: 1 }],
+].flatMap(([snapshotKind, snapshot]) =>
+  [
+    ["prompt", { lineKind: "mission_prompt", turnOrder: 1 }],
+    ["dynamic", { lineKind: "coco_dynamic_line", turnOrder: 2 }],
+    [
+      "feedback",
+      { lineKind: "coco_feedback", feedbackVariant: "accepted_original" },
+    ],
+    ["transition", { lineKind: "coco_transition" }],
+    ["completion", { lineKind: "completion_celebration" }],
+  ].map(([lineKind, body]) => [snapshotKind, lineKind, snapshot, body]),
+);
+
 async function postTts(request: Request) {
   const { POST } = await import(
     "@/app/student/missions/[assignmentStudentId]/tts/route"
@@ -176,6 +217,39 @@ describe("student helper budget routes", () => {
       source: { sourceText: "What would you like to eat?", studentLevel: "elementary" },
     });
   });
+
+  it("reads TTS mission data through the shared interpreter", () => {
+    const source = readFileSync(
+      join(
+        process.cwd(),
+        "src/app/student/missions/[assignmentStudentId]/tts/route.ts",
+      ),
+      "utf8",
+    );
+
+    expect(source).toContain(
+      'import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";',
+    );
+    expect(source).not.toContain("missionSnapshotSchema");
+  });
+
+  it.each(unsupportedVoiceCases)(
+    "rejects %s snapshot data for %s voice before budget or cache work",
+    async (_snapshotKind, _lineKind, snapshot, body) => {
+      stubOwnedAssignment({ snapshot, latestAttemptId: "attempt-latest" });
+
+      const response = await postTts(ttsRequest(body));
+
+      expect(response.status).toBe(404);
+      await expect(response.json()).resolves.toEqual({
+        ok: false,
+        error: "not_found",
+      });
+      expect(mockSupabaseFrom).not.toHaveBeenCalledWith("attempt_turns");
+      expect(mockConsume).not.toHaveBeenCalled();
+      expect(mockGetOrCreateTtsAudio).not.toHaveBeenCalled();
+    },
+  );
 
   it("TTS resolves an owned line, then denies before cache lookup", async () => {
     stubOwnedAssignment();
