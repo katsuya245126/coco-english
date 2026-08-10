@@ -14,6 +14,7 @@ import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import type { Json } from "@/lib/db/types";
 import { assertTransitionRequest } from "@/domain/foundation/status";
 import { buildPlaceholderEvaluation } from "@/domain/flow/evaluation";
+import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
 import { log } from "@/server/logging/logger";
 import { nextUnfinishedTurnOrder } from "@/domain/flow/completion";
 import { HARD_TURN_CAP } from "@/domain/ai/conversation-generation";
@@ -99,6 +100,21 @@ async function loadOwnedAttempt(
   if (error) return { ok: false as const, error: "db_error" as const };
   if (!data) return { ok: false as const, error: "not_found" as const };
   return { ok: true as const, attempt: data };
+}
+
+async function loadCompleteMissionSnapshot(
+  supabase: ReturnType<typeof createSupabaseServiceClient>,
+  assignmentId: string,
+) {
+  const { data, error } = await supabase
+    .from("assignments")
+    .select("mission_snapshot")
+    .eq("id", assignmentId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  const result = interpretMissionSnapshot(data.mission_snapshot);
+  return result.kind === "complete" ? result.snapshot : null;
 }
 
 // ─── Service functions ───
@@ -200,6 +216,12 @@ export async function startOrResumeAttempt(input: {
     );
     if (!asRow) return { ok: false, error: "not_found" };
 
+    const snapshot = await loadCompleteMissionSnapshot(
+      supabase,
+      asRow.assignment_id,
+    );
+    if (!snapshot) return { ok: false, error: "not_found" };
+
     // 2. If already started, try to resume the existing in_progress attempt
     if (asRow.status === "started" && asRow.latest_attempt_id) {
       const { data: attempt } = await supabase
@@ -216,18 +238,8 @@ export async function startOrResumeAttempt(input: {
           .select("turn_order, original_transcript, repeat_transcript, repeat_accepted, evaluation")
           .eq("attempt_id", attempt.id);
 
-        // Get required_turns from the assignment's mission_snapshot
-        const { data: assignment } = await supabase
-          .from("assignments")
-          .select("mission_snapshot")
-          .eq("id", asRow.assignment_id)
-          .single();
-
-        const snapshot = assignment?.mission_snapshot as { requiredTurns?: number } | null;
-        const requiredTurns = snapshot?.requiredTurns ?? 3;
-
         const resumeTurnOrder = nextUnfinishedTurnOrder(
-          requiredTurns,
+          snapshot.requiredTurns,
           (turns ?? []).map((t) => ({
             turn_order: t.turn_order,
             original_transcript: t.original_transcript,
@@ -622,6 +634,19 @@ export async function completeAttempt(input: {
 }): Promise<CompleteAttemptResult> {
   try {
     const supabase = createSupabaseServiceClient();
+
+    const asRow = await loadOwnedAssignmentStudent(
+      supabase,
+      input.assignmentStudentId,
+      input.studentId,
+    );
+    if (!asRow) return { ok: false, error: "not_found" };
+
+    const snapshot = await loadCompleteMissionSnapshot(
+      supabase,
+      asRow.assignment_id,
+    );
+    if (!snapshot) return { ok: false, error: "not_found" };
 
     const { data, error } = await supabase.rpc("complete_student_attempt", {
       p_student_id: input.studentId,
