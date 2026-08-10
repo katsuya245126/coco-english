@@ -190,7 +190,7 @@ Expected: seven tests and typecheck pass; the commit contains only the list boun
 - Modify: `src/server/student-access/student-history.ts`
 - Modify: `tests/server/student-history.test.ts`
 - Modify: `src/app/student/history/[assignmentStudentId]/page.tsx`
-- Create: `tests/server/student-history-page.test.tsx`
+- Create: `src/app/student/history/[assignmentStudentId]/page.test.tsx`
 
 **Interfaces:**
 
@@ -340,7 +340,7 @@ Expected RED reasons: the legacy format lacks the local parser's required target
 
 - [ ] **Step 3: Write the recap page selection test**
 
-Create `tests/server/student-history-page.test.tsx`:
+Create `src/app/student/history/[assignmentStudentId]/page.test.tsx`:
 
 ```tsx
 import { renderToStaticMarkup } from "react-dom/server";
@@ -409,7 +409,7 @@ describe("StudentHistoryPage recap selection", () => {
 Run:
 
 ```bash
-npm test -- --run tests/server/student-history.test.ts tests/server/student-history-page.test.tsx
+npm test -- --run tests/server/student-history.test.ts 'src/app/student/history/[assignmentStudentId]/page.test.tsx'
 ```
 
 Expected: legacy recap, invalid partial recap, and legacy page selection fail; complete preset/conversation cases remain green.
@@ -484,9 +484,9 @@ This leaves complete preset and conversation branches unchanged. Legacy uses `Ho
 Run:
 
 ```bash
-npm test -- --run tests/server/student-history.test.ts tests/server/student-history-page.test.tsx src/components/student/HomeworkReview.test.tsx src/components/student/StudentMissionRecap.test.tsx src/domain/mission/mission-snapshot.test.ts
+npm test -- --run tests/server/student-history.test.ts 'src/app/student/history/[assignmentStudentId]/page.test.tsx' src/components/student/HomeworkReview.test.tsx src/components/student/StudentMissionRecap.test.tsx src/domain/mission/mission-snapshot.test.ts
 npm run typecheck
-git add src/server/student-access/student-history.ts tests/server/student-history.test.ts 'src/app/student/history/[assignmentStudentId]/page.tsx' tests/server/student-history-page.test.tsx
+git add src/server/student-access/student-history.ts tests/server/student-history.test.ts 'src/app/student/history/[assignmentStudentId]/page.tsx' 'src/app/student/history/[assignmentStudentId]/page.test.tsx'
 git diff --cached --check
 git commit -m "feat: open legacy student recaps"
 ```
@@ -510,7 +510,7 @@ Expected: focused tests and typecheck pass with no skips; the commit contains on
 Run:
 
 ```bash
-npm test -- --run tests/server/assignment-list.test.ts tests/server/student-history.test.ts tests/server/student-history-page.test.tsx src/components/student/HomeworkReview.test.tsx src/components/student/StudentMissionRecap.test.tsx src/domain/mission/mission-snapshot.test.ts
+npm test -- --run tests/server/assignment-list.test.ts tests/server/student-history.test.ts 'src/app/student/history/[assignmentStudentId]/page.test.tsx' src/components/student/HomeworkReview.test.tsx src/components/student/StudentMissionRecap.test.tsx src/domain/mission/mission-snapshot.test.ts
 ```
 
 Expected: all focused tests pass without skips. Coverage includes Current/Past filtering, exact legacy recap, invalid recap, original/repeat evidence, complete preset, complete conversation, and the interpreter contract.
