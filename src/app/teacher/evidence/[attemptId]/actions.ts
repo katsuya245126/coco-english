@@ -4,12 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireTeacherProfile } from "@/server/teacher/auth";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { dismissAssignmentStudent, markSubmissionReviewed, requestSubmissionRetry, undoDismiss } from "@/server/teacher/assignment-operations";
-import {
-  createSignedAudioUrlForTeacher,
-  teacherOwnsAudioClip,
-} from "@/server/teacher/audio-evidence";
+import { createSignedAudioUrlForTeacher } from "@/server/teacher/audio-evidence";
 import { reprocessClipPronunciation } from "@/server/audio/pronunciation-reprocess";
-import { consumeRequestBudget } from "@/server/security/request-budget";
 
 export type LoadAudioClipUrlActionResult =
   | { ok: true; signedUrl: string }
@@ -51,8 +47,7 @@ export type ReprocessPronunciationActionResult =
 
 /**
  * Teacher-triggered re-score of a clip whose pronunciation scoring failed (or
- * never ran) at upload time. Ownership is enforced via teacherOwnsAudioClip
- * before the service-role reprocess path touches the clip.
+ * never ran) at upload time.
  *
  * `attemptId` is used only to revalidate the evidence page so the newly-scored
  * detail shows without a manual refresh.
@@ -66,26 +61,8 @@ export async function reprocessPronunciationAction(input: {
   }
 
   const profile = await requireTeacherProfile();
-
-  const owns = await teacherOwnsAudioClip({
-    teacherId: profile.id,
-    audioClipId: input.audioClipId,
-  });
-  if (!owns) {
-    return { ok: false, error: "unauthorized" };
-  }
-
-  // Consumed only for a clip this teacher owns, and before the scoring
-  // provider call the reprocess path makes.
-  const budget = await consumeRequestBudget({
-    actorId: profile.id,
-    operation: "teacher_provider",
-  });
-  if (!budget.allowed) {
-    return { ok: false, error: "rate_limited" };
-  }
-
   const result = await reprocessClipPronunciation({
+    teacherId: profile.id,
     audioClipId: input.audioClipId,
   });
 
@@ -94,18 +71,7 @@ export async function reprocessPronunciationAction(input: {
     return { ok: true };
   }
 
-  if (result.error === "already_scored") {
-    return { ok: false, error: "already_scored" };
-  }
-  if (
-    result.error === "clip_unavailable" ||
-    result.error === "not_found" ||
-    result.error === "no_reference_text"
-  ) {
-    return { ok: false, error: "unavailable" };
-  }
-
-  return { ok: false, error: "failed" };
+  return result;
 }
 
 // ─── Override action ───

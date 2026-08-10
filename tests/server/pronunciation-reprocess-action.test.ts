@@ -2,14 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockRequireTeacherProfile,
-  mockTeacherOwnsAudioClip,
-  mockConsume,
   mockReprocessClipPronunciation,
   mockRevalidatePath,
 } = vi.hoisted(() => ({
   mockRequireTeacherProfile: vi.fn(),
-  mockTeacherOwnsAudioClip: vi.fn(),
-  mockConsume: vi.fn(),
   mockReprocessClipPronunciation: vi.fn(),
   mockRevalidatePath: vi.fn(),
 }));
@@ -21,12 +17,7 @@ vi.mock("@/server/teacher/auth", () => ({
 }));
 
 vi.mock("@/server/teacher/audio-evidence", () => ({
-  teacherOwnsAudioClip: mockTeacherOwnsAudioClip,
   createSignedAudioUrlForTeacher: vi.fn(),
-}));
-
-vi.mock("@/server/security/request-budget", () => ({
-  consumeRequestBudget: mockConsume,
 }));
 
 vi.mock("@/server/audio/pronunciation-reprocess", () => ({
@@ -51,50 +42,47 @@ async function reprocess(input = { audioClipId: "clip-1", attemptId: "attempt-1"
   return reprocessPronunciationAction(input);
 }
 
-describe("reprocessPronunciationAction budget", () => {
+describe("reprocessPronunciationAction", () => {
   beforeEach(() => {
     vi.resetModules();
     mockRequireTeacherProfile.mockReset();
-    mockTeacherOwnsAudioClip.mockReset();
-    mockConsume.mockReset();
     mockReprocessClipPronunciation.mockReset();
     mockRevalidatePath.mockReset();
 
     mockRequireTeacherProfile.mockResolvedValue({ id: "teacher-1" });
-    mockTeacherOwnsAudioClip.mockResolvedValue(true);
-    mockConsume.mockResolvedValue({ allowed: true });
-    mockReprocessClipPronunciation.mockResolvedValue({ ok: true });
+    mockReprocessClipPronunciation.mockResolvedValue({ ok: true, scored: true });
   });
 
-  it("checks clip ownership, then denies before pronunciation provider work", async () => {
-    mockConsume.mockResolvedValue({ allowed: false, retryAfterSeconds: 300 });
+  it("passes the authenticated teacher and clip to the reprocessor once", async () => {
+    await expect(reprocess()).resolves.toEqual({ ok: true });
 
-    const result = await reprocess();
-
-    expect(mockTeacherOwnsAudioClip).toHaveBeenCalled();
-    expect(mockConsume).toHaveBeenCalledWith({
-      actorId: "teacher-1",
-      operation: "teacher_provider",
-    });
-    expect(mockReprocessClipPronunciation).not.toHaveBeenCalled();
-    expect(result).toEqual({ ok: false, error: "rate_limited" });
-  });
-
-  it("does not consume a budget for a clip the teacher does not own", async () => {
-    mockTeacherOwnsAudioClip.mockResolvedValue(false);
-
-    const result = await reprocess();
-
-    expect(mockConsume).not.toHaveBeenCalled();
-    expect(mockReprocessClipPronunciation).not.toHaveBeenCalled();
-    expect(result).toEqual({ ok: false, error: "unauthorized" });
-  });
-
-  it("admits an owned clip and reprocesses exactly once", async () => {
-    const result = await reprocess();
-
-    expect(mockConsume).toHaveBeenCalledTimes(1);
+    expect(mockRequireTeacherProfile).toHaveBeenCalledTimes(1);
     expect(mockReprocessClipPronunciation).toHaveBeenCalledTimes(1);
-    expect(result).toEqual({ ok: true });
+    expect(mockReprocessClipPronunciation).toHaveBeenCalledWith({
+      teacherId: "teacher-1",
+      audioClipId: "clip-1",
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/teacher/evidence/attempt-1");
+  });
+
+  it.each(["unauthorized", "already_scored", "unavailable", "failed", "rate_limited"] as const)(
+    "returns %s without revalidating",
+    async (error) => {
+      mockReprocessClipPronunciation.mockResolvedValue({ ok: false, error });
+
+      await expect(reprocess()).resolves.toEqual({ ok: false, error });
+
+      expect(mockRevalidatePath).not.toHaveBeenCalled();
+    },
+  );
+
+  it("returns unavailable before authenticating an empty clip", async () => {
+    await expect(reprocess({ audioClipId: "", attemptId: "attempt-1" })).resolves.toEqual({
+      ok: false,
+      error: "unavailable",
+    });
+
+    expect(mockRequireTeacherProfile).not.toHaveBeenCalled();
+    expect(mockReprocessClipPronunciation).not.toHaveBeenCalled();
   });
 });
