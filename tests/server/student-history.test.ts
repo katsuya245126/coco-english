@@ -10,6 +10,55 @@ vi.mock("@/lib/supabase/server", () => ({
 
 import { getCompletedMissionRecap } from "@/server/student-access/student-history";
 
+const hintLadder = {
+  tier1: "Use the target pattern.",
+  tier2: "Choose helpful words.",
+  tier3: "Say the complete example.",
+};
+
+const presetSnapshot = {
+  missionId: "00000000-0000-4000-8000-000000000001",
+  title: "Weekend plans",
+  targetPattern: "I am going to...",
+  level: "beginner",
+  requiredTurns: 3,
+  characterId: "default-buddy",
+  conversationMode: false,
+  turns: [
+    { turnOrder: 1, prompt: "What will you do?", targetExample: "I will play soccer.", hintLadder },
+    { turnOrder: 2, prompt: "Who will go?", targetExample: "My friend will go.", hintLadder },
+    { turnOrder: 3, prompt: "What else?", targetExample: "I will eat lunch.", hintLadder },
+  ],
+};
+
+const conversationSnapshot = {
+  missionId: "00000000-0000-4000-8000-000000000002",
+  title: "Weekend conversation",
+  targetPattern: "I am going to...",
+  level: "beginner",
+  requiredTurns: 3,
+  characterId: "default-buddy",
+  conversationMode: true,
+  turns: [{
+    turnOrder: 1,
+    prompt: "Where are you going?",
+    targetExample: "I am going to school.",
+    hintLadder,
+  }],
+};
+
+const legacySnapshot = {
+  missionId: "11111111-1111-4111-8111-111111111111",
+  title: "Foundation Smoke Assignment",
+  characterId: "default-buddy",
+  requiredTurns: 1,
+  turns: [{
+    order: 1,
+    prompt: "What are you going to do this weekend?",
+    targetExample: "I am going to play soccer.",
+  }],
+};
+
 function createMockSupabase() {
   const rows = {
     assignment_students: {
@@ -20,14 +69,7 @@ function createMockSupabase() {
         assignments: {
           title: "Weekend plans",
           canceled_at: null,
-          mission_snapshot: {
-            targetPattern: "I am going to...",
-            turns: [
-              { turnOrder: 0, prompt: "What will you do?" },
-              { turnOrder: 1, prompt: "Who will go?" },
-              { turnOrder: 2, prompt: "What else?" },
-            ],
-          },
+          mission_snapshot: presetSnapshot,
         },
       },
       error: null,
@@ -38,9 +80,9 @@ function createMockSupabase() {
     },
     attempt_turns: {
       data: [
-        { id: "turn-original", turn_order: 0, original_transcript: "I play soccer with funny friends today", repeat_transcript: null, repeat_accepted: false },
-        { id: "turn-repeat", turn_order: 1, original_transcript: "My original answer", repeat_transcript: "Ramen tastes better", repeat_accepted: true },
-        { id: "turn-clear", turn_order: 2, original_transcript: "I feel ready", repeat_transcript: null, repeat_accepted: false },
+        { id: "turn-original", turn_order: 1, original_transcript: "I play soccer with funny friends today", repeat_transcript: null, repeat_accepted: false },
+        { id: "turn-repeat", turn_order: 2, original_transcript: "My original answer", repeat_transcript: "Ramen tastes better", repeat_accepted: true },
+        { id: "turn-clear", turn_order: 3, original_transcript: "I feel ready", repeat_transcript: null, repeat_accepted: false },
       ],
       error: null,
     },
@@ -119,7 +161,7 @@ describe("student completed mission recap security contracts", () => {
   });
 
   it("does not expose signed URLs in the initial recap and degrades retained audio safely", () => {
-    const recapType = source.slice(source.indexOf("export type StudentMissionRecap"), source.indexOf("type Snapshot"));
+    const recapType = source.slice(source.indexOf("export type StudentMissionRecap"), source.indexOf("function readInterpretations"));
     expect(recapType).not.toContain("signedUrl");
     expect(source).toContain('"expired"');
     expect(source).toContain('"unavailable"');
@@ -170,6 +212,51 @@ describe("student completed mission recap pronunciation", () => {
   });
 });
 
+describe("student legacy mission recap", () => {
+  it("shows known legacy questions and both speaking tries without a target pattern", async () => {
+    mockSupabase = createDynamicMockSupabase(
+      [{
+        id: "turn-repeat",
+        turn_order: 1,
+        original_transcript: "I play soccer.",
+        improved_sentence: "I am going to play soccer.",
+        repeat_transcript: "I am going to play soccer.",
+        repeat_accepted: true,
+        evaluation: { outcome: "accepted_repeat" },
+        coco_line: "Stored line is not a legacy prompt.",
+      }],
+      legacySnapshot,
+    );
+
+    const recap = await getCompletedMissionRecap("student-1", "assignment-student-1");
+
+    expect(recap).toMatchObject({
+      targetPattern: null,
+      conversationMode: false,
+      characterId: "default-buddy",
+      finalCocoLine: null,
+      completedAt: "2026-07-14T00:00:00.000Z",
+      turns: [{
+        cocoPrompt: "What are you going to do this weekend?",
+        reviewState: "repeat_accepted",
+        original: { transcript: "I play soccer." },
+        repeat: { transcript: "I am going to play soccer." },
+      }],
+    });
+  });
+
+  it("keeps unknown partial snapshot data as not found", async () => {
+    mockSupabase = createDynamicMockSupabase(undefined, {
+      targetPattern: "I am going to...",
+      turns: [{ turnOrder: 1, prompt: "What will you do?" }],
+    });
+
+    await expect(
+      getCompletedMissionRecap("student-1", "assignment-student-1"),
+    ).resolves.toBeNull();
+  });
+});
+
 type DynamicAttemptTurnRow = {
   id: string;
   turn_order: number;
@@ -181,7 +268,10 @@ type DynamicAttemptTurnRow = {
   coco_line: string;
 };
 
-function createDynamicMockSupabase(attemptTurnsOverride?: DynamicAttemptTurnRow[]) {
+function createDynamicMockSupabase(
+  attemptTurnsOverride?: DynamicAttemptTurnRow[],
+  missionSnapshot: unknown = conversationSnapshot,
+) {
   const rows = {
     assignment_students: {
       data: {
@@ -191,12 +281,7 @@ function createDynamicMockSupabase(attemptTurnsOverride?: DynamicAttemptTurnRow[
         assignments: {
           title: "Weekend plans",
           canceled_at: null,
-          mission_snapshot: {
-            targetPattern: "I am going to...",
-            characterId: "default-buddy",
-            conversationMode: true,
-            turns: [{ turnOrder: 1, prompt: "Where are you going?" }],
-          },
+          mission_snapshot: missionSnapshot,
         },
       },
       error: null,
