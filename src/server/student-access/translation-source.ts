@@ -1,8 +1,6 @@
 import type { TranslatableCocoLine } from "@/domain/ai/translation-hint";
-import {
-  missionSnapshotSchema,
-  type MissionLevel,
-} from "@/domain/mission/schemas";
+import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
+import type { MissionLevel } from "@/domain/mission/schemas";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
 export type ResolveOwnedTranslationSourceResult =
@@ -44,12 +42,14 @@ export async function resolveOwnedTranslationSource(input: {
     return { ok: false, error: "not_found" };
   }
 
-  const parsedSnapshot = missionSnapshotSchema.safeParse(
+  const snapshotResult = interpretMissionSnapshot(
     owned.assignments?.mission_snapshot,
   );
-  if (!parsedSnapshot.success) return { ok: false, error: "not_found" };
+  if (snapshotResult.kind !== "complete") {
+    return { ok: false, error: "not_found" };
+  }
 
-  const snapshot = parsedSnapshot.data;
+  const snapshot = snapshotResult.snapshot;
   if (input.line.lineKind === "mission_prompt") {
     const turn = snapshot.turns.find(
       (candidate) => candidate.turnOrder === input.line.turnOrder,
