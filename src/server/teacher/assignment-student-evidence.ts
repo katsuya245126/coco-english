@@ -1,4 +1,4 @@
-import { missionSnapshotSchema } from "@/domain/mission/schemas";
+import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
 type Client = ReturnType<typeof createSupabaseServiceClient>;
@@ -60,13 +60,15 @@ export async function getAssignmentStudentEvidenceForTeacher(
 
   const assignment = one(row.assignments);
   const klass = one(assignment.classes);
-  const snapshot = missionSnapshotSchema.safeParse(assignment.mission_snapshot);
+  const snapshotResult = interpretMissionSnapshot(assignment.mission_snapshot);
+  const snapshot =
+    snapshotResult.kind === "invalid" ? null : snapshotResult.snapshot;
   const status = String(row.status);
 
   return {
     assignmentStudentId: String(row.id),
     studentName: String(one(row.students).display_name),
-    missionTitle: snapshot.success ? snapshot.data.title : String(assignment.title),
+    missionTitle: snapshot?.title ?? String(assignment.title),
     status,
     statusLabel: "Not started",
     submittedLabel: row.submitted_at === null ? "Not yet submitted" : String(row.submitted_at),
@@ -76,9 +78,12 @@ export async function getAssignmentStudentEvidenceForTeacher(
     className: String(klass.name),
     assignmentId: String(assignment.id),
     dismissedAt: row.dismissed_at ? String(row.dismissed_at) : null,
-    targetPattern: snapshot.success ? snapshot.data.targetPattern : null,
-    turns: snapshot.success
-      ? snapshot.data.turns.map((turn) => ({
+    targetPattern:
+      snapshotResult.kind === "complete"
+        ? snapshotResult.snapshot.targetPattern
+        : null,
+    turns: snapshot
+      ? snapshot.turns.map((turn) => ({
           turnOrder: turn.turnOrder,
           prompt: turn.prompt,
           targetExample: turn.targetExample,

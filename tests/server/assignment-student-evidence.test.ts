@@ -16,6 +16,18 @@ const snapshot = {
   }],
 };
 
+const legacySnapshot = {
+  missionId: "22222222-2222-4222-8222-222222222222",
+  title: "Foundation Smoke Assignment",
+  characterId: "default-buddy",
+  requiredTurns: 1,
+  turns: [{
+    order: 1,
+    prompt: "What are you going to do this weekend?",
+    targetExample: "I am going to play soccer.",
+  }],
+};
+
 function evidenceClient(data: unknown) {
   const filters: Array<[string, unknown]> = [];
   const chain = {
@@ -50,6 +62,69 @@ describe("assignment student evidence", () => {
       turns: [{ turnOrder: 1, prompt: "What do you like?", targetExample: "I like apples." }],
     });
     expect(filters).toContainEqual(["assignments.classes.teacher_id", "teacher-1"]);
+  });
+
+  it("shows known legacy assigned work without inventing a target pattern", async () => {
+    const { client } = evidenceClient({
+      id: "as-1",
+      status: "assigned",
+      submitted_at: null,
+      latest_attempt_id: null,
+      dismissed_at: null,
+      students: { display_name: "test" },
+      assignments: {
+        id: "assignment-1",
+        title: "Assignment fallback title",
+        mission_snapshot: legacySnapshot,
+        classes: { id: "class-1", name: "Test class", teacher_id: "teacher-1" },
+      },
+    });
+
+    const result = await getAssignmentStudentEvidenceForTeacher(
+      { teacherId: "teacher-1", assignmentStudentId: "as-1" },
+      client as never,
+    );
+
+    expect(result).toMatchObject({
+      missionTitle: "Foundation Smoke Assignment",
+      targetPattern: null,
+      turns: [{
+        turnOrder: 1,
+        prompt: "What are you going to do this weekend?",
+        targetExample: "I am going to play soccer.",
+      }],
+    });
+  });
+
+  it("keeps invalid assigned work free of invented mission content", async () => {
+    const { client } = evidenceClient({
+      id: "as-1",
+      status: "assigned",
+      submitted_at: null,
+      latest_attempt_id: null,
+      dismissed_at: null,
+      students: { display_name: "test" },
+      assignments: {
+        id: "assignment-1",
+        title: "Assignment fallback title",
+        mission_snapshot: {
+          conversationMode: true,
+          turns: [{ turnOrder: 1, prompt: "Untrusted question" }],
+        },
+        classes: { id: "class-1", name: "Test class", teacher_id: "teacher-1" },
+      },
+    });
+
+    const result = await getAssignmentStudentEvidenceForTeacher(
+      { teacherId: "teacher-1", assignmentStudentId: "as-1" },
+      client as never,
+    );
+
+    expect(result).toMatchObject({
+      missionTitle: "Assignment fallback title",
+      targetPattern: null,
+      turns: [],
+    });
   });
 
   it("returns null when no owned row exists", async () => {
