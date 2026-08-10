@@ -13,19 +13,52 @@ const snapshot = {
   turns: [{ turnOrder: 1, prompt: "What?", targetExample: "I like it.", hintLadder: { tier1: "One", tier2: "Two", tier3: "Three" } }],
 };
 
-function row(id: string, status: string, dueAt: string | null = null, completedAt: string | null = null): {
+const legacySnapshot = {
+  missionId: "11111111-1111-4111-8111-111111111111",
+  title: "Foundation Smoke Assignment",
+  characterId: "default-buddy",
+  requiredTurns: 1,
+  turns: [{
+    order: 1,
+    prompt: "What are you going to do this weekend?",
+    targetExample: "I am going to play soccer.",
+  }],
+};
+
+function row(id: string, status: string, dueAt: string | null = null, completedAt: string | null = null, missionSnapshot: unknown = snapshot): {
   id: string; status: string; submitted_at: string | null; latest_attempt_id: string | null;
-  assignments: { title: string; mission_snapshot: typeof snapshot; due_at: string | null; canceled_at: string | null };
+  assignments: { title: string; mission_snapshot: unknown; due_at: string | null; canceled_at: string | null };
   latest_attempt: { completed_at: string | null } | null;
 } {
   return { id, status, submitted_at: completedAt, latest_attempt_id: completedAt ? `attempt-${id}` : null,
-    assignments: { title: id, mission_snapshot: snapshot, due_at: dueAt, canceled_at: null },
+    assignments: { title: id, mission_snapshot: missionSnapshot, due_at: dueAt, canceled_at: null },
     latest_attempt: completedAt ? { completed_at: completedAt } : null };
 }
 
 beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date("2026-07-12T12:00:00Z")); rows = []; vi.clearAllMocks(); });
 
 describe("listStudentAssignmentPage", () => {
+  it("hides unfinished legacy work from Current and shows completed legacy work in Past", async () => {
+    rows = [
+      row("legacy-open", "assigned", null, null, legacySnapshot),
+      row("legacy-done", "completed", null, "2026-07-11T10:00:00Z", legacySnapshot),
+    ];
+    const { listStudentAssignmentPage } = await import("@/server/student-access/assignment-list");
+
+    const current = await listStudentAssignmentPage("student-1", { tab: "current", page: 1 });
+    const past = await listStudentAssignmentPage("student-1", { tab: "past", page: 1 });
+
+    expect(current.items).toEqual([]);
+    expect(past.items).toEqual([
+      expect.objectContaining({
+        assignmentStudentId: "legacy-done",
+        turnCount: 1,
+        targetPattern: null,
+        displayStatus: "done",
+      }),
+    ]);
+  });
+
   it("orders retry, due within exactly 24h, then later/no-date stably", async () => {
     rows = [row("later", "assigned", "2026-07-14T12:00:00Z"), row("boundary", "started", "2026-07-13T12:00:00Z"), row("soon", "assigned", "2026-07-12T13:00:00Z"), row("retry", "needs_retry")];
     const { listStudentAssignmentPage } = await import("@/server/student-access/assignment-list");
