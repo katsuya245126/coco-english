@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { readStudentUnlock } from "@/app/join/actions";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
-import { missionSnapshotSchema } from "@/domain/mission/schemas";
+import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
 import { getCharacterProfile } from "@/domain/character/profile";
 import {
   DEFAULT_COCO_TTS_VOICE,
@@ -156,10 +156,16 @@ export async function POST(request: Request, context: RouteContext) {
       { status: 404 },
     );
   }
-  const snapshotResult = missionSnapshotSchema.safeParse(rawSnapshot?.mission_snapshot);
-  const snapshot = snapshotResult.success ? snapshotResult.data : null;
+  const snapshotResult = interpretMissionSnapshot(rawSnapshot?.mission_snapshot);
+  if (snapshotResult.kind !== "complete") {
+    return NextResponse.json(
+      { ok: false, error: "not_found" },
+      { status: 404 },
+    );
+  }
+  const snapshot = snapshotResult.snapshot;
 
-  const characterId = parsed.data.characterId ?? snapshot?.characterId ?? "default-buddy";
+  const characterId = parsed.data.characterId ?? snapshot.characterId;
   // A restarted/retried mission produces additional attempts whose
   // attempt_turns reuse the same turn_order values, so the per-turn lookups
   // below must pin to the current attempt — an assignment-wide join returns
@@ -169,7 +175,7 @@ export async function POST(request: Request, context: RouteContext) {
       .latest_attempt_id ?? null;
 
   let resolvedTurn: ResolvedSnapshotTurn | null = null;
-  if (parsed.data.turnOrder && snapshot) {
+  if (parsed.data.turnOrder) {
     // Conversation-mode missions generate turns dynamically and may have zero
     // or few pre-authored snapshot turns — the dynamic-line lookup does not
     // depend on a matching snapshotTurn existing.

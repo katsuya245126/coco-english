@@ -191,6 +191,20 @@ const missionSnapshotFixture: {
   ],
 };
 
+const legacyMissionSnapshotFixture = {
+  missionId: "11111111-1111-4111-8111-111111111111",
+  title: "Foundation Smoke Assignment",
+  characterId: "default-buddy",
+  requiredTurns: 1,
+  turns: [
+    {
+      order: 1,
+      prompt: "What are you going to do this weekend?",
+      targetExample: "I am going to play soccer.",
+    },
+  ],
+};
+
 function createMockSupabase(options: {
   assignmentFound?: boolean;
   assignmentStatus?: Database["public"]["Enums"]["assignment_student_status"];
@@ -198,7 +212,7 @@ function createMockSupabase(options: {
   attemptStatus?: Database["public"]["Enums"]["attempt_status"];
   uploadError?: Error | null;
   turnWriteError?: Error | null;
-  missionSnapshot?: typeof missionSnapshotFixture;
+  missionSnapshot?: unknown;
   turnEvaluation?: unknown;
 } = {}) {
   const operations: Operation[] = [];
@@ -258,7 +272,9 @@ function createMockSupabase(options: {
                     status: options.assignmentStatus ?? "started",
                     assignments: {
                       mission_snapshot:
-                        options.missionSnapshot ?? missionSnapshotFixture,
+                        "missionSnapshot" in options
+                          ? options.missionSnapshot
+                          : missionSnapshotFixture,
                     },
                   },
             error: null,
@@ -326,6 +342,71 @@ describe("uploadAttemptAudioClip", () => {
     mockSupabase = createMockSupabase();
     process.env.STUDENT_AUDIO_BUCKET = "student-audio";
   });
+
+  it("reads stored mission data through the shared interpreter", () => {
+    const source = readFileSync(
+      join(process.cwd(), "src/server/student-access/audio-upload.ts"),
+      "utf8",
+    );
+
+    expect(source).toContain(
+      'import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";',
+    );
+    expect(source).not.toContain("missionSnapshotSchema");
+  });
+
+  it.each([
+    ["legacy", legacyMissionSnapshotFixture],
+    ["invalid", { requiredTurns: 1 }],
+  ])(
+    "rejects %s mission data before budget, storage, or provider work",
+    async (_label, missionSnapshot) => {
+      mockSupabase = createMockSupabase({ missionSnapshot });
+      const consumeRequestBudget = vi.fn(async () => ({
+        allowed: true as const,
+      }));
+      const transcribeAudioFile = vi.fn();
+      const evaluateOriginalTurn = vi.fn();
+      const evaluateRepeatTurn = vi.fn();
+      const generateCocoReply = vi.fn();
+      const isContentSafe = vi.fn();
+      const scorePronunciation = vi.fn();
+      const file = new Blob(["voice"], { type: "audio/webm" });
+      const arrayBuffer = vi.spyOn(file, "arrayBuffer");
+      const { uploadAttemptAudioClip } = await import(
+        "@/server/student-access/audio-upload"
+      );
+
+      await expect(
+        uploadAttemptAudioClip(audioInput({ file, body: "voice" }), {
+          consumeRequestBudget,
+          transcribeAudioFile,
+          evaluateOriginalTurn,
+          evaluateRepeatTurn,
+          generateCocoReply,
+          isContentSafe,
+          scorePronunciation,
+        }),
+      ).resolves.toEqual({
+        ok: false,
+        error: "invalid_audio",
+        retryable: false,
+      });
+
+      expect(consumeRequestBudget).not.toHaveBeenCalled();
+      expect(arrayBuffer).not.toHaveBeenCalled();
+      expect(
+        mockSupabase.operations.filter(({ action }) => action !== "select"),
+      ).toHaveLength(0);
+      expect(mockSupabase.storage.from).not.toHaveBeenCalled();
+      expect(transcribeAudioFile).not.toHaveBeenCalled();
+      expect(evaluateOriginalTurn).not.toHaveBeenCalled();
+      expect(evaluateRepeatTurn).not.toHaveBeenCalled();
+      expect(generateCocoReply).not.toHaveBeenCalled();
+      expect(isContentSafe).not.toHaveBeenCalled();
+      expect(scorePronunciation).not.toHaveBeenCalled();
+    },
+  );
 
   it("denies after ownership checks and before blob, row, storage, or provider work", async () => {
     const consumeRequestBudget = vi.fn(async () => ({

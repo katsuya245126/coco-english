@@ -9,7 +9,7 @@
 
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/lib/db/types";
-import { missionSnapshotSchema } from "@/domain/mission/schemas";
+import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
 import { isExactTargetMatch } from "@/domain/ai/fast-path";
 import { isIncompleteUtterance } from "@/domain/ai/incomplete-utterance";
 import { buildReplyHintFrame } from "@/domain/ai/reply-hint-frame";
@@ -511,8 +511,8 @@ function readMissionSnapshot(assignmentStudent: unknown) {
   const missionSnapshot = Array.isArray(rawSnapshot)
     ? rawSnapshot[0]?.mission_snapshot
     : rawSnapshot?.mission_snapshot;
-  const parsed = missionSnapshotSchema.safeParse(missionSnapshot);
-  return parsed.success ? parsed.data : null;
+  const result = interpretMissionSnapshot(missionSnapshot);
+  return result.kind === "complete" ? result.snapshot : null;
 }
 
 function toJson(

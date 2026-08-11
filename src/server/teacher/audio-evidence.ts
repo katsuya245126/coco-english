@@ -11,6 +11,7 @@ import {
   type PronunciationStarBand,
   type WordScore,
 } from "@/domain/pronunciation/scoring";
+import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
 
 const DEFAULT_AUDIO_BUCKET = "student-audio";
 const SIGNED_AUDIO_URL_TTL_SECONDS = 300;
@@ -181,51 +182,35 @@ function mapAttemptMetadata(row: AttemptOwnershipRow) {
   };
 }
 
-/**
- * Read each turn's buddy question from the assignment's mission snapshot,
- * keyed by turn order.
- *
- * The snapshot is intentionally parsed defensively rather than via
- * `missionSnapshotSchema`: older/seeded snapshots use `order` instead of
- * `turnOrder` and omit fields the strict schema requires (targetPattern,
- * hintLadder, etc.). A strict parse would reject those and drop every
- * question. Evidence display only needs `prompt`, so we tolerate any shape
- * that carries a turn order and a prompt string.
- */
-function readTurnQuestionsByOrder(row: AttemptOwnershipRow): Map<number, string> {
-  const questionsByOrder = new Map<number, string>();
+type AttemptMissionContext = {
+  questionsByOrder: Map<number, string>;
+  conversationMode: boolean;
+};
+
+function readAttemptMissionContext(
+  row: AttemptOwnershipRow,
+): AttemptMissionContext {
   const assignment = one(one(row.assignment_students)?.assignments);
-  const snapshot = assignment?.mission_snapshot;
+  const snapshotResult = interpretMissionSnapshot(
+    assignment?.mission_snapshot,
+  );
 
-  if (typeof snapshot !== "object" || snapshot === null) {
-    return questionsByOrder;
+  if (snapshotResult.kind === "invalid") {
+    return { questionsByOrder: new Map(), conversationMode: false };
   }
 
-  const turns = (snapshot as { turns?: unknown }).turns;
-  if (!Array.isArray(turns)) return questionsByOrder;
-
-  for (const entry of turns) {
-    if (typeof entry !== "object" || entry === null) continue;
-    const turn = entry as { turnOrder?: unknown; order?: unknown; prompt?: unknown };
-    const order =
-      typeof turn.turnOrder === "number"
-        ? turn.turnOrder
-        : typeof turn.order === "number"
-          ? turn.order
-          : null;
-    if (order === null || typeof turn.prompt !== "string") continue;
-    const prompt = turn.prompt.trim();
-    if (prompt) questionsByOrder.set(order, prompt);
-  }
-
-  return questionsByOrder;
-}
-
-/** Read conversationMode off the snapshot; missing/legacy snapshots read as preset. */
-function readConversationMode(row: AttemptOwnershipRow): boolean {
-  const snapshot = one(one(row.assignment_students)?.assignments)?.mission_snapshot;
-  if (typeof snapshot !== "object" || snapshot === null) return false;
-  return (snapshot as { conversationMode?: unknown }).conversationMode === true;
+  const questionsByOrder = new Map(
+    snapshotResult.snapshot.turns.map((turn) => [
+      turn.turnOrder,
+      turn.prompt,
+    ] as const),
+  );
+  return {
+    questionsByOrder,
+    conversationMode:
+      snapshotResult.kind === "complete" &&
+      snapshotResult.snapshot.conversationMode,
+  };
 }
 
 /**
@@ -548,10 +533,10 @@ export async function getAttemptEvidenceForTeacher(input: {
 
   const ownershipRow = attempt.data as AttemptOwnershipRow;
   const metadata = mapAttemptMetadata(ownershipRow);
-  const questionsByOrder = addDynamicTurnQuestions(
-    readTurnQuestionsByOrder(ownershipRow),
-    turnRows,
-  );
+  const missionContext = readAttemptMissionContext(ownershipRow);
+  const questionsByOrder = missionContext.conversationMode
+    ? addDynamicTurnQuestions(missionContext.questionsByOrder, turnRows)
+    : missionContext.questionsByOrder;
 
   return {
     attemptId: attempt.data.id,
@@ -569,7 +554,7 @@ export async function getAttemptEvidenceForTeacher(input: {
     reviewReason: attempt.data.needs_review_reason,
     attemptCount: metadata.attemptCount,
     highestHintLevel: metadata.highestHintLevel,
-    conversationMode: readConversationMode(ownershipRow),
+    conversationMode: missionContext.conversationMode,
     turns: turnRows.map((turn) =>
       mapTurn(turn, clipsByTurnId, questionsByOrder),
     ),

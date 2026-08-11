@@ -19,12 +19,65 @@ type Operation = {
   filters: Array<[string, unknown]>;
 };
 
+const missionId = "11111111-1111-4111-8111-111111111111";
+
+const completeTurn = {
+  prompt: "What do you like doing after school?",
+  targetExample: "I like playing soccer.",
+  hintLadder: {
+    tier1: "I like ___ing.",
+    tier2: "play, soccer, like",
+    tier3: "I like playing soccer.",
+  },
+};
+
+function makeCompleteSnapshot(conversationMode = false) {
+  return {
+    missionId,
+    title: "After-school likes",
+    targetPattern: "I like ___ing.",
+    level: "elementary",
+    requiredTurns: 5,
+    characterId: "default-buddy",
+    conversationMode,
+    turns: Array.from(
+      { length: conversationMode ? 1 : 5 },
+      (_, index) => ({ ...completeTurn, turnOrder: index + 1 }),
+    ),
+  };
+}
+
+const legacySnapshot = {
+  missionId,
+  title: "Foundation Smoke Assignment",
+  characterId: "default-buddy",
+  requiredTurns: 1,
+  turns: [
+    {
+      order: 1,
+      prompt: "What are you going to do this weekend?",
+      targetExample: "I am going to play soccer.",
+    },
+  ],
+};
+
 function createMockSupabase(options: {
   assignmentFound?: boolean;
   attemptFound?: boolean;
   attemptStatus?: string;
   upsertError?: { message: string } | null;
   updateError?: { message: string } | null;
+  assignmentStatus?: "assigned" | "started";
+  latestAttemptId?: string | null;
+  missionSnapshot?: unknown;
+  attemptTurns?: Array<{
+    turn_order: number;
+    original_transcript: string;
+    repeat_transcript: string;
+    repeat_accepted: boolean;
+    evaluation: null;
+  }>;
+  rpcData?: string;
 } = {}) {
   const operations: Operation[] = [];
 
@@ -60,7 +113,11 @@ function createMockSupabase(options: {
         if (operation.action === "update" && !operations.includes(operation)) {
           operations.push(operation);
         }
-        return Promise.resolve({ error: options.updateError ?? null }).then(
+        const result =
+          operation.action === "select" && table === "attempt_turns"
+            ? { data: options.attemptTurns ?? [], error: null }
+            : { error: options.updateError ?? null };
+        return Promise.resolve(result).then(
           onFulfilled ?? undefined,
           onRejected ?? undefined,
         );
@@ -76,8 +133,11 @@ function createMockSupabase(options: {
                     id: "as-1",
                     assignment_id: "assignment-1",
                     student_id: "student-1",
-                    status: "started",
-                    latest_attempt_id: "attempt-1",
+                    status: options.assignmentStatus ?? "started",
+                    latest_attempt_id:
+                      "latestAttemptId" in options
+                        ? options.latestAttemptId
+                        : "attempt-1",
                     attempt_count: 1,
                     highest_hint_level: 0,
                     assignments: { canceled_at: null },
@@ -98,6 +158,17 @@ function createMockSupabase(options: {
             error: null,
           };
         }
+        if (table === "assignments") {
+          return {
+            data: {
+              mission_snapshot:
+                "missionSnapshot" in options
+                  ? options.missionSnapshot
+                  : makeCompleteSnapshot(),
+            },
+            error: null,
+          };
+        }
         return { data: null, error: null };
       }),
     };
@@ -108,6 +179,7 @@ function createMockSupabase(options: {
   return {
     operations,
     from: vi.fn((table: string) => createQuery(table)),
+    rpc: vi.fn(async () => ({ data: options.rpcData ?? "ok", error: null })),
   };
 }
 
@@ -346,5 +418,127 @@ describe("flagAttemptForTeacherReview", () => {
         reviewReason: "low_confidence",
       }),
     ).resolves.toEqual({ ok: false, error: "not_found" });
+  });
+});
+
+describe("mission snapshot lifecycle boundary", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    mockSupabase = createMockSupabase();
+  });
+
+  it("rejects an invalid snapshot before a fresh attempt mutation", async () => {
+    mockSupabase = createMockSupabase({
+      assignmentStatus: "assigned",
+      latestAttemptId: null,
+      missionSnapshot: { requiredTurns: 5 },
+    });
+    const { startOrResumeAttempt } = await import(
+      "@/server/student-access/mission-flow"
+    );
+
+    await expect(
+      startOrResumeAttempt({
+        studentId: "student-1",
+        assignmentStudentId: "as-1",
+      }),
+    ).resolves.toEqual({ ok: false, error: "not_found" });
+    expect(
+      mockSupabase.operations.filter((operation) => operation.action !== "select"),
+    ).toHaveLength(0);
+  });
+
+  it.each([
+    ["legacy", legacySnapshot],
+    ["invalid without requiredTurns", { title: "Broken snapshot" }],
+  ])(
+    "rejects %s data before resume reads or mutations",
+    async (_label, missionSnapshot) => {
+      mockSupabase = createMockSupabase({ missionSnapshot });
+      const { startOrResumeAttempt } = await import(
+        "@/server/student-access/mission-flow"
+      );
+
+      await expect(
+        startOrResumeAttempt({
+          studentId: "student-1",
+          assignmentStudentId: "as-1",
+        }),
+      ).resolves.toEqual({ ok: false, error: "not_found" });
+      expect(
+        mockSupabase.operations.some(
+          (operation) => operation.table === "attempts",
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it.each([false, true])(
+    "uses complete snapshot requiredTurns when conversationMode is %s",
+    async (conversationMode) => {
+      mockSupabase = createMockSupabase({
+        missionSnapshot: makeCompleteSnapshot(conversationMode),
+        attemptTurns: Array.from({ length: 4 }, (_, index) => ({
+          turn_order: index + 1,
+          original_transcript: "I like playing soccer.",
+          repeat_transcript: "I like playing soccer after school.",
+          repeat_accepted: true,
+          evaluation: null,
+        })),
+      });
+      const { startOrResumeAttempt } = await import(
+        "@/server/student-access/mission-flow"
+      );
+
+      await expect(
+        startOrResumeAttempt({
+          studentId: "student-1",
+          assignmentStudentId: "as-1",
+        }),
+      ).resolves.toEqual({
+        ok: true,
+        attemptId: "attempt-1",
+        isResume: true,
+        resumeTurnOrder: 5,
+      });
+    },
+  );
+
+  it.each([legacySnapshot, { requiredTurns: 5 }])(
+    "rejects unsupported completion before the RPC",
+    async (missionSnapshot) => {
+      mockSupabase = createMockSupabase({ missionSnapshot });
+      const { completeAttempt } = await import(
+        "@/server/student-access/mission-flow"
+      );
+
+      await expect(
+        completeAttempt({
+          studentId: "student-1",
+          assignmentStudentId: "as-1",
+          attemptId: "attempt-1",
+        }),
+      ).resolves.toEqual({ ok: false, error: "not_found" });
+      expect(mockSupabase.rpc).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps complete-snapshot completion in the atomic RPC", async () => {
+    const { completeAttempt } = await import(
+      "@/server/student-access/mission-flow"
+    );
+
+    await expect(
+      completeAttempt({
+        studentId: "student-1",
+        assignmentStudentId: "as-1",
+        attemptId: "attempt-1",
+      }),
+    ).resolves.toEqual({ ok: true });
+    expect(mockSupabase.rpc).toHaveBeenCalledWith("complete_student_attempt", {
+      p_student_id: "student-1",
+      p_assignment_student_id: "as-1",
+      p_attempt_id: "attempt-1",
+    });
   });
 });

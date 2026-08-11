@@ -1,5 +1,6 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { wordsToPractice, type WordScore } from "@/domain/pronunciation/scoring";
+import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
 import {
   buildLearnerTranscript,
   hangulInterpretationSchema,
@@ -48,19 +49,12 @@ export type StudentRecapTurn = {
 export type StudentMissionRecap = {
   assignmentStudentId: string;
   title: string;
-  targetPattern: string;
+  targetPattern: string | null;
   completedAt: string | null;
   conversationMode: boolean;
   characterId: string;
   finalCocoLine: string | null;
   turns: StudentRecapTurn[];
-};
-
-type Snapshot = {
-  targetPattern: string;
-  conversationMode: boolean;
-  characterId: string;
-  turns: Array<{ turnOrder?: number; order?: number; prompt: string }>;
 };
 
 function readInterpretations(value: unknown): HangulInterpretation[] {
@@ -87,31 +81,6 @@ function displayFor(
     rawTranscript,
     readInterpretations(evaluation?.hangulInterpretations),
   );
-}
-
-function parseSnapshot(value: unknown): Snapshot | null {
-  if (!value || typeof value !== "object") return null;
-  const raw = value as {
-    targetPattern?: unknown;
-    turns?: unknown;
-    conversationMode?: unknown;
-    characterId?: unknown;
-  };
-  if (typeof raw.targetPattern !== "string" || !raw.targetPattern.trim() || !Array.isArray(raw.turns)) return null;
-  const turns = raw.turns.flatMap((item) => {
-    if (!item || typeof item !== "object") return [];
-    const turn = item as { turnOrder?: unknown; order?: unknown; prompt?: unknown };
-    const turnOrder = typeof turn.turnOrder === "number" ? turn.turnOrder : typeof turn.order === "number" ? turn.order : null;
-    return turnOrder !== null && typeof turn.prompt === "string" && turn.prompt.trim() ? [{ turnOrder, prompt: turn.prompt.trim() }] : [];
-  });
-  return turns.length
-    ? {
-        targetPattern: raw.targetPattern.trim(),
-        conversationMode: raw.conversationMode === true,
-        characterId: typeof raw.characterId === "string" && raw.characterId.trim() ? raw.characterId.trim() : "default-buddy",
-        turns,
-      }
-    : null;
 }
 
 function playbackFor(clip: { object_key: string | null; processing_status: string; audio_expires_at: string | null; deleted_at: string | null }) {
@@ -162,8 +131,22 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
   if (!owned.data) return null;
   const row = owned.data as { id: string; latest_attempt_id: string | null; submitted_at: string | null; assignments: { title: string; mission_snapshot: unknown; canceled_at: string | null } | Array<{ title: string; mission_snapshot: unknown; canceled_at: string | null }> };
   const assignment = Array.isArray(row.assignments) ? row.assignments[0] : row.assignments;
-  const snapshot = parseSnapshot(assignment?.mission_snapshot);
-  if (!row.latest_attempt_id || !assignment || assignment.canceled_at || !snapshot) return null;
+  const snapshotResult = interpretMissionSnapshot(assignment?.mission_snapshot);
+  if (
+    !row.latest_attempt_id ||
+    !assignment ||
+    assignment.canceled_at ||
+    snapshotResult.kind === "invalid"
+  ) {
+    return null;
+  }
+  const snapshot = snapshotResult.snapshot;
+  const conversationMode =
+    snapshotResult.kind === "complete" && snapshotResult.snapshot.conversationMode;
+  const targetPattern =
+    snapshotResult.kind === "complete"
+      ? snapshotResult.snapshot.targetPattern
+      : null;
 
   const attempt = await supabase.from("attempts").select("id, status, completed_at").eq("id", row.latest_attempt_id).eq("assignment_student_id", row.id).in("status", ["completed", "teacher_review"]).maybeSingle();
   if (attempt.error || !attempt.data) return null;
@@ -224,11 +207,11 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
       : null;
     const transcript = acceptedRepeat ? repeat!.transcript : original.transcript;
 
-    const cocoPrompt = snapshot.conversationMode
+    const cocoPrompt = conversationMode
       ? nextDynamicPrompt
       : presetPrompts.get(turn.turn_order) ?? "Coco's question";
 
-    if (snapshot.conversationMode) {
+    if (conversationMode) {
       if (turn.coco_line?.trim()) {
         nextDynamicPrompt = turn.coco_line.trim();
         finalCocoLine = turn.coco_line.trim();
@@ -252,11 +235,11 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
   return {
     assignmentStudentId: row.id,
     title: assignment.title,
-    targetPattern: snapshot.targetPattern,
+    targetPattern,
     completedAt: (attempt.data as { completed_at: string | null }).completed_at ?? row.submitted_at,
-    conversationMode: snapshot.conversationMode,
+    conversationMode,
     characterId: snapshot.characterId,
-    finalCocoLine: snapshot.conversationMode ? finalCocoLine : null,
+    finalCocoLine: conversationMode ? finalCocoLine : null,
     turns,
   };
 }

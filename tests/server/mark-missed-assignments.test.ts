@@ -26,6 +26,25 @@ type Turn = {
   evaluation: { version: string; outcome: string; requireRepeat?: boolean };
 };
 
+const completeMissionSnapshot = {
+  missionId: "11111111-1111-4111-8111-111111111111",
+  title: "After-school likes",
+  targetPattern: "I like ___ing.",
+  level: "elementary",
+  requiredTurns: 3,
+  characterId: "default-buddy",
+  turns: Array.from({ length: 3 }, (_, index) => ({
+    turnOrder: index + 1,
+    prompt: "What do you like doing after school?",
+    targetExample: "I like playing soccer.",
+    hintLadder: {
+      tier1: "I like ___ing.",
+      tier2: "play, soccer, like",
+      tier3: "I like playing soccer.",
+    },
+  })),
+};
+
 type Operation = {
   table: string;
   kind: "select" | "update" | "insert";
@@ -249,7 +268,7 @@ function createMockSupabase() {
 
       if (this.table === "assignments") {
         return {
-          data: { mission_snapshot: { requiredTurns: 3 } },
+          data: { mission_snapshot: completeMissionSnapshot },
           error: null,
         };
       }

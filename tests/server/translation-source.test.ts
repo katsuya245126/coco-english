@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const snapshot = {
@@ -18,6 +20,20 @@ const snapshot = {
         tier2: "once, twice, every day",
         tier3: "I play soccer twice a week.",
       },
+    },
+  ],
+};
+
+const legacySnapshot = {
+  missionId: "11111111-1111-4111-8111-111111111111",
+  title: "Foundation Smoke Assignment",
+  characterId: "default-buddy",
+  requiredTurns: 1,
+  turns: [
+    {
+      order: 1,
+      prompt: "What are you going to do this weekend?",
+      targetExample: "I am going to play soccer.",
     },
   ],
 };
@@ -83,6 +99,42 @@ describe("resolveOwnedTranslationSource", () => {
     options = {};
     operations = [];
   });
+
+  it("reads translation mission data through the shared interpreter", () => {
+    const source = readFileSync(
+      join(process.cwd(), "src/server/student-access/translation-source.ts"),
+      "utf8",
+    );
+
+    expect(source).toContain(
+      'import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";',
+    );
+    expect(source).not.toContain("missionSnapshotSchema");
+  });
+
+  it.each([
+    ["legacy", legacySnapshot],
+    ["invalid", { requiredTurns: 1 }],
+  ])(
+    "rejects %s mission data before dynamic-line lookup",
+    async (_label, missionSnapshot) => {
+      options.snapshot = missionSnapshot;
+      const { resolveOwnedTranslationSource } = await import(
+        "@/server/student-access/translation-source"
+      );
+
+      await expect(
+        resolveOwnedTranslationSource({
+          studentId: "student-1",
+          assignmentStudentId: "as-1",
+          line: { lineKind: "coco_dynamic_line", turnOrder: 2 },
+        }),
+      ).resolves.toEqual({ ok: false, error: "not_found" });
+      expect(operations.map(({ table }) => table)).toEqual([
+        "assignment_students",
+      ]);
+    },
+  );
 
   it("resolves an authored prompt from the immutable owned snapshot", async () => {
     const { resolveOwnedTranslationSource } = await import(

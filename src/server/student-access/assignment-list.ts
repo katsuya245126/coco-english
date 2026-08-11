@@ -1,4 +1,4 @@
-import { missionSnapshotSchema } from "@/domain/mission/schemas";
+import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
 export type AssignmentDisplayStatus =
@@ -27,7 +27,7 @@ export type StudentAssignmentListItem = {
   completedAt: string | null;
   turnCount: number;
   completedTurnCount: number;
-  targetPattern: string;
+  targetPattern: string | null;
   displayStatus: AssignmentDisplayStatus;
 };
 
@@ -89,12 +89,13 @@ export async function listStudentAssignmentPage(
     for (const raw of data) {
       const row = raw as unknown as AssignmentRow;
       if (row.assignments.canceled_at) continue;
-      const snapshot = missionSnapshotSchema.safeParse(row.assignments.mission_snapshot);
-      if (!snapshot.success) continue;
+      const snapshotResult = interpretMissionSnapshot(row.assignments.mission_snapshot);
+      if (snapshotResult.kind === "invalid") continue;
       const completedAt = row.latest_attempt?.completed_at ?? row.submitted_at;
       const isStudentCompleted = STUDENT_COMPLETED_STATUSES.has(row.status);
       if (input.tab === "past" && !isStudentCompleted) continue;
-      if (input.tab === "current" && isStudentCompleted) continue;
+      if (input.tab === "current" && (isStudentCompleted || snapshotResult.kind !== "complete")) continue;
+      const snapshot = snapshotResult.snapshot;
 
       const due = timestamp(row.assignments.due_at);
       let displayStatus: AssignmentDisplayStatus;
@@ -108,9 +109,9 @@ export async function listStudentAssignmentPage(
         title: row.assignments.title,
         dueAt: row.assignments.due_at,
         completedAt,
-        turnCount: snapshot.data.requiredTurns,
+        turnCount: snapshot.requiredTurns,
         completedTurnCount: row.latest_attempt?.attempt_turns?.[0]?.count ?? 0,
-        targetPattern: snapshot.data.targetPattern,
+        targetPattern: snapshotResult.kind === "complete" ? snapshotResult.snapshot.targetPattern : null,
         displayStatus,
       });
     }
