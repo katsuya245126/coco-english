@@ -226,55 +226,59 @@ export async function changeAssignedHomework(
     : null;
   let result;
 
-  if (input.action === "request_retry") {
-    if (!latestAttemptId) return { ok: false, error: "not_allowed" };
-    try {
-      assertTransitionRequest({
-        previousStatus: status,
-        nextStatus: "needs_retry",
-        actorType: "teacher",
-        actorId: input.teacherId,
-        reasonCode: "teacher_requested_retry",
-        occurredAt: new Date().toISOString(),
+  try {
+    if (input.action === "request_retry") {
+      if (!latestAttemptId) return { ok: false, error: "not_allowed" };
+      try {
+        assertTransitionRequest({
+          previousStatus: status,
+          nextStatus: "needs_retry",
+          actorType: "teacher",
+          actorId: input.teacherId,
+          reasonCode: "teacher_requested_retry",
+          occurredAt: new Date().toISOString(),
+        });
+      } catch {
+        return { ok: false, error: "not_allowed" };
+      }
+      result = await client.rpc("request_submission_retry", {
+        p_teacher_id: input.teacherId,
+        p_attempt_id: latestAttemptId,
+        p_reason_note: input.reasonNote ?? "",
       });
-    } catch {
-      return { ok: false, error: "not_allowed" };
-    }
-    result = await client.rpc("request_submission_retry", {
-      p_teacher_id: input.teacherId,
-      p_attempt_id: latestAttemptId,
-      p_reason_note: input.reasonNote ?? "",
-    });
-  } else {
-    const isIncomplete = incompleteStatuses.has(status);
-    const isDismissed = row.dismissed_at !== null;
-    if (!isIncomplete || (input.action === "dismiss" ? isDismissed : !isDismissed)) {
-      return { ok: false, error: "not_allowed" };
-    }
-
-    if (input.action === "dismiss") {
-      result = latestAttemptId
-        ? await client.rpc("dismiss_assignment_student", {
-            p_teacher_id: input.teacherId,
-            p_attempt_id: latestAttemptId,
-            p_reason: input.reason ?? "",
-          })
-        : await client.rpc("dismiss_assignment_student_by_id", {
-            p_teacher_id: input.teacherId,
-            p_assignment_student_id: input.assignedHomeworkId,
-            p_reason: input.reason ?? "",
-          });
     } else {
-      result = latestAttemptId
-        ? await client.rpc("undo_dismiss_assignment_student", {
-            p_teacher_id: input.teacherId,
-            p_attempt_id: latestAttemptId,
-          })
-        : await client.rpc("undo_dismiss_assignment_student_by_id", {
-            p_teacher_id: input.teacherId,
-            p_assignment_student_id: input.assignedHomeworkId,
-          });
+      const isIncomplete = incompleteStatuses.has(status);
+      const isDismissed = row.dismissed_at !== null;
+      if (!isIncomplete || (input.action === "dismiss" ? isDismissed : !isDismissed)) {
+        return { ok: false, error: "not_allowed" };
+      }
+
+      if (input.action === "dismiss") {
+        result = latestAttemptId
+          ? await client.rpc("dismiss_assignment_student", {
+              p_teacher_id: input.teacherId,
+              p_attempt_id: latestAttemptId,
+              p_reason: input.reason ?? "",
+            })
+          : await client.rpc("dismiss_assignment_student_by_id", {
+              p_teacher_id: input.teacherId,
+              p_assignment_student_id: input.assignedHomeworkId,
+              p_reason: input.reason ?? "",
+            });
+      } else {
+        result = latestAttemptId
+          ? await client.rpc("undo_dismiss_assignment_student", {
+              p_teacher_id: input.teacherId,
+              p_attempt_id: latestAttemptId,
+            })
+          : await client.rpc("undo_dismiss_assignment_student_by_id", {
+              p_teacher_id: input.teacherId,
+              p_assignment_student_id: input.assignedHomeworkId,
+            });
+      }
     }
+  } catch {
+    return { ok: false, error: "failed" };
   }
 
   if (result.error) return { ok: false, error: "failed" };

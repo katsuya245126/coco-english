@@ -127,4 +127,12 @@ describe("changeAssignedHomework", () => {
     await expect(changeAssignedHomework({ teacherId, assignedHomeworkId, action: "request_retry" }))
       .resolves.toEqual(expected);
   });
+
+  it("maps a rejected RPC to failed", async () => {
+    ownedRow = { id: assignedHomeworkId, status: "completed", latest_attempt_id: attemptId, dismissed_at: null };
+    rpc.mockRejectedValueOnce(new Error("boom"));
+
+    await expect(changeAssignedHomework({ teacherId, assignedHomeworkId, action: "request_retry" }))
+      .resolves.toEqual({ ok: false, error: "failed" });
+  });
 });
