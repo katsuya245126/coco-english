@@ -87,9 +87,9 @@ describe("teacher assigned homework interface", () => {
         const dismissed = await fixture.admin.from("assignment_students").select("status, dismissed_at" as never).eq("id", assignedHomeworkId).single() as { data: { status: string; dismissed_at: string | null } | null };
         expect(dismissed.data?.dismissed_at).not.toBeNull();
         expect(dismissed.data?.status).toBe(assignedHomeworkId === fixture.attemptedHomeworkId ? "started" : "assigned");
+        expect(await changeAssignedHomework({ teacherId: fixture.ownerTeacherId, assignedHomeworkId, action: "undo_dismiss" })).toEqual({ ok: true });
+        expect((await fixture.admin.from("assignment_students").select("dismissed_at" as never).eq("id", assignedHomeworkId).single() as { data: { dismissed_at: string | null } | null }).data?.dismissed_at).toBeNull();
       }
-      expect(await changeAssignedHomework({ teacherId: fixture.ownerTeacherId, assignedHomeworkId: fixture.attemptedHomeworkId, action: "undo_dismiss" })).toEqual({ ok: true });
-      expect((await fixture.admin.from("assignment_students").select("dismissed_at" as never).eq("id", fixture.attemptedHomeworkId).single() as { data: { dismissed_at: string | null } | null }).data?.dismissed_at).toBeNull();
     } finally {
       await cleanupFixture(fixture);
     }
