@@ -164,6 +164,15 @@ describe("RPC-owned assigned-homework workflow tables", () => {
         .select("id");
       expect(attempts.error).toBeNull();
       const [updateAttempt, deleteAttempt, receiptAttempt] = attempts.data!;
+      const attemptTurn = await admin
+        .from("attempt_turns")
+        .insert({
+          attempt_id: updateAttempt.id,
+          turn_order: 1,
+          original_transcript: "I like cats.",
+        })
+        .select("id, original_transcript")
+        .single();
       const linked = await admin
         .from("assignment_students")
         .update({ latest_attempt_id: updateAttempt.id } as never)
@@ -182,6 +191,7 @@ describe("RPC-owned assigned-homework workflow tables", () => {
         reason_code: "fixture_completed",
       });
       expect(event.error).toBeNull();
+      expect(attemptTurn.error).toBeNull();
 
       expect(
         (
@@ -213,6 +223,21 @@ describe("RPC-owned assigned-homework workflow tables", () => {
         expect(hidden.error).toBeNull();
         expect(hidden.data).toHaveLength(0);
       }
+
+      const ownedAttemptTurns = await owner
+        .from("attempt_turns")
+        .select("id, original_transcript")
+        .eq("id", attemptTurn.data!.id);
+      const hiddenAttemptTurns = await other
+        .from("attempt_turns")
+        .select("id")
+        .eq("id", attemptTurn.data!.id);
+      expect(ownedAttemptTurns.error).toBeNull();
+      expect(ownedAttemptTurns.data).toEqual([
+        { id: attemptTurn.data!.id, original_transcript: "I like cats." },
+      ]);
+      expect(hiddenAttemptTurns.error).toBeNull();
+      expect(hiddenAttemptTurns.data).toHaveLength(0);
 
       const writes = [
         await owner.from("assignment_students").insert({
@@ -252,11 +277,35 @@ describe("RPC-owned assigned-homework workflow tables", () => {
           .update({ reviewed_at: null })
           .eq("teacher_id", ownerProfile.data!.id)
           .eq("attempt_id", updateAttempt.id),
+        await owner.from("attempt_turns").insert({
+          attempt_id: updateAttempt.id,
+          turn_order: 2,
+          original_transcript: "direct authenticated write",
+        }),
+        await owner
+          .from("attempt_turns")
+          .update({ original_transcript: "tampered" })
+          .eq("id", attemptTurn.data!.id),
+        await owner
+          .from("attempt_turns")
+          .delete()
+          .eq("id", attemptTurn.data!.id),
       ];
 
       expect(writes.map(({ error }) => error === null)).toEqual(
         Array(writes.length).fill(false),
       );
+
+      const serviceRoleWrite = await admin
+        .from("attempt_turns")
+        .insert({
+          attempt_id: updateAttempt.id,
+          turn_order: 2,
+          original_transcript: "service role write",
+        })
+        .select("id")
+        .single();
+      expect(serviceRoleWrite.error).toBeNull();
 
       const assignedThroughRpc = await owner.rpc("assign_mission_to_class", {
         p_class_id: classroom.data!.id,

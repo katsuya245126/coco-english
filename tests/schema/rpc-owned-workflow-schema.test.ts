@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 
 const migrationPath =
   "supabase/migrations/202608120002_rpc_owned_workflow_tables.sql";
+const attemptTurnsMigrationPath =
+  "supabase/migrations/202608130001_attempt_turns_read_only.sql";
 
 describe("RPC-owned workflow table migration", () => {
   it("removes authenticated workflow writes while preserving owned reads", () => {
@@ -46,6 +48,35 @@ describe("RPC-owned workflow table migration", () => {
     );
     expect(sql).toContain(
       'drop policy "teachers update own submission review receipts" on public.submission_review_receipts',
+    );
+  });
+
+  it("makes attempt turns authenticated read-only while preserving service-role writes", () => {
+    expect(existsSync(attemptTurnsMigrationPath)).toBe(true);
+    if (!existsSync(attemptTurnsMigrationPath)) return;
+
+    const sql = readFileSync(attemptTurnsMigrationPath, "utf8")
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+
+    expect(sql).toContain(
+      "revoke insert, update, delete on table public.attempt_turns from authenticated",
+    );
+    expect(sql).toContain(
+      'drop policy "teachers manage own attempt turns" on public.attempt_turns',
+    );
+    expect(sql).toContain(
+      'create policy "teachers read own attempt turns" on public.attempt_turns for select to authenticated using (public.is_attempt_owner(attempt_id))',
+    );
+
+    const serviceRolePrivileges = readFileSync(
+      "supabase/migrations/202606250004_grant_service_role_privileges.sql",
+      "utf8",
+    )
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+    expect(serviceRolePrivileges).toContain(
+      "grant select, insert, update, delete on table public.attempt_turns to service_role",
     );
   });
 });
