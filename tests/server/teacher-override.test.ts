@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { service, state } = vi.hoisted(() => ({ service: {
-  markSubmissionReviewed: vi.fn(),
+  changeAttemptReview: vi.fn(),
   requestSubmissionRetry: vi.fn(),
 }, state: { row: null as Record<string, unknown> | null, filters: [] as Array<[string, unknown]> } }));
 vi.mock("@/server/teacher/assignment-operations", () => service);
@@ -15,10 +15,10 @@ beforeEach(() => { state.row = { id: "as-1", status: "teacher_review", latest_at
 
 describe("owned legacy override action", () => {
   it("adds the authenticated teacher ownership constraint before delegating review", async () => {
-    service.markSubmissionReviewed.mockResolvedValue({ ok: true });
+    service.changeAttemptReview.mockResolvedValue({ ok: true });
     expect(await overrideAssignmentStatusAction({ assignmentStudentId: "as-1", nextStatus: "completed" })).toEqual({ ok: true });
     expect(state.filters).toContainEqual(["assignments.classes.teacher_id", "teacher-1"]);
-    expect(service.markSubmissionReviewed).toHaveBeenCalledWith({ teacherId: "teacher-1", attemptId: "attempt-1" });
+    expect(service.changeAttemptReview).toHaveBeenCalledWith({ teacherId: "teacher-1", attemptId: "attempt-1", action: "mark_reviewed" });
   });
 
   it("delegates retry to the atomic owned RPC service", async () => {
@@ -30,7 +30,7 @@ describe("owned legacy override action", () => {
   it("performs no mutation for an unowned assignment", async () => {
     state.row = null;
     expect(await overrideAssignmentStatusAction({ assignmentStudentId: "other", nextStatus: "completed" })).toEqual({ ok: false, error: "not_found" });
-    expect(service.markSubmissionReviewed).not.toHaveBeenCalled();
+    expect(service.changeAttemptReview).not.toHaveBeenCalled();
     expect(service.requestSubmissionRetry).not.toHaveBeenCalled();
   });
 });

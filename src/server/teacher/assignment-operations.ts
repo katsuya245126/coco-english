@@ -189,24 +189,6 @@ export async function changeAttemptReview(input: {
   return { ok: false, error: "failed" };
 }
 
-export async function markSubmissionViewed(input: { teacherId: string; attemptId: string }, client: Client = createSupabaseServiceClient()) {
-  if (!await loadOwnedAttempt(input, client)) return { ok: false as const, error: "not_found" as const };
-  const now = new Date().toISOString();
-  const result = await client.from("submission_review_receipts").upsert({ teacher_id: input.teacherId, attempt_id: input.attemptId, first_viewed_at: now }, { onConflict: "teacher_id,attempt_id", ignoreDuplicates: true });
-  if (result.error) return { ok: false as const, error: "db_error" as const };
-  return { ok: true as const };
-}
-
-export async function markSubmissionReviewed(input: { teacherId: string; attemptId: string }, client: Client = createSupabaseServiceClient()) {
-  // A teacher may mark any owned latest attempt reviewed, including in-progress
-  // (started / not-started / missed) work opened from the Incomplete queue. The
-  // RPC still promotes teacher_review -> completed; every other status just gets
-  // a reviewed receipt (202607120002). Ownership is enforced in the RPC.
-  if (!await loadOwnedAttempt(input, client)) return { ok: false as const, error: "not_found" as const };
-  const result = await client.rpc("mark_submission_reviewed", { p_teacher_id: input.teacherId, p_attempt_id: input.attemptId });
-  return result.error || result.data !== "ok" ? { ok: false as const, error: result.data === "invalid_status" ? "invalid_transition" as const : "db_error" as const } : { ok: true as const };
-}
-
 export async function dismissAssignmentStudent(input: { teacherId: string; attemptId: string; reason?: string }, client: Client = createSupabaseServiceClient()) {
   const row = await loadOwnedAttempt(input, client);
   const assignmentStudent = row ? one(row.assignment_students) : null;
@@ -235,12 +217,6 @@ export async function undoDismissByAssignmentStudentId(input: { teacherId: strin
   if (!row || row.latest_attempt_id !== null || !["assigned", "started", "missed"].includes(String(row.status)) || row.dismissed_at === null) return { ok: false as const, error: "not_found" as const };
   const result = await client.rpc("undo_dismiss_assignment_student_by_id", { p_teacher_id: input.teacherId, p_assignment_student_id: input.assignmentStudentId });
   return result.error || result.data !== "ok" ? { ok: false as const, error: result.data === "not_found" ? "not_found" as const : "db_error" as const } : { ok: true as const };
-}
-
-export async function reopenSubmissionReview(input: { teacherId: string; attemptId: string }, client: Client = createSupabaseServiceClient()) {
-  if (!await loadOwnedAttempt(input, client)) return { ok: false as const, error: "not_found" as const };
-  const result = await client.from("submission_review_receipts").update({ reviewed_at: null }).eq("teacher_id", input.teacherId).eq("attempt_id", input.attemptId);
-  return result.error ? { ok: false as const, error: "db_error" as const } : { ok: true as const };
 }
 
 export async function requestSubmissionRetry(input: { teacherId: string; attemptId: string; reasonNote?: string }, client: Client = createSupabaseServiceClient()) {

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireTeacherProfile } from "@/server/teacher/auth";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
-import { dismissAssignmentStudent, markSubmissionReviewed, requestSubmissionRetry, undoDismiss } from "@/server/teacher/assignment-operations";
+import { changeAttemptReview, dismissAssignmentStudent, requestSubmissionRetry, undoDismiss } from "@/server/teacher/assignment-operations";
 import { createSignedAudioUrlForTeacher } from "@/server/teacher/audio-evidence";
 import { reprocessClipPronunciation } from "@/server/audio/pronunciation-reprocess";
 
@@ -119,14 +119,17 @@ export async function overrideAssignmentStatusAction(
     return requestSubmissionRetry({ teacherId: profile.id, attemptId: asRow.latest_attempt_id, reasonNote: input.reasonNote });
   }
   if (input.nextStatus === "completed") {
-    return markSubmissionReviewed({ teacherId: profile.id, attemptId: asRow.latest_attempt_id });
+    const result = await changeAttemptReview({ teacherId: profile.id, attemptId: asRow.latest_attempt_id, action: "mark_reviewed" });
+    if (result.ok) return { ok: true };
+    if (result.error === "not_found") return { ok: false, error: "not_found" };
+    return { ok: false, error: result.error === "not_allowed" ? "invalid_transition" : "db_error" };
   }
   return { ok: false, error: "invalid_transition" };
 }
 
 export async function markSubmissionReviewedAction(attemptId: string) {
   const profile = await requireTeacherProfile();
-  return markSubmissionReviewed({ teacherId: profile.id, attemptId });
+  return changeAttemptReview({ teacherId: profile.id, attemptId, action: "mark_reviewed" });
 }
 
 export async function requestSubmissionRetryAction(input: {

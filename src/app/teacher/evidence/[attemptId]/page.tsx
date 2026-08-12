@@ -3,7 +3,7 @@ import { requireTeacherProfile } from "@/server/auth/teacher-profile";
 import { getAttemptEvidenceForTeacher } from "@/server/teacher/audio-evidence";
 import { AudioClipPlayer } from "@/components/teacher/AudioClipPlayer";
 import { SubmissionReviewControls } from "@/components/teacher/SubmissionReviewControls";
-import { markSubmissionViewed } from "@/server/teacher/assignment-operations";
+import { changeAttemptReview } from "@/server/teacher/assignment-operations";
 import { PronunciationDiagnosticPanel } from "@/components/teacher/PronunciationDiagnosticPanel";
 import { HoverLink } from "@/components/ui/HoverLink";
 import { subtleHover } from "@/components/ui/hover-styles";
@@ -31,7 +31,7 @@ export default async function AttemptEvidencePage({
   if (!evidence) {
     notFound();
   }
-  await markSubmissionViewed({ teacherId: profile.id, attemptId });
+  await changeAttemptReview({ teacherId: profile.id, attemptId, action: "mark_viewed" });
 
   return (
     <div style={shellStyle}>
