@@ -64,6 +64,9 @@ export async function unlockStudentAction(input: {
   typedName: string;
   pin: string;
 }): Promise<UnlockActionResult> {
+  const cookieStore = await cookies();
+  cookieStore.delete(UNLOCK_COOKIE);
+
   const parsed = studentUnlockSchema.safeParse(input);
   if (!parsed.success) {
     return GENERIC_MISMATCH;
@@ -89,7 +92,6 @@ export async function unlockStudentAction(input: {
       return GENERIC_MISMATCH;
     }
 
-    const cookieStore = await cookies();
     cookieStore.set(UNLOCK_COOKIE, token, {
       httpOnly: true,
       sameSite: "lax",
