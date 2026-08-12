@@ -13,6 +13,9 @@ playwright-report/
 # Local Codex CLI config
 .codex/
 
+# Local Strix security scan artifacts
+strix_runs/
+
 # Superpowers workflow session artifacts (briefs, review diffs, progress logs)
 .superpowers/
 
