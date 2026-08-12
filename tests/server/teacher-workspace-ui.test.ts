@@ -279,8 +279,7 @@ describe("SubmissionReviewControls source", () => {
     expect(src).toContain("Mark as done");
     expect(src).toContain("Removes this from your incomplete list. You can undo this.");
     expect(src).toContain("Mark reviewed");
-    expect(src).toContain("dismissAssignmentStudentAction");
-    expect(src).toContain("undoDismissAction");
+    expect(src).toContain("changeAssignedHomeworkAction");
     expect(src).toContain("/teacher/incomplete?class=");
   });
 
@@ -291,7 +290,7 @@ describe("SubmissionReviewControls source", () => {
 
     expect(markDoneStart).toBeGreaterThan(-1);
     expect(undoStart).toBeGreaterThan(markDoneStart);
-    expect(markDone).toContain("dismissAssignmentStudentAction");
+    expect(markDone).toContain('changeAssignedHomeworkAction({ assignedHomeworkId, action: "dismiss" })');
     expect(markDone).toMatch(/try[\s\S]*catch[\s\S]*setError\(true\)/);
   });
 
@@ -302,7 +301,7 @@ describe("SubmissionReviewControls source", () => {
 
     expect(undoStart).toBeGreaterThan(-1);
     expect(retryStart).toBeGreaterThan(undoStart);
-    expect(undo).toContain("undoDismissAction");
+    expect(undo).toContain('changeAssignedHomeworkAction({ assignedHomeworkId, action: "undo_dismiss" })');
     expect(undo).toMatch(/try[\s\S]*catch[\s\S]*setError\(true\)/);
   });
 });
@@ -366,10 +365,10 @@ describe("no-attempt assignment evidence source", () => {
     expect(markDoneStart).toBeGreaterThan(-1);
     expect(undoStart).toBeGreaterThan(markDoneStart);
     expect(renderStart).toBeGreaterThan(undoStart);
-    expect(markDone).toContain("dismissAssignmentStudentByIdAction");
+    expect(markDone).toContain('changeAssignedHomeworkAction({ assignedHomeworkId: assignmentStudentId, action: "dismiss" })');
     expect(markDone).toMatch(/try[\s\S]*catch[\s\S]*setError\(true\)/);
-    expect(markDone).not.toContain("undoDismissByAssignmentStudentIdAction");
-    expect(undo).toContain("undoDismissByAssignmentStudentIdAction");
+    expect(markDone).not.toContain("undo_dismiss");
+    expect(undo).toContain('changeAssignedHomeworkAction({ assignedHomeworkId: assignmentStudentId, action: "undo_dismiss" })');
     expect(undo).toMatch(/try[\s\S]*catch[\s\S]*setError\(true\)/);
   });
 

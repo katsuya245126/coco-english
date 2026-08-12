@@ -439,6 +439,14 @@ export type Database = {
         Args: { p_teacher_id: string; p_attempt_id: string };
         Returns: "ok" | "not_found" | "invalid_status";
       };
+      mark_submission_viewed: {
+        Args: { p_teacher_id: string; p_attempt_id: string };
+        Returns: "ok" | "not_found";
+      };
+      reopen_submission_review: {
+        Args: { p_teacher_id: string; p_attempt_id: string };
+        Returns: "ok" | "not_found";
+      };
       request_submission_retry: {
         Args: { p_teacher_id: string; p_attempt_id: string; p_reason_note: string };
         Returns: "ok" | "not_found" | "invalid_status";

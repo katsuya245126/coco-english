@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import {
   compareSubmissionRecency,
@@ -142,76 +143,147 @@ export async function updateClassReviewPolicy(
   return { ok: true as const };
 }
 
-async function loadOwnedAttempt(input: { teacherId: string; attemptId: string }, client: Client) {
-  const result = await client.from("attempts").select(`id, status, assignment_students!attempts_assignment_student_id_fkey!inner(id, status, latest_attempt_id, dismissed_at, assignments!inner(classes!inner(teacher_id)))`).eq("id", input.attemptId).eq("assignment_students.assignments.classes.teacher_id", input.teacherId).maybeSingle();
-  if (result.error) throw new Error(`Unable to authorize teacher submission: ${result.error.message}`);
-  return result.data as RawRow | null;
-}
-
 async function loadOwnedAssignmentStudent(input: { teacherId: string; assignmentStudentId: string }, client: Client) {
   const result = await client.from("assignment_students").select(`id, status, latest_attempt_id, dismissed_at, assignments!inner(classes!inner(teacher_id))`).eq("id", input.assignmentStudentId).eq("assignments.classes.teacher_id", input.teacherId).maybeSingle();
   if (result.error) throw new Error(`Unable to authorize teacher assignment student: ${result.error.message}`);
   return result.data as RawRow | null;
 }
 
-export async function markSubmissionViewed(input: { teacherId: string; attemptId: string }, client: Client = createSupabaseServiceClient()) {
-  if (!await loadOwnedAttempt(input, client)) return { ok: false as const, error: "not_found" as const };
-  const now = new Date().toISOString();
-  const result = await client.from("submission_review_receipts").upsert({ teacher_id: input.teacherId, attempt_id: input.attemptId, first_viewed_at: now }, { onConflict: "teacher_id,attempt_id", ignoreDuplicates: true });
-  if (result.error) return { ok: false as const, error: "db_error" as const };
-  return { ok: true as const };
+export type TeacherMutationResult =
+  | { ok: true }
+  | { ok: false; error: "not_found" | "not_allowed" | "failed" };
+
+export type AssignedHomeworkChange =
+  | { action: "request_retry"; reasonNote?: string }
+  | { action: "dismiss"; reason?: string }
+  | { action: "undo_dismiss" };
+
+export type AttemptReviewAction =
+  | "mark_viewed"
+  | "mark_reviewed"
+  | "reopen_review";
+
+const attemptReviewRpc = {
+  mark_viewed: "mark_submission_viewed",
+  mark_reviewed: "mark_submission_reviewed",
+  reopen_review: "reopen_submission_review",
+} as const;
+const uuidSchema = z.string().uuid();
+
+export async function changeAttemptReview(input: {
+  teacherId: string;
+  attemptId: string;
+  action: AttemptReviewAction;
+}): Promise<TeacherMutationResult> {
+  const rpcName = attemptReviewRpc[input.action];
+  if (!rpcName || !uuidSchema.safeParse(input.teacherId).success || !uuidSchema.safeParse(input.attemptId).success) {
+    return { ok: false, error: "not_allowed" };
+  }
+
+  const result = await createSupabaseServiceClient().rpc(rpcName, {
+    p_teacher_id: input.teacherId,
+    p_attempt_id: input.attemptId,
+  });
+
+  if (result.error) return { ok: false, error: "failed" };
+  if (result.data === "ok") return { ok: true };
+  if (result.data === "not_found") return { ok: false, error: "not_found" };
+  if (result.data === "invalid_status") return { ok: false, error: "not_allowed" };
+  return { ok: false, error: "failed" };
 }
 
-export async function markSubmissionReviewed(input: { teacherId: string; attemptId: string }, client: Client = createSupabaseServiceClient()) {
-  // A teacher may mark any owned latest attempt reviewed, including in-progress
-  // (started / not-started / missed) work opened from the Incomplete queue. The
-  // RPC still promotes teacher_review -> completed; every other status just gets
-  // a reviewed receipt (202607120002). Ownership is enforced in the RPC.
-  if (!await loadOwnedAttempt(input, client)) return { ok: false as const, error: "not_found" as const };
-  const result = await client.rpc("mark_submission_reviewed", { p_teacher_id: input.teacherId, p_attempt_id: input.attemptId });
-  return result.error || result.data !== "ok" ? { ok: false as const, error: result.data === "invalid_status" ? "invalid_transition" as const : "db_error" as const } : { ok: true as const };
-}
+const incompleteStatuses = new Set(["assigned", "started", "missed"]);
 
-export async function dismissAssignmentStudent(input: { teacherId: string; attemptId: string; reason?: string }, client: Client = createSupabaseServiceClient()) {
-  const row = await loadOwnedAttempt(input, client);
-  const assignmentStudent = row ? one(row.assignment_students) : null;
-  if (!row || !assignmentStudent || assignmentStudent.latest_attempt_id !== row.id || !["assigned", "started", "missed"].includes(String(assignmentStudent.status)) || assignmentStudent.dismissed_at !== null) return { ok: false as const, error: "not_found" as const };
-  const result = await client.rpc("dismiss_assignment_student", { p_teacher_id: input.teacherId, p_attempt_id: input.attemptId, p_reason: input.reason ?? "" });
-  return result.error || result.data !== "ok" ? { ok: false as const, error: result.data === "not_found" ? "not_found" as const : "db_error" as const } : { ok: true as const };
-}
+export async function changeAssignedHomework(
+  input: {
+    teacherId: string;
+    assignedHomeworkId: string;
+  } & AssignedHomeworkChange,
+): Promise<TeacherMutationResult> {
+  if (
+    !uuidSchema.safeParse(input.teacherId).success ||
+    !uuidSchema.safeParse(input.assignedHomeworkId).success ||
+    !["request_retry", "dismiss", "undo_dismiss"].includes(input.action)
+  ) {
+    return { ok: false, error: "not_allowed" };
+  }
 
-export async function undoDismiss(input: { teacherId: string; attemptId: string }, client: Client = createSupabaseServiceClient()) {
-  const row = await loadOwnedAttempt(input, client);
-  const assignmentStudent = row ? one(row.assignment_students) : null;
-  if (!row || !assignmentStudent || assignmentStudent.latest_attempt_id !== row.id || !["assigned", "started", "missed"].includes(String(assignmentStudent.status)) || assignmentStudent.dismissed_at === null) return { ok: false as const, error: "not_found" as const };
-  const result = await client.rpc("undo_dismiss_assignment_student", { p_teacher_id: input.teacherId, p_attempt_id: input.attemptId });
-  return result.error || result.data !== "ok" ? { ok: false as const, error: result.data === "not_found" ? "not_found" as const : "db_error" as const } : { ok: true as const };
-}
+  const client = createSupabaseServiceClient();
+  let row: RawRow | null;
+  try {
+    row = await loadOwnedAssignmentStudent({
+      teacherId: input.teacherId,
+      assignmentStudentId: input.assignedHomeworkId,
+    }, client);
+  } catch {
+    return { ok: false, error: "failed" };
+  }
+  if (!row) return { ok: false, error: "not_found" };
 
-export async function dismissAssignmentStudentById(input: { teacherId: string; assignmentStudentId: string; reason?: string }, client: Client = createSupabaseServiceClient()) {
-  const row = await loadOwnedAssignmentStudent(input, client);
-  if (!row || row.latest_attempt_id !== null || !["assigned", "started", "missed"].includes(String(row.status)) || row.dismissed_at !== null) return { ok: false as const, error: "not_found" as const };
-  const result = await client.rpc("dismiss_assignment_student_by_id", { p_teacher_id: input.teacherId, p_assignment_student_id: input.assignmentStudentId, p_reason: input.reason ?? "" });
-  return result.error || result.data !== "ok" ? { ok: false as const, error: result.data === "not_found" ? "not_found" as const : "db_error" as const } : { ok: true as const };
-}
+  const status = row.status as AssignmentStudentStatus;
+  const latestAttemptId = typeof row.latest_attempt_id === "string"
+    ? row.latest_attempt_id
+    : null;
+  let result;
 
-export async function undoDismissByAssignmentStudentId(input: { teacherId: string; assignmentStudentId: string }, client: Client = createSupabaseServiceClient()) {
-  const row = await loadOwnedAssignmentStudent(input, client);
-  if (!row || row.latest_attempt_id !== null || !["assigned", "started", "missed"].includes(String(row.status)) || row.dismissed_at === null) return { ok: false as const, error: "not_found" as const };
-  const result = await client.rpc("undo_dismiss_assignment_student_by_id", { p_teacher_id: input.teacherId, p_assignment_student_id: input.assignmentStudentId });
-  return result.error || result.data !== "ok" ? { ok: false as const, error: result.data === "not_found" ? "not_found" as const : "db_error" as const } : { ok: true as const };
-}
+  try {
+    if (input.action === "request_retry") {
+      if (!latestAttemptId) return { ok: false, error: "not_allowed" };
+      try {
+        assertTransitionRequest({
+          previousStatus: status,
+          nextStatus: "needs_retry",
+          actorType: "teacher",
+          actorId: input.teacherId,
+          reasonCode: "teacher_requested_retry",
+          occurredAt: new Date().toISOString(),
+        });
+      } catch {
+        return { ok: false, error: "not_allowed" };
+      }
+      result = await client.rpc("request_submission_retry", {
+        p_teacher_id: input.teacherId,
+        p_attempt_id: latestAttemptId,
+        p_reason_note: input.reasonNote ?? "",
+      });
+    } else {
+      const isIncomplete = incompleteStatuses.has(status);
+      const isDismissed = row.dismissed_at !== null;
+      if (!isIncomplete || (input.action === "dismiss" ? isDismissed : !isDismissed)) {
+        return { ok: false, error: "not_allowed" };
+      }
 
-export async function reopenSubmissionReview(input: { teacherId: string; attemptId: string }, client: Client = createSupabaseServiceClient()) {
-  if (!await loadOwnedAttempt(input, client)) return { ok: false as const, error: "not_found" as const };
-  const result = await client.from("submission_review_receipts").update({ reviewed_at: null }).eq("teacher_id", input.teacherId).eq("attempt_id", input.attemptId);
-  return result.error ? { ok: false as const, error: "db_error" as const } : { ok: true as const };
-}
+      if (input.action === "dismiss") {
+        result = latestAttemptId
+          ? await client.rpc("dismiss_assignment_student", {
+              p_teacher_id: input.teacherId,
+              p_attempt_id: latestAttemptId,
+              p_reason: input.reason ?? "",
+            })
+          : await client.rpc("dismiss_assignment_student_by_id", {
+              p_teacher_id: input.teacherId,
+              p_assignment_student_id: input.assignedHomeworkId,
+              p_reason: input.reason ?? "",
+            });
+      } else {
+        result = latestAttemptId
+          ? await client.rpc("undo_dismiss_assignment_student", {
+              p_teacher_id: input.teacherId,
+              p_attempt_id: latestAttemptId,
+            })
+          : await client.rpc("undo_dismiss_assignment_student_by_id", {
+              p_teacher_id: input.teacherId,
+              p_assignment_student_id: input.assignedHomeworkId,
+            });
+      }
+    }
+  } catch {
+    return { ok: false, error: "failed" };
+  }
 
-export async function requestSubmissionRetry(input: { teacherId: string; attemptId: string; reasonNote?: string }, client: Client = createSupabaseServiceClient()) {
-  const row = await loadOwnedAttempt(input, client); if (!row) return { ok: false as const, error: "not_found" as const };
-  const ast = one(row.assignment_students);
-  try { assertTransitionRequest({ previousStatus: ast.status as AssignmentStudentStatus, nextStatus: "needs_retry", actorType: "teacher", actorId: input.teacherId, reasonCode: "teacher_requested_retry", occurredAt: new Date().toISOString() }); } catch { return { ok: false as const, error: "invalid_transition" as const }; }
-  const result = await client.rpc("request_submission_retry", { p_teacher_id: input.teacherId, p_attempt_id: input.attemptId, p_reason_note: input.reasonNote ?? "" });
-  return result.error || result.data !== "ok" ? { ok: false as const, error: result.data === "invalid_status" ? "invalid_transition" as const : "db_error" as const } : { ok: true as const };
+  if (result.error) return { ok: false, error: "failed" };
+  if (result.data === "ok") return { ok: true };
+  if (result.data === "not_found") return { ok: false, error: "not_found" };
+  if (result.data === "invalid_status") return { ok: false, error: "not_allowed" };
+  return { ok: false, error: "failed" };
 }

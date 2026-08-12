@@ -29,10 +29,7 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("@/server/teacher/assignment-operations", () => ({
-  dismissAssignmentStudent: vi.fn(),
-  markSubmissionReviewed: vi.fn(),
-  requestSubmissionRetry: vi.fn(),
-  undoDismiss: vi.fn(),
+  changeAttemptReview: vi.fn(),
 }));
 
 async function reprocess(input = { audioClipId: "clip-1", attemptId: "attempt-1" }) {
