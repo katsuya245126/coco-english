@@ -5,6 +5,8 @@ const migrationPath =
   "supabase/migrations/202608120002_rpc_owned_workflow_tables.sql";
 const attemptTurnsMigrationPath =
   "supabase/migrations/202608130001_attempt_turns_read_only.sql";
+const attemptTurnsAclMigrationPath =
+  "supabase/migrations/202608130002_attempt_turns_strict_acl.sql";
 
 describe("RPC-owned workflow table migration", () => {
   it("removes authenticated workflow writes while preserving owned reads", () => {
@@ -77,6 +79,22 @@ describe("RPC-owned workflow table migration", () => {
       .replace(/\s+/g, " ");
     expect(serviceRolePrivileges).toContain(
       "grant select, insert, update, delete on table public.attempt_turns to service_role",
+    );
+  });
+
+  it("removes residual attempt turn privileges from public API roles", () => {
+    expect(existsSync(attemptTurnsAclMigrationPath)).toBe(true);
+    if (!existsSync(attemptTurnsAclMigrationPath)) return;
+
+    const sql = readFileSync(attemptTurnsAclMigrationPath, "utf8")
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+
+    expect(sql).toContain(
+      "revoke all privileges on table public.attempt_turns from anon, authenticated",
+    );
+    expect(sql).toContain(
+      "grant select on table public.attempt_turns to authenticated",
     );
   });
 });
