@@ -159,6 +159,11 @@ export type TeacherMutationResult =
   | { ok: true }
   | { ok: false; error: "not_found" | "not_allowed" | "failed" };
 
+export type AssignedHomeworkChange =
+  | { action: "request_retry"; reasonNote?: string }
+  | { action: "dismiss"; reason?: string }
+  | { action: "undo_dismiss" };
+
 export type AttemptReviewAction =
   | "mark_viewed"
   | "mark_reviewed"
@@ -185,6 +190,98 @@ export async function changeAttemptReview(input: {
     p_teacher_id: input.teacherId,
     p_attempt_id: input.attemptId,
   });
+
+  if (result.error) return { ok: false, error: "failed" };
+  if (result.data === "ok") return { ok: true };
+  if (result.data === "not_found") return { ok: false, error: "not_found" };
+  if (result.data === "invalid_status") return { ok: false, error: "not_allowed" };
+  return { ok: false, error: "failed" };
+}
+
+const incompleteStatuses = new Set(["assigned", "started", "missed"]);
+
+export async function changeAssignedHomework(
+  input: {
+    teacherId: string;
+    assignedHomeworkId: string;
+  } & AssignedHomeworkChange,
+): Promise<TeacherMutationResult> {
+  if (
+    !uuidSchema.safeParse(input.teacherId).success ||
+    !uuidSchema.safeParse(input.assignedHomeworkId).success ||
+    !["request_retry", "dismiss", "undo_dismiss"].includes(input.action)
+  ) {
+    return { ok: false, error: "not_allowed" };
+  }
+
+  const client = createSupabaseServiceClient();
+  let row: RawRow | null;
+  try {
+    row = await loadOwnedAssignmentStudent({
+      teacherId: input.teacherId,
+      assignmentStudentId: input.assignedHomeworkId,
+    }, client);
+  } catch {
+    return { ok: false, error: "failed" };
+  }
+  if (!row) return { ok: false, error: "not_found" };
+
+  const status = row.status as AssignmentStudentStatus;
+  const latestAttemptId = typeof row.latest_attempt_id === "string"
+    ? row.latest_attempt_id
+    : null;
+  let result;
+
+  if (input.action === "request_retry") {
+    if (!latestAttemptId) return { ok: false, error: "not_allowed" };
+    try {
+      assertTransitionRequest({
+        previousStatus: status,
+        nextStatus: "needs_retry",
+        actorType: "teacher",
+        actorId: input.teacherId,
+        reasonCode: "teacher_requested_retry",
+        occurredAt: new Date().toISOString(),
+      });
+    } catch {
+      return { ok: false, error: "not_allowed" };
+    }
+    result = await client.rpc("request_submission_retry", {
+      p_teacher_id: input.teacherId,
+      p_attempt_id: latestAttemptId,
+      p_reason_note: input.reasonNote ?? "",
+    });
+  } else {
+    const isIncomplete = incompleteStatuses.has(status);
+    const isDismissed = row.dismissed_at !== null;
+    if (!isIncomplete || (input.action === "dismiss" ? isDismissed : !isDismissed)) {
+      return { ok: false, error: "not_allowed" };
+    }
+
+    if (input.action === "dismiss") {
+      result = latestAttemptId
+        ? await client.rpc("dismiss_assignment_student", {
+            p_teacher_id: input.teacherId,
+            p_attempt_id: latestAttemptId,
+            p_reason: input.reason ?? "",
+          })
+        : await client.rpc("dismiss_assignment_student_by_id", {
+            p_teacher_id: input.teacherId,
+            p_assignment_student_id: input.assignedHomeworkId,
+            p_reason: input.reason ?? "",
+          });
+    } else {
+      result = latestAttemptId
+        ? await client.rpc("undo_dismiss_assignment_student", {
+            p_teacher_id: input.teacherId,
+            p_attempt_id: latestAttemptId,
+          })
+        : await client.rpc("undo_dismiss_assignment_student_by_id", {
+            p_teacher_id: input.teacherId,
+            p_assignment_student_id: input.assignedHomeworkId,
+          });
+    }
+  }
 
   if (result.error) return { ok: false, error: "failed" };
   if (result.data === "ok") return { ok: true };
