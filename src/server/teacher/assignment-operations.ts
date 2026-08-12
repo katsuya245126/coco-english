@@ -154,6 +154,41 @@ async function loadOwnedAssignmentStudent(input: { teacherId: string; assignment
   return result.data as RawRow | null;
 }
 
+export type TeacherMutationResult =
+  | { ok: true }
+  | { ok: false; error: "not_found" | "not_allowed" | "failed" };
+
+export type AttemptReviewAction =
+  | "mark_viewed"
+  | "mark_reviewed"
+  | "reopen_review";
+
+const attemptReviewRpc = {
+  mark_viewed: "mark_submission_viewed",
+  mark_reviewed: "mark_submission_reviewed",
+  reopen_review: "reopen_submission_review",
+} as const;
+
+export async function changeAttemptReview(input: {
+  teacherId: string;
+  attemptId: string;
+  action: AttemptReviewAction;
+}): Promise<TeacherMutationResult> {
+  const rpcName = attemptReviewRpc[input.action];
+  if (!rpcName) return { ok: false, error: "not_allowed" };
+
+  const result = await createSupabaseServiceClient().rpc(rpcName, {
+    p_teacher_id: input.teacherId,
+    p_attempt_id: input.attemptId,
+  });
+
+  if (result.error) return { ok: false, error: "failed" };
+  if (result.data === "ok") return { ok: true };
+  if (result.data === "not_found") return { ok: false, error: "not_found" };
+  if (result.data === "invalid_status") return { ok: false, error: "not_allowed" };
+  return { ok: false, error: "failed" };
+}
+
 export async function markSubmissionViewed(input: { teacherId: string; attemptId: string }, client: Client = createSupabaseServiceClient()) {
   if (!await loadOwnedAttempt(input, client)) return { ok: false as const, error: "not_found" as const };
   const now = new Date().toISOString();
