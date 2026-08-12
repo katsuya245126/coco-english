@@ -1,20 +1,17 @@
 ## Summary
 
-<!-- What does this PR change, and why? One or two sentences. -->
+This PR makes it easier to...
+
+I made this change because...
 
 ## How I tested
 
-<!-- The checks you ran locally, and what you verified in the Vercel preview. -->
-
-- [ ] `npm run typecheck`
-- [ ] `npm run lint`
-- [ ] `npx vitest run`
-- [ ] Checked the Vercel preview URL for this PR
+I checked it by...
 
 ## Screenshots
 
-<!-- For UI changes: before / after. Delete this section if not relevant. -->
+Here’s what it looks like before and after:
 
 ## Notes for review
 
-<!-- Anything a reviewer (or future you) should know: trade-offs, follow-ups, risks. -->
+One thing to know while reviewing this is...
