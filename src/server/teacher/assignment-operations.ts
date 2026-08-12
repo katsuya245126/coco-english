@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import {
   compareSubmissionRecency,
@@ -168,6 +169,7 @@ const attemptReviewRpc = {
   mark_reviewed: "mark_submission_reviewed",
   reopen_review: "reopen_submission_review",
 } as const;
+const uuidSchema = z.string().uuid();
 
 export async function changeAttemptReview(input: {
   teacherId: string;
@@ -175,7 +177,9 @@ export async function changeAttemptReview(input: {
   action: AttemptReviewAction;
 }): Promise<TeacherMutationResult> {
   const rpcName = attemptReviewRpc[input.action];
-  if (!rpcName) return { ok: false, error: "not_allowed" };
+  if (!rpcName || !uuidSchema.safeParse(input.teacherId).success || !uuidSchema.safeParse(input.attemptId).success) {
+    return { ok: false, error: "not_allowed" };
+  }
 
   const result = await createSupabaseServiceClient().rpc(rpcName, {
     p_teacher_id: input.teacherId,

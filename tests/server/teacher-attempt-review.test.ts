@@ -12,6 +12,9 @@ vi.mock("@/lib/supabase/server", () => ({
 
 beforeEach(() => rpc.mockReset());
 
+const teacherId = "00000000-0000-4000-8000-000000000001";
+const attemptId = "00000000-0000-4000-8000-000000000002";
+
 describe("changeAttemptReview", () => {
   it.each([
     ["mark_viewed", "mark_submission_viewed"],
@@ -21,14 +24,14 @@ describe("changeAttemptReview", () => {
     rpc.mockResolvedValueOnce({ data: "ok", error: null });
 
     await expect(changeAttemptReview({
-      teacherId: "teacher-1",
-      attemptId: "attempt-1",
+      teacherId,
+      attemptId,
       action,
     })).resolves.toEqual({ ok: true });
 
     expect(rpc).toHaveBeenCalledWith(rpcName, {
-      p_teacher_id: "teacher-1",
-      p_attempt_id: "attempt-1",
+      p_teacher_id: teacherId,
+      p_attempt_id: attemptId,
     });
   });
 
@@ -39,8 +42,8 @@ describe("changeAttemptReview", () => {
     rpc.mockResolvedValueOnce({ data, error: null });
 
     await expect(changeAttemptReview({
-      teacherId: "teacher-1",
-      attemptId: "attempt-1",
+      teacherId,
+      attemptId,
       action: "mark_reviewed",
     })).resolves.toEqual(expected);
   });
@@ -49,8 +52,8 @@ describe("changeAttemptReview", () => {
     rpc.mockResolvedValueOnce({ data: null, error: { message: "boom" } });
 
     await expect(changeAttemptReview({
-      teacherId: "teacher-1",
-      attemptId: "attempt-1",
+      teacherId,
+      attemptId,
       action: "mark_viewed",
     })).resolves.toEqual({ ok: false, error: "failed" });
   });
@@ -59,17 +62,29 @@ describe("changeAttemptReview", () => {
     rpc.mockResolvedValueOnce({ data: "unexpected", error: null });
 
     await expect(changeAttemptReview({
-      teacherId: "teacher-1",
-      attemptId: "attempt-1",
+      teacherId,
+      attemptId,
       action: "reopen_review",
     })).resolves.toEqual({ ok: false, error: "failed" });
   });
 
   it("rejects an invalid runtime action without an RPC", async () => {
     await expect(changeAttemptReview({
-      teacherId: "teacher-1",
-      attemptId: "attempt-1",
+      teacherId,
+      attemptId,
       action: "invalid" as AttemptReviewAction,
+    })).resolves.toEqual({ ok: false, error: "not_allowed" });
+
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { teacherId: "not-a-uuid", attemptId },
+    { teacherId, attemptId: "not-a-uuid" },
+  ])("rejects invalid identifiers without an RPC", async (input) => {
+    await expect(changeAttemptReview({
+      ...input,
+      action: "mark_viewed",
     })).resolves.toEqual({ ok: false, error: "not_allowed" });
 
     expect(rpc).not.toHaveBeenCalled();
