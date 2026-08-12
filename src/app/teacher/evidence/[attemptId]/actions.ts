@@ -2,8 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireTeacherProfile } from "@/server/teacher/auth";
-import { createSupabaseServiceClient } from "@/lib/supabase/server";
-import { changeAttemptReview, dismissAssignmentStudent, requestSubmissionRetry, undoDismiss } from "@/server/teacher/assignment-operations";
+import { changeAttemptReview } from "@/server/teacher/assignment-operations";
 import { createSignedAudioUrlForTeacher } from "@/server/teacher/audio-evidence";
 import { reprocessClipPronunciation } from "@/server/audio/pronunciation-reprocess";
 
@@ -74,78 +73,7 @@ export async function reprocessPronunciationAction(input: {
   return result;
 }
 
-// ─── Override action ───
-
-export type OverrideAssignmentStatusInput = {
-  assignmentStudentId: string;
-  nextStatus: "completed" | "needs_retry" | "teacher_review";
-  reasonNote?: string;
-};
-
-export type OverrideAssignmentStatusResult =
-  | { ok: true }
-  | {
-      ok: false;
-      error: "unauthorized" | "invalid_transition" | "not_found" | "db_error";
-    };
-
-/**
- * Teacher override for assignment status (REV-06, D-08, D-09).
- *
- * Ownership model: assignmentStudentId must have come from the evidence record
- * the teacher was RLS-authorized to load (getAttemptEvidenceForTeacher teacher_id
- * filter). requireTeacherProfile() gates unauthenticated calls (T-07-06 / T-OVERRIDE-OWN).
- *
- * Security: assertTransitionRequest validates the transition and requires actorId
- * for teacher; illegal transitions return "invalid_transition" with no DB write
- * (T-07-07 / T-TRANSITION-GUARD).
- */
-export async function overrideAssignmentStatusAction(
-  input: OverrideAssignmentStatusInput,
-): Promise<OverrideAssignmentStatusResult> {
-  const profile = await requireTeacherProfile();
-  const supabase = createSupabaseServiceClient();
-  const { data: asRow, error: loadError } = await supabase
-    .from("assignment_students")
-    .select("id, status, latest_attempt_id, assignments!inner(classes!inner(teacher_id))")
-    .eq("id", input.assignmentStudentId)
-    .eq("assignments.classes.teacher_id", profile.id)
-    .single();
-
-  if (loadError || !asRow || !asRow.latest_attempt_id) {
-    return { ok: false, error: "not_found" };
-  }
-  if (input.nextStatus === "needs_retry") {
-    return requestSubmissionRetry({ teacherId: profile.id, attemptId: asRow.latest_attempt_id, reasonNote: input.reasonNote });
-  }
-  if (input.nextStatus === "completed") {
-    const result = await changeAttemptReview({ teacherId: profile.id, attemptId: asRow.latest_attempt_id, action: "mark_reviewed" });
-    if (result.ok) return { ok: true };
-    if (result.error === "not_found") return { ok: false, error: "not_found" };
-    return { ok: false, error: result.error === "not_allowed" ? "invalid_transition" : "db_error" };
-  }
-  return { ok: false, error: "invalid_transition" };
-}
-
 export async function markSubmissionReviewedAction(attemptId: string) {
   const profile = await requireTeacherProfile();
   return changeAttemptReview({ teacherId: profile.id, attemptId, action: "mark_reviewed" });
-}
-
-export async function requestSubmissionRetryAction(input: {
-  attemptId: string;
-  reasonNote?: string;
-}) {
-  const profile = await requireTeacherProfile();
-  return requestSubmissionRetry({ teacherId: profile.id, ...input });
-}
-
-export async function dismissAssignmentStudentAction(input: { attemptId: string; reason?: string }) {
-  const profile = await requireTeacherProfile();
-  return dismissAssignmentStudent({ teacherId: profile.id, attemptId: input.attemptId, reason: input.reason });
-}
-
-export async function undoDismissAction(attemptId: string) {
-  const profile = await requireTeacherProfile();
-  return undoDismiss({ teacherId: profile.id, attemptId });
 }

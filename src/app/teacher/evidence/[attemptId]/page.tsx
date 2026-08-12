@@ -55,6 +55,7 @@ export default async function AttemptEvidencePage({
 
         <SubmissionReviewControls
           attemptId={attemptId}
+          assignedHomeworkId={evidence.assignmentStudentId}
           assignmentStudentStatus={evidence.assignmentStudentStatus}
           className={evidence.className}
           dismissed={evidence.dismissedAt != null}

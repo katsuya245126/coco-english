@@ -3,11 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import {
-  dismissAssignmentStudentAction,
   markSubmissionReviewedAction,
-  requestSubmissionRetryAction,
-  undoDismissAction,
 } from "@/app/teacher/evidence/[attemptId]/actions";
+import { changeAssignedHomeworkAction } from "@/app/teacher/assignment-actions";
 import { HoverButton } from "@/components/ui/HoverButton";
 import { primaryHover, secondaryHover } from "@/components/ui/hover-styles";
 
@@ -15,11 +13,13 @@ const INCOMPLETE_STATUSES = ["assigned", "started", "missed"];
 
 export function SubmissionReviewControls({
   attemptId,
+  assignedHomeworkId,
   assignmentStudentStatus,
   className,
   dismissed,
 }: {
   attemptId: string;
+  assignedHomeworkId: string;
   assignmentStudentStatus: string;
   className: string;
   dismissed: boolean;
@@ -42,7 +42,7 @@ export function SubmissionReviewControls({
   const markDone = () => startTransition(async () => {
     setError(false);
     try {
-      const result = await dismissAssignmentStudentAction({ attemptId });
+      const result = await changeAssignedHomeworkAction({ assignedHomeworkId, action: "dismiss" });
       if (result.ok) router.push(incompleteHref);
       else setError(true);
     } catch {
@@ -52,7 +52,7 @@ export function SubmissionReviewControls({
   const undoDone = () => startTransition(async () => {
     setError(false);
     try {
-      const result = await undoDismissAction(attemptId);
+      const result = await changeAssignedHomeworkAction({ assignedHomeworkId, action: "undo_dismiss" });
       if (result.ok) router.refresh();
       else setError(true);
     } catch {
@@ -61,7 +61,11 @@ export function SubmissionReviewControls({
   });
   const requestRetry = () => startTransition(async () => {
     setError(false);
-    const result = await requestSubmissionRetryAction({ attemptId, reasonNote: note.trim() || undefined });
+    const result = await changeAssignedHomeworkAction({
+      assignedHomeworkId,
+      action: "request_retry",
+      reasonNote: note.trim() || undefined,
+    });
     if (result.ok) router.push("/teacher");
     else setError(true);
   });

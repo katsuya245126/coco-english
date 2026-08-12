@@ -2,10 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import {
-  dismissAssignmentStudentByIdAction,
-  undoDismissByAssignmentStudentIdAction,
-} from "@/app/teacher/assignment-students/[assignmentStudentId]/actions";
+import { changeAssignedHomeworkAction } from "@/app/teacher/assignment-actions";
 import { HoverButton } from "@/components/ui/HoverButton";
 import { primaryHover, secondaryHover } from "@/components/ui/hover-styles";
 
@@ -26,7 +23,7 @@ export function AssignmentStudentDismissControls({
   const markDone = () => startTransition(async () => {
     setError(false);
     try {
-      const result = await dismissAssignmentStudentByIdAction({ assignmentStudentId });
+      const result = await changeAssignedHomeworkAction({ assignedHomeworkId: assignmentStudentId, action: "dismiss" });
       if (result.ok) router.push(incompleteHref);
       else setError(true);
     } catch {
@@ -37,7 +34,7 @@ export function AssignmentStudentDismissControls({
   const undo = () => startTransition(async () => {
     setError(false);
     try {
-      const result = await undoDismissByAssignmentStudentIdAction(assignmentStudentId);
+      const result = await changeAssignedHomeworkAction({ assignedHomeworkId: assignmentStudentId, action: "undo_dismiss" });
       if (result.ok) router.refresh();
       else setError(true);
     } catch {
