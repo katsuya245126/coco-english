@@ -253,6 +253,30 @@ describe("missionSnapshotSchema", () => {
 
     expect(result.success).toBe(false);
   });
+
+  it("rejects a preset snapshot with neither turn nor historical mission patterns", () => {
+    const result = missionSnapshotSchema.safeParse({
+      ...baseSnapshotFields,
+      targetPattern: undefined,
+      requiredTurns: 1,
+      conversationMode: false,
+      turns: makeSnapshotTurns(1),
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a conversation snapshot without mission-level context", () => {
+    const result = missionSnapshotSchema.safeParse({
+      ...baseSnapshotFields,
+      targetPattern: undefined,
+      requiredTurns: 3,
+      conversationMode: true,
+      turns: makeSnapshotTurns(1),
+    });
+
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("answerShape on turns", () => {

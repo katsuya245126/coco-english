@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
+import {
+  interpretMissionSnapshot,
+  resolveMissionSnapshotTargetPattern,
+} from "@/domain/mission/mission-snapshot";
 
 const missionId = "11111111-1111-4111-8111-111111111111";
 const turn = {
@@ -44,7 +47,10 @@ describe("interpretMissionSnapshot", () => {
   it("returns a complete preset mission snapshot", () => {
     expect(interpretMissionSnapshot(completeSnapshot)).toEqual({
       kind: "complete",
-      snapshot: completeSnapshot,
+      snapshot: {
+        ...completeSnapshot,
+        turns: [{ ...turn, targetPattern: completeSnapshot.targetPattern }],
+      },
     });
   });
 
@@ -59,6 +65,75 @@ describe("interpretMissionSnapshot", () => {
       kind: "complete",
       snapshot,
     });
+  });
+
+  it("returns a complete preset snapshot with only per-turn target patterns", () => {
+    const { targetPattern: _oldPattern, ...preset } = completeSnapshot;
+    const snapshot = {
+      ...preset,
+      turns: [{ ...turn, targetPattern: "I like ___ing." }],
+    };
+
+    expect(interpretMissionSnapshot(snapshot)).toEqual({
+      kind: "complete",
+      snapshot,
+    });
+  });
+
+  it("resolves a historical complete preset pattern onto every turn", () => {
+    const result = interpretMissionSnapshot({
+      ...completeSnapshot,
+      requiredTurns: 2,
+      turns: [turn, { ...turn, turnOrder: 2 }],
+    });
+
+    expect(result).toMatchObject({
+      kind: "complete",
+      snapshot: {
+        targetPattern: "I like ___ing.",
+        turns: [
+          { turnOrder: 1, targetPattern: "I like ___ing." },
+          { turnOrder: 2, targetPattern: "I like ___ing." },
+        ],
+      },
+    });
+  });
+
+  it("keeps conversation context only at mission level", () => {
+    const snapshot = {
+      ...completeSnapshot,
+      requiredTurns: 3,
+      conversationMode: true,
+    };
+
+    expect(interpretMissionSnapshot(snapshot)).toEqual({
+      kind: "complete",
+      snapshot,
+    });
+  });
+
+  it("resolves preset turns and conversation context through one helper", () => {
+    const preset = interpretMissionSnapshot({
+      ...completeSnapshot,
+      targetPattern: undefined,
+      turns: [{ ...turn, targetPattern: "I like ___ing." }],
+    });
+    const conversation = interpretMissionSnapshot({
+      ...completeSnapshot,
+      requiredTurns: 3,
+      conversationMode: true,
+    });
+
+    expect(preset.kind).toBe("complete");
+    expect(conversation.kind).toBe("complete");
+    if (preset.kind === "complete" && conversation.kind === "complete") {
+      expect(resolveMissionSnapshotTargetPattern(preset.snapshot, 1)).toBe(
+        "I like ___ing.",
+      );
+      expect(resolveMissionSnapshotTargetPattern(conversation.snapshot, 2)).toBe(
+        "I like ___ing.",
+      );
+    }
   });
 
   it("applies the historical defaults to an older complete snapshot", () => {

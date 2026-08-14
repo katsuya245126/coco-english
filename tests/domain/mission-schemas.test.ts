@@ -83,5 +83,6 @@ describe("missionSnapshotSchema reusable assignment contract (D-07)", () => {
 
     expect(snapshot.characterId).toBe("default-buddy");
     expect(snapshot.turns[0]?.hintLadder.tier3).toBe("I like playing soccer.");
+    expect(snapshot.turns[0]?.targetPattern).toBe("I like ___.");
   });
 });
