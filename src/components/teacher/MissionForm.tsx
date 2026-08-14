@@ -38,8 +38,8 @@ export function MissionForm({
 }: MissionFormProps) {
   const router = useRouter();
   const [title, setTitle] = useState(mission?.title ?? "");
-  const [targetPattern, setTargetPattern] = useState(
-    mission?.targetPattern ?? "",
+  const [conversationContextPattern, setConversationContextPattern] = useState(
+    mission?.conversationMode ? mission.targetPattern ?? "" : "",
   );
   const [level, setLevel] = useState<MissionLevel>(
     mission?.level ?? "elementary",
@@ -47,6 +47,7 @@ export function MissionForm({
   const [turns, setTurns] = useState<MissionTurnInput[]>(
     mission?.turns.map((turn) => ({
       prompt: turn.prompt,
+      targetPattern: turn.targetPattern,
       targetExample: turn.targetExample,
       hintLadder: turn.hintLadder,
       answerShape: turn.answerShape,
@@ -71,7 +72,9 @@ export function MissionForm({
   async function handleGenerateOpener() {
     setOpenerError(null);
     setGeneratingOpener(true);
-    const result = await generateOpenerAction({ targetPattern });
+    const result = await generateOpenerAction({
+      targetPattern: conversationContextPattern,
+    });
     setGeneratingOpener(false);
     if (result.ok) {
       setOpener(result.opener);
@@ -90,7 +93,6 @@ export function MissionForm({
       formData.set("missionId", mission.id);
     }
     formData.set("title", title);
-    formData.set("targetPattern", targetPattern);
     formData.set("level", level);
     formData.set(
       "requiredTurns",
@@ -102,11 +104,14 @@ export function MissionForm({
         serializeMissionTurns({
           conversationMode,
           opener,
-          targetPattern,
+          targetPattern: conversationContextPattern,
           turns,
         }),
       ),
     );
+    if (conversationMode) {
+      formData.set("targetPattern", conversationContextPattern);
+    }
     formData.set("conversationMode", conversationMode ? "true" : "false");
     formData.set(
       "requireCompleteSentenceAnswers",
@@ -150,13 +155,6 @@ export function MissionForm({
           value={title}
           onChange={setTitle}
         />
-        <Field
-          id="target-pattern"
-          name="targetPattern"
-          label="Target pattern"
-          value={targetPattern}
-          onChange={setTargetPattern}
-        />
 
         <div style={{ marginTop: 16, maxWidth: 240 }}>
           <label htmlFor="level" style={labelStyle}>
@@ -199,6 +197,13 @@ export function MissionForm({
 
         {conversationMode ? (
           <div style={{ marginTop: 16, maxWidth: 240 }}>
+            <Field
+              id="conversation-context-pattern"
+              name="targetPattern"
+              label="Conversation context pattern"
+              value={conversationContextPattern}
+              onChange={setConversationContextPattern}
+            />
             <label htmlFor="required-turns" style={labelStyle}>
               Turns to complete this mission
             </label>

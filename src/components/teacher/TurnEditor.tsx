@@ -12,6 +12,7 @@ type TurnEditorProps = {
 
 const emptyTurn: MissionTurnInput = {
   prompt: "",
+  targetPattern: "",
   targetExample: "",
   hintLadder: { tier1: "", tier2: "", tier3: "" },
   answerShape: "open",
@@ -20,6 +21,7 @@ const emptyTurn: MissionTurnInput = {
 export function createEmptyTurn(): MissionTurnInput {
   return {
     prompt: "",
+    targetPattern: "",
     targetExample: "",
     hintLadder: { tier1: "", tier2: "", tier3: "" },
     answerShape: "open",
@@ -98,6 +100,14 @@ export function TurnEditor({ turns, onChange, errors = {} }: TurnEditorProps) {
               placeholder="What question should the buddy ask?"
               error={errors[`turns.${index}.prompt`]}
               onChange={(value) => updateTurn(index, { prompt: value })}
+            />
+            <Field
+              id={`turn-${index}-target-pattern`}
+              label="Target pattern"
+              value={turn.targetPattern ?? ""}
+              placeholder='e.g. "I like ___ing"'
+              error={errors[`turns.${index}.targetPattern`]}
+              onChange={(value) => updateTurn(index, { targetPattern: value })}
             />
             <Field
               id={`turn-${index}-target`}
