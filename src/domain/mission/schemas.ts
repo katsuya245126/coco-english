@@ -77,6 +77,14 @@ export const missionFormSchema = z
       return;
     }
 
+    if (value.targetPattern !== undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["targetPattern"],
+        message: "Preset missions do not use a mission-level target pattern.",
+      });
+    }
+
     value.turns.forEach((turn, index) => {
       if (!turn.targetPattern) {
         context.addIssue({

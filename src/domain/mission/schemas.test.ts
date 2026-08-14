@@ -249,6 +249,22 @@ describe("missionFormSchema", () => {
     }
   });
 
+  it("rejects a preset mission-level target pattern", () => {
+    const result = missionFormSchema.safeParse({
+      ...baseFormFields,
+      requiredTurns: 1,
+      conversationMode: false,
+      turns: [oneTurn],
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({ path: ["targetPattern"] }),
+      );
+    }
+  });
+
   it("requires conversation context without requiring an opener turn pattern", () => {
     const { targetPattern: _pattern, ...opener } = oneTurn;
     const valid = missionFormSchema.safeParse({
