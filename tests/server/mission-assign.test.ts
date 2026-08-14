@@ -111,6 +111,33 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
     expect(snapshot.turns[0].targetPattern).toBe("I like ___.");
   });
 
+  it("copies distinct preset turn patterns into a future immutable snapshot", () => {
+    const sourceTurns = [
+      { ...turnRows[0], target_pattern: "I like ___." },
+      {
+        ...turnRows[0],
+        id: "turn-2",
+        turn_order: 2,
+        prompt: "What will you do tomorrow?",
+        target_pattern: "I will ___.",
+        target_example: "I will study.",
+      },
+    ];
+    const snapshot = buildMissionSnapshot({
+      mission: { ...missionRow, target_pattern: null, required_turns: 2 },
+      turns: sourceTurns,
+    });
+    const stored = JSON.parse(JSON.stringify(snapshot));
+
+    sourceTurns[0].target_pattern = "Changed later";
+
+    expect(stored).not.toHaveProperty("targetPattern");
+    expect(stored.turns.map((turn: { targetPattern: string }) => turn.targetPattern)).toEqual([
+      "I like ___.",
+      "I will ___.",
+    ]);
+  });
+
   it("keeps conversation context at mission level", () => {
     const snapshot = buildMissionSnapshot({
       mission: {
@@ -141,11 +168,27 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
           eq: vi.fn(() => ({
             eq: vi.fn(() => ({
               maybeSingle: vi.fn(async () => ({
-                data: table === "missions" ? missionRow : null,
+                data:
+                  table === "missions"
+                    ? { ...missionRow, target_pattern: null, required_turns: 2 }
+                    : null,
                 error: null,
               })),
             })),
-            order: vi.fn(async () => ({ data: turnRows, error: null })),
+            order: vi.fn(async () => ({
+              data: [
+                { ...turnRows[0], target_pattern: "I like ___." },
+                {
+                  ...turnRows[0],
+                  id: "turn-2",
+                  turn_order: 2,
+                  prompt: "What will you do tomorrow?",
+                  target_pattern: "I will ___.",
+                  target_example: "I will study.",
+                },
+              ],
+              error: null,
+            })),
           })),
         })),
       })),
@@ -172,6 +215,22 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
         }),
       }),
     );
+    const rpcArgs = rpc.mock.calls[0] as unknown as [
+      string,
+      {
+        p_mission_snapshot: {
+          targetPattern?: string;
+          turns: Array<{ targetPattern: string }>;
+        };
+      },
+    ];
+    const rpcSnapshot = rpcArgs[1].p_mission_snapshot;
+
+    expect(rpcSnapshot).not.toHaveProperty("targetPattern");
+    expect(rpcSnapshot.turns.map((turn) => turn.targetPattern)).toEqual([
+      "I like ___.",
+      "I will ___.",
+    ]);
   });
 
   it("warms predictable Coco voice lines from the assignment snapshot after assignment succeeds", async () => {

@@ -138,7 +138,7 @@ export function mapTurn(row: TurnRow): MissionTurn {
 function toMissionWrite(input: MissionFormInput) {
   return {
     title: input.title,
-    target_pattern: input.targetPattern,
+    target_pattern: input.conversationMode ? input.targetPattern ?? null : null,
     level: input.level,
     required_turns: input.requiredTurns,
     character_id: DEFAULT_CHARACTER_ID,
@@ -166,13 +166,12 @@ export function applyAnswerShapes(
 export function toTurnRows(
   missionId: string,
   turns: MissionTurnInput[],
-  fallbackTargetPattern: string | null = null,
 ) {
   return turns.map((turn, index) => ({
     mission_id: missionId,
     turn_order: index + 1,
     prompt: turn.prompt,
-    target_pattern: turn.targetPattern ?? fallbackTargetPattern,
+    target_pattern: turn.targetPattern ?? null,
     target_example: turn.targetExample,
     hint_ladder: turn.hintLadder as unknown as Json,
     answer_shape: turn.answerShape,
@@ -259,13 +258,7 @@ export async function createMission(
 
   const turns = await supabase
     .from("mission_turn_templates")
-    .insert(
-      toTurnRows(
-        inserted.data.id,
-        shapedTurns,
-        parsed.conversationMode ? null : parsed.targetPattern,
-      ),
-    );
+    .insert(toTurnRows(inserted.data.id, shapedTurns));
 
   if (turns.error) {
     throw new Error(`Unable to create mission turns: ${turns.error.message}`);
@@ -310,13 +303,7 @@ export async function updateMission(
 
   const turns = await supabase
     .from("mission_turn_templates")
-    .insert(
-      toTurnRows(
-        input.missionId,
-        shapedTurns,
-        parsed.conversationMode ? null : parsed.targetPattern,
-      ),
-    );
+    .insert(toTurnRows(input.missionId, shapedTurns));
 
   if (turns.error) {
     throw new Error(`Unable to update mission turns: ${turns.error.message}`);
