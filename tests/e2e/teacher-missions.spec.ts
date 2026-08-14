@@ -62,20 +62,50 @@ test("manual mission authoring path is env-aware and excludes later-phase featur
   await page.goto("/teacher/missions/new");
   await expect(page.getByRole("heading", { name: "New mission" })).toBeVisible();
 
-  const missionTitle = `Mission ${Date.now()}`;
+  const missionTitle = `Multi-pattern ${Date.now()}`;
   await page.getByLabel("Mission title").fill(missionTitle);
-  await page.getByLabel("Target pattern").fill("I like ___ing.");
-  await page.getByLabel("Topic").fill("After school");
   await page.getByLabel("Level").selectOption("elementary");
+  await expect(page.locator("#target-pattern")).toHaveCount(0);
+
   await page.getByLabel("Buddy question").fill("What do you like doing?");
+  await page.locator("#turn-0-target-pattern").fill("I like ___ing.");
   await page.getByLabel("Example answer").fill("I like playing soccer.");
-  await page.getByLabel("Hint 1: Target pattern").fill("I like ___ing.");
+  await page.getByLabel("Hint 1: Target pattern").fill("Try I like...");
   await page.getByLabel("Hint 2: Word bank").fill("like, play, soccer");
   await page.getByLabel("Hint 3: Full example").fill("I like playing soccer.");
+
+  await page.getByLabel("Dynamic conversation mode").check();
+  await expect(page.getByLabel("Conversation context pattern")).toHaveValue("");
+  await page.getByLabel("Dynamic conversation mode").uncheck();
+  await expect(page.getByLabel("Conversation context pattern")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Add turn" }).click();
+  await page.locator("#turn-1-prompt").fill("What will you do tomorrow?");
+  await page.locator("#turn-1-target-pattern").fill("I will ___.");
+  await page.locator("#turn-1-target").fill("I will study.");
+  await page.locator("#turn-1-hint-1").fill("Try I will...");
+  await page.locator("#turn-1-hint-2").fill("study, play, visit");
+  await page.locator("#turn-1-hint-3").fill("I will study.");
   await page.getByRole("button", { name: "Save mission" }).click();
 
-  await expect(page).toHaveURL(/\/teacher\/missions\/.+/);
+  await expect(page).toHaveURL(/\/teacher\/missions\?saved=1/);
+  const missionRow = page.getByText(missionTitle).locator("xpath=../..");
+  await missionRow.getByRole("link", { name: "Edit" }).click();
   await expect(page.getByRole("heading", { name: "Edit mission" })).toBeVisible();
+  await expect(page.locator("#target-pattern")).toHaveCount(0);
+  await expect(page.locator("#turn-0-target-pattern")).toHaveValue("I like ___ing.");
+  await expect(page.locator("#turn-1-target-pattern")).toHaveValue("I will ___.");
+  await expect(page.locator("#turn-0-hint-1")).toHaveValue("Try I like...");
+  await expect(page.locator("#turn-1-hint-1")).toHaveValue("Try I will...");
+  await expect(page.locator("#turn-0-target")).toHaveValue("I like playing soccer.");
+  await expect(page.locator("#turn-1-target")).toHaveValue("I will study.");
+
+  await page.locator("#turn-1-target-pattern").fill("I am going to ___.");
+  await page.getByRole("button", { name: "Save mission" }).click();
+  await expect(page).toHaveURL(/\/teacher\/missions\?saved=1/);
+  const updatedMissionRow = page.getByText(missionTitle).locator("xpath=../..");
+  await updatedMissionRow.getByRole("link", { name: "Edit" }).click();
+  await expect(page.locator("#turn-1-target-pattern")).toHaveValue("I am going to ___.");
 
   // Phase 3 screens must NOT show AI, student attempt, audio, or review UI
   await expect(page.getByText(/AI/i)).toHaveCount(0);
