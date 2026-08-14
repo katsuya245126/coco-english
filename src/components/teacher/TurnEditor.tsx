@@ -20,11 +20,8 @@ const emptyTurn: MissionTurnInput = {
 
 export function createEmptyTurn(): MissionTurnInput {
   return {
-    prompt: "",
-    targetPattern: "",
-    targetExample: "",
-    hintLadder: { tier1: "", tier2: "", tier3: "" },
-    answerShape: "open",
+    ...emptyTurn,
+    hintLadder: { ...emptyTurn.hintLadder },
   };
 }
 
@@ -58,7 +55,7 @@ export function TurnEditor({ turns, onChange, errors = {} }: TurnEditorProps) {
         <h2 style={headingStyle}>Turns</h2>
         <HoverButton
           type="button"
-          onClick={() => onChange([...turns, { ...emptyTurn }])}
+          onClick={() => onChange([...turns, createEmptyTurn()])}
           style={secondaryButtonStyle}
           hoverStyle={secondaryHover}
         >

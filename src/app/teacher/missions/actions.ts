@@ -136,16 +136,6 @@ function missionPayloadFromFormData(formData: FormData) {
   };
 }
 
-function omitUndefinedTargetPattern<T extends { targetPattern?: string }>(
-  payload: T,
-): Omit<T, "targetPattern"> | T {
-  if (payload.targetPattern === undefined) {
-    const { targetPattern: _targetPattern, ...rest } = payload;
-    return rest;
-  }
-  return payload;
-}
-
 export async function createMissionAction(
   formData: FormData,
 ): Promise<MissionActionResult> {
@@ -160,8 +150,12 @@ export async function createMissionAction(
   }
 
   try {
+    const missionInput =
+      parsed.data.targetPattern === undefined
+        ? (({ targetPattern: _targetPattern, ...rest }) => rest)(parsed.data)
+        : parsed.data;
     const mission = await createMission({
-      ...omitUndefinedTargetPattern(parsed.data),
+      ...missionInput,
       teacherId: profile.id,
     });
     revalidatePath("/teacher/missions");
@@ -203,8 +197,12 @@ export async function updateMissionAction(
       return { ok: false, error: GENERIC_FAILURE };
     }
 
+    const missionInput =
+      parsed.data.targetPattern === undefined
+        ? (({ targetPattern: _targetPattern, ...rest }) => rest)(parsed.data)
+        : parsed.data;
     const mission = await updateMission({
-      ...omitUndefinedTargetPattern(parsed.data),
+      ...missionInput,
       teacherId: profile.id,
       missionId: missionId.data.missionId,
     });
