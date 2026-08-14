@@ -24,7 +24,7 @@ export type MissionAssignmentResult = {
 type MissionRow = {
   id: string;
   title: string;
-  target_pattern: string;
+  target_pattern: string | null;
   level: string;
   required_turns: number;
   character_id: string;
@@ -36,6 +36,7 @@ type TurnRow = {
   id?: string;
   turn_order: number;
   prompt: string;
+  target_pattern: string | null;
   target_example: string;
   hint_ladder: Json;
   answer_shape: string;
@@ -48,7 +49,9 @@ export function buildMissionSnapshot(input: {
   const snapshot = {
     missionId: input.mission.id,
     title: input.mission.title,
-    targetPattern: input.mission.target_pattern,
+    ...(input.mission.target_pattern
+      ? { targetPattern: input.mission.target_pattern }
+      : {}),
     level: input.mission.level,
     requiredTurns: input.mission.required_turns,
     characterId: input.mission.character_id,
@@ -61,6 +64,9 @@ export function buildMissionSnapshot(input: {
       .map((turn) => ({
         turnOrder: turn.turn_order,
         prompt: turn.prompt,
+        ...(turn.target_pattern
+          ? { targetPattern: turn.target_pattern }
+          : {}),
         targetExample: turn.target_example,
         hintLadder: turn.hint_ladder,
         answerShape: turn.answer_shape === "fixed" ? "fixed" : "open",
@@ -107,7 +113,9 @@ export async function assignMissionToClass(input: {
 
   const turns = await supabase
     .from("mission_turn_templates")
-    .select("id, turn_order, prompt, target_example, hint_ladder, answer_shape")
+    .select(
+      "id, turn_order, prompt, target_pattern, target_example, hint_ladder, answer_shape",
+    )
     .eq("mission_id", input.missionId)
     .order("turn_order", { ascending: true });
 

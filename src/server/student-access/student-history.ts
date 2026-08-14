@@ -145,7 +145,7 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
     snapshotResult.kind === "complete" && snapshotResult.snapshot.conversationMode;
   const targetPattern =
     snapshotResult.kind === "complete"
-      ? snapshotResult.snapshot.targetPattern
+      ? snapshotResult.snapshot.targetPattern ?? null
       : null;
 
   const attempt = await supabase.from("attempts").select("id, status, completed_at").eq("id", row.latest_attempt_id).eq("assignment_student_id", row.id).in("status", ["completed", "teacher_review"]).maybeSingle();

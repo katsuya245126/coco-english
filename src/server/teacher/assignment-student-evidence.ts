@@ -80,7 +80,7 @@ export async function getAssignmentStudentEvidenceForTeacher(
     dismissedAt: row.dismissed_at ? String(row.dismissed_at) : null,
     targetPattern:
       snapshotResult.kind === "complete"
-        ? snapshotResult.snapshot.targetPattern
+        ? snapshotResult.snapshot.targetPattern ?? null
         : null,
     turns: snapshot
       ? snapshot.turns.map((turn) => ({

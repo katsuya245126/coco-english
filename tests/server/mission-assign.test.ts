@@ -36,6 +36,7 @@ const turnRows = [
     id: "turn-1",
     turn_order: 1,
     prompt: "What food do you like?",
+    target_pattern: "I like ___.",
     target_example: "I like apples.",
     hint_ladder: {
       tier1: "I like ___.",
@@ -98,6 +99,31 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
     } as never);
 
     expect(snapshot.turns[0].answerShape).toBe("fixed");
+  });
+
+  it("builds a preset snapshot with per-turn patterns and no mission-level pattern", () => {
+    const snapshot = buildMissionSnapshot({
+      mission: { ...missionRow, target_pattern: null },
+      turns: [{ ...turnRows[0], target_pattern: "I like ___." }],
+    });
+
+    expect(snapshot).not.toHaveProperty("targetPattern");
+    expect(snapshot.turns[0].targetPattern).toBe("I like ___.");
+  });
+
+  it("keeps conversation context at mission level", () => {
+    const snapshot = buildMissionSnapshot({
+      mission: {
+        ...missionRow,
+        conversation_mode: true,
+        required_turns: 3,
+        target_pattern: "I like ___.",
+      },
+      turns: [{ ...turnRows[0], target_pattern: null }],
+    });
+
+    expect(snapshot.targetPattern).toBe("I like ___.");
+    expect(snapshot.turns[0]).not.toHaveProperty("targetPattern");
   });
 
   it("calls the RPC with server-built snapshot, optional D-04 due date, and no browser snapshot input", async () => {

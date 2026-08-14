@@ -10,6 +10,7 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/lib/db/types";
 import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
+import { resolveMissionSnapshotTargetPattern } from "@/domain/mission/mission-snapshot";
 import { isExactTargetMatch } from "@/domain/ai/fast-path";
 import { isIncompleteUtterance } from "@/domain/ai/incomplete-utterance";
 import { buildReplyHintFrame } from "@/domain/ai/reply-hint-frame";
@@ -928,6 +929,15 @@ export async function uploadAttemptAudioClip(
       return { ok: false, error: "invalid_audio", retryable: false };
     }
 
+    const targetPattern = resolveMissionSnapshotTargetPattern(
+      snapshot,
+      input.turnOrder,
+    );
+    if (!targetPattern) {
+      logTiming("failed", { error: "invalid_audio", step: "mission_snapshot" });
+      return { ok: false, error: "invalid_audio", retryable: false };
+    }
+
     // Admission runs only after assignment/attempt ownership, status,
     // cancellation, and mission-snapshot turn checks have all passed, so a
     // malformed or foreign request can never spend a student's allowance. It
@@ -1432,7 +1442,7 @@ export async function uploadAttemptAudioClip(
               evaluationMode:
                 snapshot.conversationMode === true ? "conversation" : "preset",
               missionQuestion: missionQuestion ?? undefined,
-              targetPattern: snapshot.targetPattern,
+              targetPattern,
               targetExample,
               level: snapshot.level,
               turnOrder: input.turnOrder,
@@ -1478,7 +1488,7 @@ export async function uploadAttemptAudioClip(
                 evaluationMode: evaluationInput.evaluationMode,
                 answerShape,
                 missionQuestion: missionQuestion ?? null,
-                targetPattern: snapshot.targetPattern,
+                targetPattern,
                 transcript,
               });
 
@@ -1509,7 +1519,7 @@ export async function uploadAttemptAudioClip(
                     evaluationMode: evaluationInput.evaluationMode,
                     answerShape,
                     missionQuestion: missionQuestion ?? null,
-                    targetPattern: snapshot.targetPattern,
+                    targetPattern,
                     transcript,
                   });
                   if (repairedContract.ok) {
@@ -1658,7 +1668,7 @@ export async function uploadAttemptAudioClip(
                   return evaluate({
                     originalTranscript: turn.original_transcript ?? "",
                     improvedSentence: repeatTarget,
-                    targetPattern: snapshot.targetPattern,
+                    targetPattern,
                     level: snapshot.level,
                     repeatTranscript: transcript,
                     koreanSpans,
@@ -1815,7 +1825,7 @@ export async function uploadAttemptAudioClip(
             assignmentStudentId: input.assignmentStudentId,
             attemptId: input.attemptId,
             turnOrder: input.turnOrder,
-            targetPattern: snapshot.targetPattern,
+            targetPattern,
             requiredTurns: snapshot.requiredTurns,
             studentTranscript: transcript,
             conversationHistory: historyResult.history,
