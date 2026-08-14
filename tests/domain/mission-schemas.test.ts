@@ -19,7 +19,6 @@ describe("missionFormSchema manual authoring contract (MISS-01, MISS-04)", () =>
   it("accepts D-01/D-03 complete mission content with ordered turns and hint tiers", () => {
     const parsed = missionFormSchema.parse({
       title: "After-school likes",
-      targetPattern: "I like ___ing.",
       level: "elementary",
       requiredTurns: 2,
       turns: [
@@ -40,7 +39,6 @@ describe("missionFormSchema manual authoring contract (MISS-01, MISS-04)", () =>
   it("rejects D-02 required turns that differ from authored turns", () => {
     const parsed = missionFormSchema.safeParse({
       title: "Mismatch",
-      targetPattern: "I can ___.",
       level: "beginner",
       requiredTurns: 3,
       turns: [completeTurn],
@@ -52,14 +50,12 @@ describe("missionFormSchema manual authoring contract (MISS-01, MISS-04)", () =>
   it("rejects D-03 free-text levels and defaults D-16 characterId", () => {
     const invalid = missionFormSchema.safeParse({
       title: "Invalid level",
-      targetPattern: "I want ___.",
       level: "advanced",
       requiredTurns: 1,
       turns: [completeTurn],
     });
     const valid = missionFormSchema.parse({
       title: "Default buddy",
-      targetPattern: "I want ___.",
       level: "beginner",
       requiredTurns: 1,
       turns: [completeTurn],
