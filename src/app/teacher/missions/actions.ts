@@ -124,7 +124,7 @@ function parseBooleanSetting(
 function missionPayloadFromFormData(formData: FormData) {
   return {
     title: formData.get("title"),
-    targetPattern: formData.get("targetPattern"),
+    targetPattern: formData.get("targetPattern") ?? undefined,
     level: formData.get("level"),
     requiredTurns: formData.get("requiredTurns"),
     turns: parseTurns(formData.get("turns")),
@@ -134,6 +134,16 @@ function missionPayloadFromFormData(formData: FormData) {
       true,
     ),
   };
+}
+
+function omitUndefinedTargetPattern<T extends { targetPattern?: string }>(
+  payload: T,
+): Omit<T, "targetPattern"> | T {
+  if (payload.targetPattern === undefined) {
+    const { targetPattern: _targetPattern, ...rest } = payload;
+    return rest;
+  }
+  return payload;
 }
 
 export async function createMissionAction(
@@ -151,7 +161,7 @@ export async function createMissionAction(
 
   try {
     const mission = await createMission({
-      ...parsed.data,
+      ...omitUndefinedTargetPattern(parsed.data),
       teacherId: profile.id,
     });
     revalidatePath("/teacher/missions");
@@ -194,7 +204,7 @@ export async function updateMissionAction(
     }
 
     const mission = await updateMission({
-      ...parsed.data,
+      ...omitUndefinedTargetPattern(parsed.data),
       teacherId: profile.id,
       missionId: missionId.data.missionId,
     });

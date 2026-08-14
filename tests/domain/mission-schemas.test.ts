@@ -6,6 +6,7 @@ import {
 
 const completeTurn = {
   prompt: "What do you like doing after school?",
+  targetPattern: "I like ___ing.",
   targetExample: "I like playing soccer.",
   hintLadder: {
     tier1: "I like ___ing.",
@@ -67,6 +68,18 @@ describe("missionFormSchema manual authoring contract (MISS-01, MISS-04)", () =>
     expect(invalid.success).toBe(false);
     expect(valid.characterId).toBe("default-buddy");
   });
+
+  it("rejects a preset turn target pattern over 160 characters", () => {
+    const result = missionFormSchema.safeParse({
+      title: "Long pattern",
+      level: "elementary",
+      requiredTurns: 1,
+      conversationMode: false,
+      turns: [{ ...completeTurn, targetPattern: "x".repeat(161) }],
+    });
+
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("missionSnapshotSchema reusable assignment contract (D-07)", () => {
@@ -83,6 +96,6 @@ describe("missionSnapshotSchema reusable assignment contract (D-07)", () => {
 
     expect(snapshot.characterId).toBe("default-buddy");
     expect(snapshot.turns[0]?.hintLadder.tier3).toBe("I like playing soccer.");
-    expect(snapshot.turns[0]?.targetPattern).toBe("I like ___.");
+    expect(snapshot.turns[0]?.targetPattern).toBe("I like ___ing.");
   });
 });

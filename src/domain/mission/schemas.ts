@@ -47,8 +47,9 @@ export const missionFormSchema = z
     targetPattern: z
       .string()
       .trim()
-      .min(1, "Target pattern is required.")
-      .max(160, "Target pattern is too long."),
+      .min(1, "Conversation context pattern is required.")
+      .max(160, "Conversation context pattern is too long.")
+      .optional(),
     level: missionLevelSchema,
     requiredTurns: z.coerce
       .number()
@@ -63,6 +64,28 @@ export const missionFormSchema = z
     conversationMode: z.boolean().default(false),
     requireCompleteSentenceAnswers: z.boolean().default(true),
     turns: z.array(missionTurnInputSchema).default([]),
+  })
+  .superRefine((value, context) => {
+    if (value.conversationMode) {
+      if (!value.targetPattern) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["targetPattern"],
+          message: "Conversation context pattern is required.",
+        });
+      }
+      return;
+    }
+
+    value.turns.forEach((turn, index) => {
+      if (!turn.targetPattern) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["turns", index, "targetPattern"],
+          message: "Turn target pattern is required.",
+        });
+      }
+    });
   })
   .refine(
     (value) =>
