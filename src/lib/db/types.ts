@@ -71,7 +71,7 @@ export type Database = {
           id: string;
           teacher_id: string;
           title: string;
-          target_pattern: string;
+          target_pattern: string | null;
           topic: string;
           level: string;
           required_turns: number;
@@ -87,7 +87,7 @@ export type Database = {
           id?: string;
           teacher_id: string;
           title: string;
-          target_pattern: string;
+          target_pattern: string | null;
           topic: string;
           level: string;
           required_turns: number;
@@ -108,6 +108,7 @@ export type Database = {
           mission_id: string;
           turn_order: number;
           prompt: string;
+          target_pattern: string | null;
           target_example: string;
           hint_ladder: Json;
           answer_shape: "fixed" | "open";
@@ -119,6 +120,7 @@ export type Database = {
           mission_id: string;
           turn_order: number;
           prompt: string;
+          target_pattern?: string | null;
           target_example: string;
           hint_ladder?: Json;
           answer_shape?: "fixed" | "open";
