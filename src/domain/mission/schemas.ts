@@ -26,6 +26,7 @@ export type HintLadder = z.infer<typeof hintLadderSchema>;
 
 export const missionTurnInputSchema = z.object({
   prompt: z.string().trim().min(1, "Buddy question is required."),
+  targetPattern: z.string().trim().min(1).max(160).optional(),
   targetExample: z
     .string()
     .trim()

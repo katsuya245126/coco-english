@@ -283,4 +283,19 @@ describe("answerShape on turns", () => {
     const shape: AnswerShape = parsed.answerShape;
     expect(shape).toBe("open");
   });
+
+  it("accepts and trims an optional turn target pattern", () => {
+    const parsed = missionTurnInputSchema.parse({
+      ...baseTurn,
+      targetPattern: "  I like ___ing.  ",
+    });
+
+    expect(parsed.targetPattern).toBe("I like ___ing.");
+  });
+
+  it("keeps target patterns optional until preset authoring moves in ticket 42", () => {
+    expect(missionTurnInputSchema.parse(baseTurn)).not.toHaveProperty(
+      "targetPattern",
+    );
+  });
 });

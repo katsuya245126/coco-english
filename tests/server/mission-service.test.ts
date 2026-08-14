@@ -448,6 +448,49 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
     expect(mapped.answerShape).toBe("fixed");
   });
 
+  it("round-trips an optional target pattern on turn rows", () => {
+    const rows = toTurnRows("mission-1", [
+      {
+        prompt: "What do you do after school?",
+        targetPattern: "I like ___ing.",
+        targetExample: "I like reading.",
+        hintLadder: {
+          tier1: "Try I like...",
+          tier2: "read",
+          tier3: "I like reading.",
+        },
+        answerShape: "open",
+      },
+    ]);
+
+    expect(rows[0].target_pattern).toBe("I like ___ing.");
+    expect(
+      mapTurn({
+        id: "t1",
+        turn_order: 1,
+        prompt: "What do you do after school?",
+        target_pattern: "I like ___ing.",
+        target_example: "I like reading.",
+        hint_ladder: {
+          tier1: "Try I like...",
+          tier2: "read",
+          tier3: "I like reading.",
+        },
+        answer_shape: "open",
+      } as never).targetPattern,
+    ).toBe("I like ___ing.");
+  });
+
+  it("copies the current preset mission pattern onto turns during compatibility rollout", () => {
+    const rows = toTurnRows(
+      "mission-1",
+      completeInput.turns,
+      completeInput.targetPattern,
+    );
+
+    expect(rows[0].target_pattern).toBe(completeInput.targetPattern);
+  });
+
   it("applies classified shapes to turns in order", () => {
     const turns = [
       { prompt: "q1", targetExample: "a1", hintLadder: { tier1: "x", tier2: "y", tier3: "z" }, answerShape: "open" as const },
