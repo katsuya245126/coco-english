@@ -42,4 +42,4 @@ For deterministic student feedback screenshots, start the app on `http://localho
 
 ## Active Work
 
-Read root `TASK.md` when it exists. Completed or paused task briefs live in `docs/tasks/archive/`. The legacy GSD workflow has been retired (replaced by the `task-workflow`/`progress` skills); its `.planning/` history is archived to a tarball under `docs/tasks/archive/` and is not an active source of truth.
+Read root `TASK.md` when it exists. Keep completed or paused task notes in GitHub issues/PRs or ignored `docs/local/`; stable architecture decisions may live in `docs/adr/`. The legacy GSD workflow has been retired (replaced by the `task-workflow`/`progress` skills); its `.planning/` history is not an active source of truth.

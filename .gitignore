@@ -47,6 +47,10 @@ docs/PROBLEMS-SOLVED.md
 # Temporary local agent/session documentation
 docs/local/
 
+# Local implementation plans and completed-task notes; use GitHub issues/PRs for durable tracking
+docs/superpowers/plans/
+docs/tasks/archive/
+
 # Local-only scripts (dev launchers, local seeders); not for the repo
 scripts/local/
 
