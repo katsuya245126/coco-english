@@ -92,6 +92,7 @@ export function validateOriginalEvaluationContract(
   } else if (evaluation.outcome === "correct") {
     if (
       !evaluation.meaningUnderstood ||
+      (input.evaluationMode === "preset" && !evaluation.targetPatternAttempted) ||
       evaluation.correctionNeeded ||
       evaluation.correctionSeverity !== "none" ||
       evaluation.correctionReason !== "none" ||

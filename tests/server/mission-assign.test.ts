@@ -68,11 +68,11 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
     expect(snapshot).toMatchObject({
       missionId: missionRow.id,
       title: "Food likes",
-      targetPattern: "I like ___.",
       level: "elementary",
       requiredTurns: 1,
       characterId: "default-buddy",
     });
+    expect(snapshot).not.toHaveProperty("targetPattern");
     expect(snapshot).not.toHaveProperty("topic");
     expect(snapshot).not.toHaveProperty("scenePremise");
     expect(snapshot.turns[0]).toMatchObject({
@@ -91,6 +91,7 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
           id: "t1",
           turn_order: 1,
           prompt: "q",
+          target_pattern: "I like ___.",
           target_example: "a",
           hint_ladder: { tier1: "x", tier2: "y", tier3: "z" },
           answer_shape: "fixed",
@@ -103,7 +104,7 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
 
   it("builds a preset snapshot with per-turn patterns and no mission-level pattern", () => {
     const snapshot = buildMissionSnapshot({
-      mission: { ...missionRow, target_pattern: null },
+      mission: missionRow,
       turns: [{ ...turnRows[0], target_pattern: "I like ___." }],
     });
 

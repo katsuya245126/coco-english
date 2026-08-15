@@ -19,12 +19,18 @@ describe("per-turn target pattern migration", () => {
 
   it("backfills preset turns before relaxing the mission column", () => {
     const backfill = migration.indexOf("update public.mission_turn_templates");
+    const clearPresetPattern = migration.indexOf("update public.missions");
     const relax = migration.indexOf("alter column target_pattern drop not null");
 
     expect(backfill).toBeGreaterThan(-1);
     expect(migration).toMatch(
       /update public\.mission_turn_templates[\s\S]*set target_pattern = missions\.target_pattern[\s\S]*from public\.missions[\s\S]*not missions\.conversation_mode/,
     );
+    expect(clearPresetPattern).toBeGreaterThan(backfill);
+    expect(migration).toMatch(
+      /update public\.missions[\s\S]*set target_pattern = null[\s\S]*not conversation_mode/,
+    );
+    expect(clearPresetPattern).toBeLessThan(relax);
     expect(backfill).toBeLessThan(relax);
   });
 

@@ -8,5 +8,9 @@ where turns.mission_id = missions.id
   and not missions.conversation_mode
   and turns.target_pattern is null;
 
+update public.missions
+set target_pattern = null
+where not conversation_mode;
+
 alter table public.missions
   alter column target_pattern drop not null;

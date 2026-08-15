@@ -49,7 +49,7 @@ export function buildMissionSnapshot(input: {
   const snapshot = {
     missionId: input.mission.id,
     title: input.mission.title,
-    ...(input.mission.target_pattern
+    ...(input.mission.conversation_mode && input.mission.target_pattern
       ? { targetPattern: input.mission.target_pattern }
       : {}),
     level: input.mission.level,
