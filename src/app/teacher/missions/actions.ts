@@ -7,6 +7,7 @@ import {
   assignMissionSchema,
   missionFormSchema,
   missionIdSchema,
+  type MissionFormInput,
 } from "@/domain/mission/schemas";
 import { openerGenerationInputSchema } from "@/domain/ai/opener-generation";
 import {
@@ -136,6 +137,12 @@ function missionPayloadFromFormData(formData: FormData) {
   };
 }
 
+function omitUndefinedTargetPattern(input: MissionFormInput): MissionFormInput {
+  if (input.targetPattern !== undefined) return input;
+  const { targetPattern: _targetPattern, ...missionInput } = input;
+  return missionInput;
+}
+
 export async function createMissionAction(
   formData: FormData,
 ): Promise<MissionActionResult> {
@@ -150,12 +157,8 @@ export async function createMissionAction(
   }
 
   try {
-    const missionInput =
-      parsed.data.targetPattern === undefined
-        ? (({ targetPattern: _targetPattern, ...rest }) => rest)(parsed.data)
-        : parsed.data;
     const mission = await createMission({
-      ...missionInput,
+      ...omitUndefinedTargetPattern(parsed.data),
       teacherId: profile.id,
     });
     revalidatePath("/teacher/missions");
@@ -197,12 +200,8 @@ export async function updateMissionAction(
       return { ok: false, error: GENERIC_FAILURE };
     }
 
-    const missionInput =
-      parsed.data.targetPattern === undefined
-        ? (({ targetPattern: _targetPattern, ...rest }) => rest)(parsed.data)
-        : parsed.data;
     const mission = await updateMission({
-      ...missionInput,
+      ...omitUndefinedTargetPattern(parsed.data),
       teacherId: profile.id,
       missionId: missionId.data.missionId,
     });
