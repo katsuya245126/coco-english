@@ -2907,7 +2907,7 @@ describe("multi-pattern preset evaluation", () => {
     process.env.STUDENT_AUDIO_BUCKET = "student-audio";
   });
 
-  it("evaluates a wrong-pattern answer with the active turn pattern and example", async () => {
+  it("routes a wrong-pattern recast that invents intent to teacher review", async () => {
     mockSupabase = createMockSupabase({
       missionSnapshot:
         multiPatternPresetSnapshot as unknown as typeof conversationMissionSnapshotFixture,
@@ -2938,13 +2938,14 @@ describe("multi-pattern preset evaluation", () => {
         transcript: "I like soccer.",
       }),
     );
+    expect(evaluateOriginal).toHaveBeenCalledTimes(2);
     expect(result).toMatchObject({
       ok: true,
       evaluation: {
-        outcome: "needs_correction",
+        outcome: "teacher_review",
         targetPatternAttempted: false,
-        improvedSentence: "I will play soccer.",
-        requireRepeat: true,
+        improvedSentence: null,
+        requireRepeat: false,
       },
     });
   });
