@@ -27,7 +27,6 @@ export type StudentAssignmentListItem = {
   completedAt: string | null;
   turnCount: number;
   completedTurnCount: number;
-  targetPattern: string | null;
   displayStatus: AssignmentDisplayStatus;
 };
 
@@ -111,10 +110,6 @@ export async function listStudentAssignmentPage(
         completedAt,
         turnCount: snapshot.requiredTurns,
         completedTurnCount: row.latest_attempt?.attempt_turns?.[0]?.count ?? 0,
-        targetPattern:
-          snapshotResult.kind === "complete"
-            ? snapshotResult.snapshot.targetPattern ?? null
-            : null,
         displayStatus,
       });
     }

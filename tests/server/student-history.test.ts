@@ -19,16 +19,21 @@ const hintLadder = {
 const presetSnapshot = {
   missionId: "00000000-0000-4000-8000-000000000001",
   title: "Weekend plans",
-  targetPattern: "I am going to...",
   level: "beginner",
   requiredTurns: 3,
   characterId: "default-buddy",
   conversationMode: false,
   turns: [
-    { turnOrder: 1, prompt: "What will you do?", targetExample: "I will play soccer.", hintLadder },
-    { turnOrder: 2, prompt: "Who will go?", targetExample: "My friend will go.", hintLadder },
-    { turnOrder: 3, prompt: "What else?", targetExample: "I will eat lunch.", hintLadder },
+    { turnOrder: 1, prompt: "What will you do?", targetPattern: "I like ___.", targetExample: "I like playing soccer.", hintLadder },
+    { turnOrder: 2, prompt: "Who will go?", targetPattern: "I will ___.", targetExample: "I will go with my friend.", hintLadder },
+    { turnOrder: 3, prompt: "What else?", targetPattern: "I can ___.", targetExample: "I can eat lunch.", hintLadder },
   ],
+};
+
+const historicalPresetSnapshot = {
+  ...presetSnapshot,
+  targetPattern: "I am going to...",
+  turns: presetSnapshot.turns.map(({ targetPattern: _targetPattern, ...turn }) => turn),
 };
 
 const conversationSnapshot = {
@@ -182,6 +187,12 @@ describe("student completed mission recap pronunciation", () => {
 
     const recap = await getCompletedMissionRecap("student-1", "assignment-student-1");
 
+    expect(recap).not.toHaveProperty("targetPattern");
+    expect(recap?.turns.map(({ turnOrder, targetPattern }) => ({ turnOrder, targetPattern }))).toEqual([
+      { turnOrder: 1, targetPattern: "I like ___." },
+      { turnOrder: 2, targetPattern: "I will ___." },
+      { turnOrder: 3, targetPattern: "I can ___." },
+    ]);
     expect(recap?.turns.map((turn) => ({ transcript: turn.transcript, pronunciation: turn.pronunciation }))).toEqual([
       {
         transcript: "I play soccer with funny friends today",
@@ -230,19 +241,33 @@ describe("student legacy mission recap", () => {
 
     const recap = await getCompletedMissionRecap("student-1", "assignment-student-1");
 
+    expect(recap).not.toHaveProperty("targetPattern");
     expect(recap).toMatchObject({
-      targetPattern: null,
       conversationMode: false,
       characterId: "default-buddy",
       finalCocoLine: null,
       completedAt: "2026-07-14T00:00:00.000Z",
       turns: [{
         cocoPrompt: "What are you going to do this weekend?",
+        targetPattern: null,
         reviewState: "repeat_accepted",
         original: { transcript: "I play soccer." },
         repeat: { transcript: "I am going to play soccer." },
       }],
     });
+  });
+
+  it("falls back historical complete preset patterns onto every turn", async () => {
+    mockSupabase = createDynamicMockSupabase(undefined, historicalPresetSnapshot);
+
+    const recap = await getCompletedMissionRecap("student-1", "assignment-student-1");
+
+    expect(recap).not.toHaveProperty("targetPattern");
+    expect(recap?.turns.map(({ turnOrder, targetPattern }) => ({ turnOrder, targetPattern }))).toEqual([
+      { turnOrder: 1, targetPattern: "I am going to..." },
+      { turnOrder: 2, targetPattern: "I am going to..." },
+      { turnOrder: 3, targetPattern: "I am going to..." },
+    ]);
   });
 
   it("keeps unknown partial snapshot data as not found", async () => {
@@ -414,6 +439,7 @@ describe("student completed mission recap dynamic homework review", () => {
         },
       ],
     });
+    expect(recap?.turns.map((turn) => turn.targetPattern)).toEqual([null, null, null]);
 
     expect(recap?.turns[2]?.original.audio?.id).toBe("clip-repeat-original");
     expect(recap?.turns[2]?.repeat?.audio?.id).toBe("clip-repeat-repeat");

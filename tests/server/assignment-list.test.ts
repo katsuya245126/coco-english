@@ -8,9 +8,9 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 const snapshot = {
-  missionId: "00000000-0000-0000-0000-000000000001", title: "Mission", targetPattern: "I like X.",
+  missionId: "00000000-0000-0000-0000-000000000001", title: "Mission",
   level: "beginner", requiredTurns: 1, characterId: "default-buddy",
-  turns: [{ turnOrder: 1, prompt: "What?", targetExample: "I like it.", hintLadder: { tier1: "One", tier2: "Two", tier3: "Three" } }],
+  turns: [{ turnOrder: 1, prompt: "What?", targetPattern: "I like X.", targetExample: "I like it.", hintLadder: { tier1: "One", tier2: "Two", tier3: "Three" } }],
 };
 
 const legacySnapshot = {
@@ -53,7 +53,6 @@ describe("listStudentAssignmentPage", () => {
       expect.objectContaining({
         assignmentStudentId: "legacy-done",
         turnCount: 1,
-        targetPattern: null,
         displayStatus: "done",
       }),
     ]);
@@ -64,7 +63,8 @@ describe("listStudentAssignmentPage", () => {
     const { listStudentAssignmentPage } = await import("@/server/student-access/assignment-list");
     const page = await listStudentAssignmentPage("student-1", { tab: "current", page: 1 });
     expect(page.items.map((item) => item.assignmentStudentId)).toEqual(["retry", "soon", "boundary", "later"]);
-    expect(page.items[0]).toMatchObject({ targetPattern: "I like X.", completedTurnCount: 0 });
+    expect(page.items[0]).toMatchObject({ completedTurnCount: 0 });
+    expect(page.items[0]).not.toHaveProperty("targetPattern");
     expect(eq).toHaveBeenCalledWith("student_id", "student-1");
   });
 
