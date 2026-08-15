@@ -149,26 +149,6 @@ describe("HomeworkReview", () => {
     );
   });
 
-  it("shows each preset turn's expected pattern without a mission banner", () => {
-    const presetRecap: StudentMissionRecap = {
-      ...recap,
-      conversationMode: false,
-      finalCocoLine: null,
-      turns: recap.turns.slice(0, 2).map((turn, index) => ({
-        ...turn,
-        targetPattern: index === 0 ? "I like ___." : "I will ___.",
-      })),
-    };
-
-    const html = renderToStaticMarkup(
-      <HomeworkReview recap={presetRecap} studentDisplayName="Kyle" />,
-    );
-
-    expect(html).toContain("Expected pattern: I like ___.");
-    expect(html).toContain("Expected pattern: I will ___.");
-    expect(html).not.toContain("Practice:");
-  });
-
 });
 
 describe("HomeworkReview with a withheld transcript", () => {

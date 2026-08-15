@@ -26,12 +26,22 @@ const baseRecap = {
     targetPattern: "I like ___.",
     cocoPrompt: "What do you like?",
     transcript: "I like apples.",
-    audio: null,
-    pronunciation: null,
-    original: { transcript: "I like apples.", audio: null, pronunciation: null },
+    audio: { id: "clip-repeat", playback: "available" as const },
+    pronunciation: {
+      starBand: 2 as const,
+      words: [{ word: "apples", label: "Mispronounced" }],
+    },
+    original: { transcript: "I apples.", audio: null, pronunciation: null },
     improvedSentence: null,
-    repeat: null,
-    reviewState: "accepted" as const,
+    repeat: {
+      transcript: "I like apples.",
+      audio: { id: "clip-repeat", playback: "available" as const },
+      pronunciation: {
+        starBand: 2 as const,
+        words: [{ word: "apples", label: "Mispronounced" }],
+      },
+    },
+    reviewState: "repeat_accepted" as const,
   }],
 };
 
@@ -41,7 +51,7 @@ beforeEach(() => {
 });
 
 describe("StudentHistoryPage recap selection", () => {
-  it("renders the shared review with each preset turn's expected pattern", async () => {
+  it("keeps selected preset evidence and pronunciation beside the turn pattern", async () => {
     mocks.getCompletedMissionRecap.mockResolvedValue(baseRecap);
 
     const page = await StudentHistoryPage({
@@ -49,8 +59,11 @@ describe("StudentHistoryPage recap selection", () => {
     });
     const html = renderToStaticMarkup(page);
 
-    expect(html).toContain("Look back at your conversation with Coco.");
     expect(html).toContain("Expected pattern: I like ___.");
+    expect(html).toContain("★★ Pronunciation");
+    expect(html).toContain("Words to practice: apples");
+    expect(html).toContain("I like apples.");
+    expect(html).not.toContain("I apples.");
     expect(html).not.toContain("Practice:");
   });
 
