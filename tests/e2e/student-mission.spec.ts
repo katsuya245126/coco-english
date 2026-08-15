@@ -104,7 +104,7 @@ async function mockAudioResponses(
   });
 }
 
-test("full per-turn walk: answer -> improved sentence shown -> required repeat (FLOW-04)", async ({
+test("multi-pattern preset: wrong pattern repeats and active pattern completes", async ({
   page,
 }) => {
   if (!hasSupabaseEnv) {
@@ -121,26 +121,19 @@ test("full per-turn walk: answer -> improved sentence shown -> required repeat (
   await installFakeRecorder(page);
   await mockAudioResponses(page, [
     {
-      transcript: "I like bananas",
+      transcript: "I will eat bananas.",
       evaluation: {
         outcome: "needs_correction",
-        improvedSentence: "I like apples very much.",
+        improvedSentence: "I like bananas.",
       },
     },
     {
-      transcript: "I like apples very much",
+      transcript: "I like bananas.",
       evaluation: { outcome: "repeat_accepted" },
     },
     {
-      transcript: "Apples are red",
-      evaluation: {
-        outcome: "needs_correction",
-        improvedSentence: "Apples are red and delicious.",
-      },
-    },
-    {
-      transcript: "Apples are red and delicious",
-      evaluation: { outcome: "repeat_accepted" },
+      transcript: "Apples are red.",
+      evaluation: { outcome: "accepted_original" },
     },
   ]);
 
@@ -215,9 +208,10 @@ test("full per-turn walk: answer -> improved sentence shown -> required repeat (
       title: `E2E Mission ${stamp}`,
       level: "beginner",
       topic: "fruits",
-      target_pattern: "I like apples",
+      target_pattern: null,
       required_turns: 2,
       character_id: "default-buddy",
+      conversation_mode: false,
     })
     .select("id")
     .single();
@@ -227,29 +221,34 @@ test("full per-turn walk: answer -> improved sentence shown -> required repeat (
     missionId: mission.data!.id,
     title: `E2E Mission ${stamp}`,
     level: "beginner",
-    targetPattern: "I like apples",
     characterId: "default-buddy",
     requiredTurns: 2,
+    conversationMode: false,
+    requireCompleteSentenceAnswers: true,
     turns: [
       {
         turnOrder: 1,
         prompt: "What fruit do you like?",
-        targetExample: "I like apples very much.",
+        targetPattern: "I like ___.",
+        targetExample: "I like bananas.",
         hintLadder: {
-          tier1: "Think about the pattern: I like ___",
+          tier1: "Start with: I like",
           tier2: "apples, bananas, oranges",
-          tier3: "I like apples very much.",
+          tier3: "I like bananas.",
         },
+        answerShape: "open",
       },
       {
         turnOrder: 2,
-        prompt: "What color is your favorite fruit?",
+        prompt: "What color are apples?",
+        targetPattern: "Apples are ___.",
         targetExample: "Apples are red and delicious.",
         hintLadder: {
-          tier1: "Think about colors",
-          tier2: "red, green, yellow",
+          tier1: "Start with: Apples are",
+          tier2: "red, green, delicious",
           tier3: "Apples are red and delicious.",
         },
+        answerShape: "open",
       },
     ],
   };
@@ -299,15 +298,14 @@ test("full per-turn walk: answer -> improved sentence shown -> required repeat (
     await expect(
       page.getByText("What fruit do you like?"),
     ).toBeVisible();
+    await expect(page.getByText("Start with: I like")).toBeHidden();
+    await page.getByRole("button", { name: "💡 Hint" }).click();
+    await expect(page.getByText("Start with: I like")).toBeVisible();
 
     // Submit a voice answer
     await submitVoiceRecording(page);
 
-    // Step 2: Improved sentence shown (FLOW-04)
-    await expect(
-      page.getByText("I like apples very much."),
-    ).toBeVisible();
-
+    await expect(page.getByText("I like bananas.")).toBeVisible();
     await page.getByRole("button", { name: "Try again" }).click();
     await submitVoiceRecording(page);
     await expect(page.getByText("Good repeat.")).toBeVisible();
@@ -321,20 +319,15 @@ test("full per-turn walk: answer -> improved sentence shown -> required repeat (
 
     // Turn 2: new question
     await expect(
-      page.getByText("What color is your favorite fruit?"),
+      page.getByText("What color are apples?"),
     ).toBeVisible();
+    await expect(page.getByText("Start with: Apples are")).toBeHidden();
+    await page.getByRole("button", { name: "💡 Hint" }).click();
+    await expect(page.getByText("Start with: Apples are")).toBeVisible();
     await submitVoiceRecording(page);
 
-    // Improved sentence for turn 2
-    await expect(
-      page.getByText("Apples are red and delicious."),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Try again" }).click();
-    await submitVoiceRecording(page);
-    await expect(page.getByText("Good repeat.")).toBeVisible();
-    await page.getByRole("button", { name: "Continue mission" }).click();
-
-    // Mission complete!
+    await expect(page.getByText("Nice answer!")).toBeVisible();
+    await page.getByRole("button", { name: "Continue practice" }).click();
     await expect(page.getByText("Mission complete!")).toBeVisible();
     await expect(
       page.getByText(/Great work! You finished all 2 turns/),
