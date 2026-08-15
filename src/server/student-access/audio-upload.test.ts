@@ -2978,41 +2978,64 @@ describe("multi-pattern preset evaluation", () => {
   });
 
   it("keeps the active pattern on deterministic policy repair", async () => {
+    const patternSensitiveSnapshot = {
+      ...multiPatternPresetSnapshot,
+      turns: multiPatternPresetSnapshot.turns.map((turn) =>
+        turn.turnOrder === 1
+          ? { ...turn, prompt: "What do you enjoy after school?" }
+          : turn,
+      ),
+    };
     mockSupabase = createMockSupabase({
       missionSnapshot:
-        multiPatternPresetSnapshot as unknown as typeof conversationMissionSnapshotFixture,
+        patternSensitiveSnapshot as unknown as typeof conversationMissionSnapshotFixture,
     });
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
     );
+    const soccerInterpretation = [
+      {
+        hangul: "축구",
+        kind: "accented_english" as const,
+        englishReading: "soccer",
+      },
+    ];
     const evaluateOriginal = vi
       .fn()
       .mockResolvedValueOnce({
         ok: true as const,
         evaluation: originalEvaluation({
-          outcome: "correct",
+          outcome: "needs_correction",
           targetPatternAttempted: false,
           correctionNeeded: true,
           correctionSeverity: "material",
-          correctionReason: "grammar",
-          improvedSentence: "I will study.",
+          correctionReason: "fragment_completion",
+          improvedSentence: "I like soccer.",
+          hangulInterpretations: soccerInterpretation,
         }),
       })
       .mockResolvedValueOnce({
         ok: true as const,
-        evaluation: originalEvaluation(),
+        evaluation: originalEvaluation({
+          hangulInterpretations: soccerInterpretation,
+        }),
       });
 
-    await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
-      transcribeAudioFile: successfulTranscriber("I will read."),
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      transcribeAudioFile: successfulTranscriber("soccer 축구", [
+        { hangul: "축구", romanized: "Chukgu" },
+      ]),
       evaluateOriginalTurn: evaluateOriginal,
     });
 
     expect(evaluateOriginal).toHaveBeenCalledTimes(2);
     expect(evaluateOriginal.mock.calls[1]?.[0]).toMatchObject({
-      targetPattern: "I will ___.",
-      targetExample: "I will study.",
-      policyRepair: { violations: expect.any(Array) },
+      targetPattern: "I like ___.",
+      policyRepair: { violations: ["target_pattern_padding"] },
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: { outcome: "accepted_original", requireRepeat: false },
     });
   });
 
