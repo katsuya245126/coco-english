@@ -17,6 +17,17 @@ The live student process from the start or resume of homework to its completion.
 **Preset mission**:
 A mission with an authored sequence of questions, examples, and hints.
 
+**Multi-pattern mission**:
+A preset mission whose authored turns collectively practice more than one target pattern.
+
+**Target pattern**:
+The English sentence frame a student is expected to use when answering one authored turn.
+_Avoid_: Mission pattern, lesson pattern
+
+**Conversation context pattern**:
+The English lesson frame that softly grounds a conversation mission without becoming a per-turn requirement.
+_Avoid_: Target pattern
+
 **Conversation mission**:
 A bounded free conversation with an authored opening question and generated follow-up questions.
 

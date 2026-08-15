@@ -17,7 +17,7 @@ describe("per-turn target pattern migration", () => {
     expect(migration).not.toMatch(/target_pattern text not null/);
   });
 
-  it("backfills preset turns before relaxing the mission column", () => {
+  it("backfills preset turns, relaxes the mission column, then clears it", () => {
     const backfill = migration.indexOf("update public.mission_turn_templates");
     const clearPresetPattern = migration.indexOf("update public.missions");
     const relax = migration.indexOf("alter column target_pattern drop not null");
@@ -30,8 +30,8 @@ describe("per-turn target pattern migration", () => {
     expect(migration).toMatch(
       /update public\.missions[\s\S]*set target_pattern = null[\s\S]*not conversation_mode/,
     );
-    expect(clearPresetPattern).toBeLessThan(relax);
     expect(backfill).toBeLessThan(relax);
+    expect(relax).toBeLessThan(clearPresetPattern);
   });
 
   it("does not rewrite snapshots or change security configuration", () => {

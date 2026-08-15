@@ -13,7 +13,8 @@
 - Use the globally installed read-only `progress` skill when asked for feature status or the next action.
 - Tiny obvious maintenance may proceed without `TASK.md` when it has no product, architecture, security, privacy, student-data, migration, deployment, billing, or cross-system effect.
 - Require user plan approval for consequential work defined by `task-workflow`.
-- Keep one active `TASK.md` per checkout or worktree; archive completed or paused tasks under `docs/tasks/archive/`.
+- Keep one active `TASK.md` per checkout or worktree; keep completed or paused task notes in GitHub issues/PRs or ignored `docs/local/` rather than requiring archive files in the repository.
+- Commit stable product, architecture, security, and operational documentation; keep implementation plans and task-history notes local.
 - On worktree creation or takeover, verify that `TASK.md` matches the current branch and working tree. Replace, pause, or explicitly mark an inherited unrelated task inactive before reporting progress.
 - Reuse discovered specialist skills for brainstorming, planning, debugging, test-first implementation, review, verification, and handoff.
 
@@ -55,4 +56,4 @@ For deterministic student feedback screenshots, start the app on `http://localho
 
 ## Legacy planning records
 
-The former GSD workflow has been retired in favor of the lightweight `task-workflow` and `progress` skills (see "Workflow" above). Its `.planning/` history has been archived out of the working tree to a tarball under `docs/tasks/archive/` and is not an active source of truth. Do not recreate GSD state, hooks, or `.planning/`; if you need historical context, extract the archived tarball for a one-off lookup only.
+The former GSD workflow has been retired in favor of the lightweight `task-workflow` and `progress` skills (see "Workflow" above). Its `.planning/` history is not an active source of truth. Do not recreate GSD state, hooks, or `.planning/`; use the issue tracker or local notes for any historical context.
