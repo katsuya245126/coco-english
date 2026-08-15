@@ -852,7 +852,10 @@ describe("uploadAttemptAudioClip", () => {
 
     expect(result).toMatchObject({
       ok: true,
-      evaluation: { outcome: "teacher_review" },
+      evaluation: {
+        outcome: "retry_original",
+        retryReason: "unclear_meaning",
+      },
     });
     expect(evaluateOriginal).toHaveBeenCalledTimes(2);
   });

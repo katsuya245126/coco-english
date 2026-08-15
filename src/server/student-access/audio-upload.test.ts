@@ -2907,7 +2907,7 @@ describe("multi-pattern preset evaluation", () => {
     process.env.STUDENT_AUDIO_BUCKET = "student-audio";
   });
 
-  it("routes a wrong-pattern recast that invents intent to teacher review", async () => {
+  it("offers one recording retry when an open-preset recast invents intent", async () => {
     mockSupabase = createMockSupabase({
       missionSnapshot:
         multiPatternPresetSnapshot as unknown as typeof conversationMissionSnapshotFixture,
@@ -2942,8 +2942,51 @@ describe("multi-pattern preset evaluation", () => {
     expect(result).toMatchObject({
       ok: true,
       evaluation: {
-        outcome: "teacher_review",
+        outcome: "retry_original",
+        retryReason: "unclear_meaning",
+        ambiguityRetries: 1,
         targetPatternAttempted: false,
+        improvedSentence: null,
+        requireRepeat: false,
+      },
+    });
+  });
+
+  it("routes a second unsafe open-preset recast to teacher review", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot:
+        multiPatternPresetSnapshot as unknown as typeof conversationMissionSnapshotFixture,
+      turnEvaluation: {
+        ...originalEvaluation(),
+        outcome: "retry_original",
+        retryReason: "unclear_meaning",
+        ambiguityRetries: 1,
+        ambiguityHistory: [],
+      },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginal = successfulOriginalEvaluator({
+      outcome: "needs_correction",
+      targetPatternAttempted: false,
+      correctionNeeded: true,
+      correctionSeverity: "material",
+      correctionReason: "grammar",
+      improvedSentence: "I will play soccer.",
+    });
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+      transcribeAudioFile: successfulTranscriber("I like soccer."),
+      evaluateOriginalTurn: evaluateOriginal,
+    });
+
+    expect(evaluateOriginal).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "teacher_review",
+        ambiguityRetries: 1,
         improvedSentence: null,
         requireRepeat: false,
       },
