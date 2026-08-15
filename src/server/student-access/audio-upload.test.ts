@@ -3031,6 +3031,7 @@ describe("multi-pattern preset evaluation", () => {
     expect(evaluateOriginal).toHaveBeenCalledTimes(2);
     expect(evaluateOriginal.mock.calls[1]?.[0]).toMatchObject({
       targetPattern: "I like ___.",
+      targetExample: "I like soccer.",
       policyRepair: { violations: ["target_pattern_padding"] },
     });
     expect(result).toMatchObject({

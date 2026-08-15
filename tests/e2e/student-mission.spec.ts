@@ -121,7 +121,7 @@ test("multi-pattern preset: wrong pattern repeats and active pattern completes",
   await installFakeRecorder(page);
   await mockAudioResponses(page, [
     {
-      transcript: "I will eat bananas.",
+      transcript: "Apples are yellow.",
       evaluation: {
         outcome: "needs_correction",
         improvedSentence: "I like bananas.",
