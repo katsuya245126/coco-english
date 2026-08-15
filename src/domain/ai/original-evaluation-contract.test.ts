@@ -192,6 +192,25 @@ describe("original evaluation contract", () => {
     });
   });
 
+  it("rejects a correct preset outcome that did not attempt the target pattern", () => {
+    expect(
+      validateOriginalEvaluationContract({
+        evaluation: {
+          ...baseEvaluation,
+          targetPatternAttempted: false,
+        },
+        evaluationMode: "preset",
+        answerShape: "open",
+        missionQuestion: "What will you do tomorrow?",
+        targetPattern: "I will ___.",
+        transcript: "I like soccer.",
+      }),
+    ).toEqual({
+      ok: false,
+      violations: ["correct_contract_mismatch"],
+    });
+  });
+
   it("rejects a correct outcome labeled as non-English", () => {
     expect(
       validateOriginalEvaluationContract({

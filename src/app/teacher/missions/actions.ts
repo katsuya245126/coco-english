@@ -7,6 +7,7 @@ import {
   assignMissionSchema,
   missionFormSchema,
   missionIdSchema,
+  type MissionFormInput,
 } from "@/domain/mission/schemas";
 import { openerGenerationInputSchema } from "@/domain/ai/opener-generation";
 import {
@@ -124,7 +125,7 @@ function parseBooleanSetting(
 function missionPayloadFromFormData(formData: FormData) {
   return {
     title: formData.get("title"),
-    targetPattern: formData.get("targetPattern"),
+    targetPattern: formData.get("targetPattern") ?? undefined,
     level: formData.get("level"),
     requiredTurns: formData.get("requiredTurns"),
     turns: parseTurns(formData.get("turns")),
@@ -134,6 +135,12 @@ function missionPayloadFromFormData(formData: FormData) {
       true,
     ),
   };
+}
+
+function omitUndefinedTargetPattern(input: MissionFormInput): MissionFormInput {
+  if (input.targetPattern !== undefined) return input;
+  const { targetPattern: _targetPattern, ...missionInput } = input;
+  return missionInput;
 }
 
 export async function createMissionAction(
@@ -151,7 +158,7 @@ export async function createMissionAction(
 
   try {
     const mission = await createMission({
-      ...parsed.data,
+      ...omitUndefinedTargetPattern(parsed.data),
       teacherId: profile.id,
     });
     revalidatePath("/teacher/missions");
@@ -194,7 +201,7 @@ export async function updateMissionAction(
     }
 
     const mission = await updateMission({
-      ...parsed.data,
+      ...omitUndefinedTargetPattern(parsed.data),
       teacherId: profile.id,
       missionId: missionId.data.missionId,
     });

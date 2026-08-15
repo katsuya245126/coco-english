@@ -153,6 +153,42 @@ const soccerConversationSnapshot = {
   ],
 };
 
+const multiPatternPresetSnapshot = {
+  missionId: "11111111-1111-4111-8111-111111111111",
+  title: "Mixed review",
+  level: "elementary",
+  requiredTurns: 2,
+  characterId: "default-buddy",
+  conversationMode: false,
+  requireCompleteSentenceAnswers: true,
+  turns: [
+    {
+      turnOrder: 1,
+      prompt: "What do you like after school?",
+      targetPattern: "I like ___.",
+      targetExample: "I like soccer.",
+      hintLadder: {
+        tier1: "Start with: I like",
+        tier2: "soccer, reading",
+        tier3: "I like soccer.",
+      },
+      answerShape: "open",
+    },
+    {
+      turnOrder: 2,
+      prompt: "What will you do tomorrow?",
+      targetPattern: "I will ___.",
+      targetExample: "I will study.",
+      hintLadder: {
+        tier1: "Start with: I will",
+        tier2: "study, play",
+        tier3: "I will study.",
+      },
+      answerShape: "open",
+    },
+  ],
+};
+
 function createMockSupabase(options: {
   assignmentFound?: boolean;
   attemptFound?: boolean;
@@ -342,6 +378,20 @@ function fakeIsContentSafe(
 ) {
   return vi.fn(impl);
 }
+
+const repeatEvaluator = () =>
+  vi.fn(async () => ({
+    ok: true as const,
+    evaluation: {
+      version: "ai-eval-v1" as const,
+      outcome: "repeat_accepted" as const,
+      repeatCloseEnough: true,
+      englishLanguage: "english" as const,
+      confidence: "high" as const,
+      reviewReason: null,
+      hangulInterpretations: [],
+    },
+  }));
 
 describe("student audio rate-limit presentation", () => {
   const missionFlowSource = readFileSync(
@@ -2847,6 +2897,239 @@ describe("minimal-effort answer guard (conversation mode)", () => {
   });
 });
 
+describe("multi-pattern preset evaluation", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    mockLog.mockClear();
+    mockConsumeRequestBudget.mockReset();
+    mockConsumeRequestBudget.mockResolvedValue({ allowed: true });
+    mockSupabase = createMockSupabase();
+    process.env.STUDENT_AUDIO_BUCKET = "student-audio";
+  });
+
+  it("evaluates a wrong-pattern answer with the active turn pattern and example", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot:
+        multiPatternPresetSnapshot as unknown as typeof conversationMissionSnapshotFixture,
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginal = successfulOriginalEvaluator({
+      outcome: "needs_correction",
+      targetPatternAttempted: false,
+      correctionNeeded: true,
+      correctionSeverity: "material",
+      correctionReason: "grammar",
+      improvedSentence: "I will play soccer.",
+    });
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+      transcribeAudioFile: successfulTranscriber("I like soccer."),
+      evaluateOriginalTurn: evaluateOriginal,
+    });
+
+    expect(evaluateOriginal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        evaluationMode: "preset",
+        missionQuestion: "What will you do tomorrow?",
+        targetPattern: "I will ___.",
+        targetExample: "I will study.",
+        transcript: "I like soccer.",
+      }),
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "needs_correction",
+        targetPatternAttempted: false,
+        improvedSentence: "I will play soccer.",
+        requireRepeat: true,
+      },
+    });
+  });
+
+  it("accepts the active pattern regardless of sibling turn patterns", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot:
+        multiPatternPresetSnapshot as unknown as typeof conversationMissionSnapshotFixture,
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginal = successfulOriginalEvaluator();
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+      transcribeAudioFile: successfulTranscriber("I will read."),
+      evaluateOriginalTurn: evaluateOriginal,
+    });
+
+    expect(evaluateOriginal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetPattern: "I will ___.",
+        targetExample: "I will study.",
+        transcript: "I will read.",
+      }),
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: { outcome: "accepted_original", requireRepeat: false },
+    });
+  });
+
+  it("keeps the active pattern on deterministic policy repair", async () => {
+    const patternSensitiveSnapshot = {
+      ...multiPatternPresetSnapshot,
+      turns: multiPatternPresetSnapshot.turns.map((turn) =>
+        turn.turnOrder === 1
+          ? { ...turn, prompt: "What do you enjoy after school?" }
+          : turn,
+      ),
+    };
+    mockSupabase = createMockSupabase({
+      missionSnapshot:
+        patternSensitiveSnapshot as unknown as typeof conversationMissionSnapshotFixture,
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const soccerInterpretation = [
+      {
+        hangul: "축구",
+        kind: "accented_english" as const,
+        englishReading: "soccer",
+      },
+    ];
+    const evaluateOriginal = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true as const,
+        evaluation: originalEvaluation({
+          outcome: "needs_correction",
+          targetPatternAttempted: false,
+          correctionNeeded: true,
+          correctionSeverity: "material",
+          correctionReason: "fragment_completion",
+          improvedSentence: "I like soccer.",
+          hangulInterpretations: soccerInterpretation,
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true as const,
+        evaluation: originalEvaluation({
+          hangulInterpretations: soccerInterpretation,
+        }),
+      });
+
+    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      transcribeAudioFile: successfulTranscriber("soccer 축구", [
+        { hangul: "축구", romanized: "Chukgu" },
+      ]),
+      evaluateOriginalTurn: evaluateOriginal,
+    });
+
+    expect(evaluateOriginal).toHaveBeenCalledTimes(2);
+    expect(evaluateOriginal.mock.calls[1]?.[0]).toMatchObject({
+      targetPattern: "I like ___.",
+      targetExample: "I like soccer.",
+      policyRepair: { violations: ["target_pattern_padding"] },
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: { outcome: "accepted_original", requireRepeat: false },
+    });
+  });
+
+  it("evaluates a correction repeat with the active pattern and improved sentence", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot:
+        multiPatternPresetSnapshot as unknown as typeof conversationMissionSnapshotFixture,
+      turnImprovedSentence: "I will play soccer.",
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateRepeat = repeatEvaluator();
+
+    const result = await uploadAttemptAudioClip(
+      {
+        ...audioInput({ turnOrder: 2 }),
+        clipKind: "repeat_attempt" as const,
+      },
+      {
+        transcribeAudioFile: successfulTranscriber("I will play football."),
+        evaluateRepeatTurn: evaluateRepeat,
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(evaluateRepeat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        improvedSentence: "I will play soccer.",
+        targetPattern: "I will ___.",
+        repeatTranscript: "I will play football.",
+      }),
+    );
+  });
+
+  it("falls back to the active turn example when no improved sentence was stored", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot:
+        multiPatternPresetSnapshot as unknown as typeof conversationMissionSnapshotFixture,
+      turnImprovedSentence: null,
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateRepeat = repeatEvaluator();
+
+    await uploadAttemptAudioClip(
+      {
+        ...audioInput({ turnOrder: 2 }),
+        clipKind: "repeat_attempt" as const,
+      },
+      {
+        transcribeAudioFile: successfulTranscriber("I will read."),
+        evaluateRepeatTurn: evaluateRepeat,
+      },
+    );
+
+    expect(evaluateRepeat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        improvedSentence: "I will study.",
+        targetPattern: "I will ___.",
+      }),
+    );
+  });
+
+  it("uses the saved mission fallback for a historical preset snapshot", async () => {
+    const historicalSnapshot = {
+      ...multiPatternPresetSnapshot,
+      targetPattern: "I like ___.",
+      turns: multiPatternPresetSnapshot.turns.map(
+        ({ targetPattern: _targetPattern, ...turn }) => turn,
+      ),
+    };
+    mockSupabase = createMockSupabase({
+      missionSnapshot:
+        historicalSnapshot as unknown as typeof conversationMissionSnapshotFixture,
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginal = successfulOriginalEvaluator();
+
+    await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+      transcribeAudioFile: successfulTranscriber("I like reading."),
+      evaluateOriginalTurn: evaluateOriginal,
+    });
+
+    expect(evaluateOriginal).toHaveBeenCalledWith(
+      expect.objectContaining({ targetPattern: "I like ___." }),
+    );
+  });
+});
+
 describe("repeat write preserves the original evaluation (2026-07-25)", () => {
   const storedOriginalEvaluation = {
     version: "ai-eval-v1",
@@ -2862,20 +3145,6 @@ describe("repeat write preserves the original evaluation (2026-07-25)", () => {
     improvedSentence: "I like adventure cartoons.",
     requireRepeat: true,
   };
-
-  const repeatEvaluator = () =>
-    vi.fn(async () => ({
-      ok: true as const,
-      evaluation: {
-        version: "ai-eval-v1" as const,
-        outcome: "repeat_accepted" as const,
-        repeatCloseEnough: true,
-        englishLanguage: "english" as const,
-        confidence: "high" as const,
-        reviewReason: null,
-        hangulInterpretations: [],
-      },
-    }));
 
   function findRepeatTurnUpdate() {
     const turnUpdate = mockSupabase.operations.find(

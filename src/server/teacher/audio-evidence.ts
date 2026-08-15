@@ -11,7 +11,10 @@ import {
   type PronunciationStarBand,
   type WordScore,
 } from "@/domain/pronunciation/scoring";
-import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
+import {
+  interpretMissionSnapshot,
+  resolveMissionSnapshotTargetPattern,
+} from "@/domain/mission/mission-snapshot";
 
 const DEFAULT_AUDIO_BUCKET = "student-audio";
 const SIGNED_AUDIO_URL_TTL_SECONDS = 300;
@@ -117,6 +120,7 @@ export type AttemptTurnEvidence = {
   repeatTranscript: string | null;
   /** Learner-facing reading, or null when it could not be vouched for. */
   repeatDisplayTranscript: string | null;
+  targetPattern: string | null;
   meaningResult: "Understood" | "Try again" | "Needs teacher check";
   targetPatternResult:
     | "Target pattern used"
@@ -184,6 +188,7 @@ function mapAttemptMetadata(row: AttemptOwnershipRow) {
 
 type AttemptMissionContext = {
   questionsByOrder: Map<number, string>;
+  targetPatternsByOrder: Map<number, string>;
   conversationMode: boolean;
 };
 
@@ -196,7 +201,11 @@ function readAttemptMissionContext(
   );
 
   if (snapshotResult.kind === "invalid") {
-    return { questionsByOrder: new Map(), conversationMode: false };
+    return {
+      questionsByOrder: new Map(),
+      targetPatternsByOrder: new Map(),
+      conversationMode: false,
+    };
   }
 
   const questionsByOrder = new Map(
@@ -205,8 +214,24 @@ function readAttemptMissionContext(
       turn.prompt,
     ] as const),
   );
+  const targetPatternsByOrder = new Map<number, string>();
+  if (
+    snapshotResult.kind === "complete" &&
+    !snapshotResult.snapshot.conversationMode
+  ) {
+    for (const turn of snapshotResult.snapshot.turns) {
+      const targetPattern = resolveMissionSnapshotTargetPattern(
+        snapshotResult.snapshot,
+        turn.turnOrder,
+      );
+      if (targetPattern) {
+        targetPatternsByOrder.set(turn.turnOrder, targetPattern);
+      }
+    }
+  }
   return {
     questionsByOrder,
+    targetPatternsByOrder,
     conversationMode:
       snapshotResult.kind === "complete" &&
       snapshotResult.snapshot.conversationMode,
@@ -395,6 +420,7 @@ function mapTurn(
   row: AttemptTurnRow,
   clipsByTurnId: Map<string, AttemptAudioClipEvidence[]>,
   questionsByOrder: Map<number, string>,
+  targetPatternsByOrder: Map<number, string>,
 ): AttemptTurnEvidence {
   return {
     id: row.id,
@@ -413,8 +439,9 @@ function mapTurn(
       ? buildLearnerTranscript(
           row.repeat_transcript,
           readInterpretations(readEvaluation(row)?.hangulInterpretations),
-        )
+      )
       : null,
+    targetPattern: targetPatternsByOrder.get(row.turn_order) ?? null,
     meaningResult: mapMeaningResult(row),
     targetPatternResult: mapTargetPatternResult(row),
     repeatResult: mapRepeatResult(row),
@@ -556,7 +583,12 @@ export async function getAttemptEvidenceForTeacher(input: {
     highestHintLevel: metadata.highestHintLevel,
     conversationMode: missionContext.conversationMode,
     turns: turnRows.map((turn) =>
-      mapTurn(turn, clipsByTurnId, questionsByOrder),
+      mapTurn(
+        turn,
+        clipsByTurnId,
+        questionsByOrder,
+        missionContext.targetPatternsByOrder,
+      ),
     ),
   };
 }

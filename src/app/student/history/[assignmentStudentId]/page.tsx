@@ -40,7 +40,10 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
   }
   if (!recap) notFound();
 
-  if (recap.conversationMode || recap.targetPattern === null) {
+  const hasPresetPatterns =
+    !recap.conversationMode &&
+    recap.turns.some((turn) => turn.targetPattern !== null);
+  if (!hasPresetPatterns) {
     return <HomeworkReview recap={recap} studentDisplayName={unlock.displayName} />;
   }
 

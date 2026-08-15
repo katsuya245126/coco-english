@@ -17,6 +17,7 @@ const baseFormFields = {
 
 const oneTurn = {
   prompt: "What would you like to order?",
+  targetPattern: "Can I have a...?",
   targetExample: "Can I have a burger, please?",
   hintLadder: {
     tier1: "Can I have a...?",
@@ -186,6 +187,104 @@ describe("missionFormSchema", () => {
 
     expect(form.requireCompleteSentenceAnswers).toBe(false);
   });
+
+  it("accepts a preset with only per-turn target patterns", () => {
+    const parsed = missionFormSchema.parse({
+      title: "Mixed review",
+      level: "elementary",
+      requiredTurns: 2,
+      conversationMode: false,
+      turns: [
+        { ...oneTurn, targetPattern: "I like ___ing." },
+        {
+          ...oneTurn,
+          prompt: "What will you do tomorrow?",
+          targetPattern: "I will ___.",
+          targetExample: "I will study.",
+        },
+      ],
+    });
+
+    expect(parsed.targetPattern).toBeUndefined();
+    expect(parsed.turns.map((turn) => turn.targetPattern)).toEqual([
+      "I like ___ing.",
+      "I will ___.",
+    ]);
+  });
+
+  it("allows preset turns to repeat any nonempty teacher-authored notation", () => {
+    const result = missionFormSchema.safeParse({
+      title: "Repeated review",
+      level: "elementary",
+      requiredTurns: 2,
+      conversationMode: false,
+      turns: [
+        { ...oneTurn, targetPattern: "Past tense verb" },
+        {
+          ...oneTurn,
+          prompt: "What did your friend do?",
+          targetPattern: "Past tense verb",
+        },
+      ],
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a preset turn without a target pattern", () => {
+    const { targetPattern: _pattern, ...turnWithoutPattern } = oneTurn;
+    const result = missionFormSchema.safeParse({
+      title: "Missing pattern",
+      level: "elementary",
+      requiredTurns: 1,
+      conversationMode: false,
+      turns: [turnWithoutPattern],
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({ path: ["turns", 0, "targetPattern"] }),
+      );
+    }
+  });
+
+  it("rejects a preset mission-level target pattern", () => {
+    const result = missionFormSchema.safeParse({
+      ...baseFormFields,
+      requiredTurns: 1,
+      conversationMode: false,
+      turns: [oneTurn],
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({ path: ["targetPattern"] }),
+      );
+    }
+  });
+
+  it("requires conversation context without requiring an opener turn pattern", () => {
+    const { targetPattern: _pattern, ...opener } = oneTurn;
+    const valid = missionFormSchema.safeParse({
+      ...baseFormFields,
+      targetPattern: "Can I have a...?",
+      requiredTurns: 3,
+      conversationMode: true,
+      turns: [opener],
+    });
+    const missingContext = missionFormSchema.safeParse({
+      title: "Cafe chat",
+      level: "elementary",
+      requiredTurns: 3,
+      conversationMode: true,
+      turns: [opener],
+    });
+
+    expect(valid.success).toBe(true);
+    expect(missingContext.success).toBe(false);
+  });
 });
 
 describe("missionSnapshotSchema", () => {
@@ -253,6 +352,30 @@ describe("missionSnapshotSchema", () => {
 
     expect(result.success).toBe(false);
   });
+
+  it("rejects a preset snapshot with neither turn nor historical mission patterns", () => {
+    const result = missionSnapshotSchema.safeParse({
+      ...baseSnapshotFields,
+      targetPattern: undefined,
+      requiredTurns: 1,
+      conversationMode: false,
+      turns: makeSnapshotTurns(1),
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a conversation snapshot without mission-level context", () => {
+    const result = missionSnapshotSchema.safeParse({
+      ...baseSnapshotFields,
+      targetPattern: undefined,
+      requiredTurns: 3,
+      conversationMode: true,
+      turns: makeSnapshotTurns(1),
+    });
+
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("answerShape on turns", () => {
@@ -282,5 +405,20 @@ describe("answerShape on turns", () => {
     const parsed = missionSnapshotTurnSchema.parse({ ...baseTurn, turnOrder: 1 });
     const shape: AnswerShape = parsed.answerShape;
     expect(shape).toBe("open");
+  });
+
+  it("accepts and trims an optional turn target pattern", () => {
+    const parsed = missionTurnInputSchema.parse({
+      ...baseTurn,
+      targetPattern: "  I like ___ing.  ",
+    });
+
+    expect(parsed.targetPattern).toBe("I like ___ing.");
+  });
+
+  it("keeps target patterns optional until preset authoring moves in ticket 42", () => {
+    expect(missionTurnInputSchema.parse(baseTurn)).not.toHaveProperty(
+      "targetPattern",
+    );
   });
 });

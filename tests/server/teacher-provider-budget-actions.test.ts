@@ -170,6 +170,67 @@ describe("teacher provider budget actions", () => {
     expect(mockCreateMission).toHaveBeenCalledTimes(1);
   });
 
+  it("accepts a preset payload without a mission-level pattern", async () => {
+    const formData = validMissionFormData();
+    formData.set("conversationMode", "false");
+    formData.set("requiredTurns", "1");
+    formData.delete("targetPattern");
+    formData.set(
+      "turns",
+      JSON.stringify([
+        {
+          prompt: "What would you like to eat?",
+          targetPattern: "I would like ___.",
+          targetExample: "I would like pizza.",
+          answerShape: "open",
+          hintLadder: {
+            tier1: "Try I would like...",
+            tier2: "pizza",
+            tier3: "I would like pizza.",
+          },
+        },
+      ]),
+    );
+
+    await expect((await actions()).createMissionAction(formData)).resolves.toMatchObject({
+      ok: true,
+    });
+    expect(mockCreateMission).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationMode: false }),
+    );
+    expect(mockCreateMission.mock.calls[0]?.[0]).not.toHaveProperty(
+      "targetPattern",
+    );
+  });
+
+  it("rejects a preset payload with a mission-level pattern", async () => {
+    const formData = validMissionFormData();
+    formData.set("conversationMode", "false");
+    formData.set("requiredTurns", "1");
+    formData.set(
+      "turns",
+      JSON.stringify([
+        {
+          prompt: "What would you like to eat?",
+          targetPattern: "I would like ___.",
+          targetExample: "I would like pizza.",
+          answerShape: "open",
+          hintLadder: {
+            tier1: "Try I would like...",
+            tier2: "pizza",
+            tier3: "I would like pizza.",
+          },
+        },
+      ]),
+    );
+
+    await expect((await actions()).createMissionAction(formData)).resolves.toEqual({
+      ok: false,
+      error: "Preset missions do not use a mission-level target pattern.",
+    });
+    expect(mockCreateMission).not.toHaveBeenCalled();
+  });
+
   it("checks mission ownership before consuming update budget", async () => {
     mockGetMissionForTeacher.mockResolvedValue(null);
 

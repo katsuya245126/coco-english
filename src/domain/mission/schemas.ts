@@ -26,6 +26,7 @@ export type HintLadder = z.infer<typeof hintLadderSchema>;
 
 export const missionTurnInputSchema = z.object({
   prompt: z.string().trim().min(1, "Buddy question is required."),
+  targetPattern: z.string().trim().min(1).max(160).optional(),
   targetExample: z
     .string()
     .trim()
@@ -46,8 +47,9 @@ export const missionFormSchema = z
     targetPattern: z
       .string()
       .trim()
-      .min(1, "Target pattern is required.")
-      .max(160, "Target pattern is too long."),
+      .min(1, "Conversation context pattern is required.")
+      .max(160, "Conversation context pattern is too long.")
+      .optional(),
     level: missionLevelSchema,
     requiredTurns: z.coerce
       .number()
@@ -62,6 +64,36 @@ export const missionFormSchema = z
     conversationMode: z.boolean().default(false),
     requireCompleteSentenceAnswers: z.boolean().default(true),
     turns: z.array(missionTurnInputSchema).default([]),
+  })
+  .superRefine((value, context) => {
+    if (value.conversationMode) {
+      if (!value.targetPattern) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["targetPattern"],
+          message: "Conversation context pattern is required.",
+        });
+      }
+      return;
+    }
+
+    if (value.targetPattern !== undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["targetPattern"],
+        message: "Preset missions do not use a mission-level target pattern.",
+      });
+    }
+
+    value.turns.forEach((turn, index) => {
+      if (!turn.targetPattern) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["turns", index, "targetPattern"],
+          message: "Turn target pattern is required.",
+        });
+      }
+    });
   })
   .refine(
     (value) =>
@@ -100,17 +132,64 @@ export const missionSnapshotTurnSchema = missionTurnInputSchema.extend({
 
 export type MissionSnapshotTurn = z.infer<typeof missionSnapshotTurnSchema>;
 
+type MissionSnapshotBase = {
+  missionId: string;
+  title: string;
+  level: MissionLevel;
+  requiredTurns: number;
+  characterId: string;
+  requireCompleteSentenceAnswers: boolean;
+};
+
+export type PresetMissionSnapshot = MissionSnapshotBase & {
+  conversationMode: false;
+  targetPattern?: string;
+  turns: Array<MissionSnapshotTurn & { targetPattern: string }>;
+};
+
+export type ConversationMissionSnapshot = MissionSnapshotBase & {
+  conversationMode: true;
+  targetPattern: string;
+  turns: MissionSnapshotTurn[];
+};
+
+export type MissionSnapshot =
+  | PresetMissionSnapshot
+  | ConversationMissionSnapshot;
+
 export const missionSnapshotSchema = z
   .object({
     missionId: z.string().uuid("Invalid mission reference."),
     title: z.string().trim().min(1),
-    targetPattern: z.string().trim().min(1),
+    targetPattern: z.string().trim().min(1).max(160).optional(),
     level: missionLevelSchema,
     requiredTurns: z.number().int().min(1),
     characterId: z.string().trim().min(1).default(DEFAULT_CHARACTER_ID),
     conversationMode: z.boolean().default(false),
     requireCompleteSentenceAnswers: z.boolean().default(true),
     turns: z.array(missionSnapshotTurnSchema).default([]),
+  })
+  .superRefine((snapshot, context) => {
+    if (snapshot.conversationMode) {
+      if (!snapshot.targetPattern) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["targetPattern"],
+          message: "Conversation context pattern is required.",
+        });
+      }
+      return;
+    }
+
+    snapshot.turns.forEach((turn, index) => {
+      if (!turn.targetPattern && !snapshot.targetPattern) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["turns", index, "targetPattern"],
+          message: "Turn target pattern is required.",
+        });
+      }
+    });
   })
   .refine(
     (value) =>
@@ -130,9 +209,23 @@ export const missionSnapshotSchema = z
       path: ["turns"],
       message: "Snapshot Coco opening line is required.",
     },
+  )
+  .transform<MissionSnapshot>((snapshot) =>
+    snapshot.conversationMode
+      ? {
+          ...snapshot,
+          conversationMode: true,
+          targetPattern: snapshot.targetPattern!,
+        }
+      : {
+          ...snapshot,
+          conversationMode: false,
+          turns: snapshot.turns.map((turn) => ({
+            ...turn,
+            targetPattern: turn.targetPattern ?? snapshot.targetPattern!,
+          })),
+        },
   );
-
-export type MissionSnapshot = z.infer<typeof missionSnapshotSchema>;
 
 export const missionIdSchema = z.object({
   missionId: z.string().uuid("Invalid mission reference."),

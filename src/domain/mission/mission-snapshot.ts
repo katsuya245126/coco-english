@@ -64,3 +64,14 @@ export function interpretMissionSnapshot(
     },
   };
 }
+
+export function resolveMissionSnapshotTargetPattern(
+  snapshot: MissionSnapshot,
+  turnOrder: number,
+): string | null {
+  if (snapshot.conversationMode) return snapshot.targetPattern;
+  return (
+    snapshot.turns.find((turn) => turn.turnOrder === turnOrder)
+      ?.targetPattern ?? null
+  );
+}

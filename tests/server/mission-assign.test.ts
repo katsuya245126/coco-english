@@ -36,6 +36,7 @@ const turnRows = [
     id: "turn-1",
     turn_order: 1,
     prompt: "What food do you like?",
+    target_pattern: "I like ___.",
     target_example: "I like apples.",
     hint_ladder: {
       tier1: "I like ___.",
@@ -67,11 +68,11 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
     expect(snapshot).toMatchObject({
       missionId: missionRow.id,
       title: "Food likes",
-      targetPattern: "I like ___.",
       level: "elementary",
       requiredTurns: 1,
       characterId: "default-buddy",
     });
+    expect(snapshot).not.toHaveProperty("targetPattern");
     expect(snapshot).not.toHaveProperty("topic");
     expect(snapshot).not.toHaveProperty("scenePremise");
     expect(snapshot.turns[0]).toMatchObject({
@@ -90,6 +91,7 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
           id: "t1",
           turn_order: 1,
           prompt: "q",
+          target_pattern: "I like ___.",
           target_example: "a",
           hint_ladder: { tier1: "x", tier2: "y", tier3: "z" },
           answer_shape: "fixed",
@@ -98,6 +100,58 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
     } as never);
 
     expect(snapshot.turns[0].answerShape).toBe("fixed");
+  });
+
+  it("builds a preset snapshot with per-turn patterns and no mission-level pattern", () => {
+    const snapshot = buildMissionSnapshot({
+      mission: missionRow,
+      turns: [{ ...turnRows[0], target_pattern: "I like ___." }],
+    });
+
+    expect(snapshot).not.toHaveProperty("targetPattern");
+    expect(snapshot.turns[0].targetPattern).toBe("I like ___.");
+  });
+
+  it("copies distinct preset turn patterns into a future immutable snapshot", () => {
+    const sourceTurns = [
+      { ...turnRows[0], target_pattern: "I like ___." },
+      {
+        ...turnRows[0],
+        id: "turn-2",
+        turn_order: 2,
+        prompt: "What will you do tomorrow?",
+        target_pattern: "I will ___.",
+        target_example: "I will study.",
+      },
+    ];
+    const snapshot = buildMissionSnapshot({
+      mission: { ...missionRow, target_pattern: null, required_turns: 2 },
+      turns: sourceTurns,
+    });
+    const stored = JSON.parse(JSON.stringify(snapshot));
+
+    sourceTurns[0].target_pattern = "Changed later";
+
+    expect(stored).not.toHaveProperty("targetPattern");
+    expect(stored.turns.map((turn: { targetPattern: string }) => turn.targetPattern)).toEqual([
+      "I like ___.",
+      "I will ___.",
+    ]);
+  });
+
+  it("keeps conversation context at mission level", () => {
+    const snapshot = buildMissionSnapshot({
+      mission: {
+        ...missionRow,
+        conversation_mode: true,
+        required_turns: 3,
+        target_pattern: "I like ___.",
+      },
+      turns: [{ ...turnRows[0], target_pattern: null }],
+    });
+
+    expect(snapshot.targetPattern).toBe("I like ___.");
+    expect(snapshot.turns[0]).not.toHaveProperty("targetPattern");
   });
 
   it("calls the RPC with server-built snapshot, optional D-04 due date, and no browser snapshot input", async () => {
@@ -115,11 +169,27 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
           eq: vi.fn(() => ({
             eq: vi.fn(() => ({
               maybeSingle: vi.fn(async () => ({
-                data: table === "missions" ? missionRow : null,
+                data:
+                  table === "missions"
+                    ? { ...missionRow, target_pattern: null, required_turns: 2 }
+                    : null,
                 error: null,
               })),
             })),
-            order: vi.fn(async () => ({ data: turnRows, error: null })),
+            order: vi.fn(async () => ({
+              data: [
+                { ...turnRows[0], target_pattern: "I like ___." },
+                {
+                  ...turnRows[0],
+                  id: "turn-2",
+                  turn_order: 2,
+                  prompt: "What will you do tomorrow?",
+                  target_pattern: "I will ___.",
+                  target_example: "I will study.",
+                },
+              ],
+              error: null,
+            })),
           })),
         })),
       })),
@@ -146,6 +216,22 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
         }),
       }),
     );
+    const rpcArgs = rpc.mock.calls[0] as unknown as [
+      string,
+      {
+        p_mission_snapshot: {
+          targetPattern?: string;
+          turns: Array<{ targetPattern: string }>;
+        };
+      },
+    ];
+    const rpcSnapshot = rpcArgs[1].p_mission_snapshot;
+
+    expect(rpcSnapshot).not.toHaveProperty("targetPattern");
+    expect(rpcSnapshot.turns.map((turn) => turn.targetPattern)).toEqual([
+      "I like ___.",
+      "I will ___.",
+    ]);
   });
 
   it("warms predictable Coco voice lines from the assignment snapshot after assignment succeeds", async () => {

@@ -43,6 +43,21 @@ const completeInput = {
   ],
 };
 
+const presetInput = {
+  ...completeInput,
+  targetPattern: undefined,
+  requiredTurns: 2,
+  turns: [
+    { ...completeInput.turns[0], targetPattern: "I ___ at seven." },
+    {
+      ...completeInput.turns[0],
+      prompt: "What will you do tomorrow?",
+      targetPattern: "I will ___.",
+      targetExample: "I will study.",
+    },
+  ],
+};
+
 describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -65,12 +80,15 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
                   table === "missions"
                     ? {
                         id: missionId,
-                        title: completeInput.title,
-                        target_pattern: completeInput.targetPattern,
+                        title: presetInput.title,
+                        target_pattern: null,
                         topic: "",
-                        level: completeInput.level,
-                        required_turns: completeInput.requiredTurns,
+                        level: presetInput.level,
+                        required_turns: presetInput.requiredTurns,
                         character_id: "default-buddy",
+                        conversation_mode: false,
+                        require_complete_sentence_answers: true,
+                        archived_at: null,
                       }
                     : { id: "turn-1" },
                 error: null,
@@ -82,7 +100,7 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
     };
     mockSupabase = supabase;
 
-    await createMission(completeInput);
+    await createMission(presetInput);
 
     expect(calls.map((call) => call.table)).toEqual([
       "missions",
@@ -90,9 +108,15 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
     ]);
     expect(calls.some((call) => call.table === "questions")).toBe(false);
     expect(calls.find((call) => call.table === "missions")?.payload).toMatchObject({
+      target_pattern: null,
       require_complete_sentence_answers: true,
       topic: "",
     });
+    expect(calls.find((call) => call.table === "mission_turn_templates")?.payload)
+      .toMatchObject([
+        { turn_order: 1, target_pattern: "I ___ at seven." },
+        { turn_order: 2, target_pattern: "I will ___." },
+      ]);
     expect(calls.find((call) => call.table === "missions")?.payload).not.toHaveProperty(
       "scene_premise",
     );
@@ -102,10 +126,10 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
     let missionPayload: unknown;
     const missionRow = {
       id: "mission-1",
-      title: completeInput.title,
-      target_pattern: completeInput.targetPattern,
-      level: completeInput.level,
-      required_turns: completeInput.requiredTurns,
+      title: presetInput.title,
+      target_pattern: null,
+      level: presetInput.level,
+      required_turns: presetInput.requiredTurns,
       character_id: "default-buddy",
       conversation_mode: false,
       require_complete_sentence_answers: true,
@@ -138,7 +162,7 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
       }),
     };
 
-    await updateMission({ ...completeInput, missionId: "mission-1" });
+    await updateMission({ ...presetInput, missionId: "mission-1" });
 
     expect(missionPayload).not.toHaveProperty("topic");
     expect(missionPayload).not.toHaveProperty("scene_premise");
@@ -146,7 +170,7 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
   });
 
   it("rejects D-02 required turn count mismatch on create and update", async () => {
-    const badInput = { ...completeInput, requiredTurns: 2 };
+    const badInput = { ...presetInput, requiredTurns: 1 };
 
     await expect(createMission(badInput)).rejects.toThrow(/required turns/i);
     await expect(
@@ -446,6 +470,44 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
       answer_shape: "fixed",
     } as never);
     expect(mapped.answerShape).toBe("fixed");
+  });
+
+  it("round-trips an optional target pattern on turn rows", () => {
+    const rows = toTurnRows("mission-1", [
+      {
+        prompt: "What do you do after school?",
+        targetPattern: "I like ___ing.",
+        targetExample: "I like reading.",
+        hintLadder: {
+          tier1: "Try I like...",
+          tier2: "read",
+          tier3: "I like reading.",
+        },
+        answerShape: "open",
+      },
+    ]);
+
+    expect(rows[0].target_pattern).toBe("I like ___ing.");
+    expect(
+      mapTurn({
+        id: "t1",
+        turn_order: 1,
+        prompt: "What do you do after school?",
+        target_pattern: "I like ___ing.",
+        target_example: "I like reading.",
+        hint_ladder: {
+          tier1: "Try I like...",
+          tier2: "read",
+          tier3: "I like reading.",
+        },
+        answer_shape: "open",
+      } as never).targetPattern,
+    ).toBe("I like ___ing.");
+  });
+
+  it("does not derive a preset turn pattern from a mission-level value", () => {
+    const rows = toTurnRows("mission-1", completeInput.turns);
+    expect(rows[0].target_pattern).toBeNull();
   });
 
   it("applies classified shapes to turns in order", () => {

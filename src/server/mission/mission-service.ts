@@ -13,7 +13,7 @@ import type { Json } from "@/lib/db/types";
 export type TeacherMission = {
   id: string;
   title: string;
-  targetPattern: string;
+  targetPattern: string | null;
   level: MissionLevel;
   requiredTurns: number;
   characterId: string;
@@ -45,7 +45,7 @@ export type MissionWithTurns = TeacherMission & {
 type MissionRow = {
   id: string;
   title: string;
-  target_pattern: string;
+  target_pattern: string | null;
   level: string;
   required_turns: number;
   character_id: string;
@@ -70,6 +70,7 @@ type TurnRow = {
   id: string;
   turn_order: number;
   prompt: string;
+  target_pattern: string | null;
   target_example: string;
   hint_ladder: Json;
   answer_shape: string;
@@ -127,6 +128,7 @@ export function mapTurn(row: TurnRow): MissionTurn {
     id: row.id,
     turnOrder: row.turn_order,
     prompt: row.prompt,
+    ...(row.target_pattern ? { targetPattern: row.target_pattern } : {}),
     targetExample: row.target_example,
     hintLadder: normalizeHintLadder(row.hint_ladder),
     answerShape: row.answer_shape === "fixed" ? "fixed" : "open",
@@ -136,7 +138,7 @@ export function mapTurn(row: TurnRow): MissionTurn {
 function toMissionWrite(input: MissionFormInput) {
   return {
     title: input.title,
-    target_pattern: input.targetPattern,
+    target_pattern: input.conversationMode ? input.targetPattern ?? null : null,
     level: input.level,
     required_turns: input.requiredTurns,
     character_id: DEFAULT_CHARACTER_ID,
@@ -161,11 +163,15 @@ export function applyAnswerShapes(
   return turns.map((turn, i) => ({ ...turn, answerShape: shapes[i] }));
 }
 
-export function toTurnRows(missionId: string, turns: MissionTurnInput[]) {
+export function toTurnRows(
+  missionId: string,
+  turns: MissionTurnInput[],
+) {
   return turns.map((turn, index) => ({
     mission_id: missionId,
     turn_order: index + 1,
     prompt: turn.prompt,
+    target_pattern: turn.targetPattern ?? null,
     target_example: turn.targetExample,
     hint_ladder: turn.hintLadder as unknown as Json,
     answer_shape: turn.answerShape,
@@ -410,7 +416,9 @@ export async function getMissionForTeacher(input: {
 
   const turns = await supabase
     .from("mission_turn_templates")
-    .select("id, turn_order, prompt, target_example, hint_ladder, answer_shape")
+    .select(
+      "id, turn_order, prompt, target_pattern, target_example, hint_ladder, answer_shape",
+    )
     .eq("mission_id", input.missionId)
     .order("turn_order", { ascending: true });
 

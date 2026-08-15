@@ -382,4 +382,17 @@ describe("no-attempt assignment evidence source", () => {
     expect(review).toContain("/teacher/assignment-students/${entry.id}");
     expect(review).toContain("View assignment");
   });
+
+  it("authors preset patterns on turns and conversation context only in conversation mode", () => {
+    const form = source("src/components/teacher/MissionForm.tsx");
+    const turns = source("src/components/teacher/TurnEditor.tsx");
+
+    expect(turns).toContain('id={`turn-${index}-target-pattern`}');
+    expect(turns).toContain('label="Target pattern"');
+    expect(turns).toContain('targetPattern: ""');
+    expect(form).toContain('id="conversation-context-pattern"');
+    expect(form).toContain('label="Conversation context pattern"');
+    expect(form).not.toContain('id="target-pattern"');
+    expect(form).toContain("targetPattern: turn.targetPattern");
+  });
 });

@@ -4,15 +4,46 @@ import { getAssignmentStudentEvidenceForTeacher } from "@/server/teacher/assignm
 const snapshot = {
   missionId: "11111111-1111-4111-8111-111111111111",
   title: "July 1st Homework",
-  targetPattern: "I like ...",
   level: "elementary",
-  requiredTurns: 1,
+  requiredTurns: 2,
   characterId: "default-buddy",
+  conversationMode: false,
+  turns: [
+    {
+      turnOrder: 1,
+      prompt: "What do you like?",
+      targetPattern: "I like ___.",
+      targetExample: "I like apples.",
+      hintLadder: { tier1: "I like ...", tier2: "apples", tier3: "I like apples." },
+    },
+    {
+      turnOrder: 2,
+      prompt: "What will you do?",
+      targetPattern: "I will ___.",
+      targetExample: "I will play soccer.",
+      hintLadder: { tier1: "I will ...", tier2: "play soccer", tier3: "I will play soccer." },
+    },
+  ],
+};
+
+const historicalSnapshot = {
+  ...snapshot,
+  targetPattern: "I am going to...",
+  turns: snapshot.turns.map(({ targetPattern: _targetPattern, ...turn }) => turn),
+};
+
+const conversationSnapshot = {
+  ...snapshot,
+  missionId: "33333333-3333-4333-8333-333333333333",
+  title: "Weekend conversation",
+  targetPattern: "I am going to...",
+  requiredTurns: 1,
+  conversationMode: true,
   turns: [{
     turnOrder: 1,
-    prompt: "What do you like?",
-    targetExample: "I like apples.",
-    hintLadder: { tier1: "I like ...", tier2: "apples", tier3: "I like apples." },
+    prompt: "What are you doing this weekend?",
+    targetExample: "I am going to play soccer.",
+    hintLadder: { tier1: "Use a full sentence.", tier2: "Choose an activity.", tier3: "I am going to play soccer." },
   }],
 };
 
@@ -51,17 +82,41 @@ describe("assignment student evidence", () => {
       client as never,
     );
 
-    expect(result).toEqual({
+    expect(result).not.toHaveProperty("targetPattern");
+    expect(result).toMatchObject({
       assignmentStudentId: "as-1", studentName: "test", missionTitle: "July 1st Homework",
       status: "assigned", statusLabel: "Not started", submittedLabel: "Not yet submitted",
       attemptCount: 0, highestHintLabel: "No hints used", classId: "class-1",
       className: "Test class", assignmentId: "assignment-1", dismissedAt: null,
-      // Mission content is carried through so a no-attempt row can show the
-      // assigned work instead of a grid of empty stats.
-      targetPattern: "I like ...",
-      turns: [{ turnOrder: 1, prompt: "What do you like?", targetExample: "I like apples." }],
+      turns: [
+        { turnOrder: 1, prompt: "What do you like?", targetPattern: "I like ___.", targetExample: "I like apples." },
+        { turnOrder: 2, prompt: "What will you do?", targetPattern: "I will ___.", targetExample: "I will play soccer." },
+      ],
     });
+    expect(result?.turns.map(({ turnOrder, targetPattern }) => ({ turnOrder, targetPattern }))).toEqual([
+      { turnOrder: 1, targetPattern: "I like ___." },
+      { turnOrder: 2, targetPattern: "I will ___." },
+    ]);
     expect(filters).toContainEqual(["assignments.classes.teacher_id", "teacher-1"]);
+  });
+
+  it("falls back a historical complete preset pattern onto every turn", async () => {
+    const { client } = evidenceClient({
+      id: "as-1", status: "assigned", submitted_at: null, latest_attempt_id: null, dismissed_at: null,
+      students: { display_name: "test" },
+      assignments: { id: "assignment-1", title: "Assignment title", mission_snapshot: historicalSnapshot, classes: { id: "class-1", name: "Test class", teacher_id: "teacher-1" } },
+    });
+
+    const result = await getAssignmentStudentEvidenceForTeacher(
+      { teacherId: "teacher-1", assignmentStudentId: "as-1" },
+      client as never,
+    );
+
+    expect(result).not.toHaveProperty("targetPattern");
+    expect(result?.turns.map(({ turnOrder, targetPattern }) => ({ turnOrder, targetPattern }))).toEqual([
+      { turnOrder: 1, targetPattern: "I am going to..." },
+      { turnOrder: 2, targetPattern: "I am going to..." },
+    ]);
   });
 
   it("shows known legacy assigned work without inventing a target pattern", async () => {
@@ -87,9 +142,9 @@ describe("assignment student evidence", () => {
 
     expect(result).toMatchObject({
       missionTitle: "Foundation Smoke Assignment",
-      targetPattern: null,
       turns: [{
         turnOrder: 1,
+        targetPattern: null,
         prompt: "What are you going to do this weekend?",
         targetExample: "I am going to play soccer.",
       }],
@@ -122,9 +177,24 @@ describe("assignment student evidence", () => {
 
     expect(result).toMatchObject({
       missionTitle: "Assignment fallback title",
-      targetPattern: null,
       turns: [],
     });
+  });
+
+  it("does not turn conversation context into a per-turn requirement", async () => {
+    const { client } = evidenceClient({
+      id: "as-1", status: "assigned", submitted_at: null, latest_attempt_id: null, dismissed_at: null,
+      students: { display_name: "test" },
+      assignments: { id: "assignment-1", title: "Assignment title", mission_snapshot: conversationSnapshot, classes: { id: "class-1", name: "Test class", teacher_id: "teacher-1" } },
+    });
+
+    const result = await getAssignmentStudentEvidenceForTeacher(
+      { teacherId: "teacher-1", assignmentStudentId: "as-1" },
+      client as never,
+    );
+
+    expect(result).not.toHaveProperty("targetPattern");
+    expect(result?.turns[0]?.targetPattern).toBeNull();
   });
 
   it("returns null when no owned row exists", async () => {

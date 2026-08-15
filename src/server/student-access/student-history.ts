@@ -1,6 +1,9 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { wordsToPractice, type WordScore } from "@/domain/pronunciation/scoring";
-import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
+import {
+  interpretMissionSnapshot,
+  resolveMissionSnapshotTargetPattern,
+} from "@/domain/mission/mission-snapshot";
 import {
   buildLearnerTranscript,
   hangulInterpretationSchema,
@@ -36,6 +39,7 @@ export type StudentRecapReviewState =
 export type StudentRecapTurn = {
   id: string;
   turnOrder: number;
+  targetPattern: string | null;
   cocoPrompt: string;
   transcript: string | null;
   audio: StudentRecapAudioClip | null;
@@ -49,7 +53,6 @@ export type StudentRecapTurn = {
 export type StudentMissionRecap = {
   assignmentStudentId: string;
   title: string;
-  targetPattern: string | null;
   completedAt: string | null;
   conversationMode: boolean;
   characterId: string;
@@ -143,10 +146,6 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
   const snapshot = snapshotResult.snapshot;
   const conversationMode =
     snapshotResult.kind === "complete" && snapshotResult.snapshot.conversationMode;
-  const targetPattern =
-    snapshotResult.kind === "complete"
-      ? snapshotResult.snapshot.targetPattern
-      : null;
 
   const attempt = await supabase.from("attempts").select("id, status, completed_at").eq("id", row.latest_attempt_id).eq("assignment_student_id", row.id).in("status", ["completed", "teacher_review"]).maybeSingle();
   if (attempt.error || !attempt.data) return null;
@@ -221,6 +220,13 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
     return {
       id: turn.id,
       turnOrder: turn.turn_order,
+      targetPattern:
+        snapshotResult.kind === "complete" && !conversationMode
+          ? resolveMissionSnapshotTargetPattern(
+              snapshotResult.snapshot,
+              turn.turn_order,
+            )
+          : null,
       cocoPrompt,
       transcript,
       audio: acceptedRepeat ? repeat!.audio : original.audio,
@@ -235,7 +241,6 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
   return {
     assignmentStudentId: row.id,
     title: assignment.title,
-    targetPattern,
     completedAt: (attempt.data as { completed_at: string | null }).completed_at ?? row.submitted_at,
     conversationMode,
     characterId: snapshot.characterId,

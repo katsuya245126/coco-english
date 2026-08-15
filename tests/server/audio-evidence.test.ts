@@ -55,6 +55,45 @@ const completeConversationSnapshot = {
   }],
 };
 
+const completePresetSnapshot = {
+  missionId: "44444444-4444-4444-8444-444444444444",
+  title: "Weekend plans",
+  level: "beginner",
+  requiredTurns: 2,
+  characterId: "default-buddy",
+  conversationMode: false,
+  turns: [
+    {
+      turnOrder: 1,
+      prompt: "What do you like?",
+      targetPattern: "I like ___.",
+      targetExample: "I like soccer.",
+      hintLadder: {
+        tier1: "Use I like.",
+        tier2: "Choose an activity.",
+        tier3: "I like soccer.",
+      },
+    },
+    {
+      turnOrder: 2,
+      prompt: "What will you do?",
+      targetPattern: "I will ___.",
+      targetExample: "I will play soccer.",
+      hintLadder: {
+        tier1: "Use I will.",
+        tier2: "Choose an activity.",
+        tier3: "I will play soccer.",
+      },
+    },
+  ],
+};
+
+const historicalCompletePresetSnapshot = {
+  ...completePresetSnapshot,
+  targetPattern: "I am going to...",
+  turns: completePresetSnapshot.turns.map(({ targetPattern: _targetPattern, ...turn }) => turn),
+};
+
 function createMockSupabase(options: {
   evidenceFound?: boolean;
   clipFound?: boolean;
@@ -313,6 +352,7 @@ describe("teacher audio evidence service", () => {
       repeatResult: "Needs teacher check",
       reviewReason: "low_confidence",
     });
+    expect(evidence?.turns.map((turn) => turn.targetPattern)).toEqual([null, null]);
 
     const attemptLookup = mockSupabase.operations.find(
       (operation) => operation.table === "attempts",
@@ -336,6 +376,50 @@ describe("teacher audio evidence service", () => {
     expect(JSON.stringify(evidence)).not.toContain("accuracy_score");
     expect(JSON.stringify(evidence)).not.toContain("accuracyScore");
     expect(JSON.stringify(evidence)).not.toContain("pronunciation_score");
+  });
+
+  it("maps each current preset turn's expected pattern beside its result", async () => {
+    mockSupabase = createMockSupabase({ missionSnapshot: completePresetSnapshot });
+    const { getAttemptEvidenceForTeacher } = await import(
+      "@/server/teacher/audio-evidence"
+    );
+
+    const evidence = await getAttemptEvidenceForTeacher({
+      teacherId: "teacher-1",
+      attemptId: "attempt-1",
+    });
+
+    expect(evidence?.turns).toEqual([
+      expect.objectContaining({
+        turnOrder: 1,
+        targetPattern: "I like ___.",
+        targetPatternResult: "Target pattern used",
+      }),
+      expect.objectContaining({
+        turnOrder: 2,
+        targetPattern: "I will ___.",
+        targetPatternResult: "Needs teacher check",
+      }),
+    ]);
+  });
+
+  it("falls back a historical complete preset pattern onto every turn", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: historicalCompletePresetSnapshot,
+    });
+    const { getAttemptEvidenceForTeacher } = await import(
+      "@/server/teacher/audio-evidence"
+    );
+
+    const evidence = await getAttemptEvidenceForTeacher({
+      teacherId: "teacher-1",
+      attemptId: "attempt-1",
+    });
+
+    expect(evidence?.turns.map(({ turnOrder, targetPattern }) => ({ turnOrder, targetPattern }))).toEqual([
+      { turnOrder: 1, targetPattern: "I am going to..." },
+      { turnOrder: 2, targetPattern: "I am going to..." },
+    ]);
   });
 
   it("uses complete conversation context for opening and stored follow-up questions", async () => {
@@ -394,6 +478,7 @@ describe("teacher audio evidence service", () => {
         { turnOrder: 2, question: "Who are you going with?" },
       ],
     });
+    expect(evidence?.turns.map((turn) => turn.targetPattern)).toEqual([null, null]);
   });
 
   it("keeps evidence but removes mission context for an invalid snapshot", async () => {
@@ -448,6 +533,7 @@ describe("teacher audio evidence service", () => {
         ],
       }],
     });
+    expect(evidence?.turns[0]?.targetPattern).toBeNull();
   });
 
   it("attaches null pronunciationScore for a clip with no matching score row", async () => {

@@ -16,15 +16,15 @@ function recapWith(transcript: string | null): Recap {
   return {
     assignmentStudentId: "assignment-student-1",
     title: "Weekend plans",
-    targetPattern: "I like _____.",
     completedAt: "2026-07-29T00:00:00.000Z",
-    conversationMode: true,
+    conversationMode: false,
     characterId: "default-buddy",
     finalCocoLine: null,
     turns: [
       {
         id: "turn-1",
         turnOrder: 1,
+        targetPattern: "I like _____.",
         cocoPrompt: "Which ice cream is best?",
         transcript,
         audio: { id: "clip-1", playback: "available" },
@@ -53,13 +53,16 @@ afterEach(async () => {
 });
 
 describe("StudentMissionRecap", () => {
-  it("shows the You said bubble for a learner-safe transcript", () => {
+  it("shows the turn pattern and selected preset evidence", () => {
     act(() => {
       root.render(<StudentMissionRecap recap={recapWith("I like vanilla.")} />);
     });
 
+    expect(container.textContent).toContain("Expected pattern: I like _____.");
     expect(container.textContent).toContain("You said");
     expect(container.textContent).toContain("I like vanilla.");
+    expect(container.textContent).toContain("★★ Pronunciation");
+    expect(container.textContent).toContain("Great job!");
   });
 
   it("hides the You said label when the transcript is withheld, keeping audio", () => {

@@ -1,4 +1,7 @@
-import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
+import {
+  interpretMissionSnapshot,
+  resolveMissionSnapshotTargetPattern,
+} from "@/domain/mission/mission-snapshot";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
 type Client = ReturnType<typeof createSupabaseServiceClient>;
@@ -14,6 +17,7 @@ function one(value: RawValue | undefined): RawRow {
 export type AssignmentStudentMissionTurn = {
   turnOrder: number;
   prompt: string;
+  targetPattern: string | null;
   targetExample: string;
 };
 
@@ -33,7 +37,6 @@ export type AssignmentStudentEvidence = {
   // Mission content the student was assigned but never opened. Without an
   // attempt there is no evidence to show, so the page shows the work itself
   // rather than a grid of empty stats.
-  targetPattern: string | null;
   turns: AssignmentStudentMissionTurn[];
 };
 
@@ -78,14 +81,18 @@ export async function getAssignmentStudentEvidenceForTeacher(
     className: String(klass.name),
     assignmentId: String(assignment.id),
     dismissedAt: row.dismissed_at ? String(row.dismissed_at) : null,
-    targetPattern:
-      snapshotResult.kind === "complete"
-        ? snapshotResult.snapshot.targetPattern
-        : null,
     turns: snapshot
       ? snapshot.turns.map((turn) => ({
           turnOrder: turn.turnOrder,
           prompt: turn.prompt,
+          targetPattern:
+            snapshotResult.kind === "complete" &&
+            !snapshotResult.snapshot.conversationMode
+              ? resolveMissionSnapshotTargetPattern(
+                  snapshotResult.snapshot,
+                  turn.turnOrder,
+                )
+              : null,
           targetExample: turn.targetExample,
         }))
       : [],

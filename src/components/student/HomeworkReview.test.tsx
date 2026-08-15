@@ -6,7 +6,6 @@ import { HomeworkReview } from "./HomeworkReview";
 const recap: StudentMissionRecap = {
   assignmentStudentId: "as-1",
   title: "Talking About Weekend Plans",
-  targetPattern: "I am going to...",
   completedAt: "2026-07-20T00:00:00.000Z",
   conversationMode: true,
   characterId: "default-buddy",
@@ -15,6 +14,7 @@ const recap: StudentMissionRecap = {
     {
       id: "turn-accepted",
       turnOrder: 1,
+      targetPattern: null,
       cocoPrompt: "Where are you going this weekend?",
       transcript: "I am going to the park.",
       audio: null,
@@ -27,6 +27,7 @@ const recap: StudentMissionRecap = {
     {
       id: "turn-minor",
       turnOrder: 2,
+      targetPattern: null,
       cocoPrompt: "What will you do there?",
       transcript: "I go to library.",
       audio: null,
@@ -39,6 +40,7 @@ const recap: StudentMissionRecap = {
     {
       id: "turn-repeat",
       turnOrder: 3,
+      targetPattern: null,
       cocoPrompt: "What do you want to do there?",
       transcript: "I want to read cartoons.",
       audio: null,
@@ -51,6 +53,7 @@ const recap: StudentMissionRecap = {
     {
       id: "turn-neutral",
       turnOrder: 4,
+      targetPattern: null,
       cocoPrompt: "Who are you going with?",
       transcript: "My friend and I go.",
       audio: null,
@@ -138,6 +141,7 @@ describe("HomeworkReview", () => {
     expect(html).toContain("I want read cartoon.");
     expect(html).toContain("I want to read cartoons.");
     expect(html.match(/✓ Good job!/g)).toHaveLength(3);
+    expect(html).not.toContain("Expected pattern:");
     expect(html).not.toContain("teacher_review");
     expect(html).not.toContain("ambiguous");
     expect(html).toContain(
