@@ -195,6 +195,10 @@ function AnnotationGrid({
       ? []
       : [
           [
+            "Expected target pattern",
+            turn.targetPattern,
+          ] as [string, string | null],
+          [
             "Target pattern result",
             friendlyPatternResult(turn.targetPatternResult),
           ] as [string, string],
