@@ -46,6 +46,11 @@ export function HomeworkReview({
               turn.reviewState === "repeat_accepted";
             return (
               <div className={styles.exchange} key={turn.id}>
+                {turn.targetPattern ? (
+                  <p className={styles.targetPattern}>
+                    Expected pattern: {turn.targetPattern}
+                  </p>
+                ) : null}
                 <CocoMessage>{turn.cocoPrompt}</CocoMessage>
                 <div className={styles.studentMessage}>
                   <strong className={styles.studentName}>
