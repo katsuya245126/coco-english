@@ -852,9 +852,12 @@ describe("uploadAttemptAudioClip", () => {
 
     expect(result).toMatchObject({
       ok: true,
-      evaluation: { outcome: "needs_correction" },
+      evaluation: {
+        outcome: "retry_original",
+        retryReason: "unclear_meaning",
+      },
     });
-    expect(evaluateOriginal).toHaveBeenCalledTimes(1);
+    expect(evaluateOriginal).toHaveBeenCalledTimes(2);
   });
 
   it("falls through to OpenAI evaluation when the transcript matches neither the example nor target pattern", async () => {
@@ -2042,7 +2045,7 @@ describe("minimal-effort answer guard", () => {
     });
   });
 
-  it("evaluates normally after 2 prior blocks (never traps the student)", async () => {
+  it("routes an invented correction after 2 prior blocks to teacher review", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
     );
@@ -2070,9 +2073,9 @@ describe("minimal-effort answer guard", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("expected ok");
-    expect(evaluate).toHaveBeenCalledTimes(1);
+    expect(evaluate).toHaveBeenCalledTimes(2);
     expect(result.evaluation).toMatchObject({
-      outcome: "needs_correction",
+      outcome: "teacher_review",
       minimalEffortBlocks: 2,
     });
   });

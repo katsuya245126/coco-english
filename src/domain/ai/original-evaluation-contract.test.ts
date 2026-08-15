@@ -112,6 +112,27 @@ describe("original evaluation contract", () => {
     ).toEqual(evaluation);
   });
 
+  it("rejects an open-preset correction that invents the learner's choice and reason", () => {
+    const evaluation = {
+      ...correction("I'd rather live in a small city because it is quieter."),
+      correctionSeverity: "material" as const,
+    };
+    const result = validateOriginalEvaluationContract({
+      evaluation,
+      evaluationMode: "preset",
+      answerShape: "open",
+      missionQuestion:
+        "Would you rather live in a big city or a small town? Why?",
+      targetPattern: "I'd rather _____ because _____",
+      transcript: "I like leather because more thin.",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.violations).toContain("unsupported_detail");
+    }
+  });
+
   it("keeps a real grammar correction as needs_correction", () => {
     expect(
       canonicalizeNoOpOriginalEvaluation(

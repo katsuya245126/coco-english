@@ -1584,6 +1584,39 @@ export async function uploadAttemptAudioClip(
               decision.evaluation.contractViolations = contractViolations;
             }
             if (
+              snapshot.conversationMode !== true &&
+              answerShape === "open" &&
+              contractViolations.includes("unsupported_detail") &&
+              minimalEffortBlocks === 0 &&
+              (ambiguityState.ambiguityRetries ?? 0) === 0
+            ) {
+              const rejectedEvaluation = {
+                ...decision.evaluation,
+                outcome: "teacher_review" as const,
+                meaningUnderstood: false,
+                targetPatternAttempted: false,
+                correctionNeeded: false,
+                correctionSeverity: "none" as const,
+                correctionReason: "none" as const,
+                improvedSentence: null,
+                englishLanguage: "uncertain" as const,
+                confidence: "low" as const,
+                reviewReason: "failed_schema" as const,
+              };
+              decision.evaluation.outcome = "retry_original";
+              decision.evaluation.reviewReason = null;
+              decision.evaluation.retryReason = "unclear_meaning";
+              decision.evaluation.ambiguityRetries = 1;
+              decision.evaluation.ambiguityHistory = [
+                ...(ambiguityState.ambiguityHistory ?? []),
+                {
+                  transcript,
+                  audioClipId: audioClip.id,
+                  evaluation: rejectedEvaluation,
+                },
+              ];
+            }
+            if (
               decision.evaluation.outcome === "retry_original" &&
               decision.evaluation.retryReason === undefined &&
               evaluationResult.ok &&

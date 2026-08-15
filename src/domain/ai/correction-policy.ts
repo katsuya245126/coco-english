@@ -606,11 +606,13 @@ export function validateImprovedSentencePolicy(
     addViolation("parroted_question");
   }
 
+  let hasSelectedOpenAlternative = false;
   if (input.answerShape === "open") {
     const alternatives = extractAlternatives(input.missionQuestion);
     const selected = alternatives.filter((alternative) =>
       hasWordSequence(transcriptWords, words(alternative)),
     );
+    hasSelectedOpenAlternative = selected.length > 0;
     const introducedDifferentAlternative = alternatives.some(
       (alternative) =>
         hasWordSequence(improvedWords, words(alternative)) &&
@@ -632,7 +634,8 @@ export function validateImprovedSentencePolicy(
   }
 
   if (
-    input.evaluationMode === "conversation" &&
+    (input.evaluationMode === "conversation" ||
+      (input.answerShape === "open" && !hasSelectedOpenAlternative)) &&
     input.correctionReason !== "fragment_completion" &&
     !input.transcriptResolvedFromKorean
   ) {
