@@ -61,12 +61,6 @@ export default async function AssignmentStudentPage({
             This is the work that was assigned.
           </p>
 
-          {evidence.targetPattern && (
-            <div style={missionMetaStyle}>
-              <SummaryItem label="Target pattern" value={evidence.targetPattern} />
-            </div>
-          )}
-
           {evidence.turns.length === 0 ? (
             <p style={missionNoteStyle}>Mission details are unavailable for this assignment.</p>
           ) : (
@@ -75,6 +69,11 @@ export default async function AssignmentStudentPage({
                 <li key={turn.turnOrder} style={turnItemStyle}>
                   <p style={labelStyle}>Turn {turn.turnOrder}</p>
                   <p style={turnPromptStyle}>{turn.prompt}</p>
+                  {turn.targetPattern ? (
+                    <p style={turnPatternStyle}>
+                      Expected target pattern: {turn.targetPattern}
+                    </p>
+                  ) : null}
                   <p style={turnExampleStyle}>Example answer: {turn.targetExample}</p>
                 </li>
               ))}
@@ -151,13 +150,6 @@ const missionNoteStyle: React.CSSProperties = {
   lineHeight: 1.5,
 };
 
-const missionMetaStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: 20,
-  marginBottom: 20,
-};
-
 const turnListStyle: React.CSSProperties = {
   listStyle: "none",
   display: "grid",
@@ -184,6 +176,13 @@ const turnExampleStyle: React.CSSProperties = {
   margin: 0,
   fontSize: 14,
   color: "#4B5563",
+};
+
+const turnPatternStyle: React.CSSProperties = {
+  margin: "0 0 6px",
+  fontSize: 14,
+  fontWeight: 600,
+  color: "#1E3A8A",
 };
 
 const labelStyle: React.CSSProperties = {
