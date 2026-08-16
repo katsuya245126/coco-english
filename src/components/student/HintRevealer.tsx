@@ -14,7 +14,10 @@
  */
 
 import type { HintLadder } from "@/domain/mission/schemas";
-import { hintCardStyle } from "@/components/student/styles";
+import {
+  hintCardStyle,
+  tintedHintButtonStyle,
+} from "@/components/student/styles";
 
 type HintRevealerProps = {
   hintLadder: HintLadder;
@@ -59,21 +62,22 @@ export function HintRevealer({
       {/* Reveal button */}
       <button
         type="button"
+        className="student-tinted-button"
         onClick={handleReveal}
         disabled={allRevealed}
         aria-expanded={hintLevel > 0}
         style={{
+          ...tintedHintButtonStyle,
           width: "100%",
-          background: allRevealed ? "#F9FAFB" : "#EFF6FF",
-          border: "none",
-          borderRadius: 999,
-          padding: "8px 12px",
-          minHeight: 40,
-          fontSize: 15,
-          fontWeight: 600,
-          color: allRevealed ? "#6B7280" : "#1D4ED8",
-          cursor: allRevealed ? "default" : "pointer",
-          textAlign: "center",
+          // Spent state: every tier is revealed, so it stops advertising.
+          ...(allRevealed
+            ? {
+                background: "#F9FAFB",
+                border: "1px solid #E5E7EB",
+                color: "#6B7280",
+                cursor: "default",
+              }
+            : null),
         }}
       >
         {buttonText}

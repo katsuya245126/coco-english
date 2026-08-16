@@ -145,6 +145,26 @@ export const hintCardStyle: CSSProperties = {
   boxSizing: "border-box",
 };
 
+/**
+ * Shared resting style for the student hint buttons — the conversation-mode
+ * "Show hint" toggle and the preset HintRevealer. They are different
+ * interactions but must read as the same affordance, so the palette lives
+ * here rather than being copied into both. Pair with the
+ * `.student-tinted-button` class in globals.css for press feedback.
+ */
+export const tintedHintButtonStyle: CSSProperties = {
+  background: "#DBEAFE",
+  border: "1px solid #93C5FD",
+  borderRadius: 999,
+  padding: "8px 12px",
+  minHeight: 40,
+  fontSize: 15,
+  fontWeight: 600,
+  color: "#1E40AF",
+  cursor: "pointer",
+  textAlign: "center",
+};
+
 // ─── Phase 5: Voice recorder tokens ───
 
 export const recorderPanelStyle: CSSProperties = {
@@ -380,16 +400,6 @@ export const mascotDialoguePageButtonStyle: CSSProperties = {
   cursor: "pointer",
   pointerEvents: "auto",
   boxShadow: "0 2px 6px rgba(37, 99, 235, 0.35)",
-};
-
-/**
- * Next-page button only. Students miss the pager on phones, so `›` gets a soft
- * halo on top of the filled base to pull the eye toward it. `‹` stays plain —
- * two competing glows would cancel each other out.
- */
-export const mascotDialogueNextPageButtonStyle: CSSProperties = {
-  boxShadow:
-    "0 0 0 4px rgba(37, 99, 235, 0.15), 0 2px 8px rgba(37, 99, 235, 0.4)",
 };
 
 export const mascotDialoguePageIndicatorStyle: CSSProperties = {

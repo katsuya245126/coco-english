@@ -17,7 +17,6 @@ import {
   mascotDialogueBoxStyle,
   mascotDialoguePageButtonStyle,
   mascotDialoguePageIndicatorStyle,
-  mascotDialogueNextPageButtonStyle,
   mascotDialoguePagerStyle,
   mascotDialogueShellStyle,
   mascotDialogueTextStyle,
@@ -61,6 +60,9 @@ export function CocoDialogueBox({
     null,
   );
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  // The next-page button pulses until the student uses the pager, then stops
+  // for the rest of the turn — it has done its job. Reset per turn below.
+  const [pagerUsed, setPagerUsed] = useState(false);
   const activeRequestRef = useRef<AbortController | null>(null);
   const requestTokenRef = useRef(0);
 
@@ -87,6 +89,7 @@ export function CocoDialogueBox({
     setTranslationVisible(false);
     setExpandedPhraseIndex(null);
     setCurrentPageIndex(0);
+    setPagerUsed(false);
     return () => {
       requestTokenRef.current += 1;
       activeRequestRef.current?.abort();
@@ -311,7 +314,10 @@ export function CocoDialogueBox({
             className="student-tinted-button"
             aria-label="Previous dialogue page"
             disabled={safePageIndex === 0}
-            onClick={() => setCurrentPageIndex((index) => Math.max(0, index - 1))}
+            onClick={() => {
+              setPagerUsed(true);
+              setCurrentPageIndex((index) => Math.max(0, index - 1));
+            }}
             style={{
               ...mascotDialoguePageButtonStyle,
               opacity: safePageIndex === 0 ? 0.35 : 1,
@@ -324,17 +330,19 @@ export function CocoDialogueBox({
           </span>
           <button
             type="button"
-            className="student-tinted-button"
+            className={
+              pagerUsed
+                ? "student-tinted-button"
+                : "student-tinted-button student-pager-pulse"
+            }
             aria-label="Next dialogue page"
             disabled={safePageIndex === pages.length - 1}
-            onClick={() =>
-              setCurrentPageIndex((index) => Math.min(pages.length - 1, index + 1))
-            }
+            onClick={() => {
+              setPagerUsed(true);
+              setCurrentPageIndex((index) => Math.min(pages.length - 1, index + 1));
+            }}
             style={{
               ...mascotDialoguePageButtonStyle,
-              ...(safePageIndex === pages.length - 1
-                ? null
-                : mascotDialogueNextPageButtonStyle),
               opacity: safePageIndex === pages.length - 1 ? 0.35 : 1,
             }}
           >
