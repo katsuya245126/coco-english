@@ -115,7 +115,9 @@ describe("CocoDialogueBox", () => {
     expect(container.querySelector('[role="status"]')?.textContent).toBe(
       "Please wait a few minutes, then retry the hint.",
     );
-    expect(container.textContent).toContain("Wait, then retry hint");
+    // Visible tab text is always `한`; the rate-limited state is carried by the
+    // aria-label, asserted below.
+    expect(container.textContent).toContain("한");
 
     const retryButton = container.querySelector<HTMLButtonElement>(
       'button[aria-label="Wait, then retry hint"]',

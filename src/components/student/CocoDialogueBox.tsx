@@ -17,6 +17,7 @@ import {
   mascotDialogueBoxStyle,
   mascotDialoguePageButtonStyle,
   mascotDialoguePageIndicatorStyle,
+  mascotDialogueNextPageButtonStyle,
   mascotDialoguePagerStyle,
   mascotDialogueShellStyle,
   mascotDialogueTextStyle,
@@ -205,12 +206,15 @@ export function CocoDialogueBox({
     : null;
   const isHintLoading = translationState.kind === "loading";
   const isHintRateLimited = translationState.kind === "rate_limited";
-  const hintVisibleLabel = isHintRateLimited
+  // The tab shows a bare `한` in every state so its width never jumps, but a
+  // lone glyph is a poor accessible name — aria-label/title stay English and
+  // keep carrying the error distinction.
+  const hintAccessibleLabel = isHintRateLimited
     ? "Wait, then retry hint"
     : translationState.kind === "error"
       ? "Retry hint"
       : "Hint";
-  const hintLabel = isHintLoading ? "Loading hint" : hintVisibleLabel;
+  const hintLabel = isHintLoading ? "Loading hint" : hintAccessibleLabel;
 
   return (
     <div style={mascotDialogueShellStyle}>
@@ -220,6 +224,7 @@ export function CocoDialogueBox({
           <div style={mascotDialogueActionsStyle}>
             <button
               type="button"
+              className="student-tinted-button"
               aria-label={hintLabel}
               title={hintLabel}
               aria-pressed={translationVisible}
@@ -231,7 +236,7 @@ export function CocoDialogueBox({
                 ...(voiceControl ? null : { borderRight: 0 }),
               }}
             >
-              <span>{hintVisibleLabel}</span>
+              <span>한</span>
               {isHintLoading ? <HintSpinner /> : null}
             </button>
             {voiceControl ? (
@@ -303,6 +308,7 @@ export function CocoDialogueBox({
         <nav aria-label="Dialogue pages" style={mascotDialoguePagerStyle}>
           <button
             type="button"
+            className="student-tinted-button"
             aria-label="Previous dialogue page"
             disabled={safePageIndex === 0}
             onClick={() => setCurrentPageIndex((index) => Math.max(0, index - 1))}
@@ -318,6 +324,7 @@ export function CocoDialogueBox({
           </span>
           <button
             type="button"
+            className="student-tinted-button"
             aria-label="Next dialogue page"
             disabled={safePageIndex === pages.length - 1}
             onClick={() =>
@@ -325,6 +332,9 @@ export function CocoDialogueBox({
             }
             style={{
               ...mascotDialoguePageButtonStyle,
+              ...(safePageIndex === pages.length - 1
+                ? null
+                : mascotDialogueNextPageButtonStyle),
               opacity: safePageIndex === pages.length - 1 ? 0.35 : 1,
             }}
           >

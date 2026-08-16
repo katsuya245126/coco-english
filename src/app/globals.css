@@ -31,3 +31,32 @@ html {
     background: #E5E7EB !important;
     border-color: #6B7280 !important;
 }
+
+/* Blue-tinted outline controls (Show hint, dialogue pager). The grey
+   .student-secondary-button states above would wash these out, so they get a
+   blue tint instead. Press feedback is primary because students are on
+   touchscreens, where :hover never fires. */
+.student-tinted-button:active:not(:disabled) {
+    background: #DBEAFE !important;
+    transform: scale(0.96);
+}
+
+@media (hover: hover) {
+    .student-tinted-button:hover:not(:disabled) {
+        background: #EFF6FF;
+    }
+}
+
+.student-tinted-button {
+    transition: transform 0.06s ease, background 0.12s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .student-tinted-button {
+        transition: none;
+    }
+
+    .student-tinted-button:active:not(:disabled) {
+        transform: none;
+    }
+}

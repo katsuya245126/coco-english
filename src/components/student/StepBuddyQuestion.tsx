@@ -97,17 +97,18 @@ export function StepBuddyQuestion({
         <div style={{ marginTop: showCocoLine ? 16 : 0 }}>
           <button
             type="button"
+            className="student-tinted-button"
             aria-expanded={replyHintVisible}
             onClick={() => setReplyHintVisible((visible) => !visible)}
             style={{
-              background: "#FFFFFF",
-              border: "1px solid #BFDBFE",
+              background: "#DBEAFE",
+              border: "1px solid #93C5FD",
               borderRadius: 999,
               padding: "8px 12px",
               minHeight: 40,
               fontSize: 15,
               fontWeight: 600,
-              color: "#1D4ED8",
+              color: "#1E40AF",
               cursor: "pointer",
               textAlign: "center",
             }}

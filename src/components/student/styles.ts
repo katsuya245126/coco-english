@@ -373,12 +373,23 @@ export const mascotDialoguePageButtonStyle: CSSProperties = {
   height: 44,
   border: "2px solid #2563EB",
   borderRadius: "50%",
-  background: "#FFFFFF",
-  color: "#2563EB",
+  background: "#2563EB",
+  color: "#FFFFFF",
   fontSize: 24,
   fontWeight: 700,
   cursor: "pointer",
   pointerEvents: "auto",
+  boxShadow: "0 2px 6px rgba(37, 99, 235, 0.35)",
+};
+
+/**
+ * Next-page button only. Students miss the pager on phones, so `›` gets a soft
+ * halo on top of the filled base to pull the eye toward it. `‹` stays plain —
+ * two competing glows would cancel each other out.
+ */
+export const mascotDialogueNextPageButtonStyle: CSSProperties = {
+  boxShadow:
+    "0 0 0 4px rgba(37, 99, 235, 0.15), 0 2px 8px rgba(37, 99, 235, 0.4)",
 };
 
 export const mascotDialoguePageIndicatorStyle: CSSProperties = {
