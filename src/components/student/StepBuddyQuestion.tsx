@@ -14,6 +14,7 @@ import {
   stepCardStyle,
   buddyCardStyle,
   hintCardStyle,
+  tintedHintButtonStyle,
 } from "@/components/student/styles";
 import { HintRevealer } from "@/components/student/HintRevealer";
 import type { HintLadder } from "@/domain/mission/schemas";
@@ -97,20 +98,10 @@ export function StepBuddyQuestion({
         <div style={{ marginTop: showCocoLine ? 16 : 0 }}>
           <button
             type="button"
+            className="student-tinted-button"
             aria-expanded={replyHintVisible}
             onClick={() => setReplyHintVisible((visible) => !visible)}
-            style={{
-              background: "#FFFFFF",
-              border: "1px solid #BFDBFE",
-              borderRadius: 999,
-              padding: "8px 12px",
-              minHeight: 40,
-              fontSize: 15,
-              fontWeight: 600,
-              color: "#1D4ED8",
-              cursor: "pointer",
-              textAlign: "center",
-            }}
+            style={tintedHintButtonStyle}
           >
             {replyHintVisible ? "Hide hint" : "Show hint"}
           </button>

@@ -60,6 +60,9 @@ export function CocoDialogueBox({
     null,
   );
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  // The next-page button pulses until the student uses the pager, then stops
+  // for the rest of the turn — it has done its job. Reset per turn below.
+  const [pagerUsed, setPagerUsed] = useState(false);
   const activeRequestRef = useRef<AbortController | null>(null);
   const requestTokenRef = useRef(0);
 
@@ -86,6 +89,7 @@ export function CocoDialogueBox({
     setTranslationVisible(false);
     setExpandedPhraseIndex(null);
     setCurrentPageIndex(0);
+    setPagerUsed(false);
     return () => {
       requestTokenRef.current += 1;
       activeRequestRef.current?.abort();
@@ -205,12 +209,15 @@ export function CocoDialogueBox({
     : null;
   const isHintLoading = translationState.kind === "loading";
   const isHintRateLimited = translationState.kind === "rate_limited";
-  const hintVisibleLabel = isHintRateLimited
+  // The tab shows a bare `한` in every state so its width never jumps, but a
+  // lone glyph is a poor accessible name — aria-label/title stay English and
+  // keep carrying the error distinction.
+  const hintAccessibleLabel = isHintRateLimited
     ? "Wait, then retry hint"
     : translationState.kind === "error"
       ? "Retry hint"
       : "Hint";
-  const hintLabel = isHintLoading ? "Loading hint" : hintVisibleLabel;
+  const hintLabel = isHintLoading ? "Loading hint" : hintAccessibleLabel;
 
   return (
     <div style={mascotDialogueShellStyle}>
@@ -220,6 +227,7 @@ export function CocoDialogueBox({
           <div style={mascotDialogueActionsStyle}>
             <button
               type="button"
+              className="student-tinted-button"
               aria-label={hintLabel}
               title={hintLabel}
               aria-pressed={translationVisible}
@@ -231,7 +239,7 @@ export function CocoDialogueBox({
                 ...(voiceControl ? null : { borderRight: 0 }),
               }}
             >
-              <span>{hintVisibleLabel}</span>
+              <span>한</span>
               {isHintLoading ? <HintSpinner /> : null}
             </button>
             {voiceControl ? (
@@ -303,9 +311,13 @@ export function CocoDialogueBox({
         <nav aria-label="Dialogue pages" style={mascotDialoguePagerStyle}>
           <button
             type="button"
+            className="student-tinted-button"
             aria-label="Previous dialogue page"
             disabled={safePageIndex === 0}
-            onClick={() => setCurrentPageIndex((index) => Math.max(0, index - 1))}
+            onClick={() => {
+              setPagerUsed(true);
+              setCurrentPageIndex((index) => Math.max(0, index - 1));
+            }}
             style={{
               ...mascotDialoguePageButtonStyle,
               opacity: safePageIndex === 0 ? 0.35 : 1,
@@ -318,11 +330,17 @@ export function CocoDialogueBox({
           </span>
           <button
             type="button"
+            className={
+              pagerUsed
+                ? "student-tinted-button"
+                : "student-tinted-button student-pager-pulse"
+            }
             aria-label="Next dialogue page"
             disabled={safePageIndex === pages.length - 1}
-            onClick={() =>
-              setCurrentPageIndex((index) => Math.min(pages.length - 1, index + 1))
-            }
+            onClick={() => {
+              setPagerUsed(true);
+              setCurrentPageIndex((index) => Math.min(pages.length - 1, index + 1));
+            }}
             style={{
               ...mascotDialoguePageButtonStyle,
               opacity: safePageIndex === pages.length - 1 ? 0.35 : 1,

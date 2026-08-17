@@ -96,7 +96,10 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(stageSource).toContain("SPRITE_BY_EXPRESSION");
     expect(stageSource).toContain("updateSpeakingVisual");
     expect(dialogueSource).toContain("displayName");
-    expect(dialogueSource).toContain("{hintVisibleLabel}");
+    // Visible label is a constant Korean glyph; the state-dependent English
+    // wording lives on aria-label/title instead.
+    expect(dialogueSource).toContain("<span>한</span>");
+    expect(dialogueSource).toContain("aria-label={hintLabel}");
     expect(dialogueSource).toContain("voiceControl");
     expect(stylesSource).toContain('color: "#2563EB"');
     expect(stylesSource).toContain("minHeight: 44");
@@ -180,9 +183,10 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(dialogueSource).toContain("aria-busy={isHintLoading}");
     expect(dialogueSource).not.toContain('"Hint…"');
     expect(dialogueSource).toContain("aria-label={hintLabel}");
-    // The visible label changes to "Retry hint" on error, but stays "Hint"
-    // while loading (only the accessible label becomes "Loading hint").
-    expect(dialogueSource).toContain("{hintVisibleLabel}");
+    // The visible label is always 한 so the tab never resizes; the error and
+    // loading wording is carried by the accessible label only.
+    expect(dialogueSource).toContain("<span>한</span>");
+    expect(dialogueSource).toContain("hintAccessibleLabel");
     expect(dialogueSource).not.toMatch(/>\s*Hint\s*</);
     expect(dialogueSource).not.toContain("Translation unavailable");
     expect(shellSource).not.toMatch(
@@ -376,7 +380,7 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
       "src/components/student/CocoDialogueBox.tsx",
     );
 
-    expect(dialogueSource).toContain("{hintVisibleLabel}");
+    expect(dialogueSource).toContain("<span>한</span>");
     expect(questionSource).toContain("replyHintFrame");
     expect(questionSource).toContain('"Show hint"');
     expect(questionSource).toContain('"Hide hint"');
