@@ -24,7 +24,7 @@ const MODERATION_MODEL = "omni-moderation-latest";
 export type ModerationClient = {
   moderations: {
     create(input: { input: string; model?: string }): Promise<{
-      results: Array<Record<string, unknown>>;
+      results: Array<{ flagged?: unknown }>;
     }>;
   };
 };
@@ -44,7 +44,7 @@ function resolveApiKey(deps?: IsContentSafeDeps) {
 }
 
 function createClient(apiKey: string): ModerationClient {
-  return new OpenAI({ apiKey }) as unknown as ModerationClient;
+  return new OpenAI({ apiKey });
 }
 
 function failClosed(reason: string): IsContentSafeResult {

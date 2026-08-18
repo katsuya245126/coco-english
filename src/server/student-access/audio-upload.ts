@@ -519,7 +519,7 @@ function readMissionSnapshot(assignmentStudent: unknown) {
 function toJson(
   value: StoredOriginalTurnEvaluation | StoredRepeatTurnEvaluation,
 ): Json {
-  return value as unknown as Json;
+  return value satisfies Json;
 }
 
 /**
@@ -1958,7 +1958,7 @@ export async function uploadAttemptAudioClip(
                 completeness_score: scoring.score.completenessScore,
                 pronunciation_score: scoring.score.pronunciationScore,
                 star_band: scoring.score.starBand,
-                word_scores: scoring.score.wordScores as unknown as Json,
+                word_scores: scoring.score.wordScores satisfies Json,
               },
               { onConflict: "audio_clip_id" },
             ),

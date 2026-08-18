@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { z } from "zod";
 import { notFound } from "next/navigation";
 import { requireTeacherProfile } from "@/server/auth/teacher-profile";
 import { createSupabaseServerClient } from "@/lib/supabase/server-auth";
+import { oneOrMany } from "@/lib/supabase/one-or-many";
 import { bucketAssignmentStudents } from "@/domain/teacher/review-buckets";
 import { StatusBadge } from "@/components/teacher/StatusBadge";
 
@@ -10,15 +12,13 @@ import { StatusBadge } from "@/components/teacher/StatusBadge";
 // runs under RLS so resources owned by another teacher resolve to notFound.
 export const dynamic = "force-dynamic";
 
-type NestedRelation<T> = T | T[] | null | undefined;
-
-type AssignmentStudentRow = {
-  id: string;
-  status: string;
-  submitted_at: string | null;
-  latest_attempt_id: string | null;
-  students: NestedRelation<{ display_name: string }>;
-};
+const assignmentStudentRowSchema = z.object({
+  id: z.string(),
+  status: z.string(),
+  submitted_at: z.string().nullable(),
+  latest_attempt_id: z.string().nullable(),
+  students: oneOrMany(z.object({ display_name: z.string() })).nullish(),
+});
 
 type StudentEntry = {
   id: string;
@@ -27,11 +27,6 @@ type StudentEntry = {
   latestAttemptId: string | null;
   studentName: string;
 };
-
-function one<T>(relation: NestedRelation<T>): T | null {
-  if (Array.isArray(relation)) return relation[0] ?? null;
-  return relation ?? null;
-}
 
 function formatDateTime(value: string | null): string {
   if (!value) return "Not yet submitted";
@@ -131,14 +126,19 @@ export default async function AssignmentReviewPage({
     );
   }
 
-  const entries: StudentEntry[] = (
-    (studentsResult.data ?? []) as unknown as AssignmentStudentRow[]
-  ).map((row) => ({
+  const rowsParsed = z
+    .array(assignmentStudentRowSchema)
+    .safeParse(studentsResult.data ?? []);
+  if (!rowsParsed.success) {
+    throw new Error("Unable to load student results: unexpected row shape");
+  }
+
+  const entries: StudentEntry[] = rowsParsed.data.map((row) => ({
     id: row.id,
     status: row.status,
     submittedAt: row.submitted_at,
     latestAttemptId: row.latest_attempt_id,
-    studentName: one(row.students)?.display_name ?? "Unknown student",
+    studentName: row.students?.display_name ?? "Unknown student",
   }));
   const selectedStudentId = entries.some((entry) => entry.id === requestedStudentId)
     ? requestedStudentId

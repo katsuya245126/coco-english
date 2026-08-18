@@ -377,7 +377,7 @@ async function main() {
     async function verifyVisibleCocoAudio(slug) {
       const button = page.locator('button[aria-label="Play Coco"]').first();
       await button.waitFor({ state: "visible", timeout: 15_000 });
-      await expectButtonEnabled(button, slug);
+      await expectButtonEnabled(button);
       await button.click();
       const played = await page.evaluate(async () => {
         const audio = document.querySelector("audio[preload='auto']");
@@ -429,16 +429,16 @@ async function main() {
       }
     }
 
-    async function expectButtonEnabled(locator, slug) {
+    async function expectButtonEnabled(locator) {
       await locator.waitFor({ state: "visible", timeout: 15_000 });
       await page.waitForFunction(
-        (label) => {
+        () => {
           const button = [...document.querySelectorAll("button")].find(
             (candidate) => candidate.getAttribute("aria-label") === "Play Coco",
           );
           return button && !button.disabled && button.getAttribute("aria-busy") !== "true";
         },
-        slug,
+        undefined,
         { timeout: 15_000 },
       );
     }

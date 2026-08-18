@@ -131,7 +131,7 @@ export async function assignMissionToClass(input: {
   const assigned = await supabase.rpc("assign_mission_to_class", {
     p_class_id: input.classId,
     p_mission_id: input.missionId,
-    p_mission_snapshot: snapshot as unknown as Json,
+    p_mission_snapshot: snapshot satisfies Json,
     p_due_at: input.dueAt,
   });
 

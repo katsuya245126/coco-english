@@ -1,5 +1,7 @@
+import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server-auth";
-import { one, parseWordScores } from "@/server/teacher/audio-evidence";
+import { parseWordScores } from "@/server/teacher/audio-evidence";
+import { oneOrMany } from "@/lib/supabase/one-or-many";
 import {
   studentSoundProfile,
   type StudentClipScore,
@@ -7,10 +9,11 @@ import {
 } from "@/domain/pronunciation/scoring";
 
 /** A pronunciation_scores row projected for profile aggregation. */
-type ProfileScoreRow = {
-  reference_text: string | null;
-  word_scores: unknown;
-};
+const profileScoreRowSchema = z.object({
+  reference_text: z.string().nullable(),
+  word_scores: z.unknown(),
+});
+type ProfileScoreRow = z.infer<typeof profileScoreRowSchema>;
 
 /**
  * Pure mapping from stored score rows to the accumulated sound profile.
@@ -78,8 +81,13 @@ export async function getStudentSoundProfile(
     );
   }
 
-  const rows = (scores.data ?? []) as unknown as ProfileScoreRow[];
-  return buildStudentSoundProfile(rows);
+  const rows = z.array(profileScoreRowSchema).safeParse(scores.data ?? []);
+  if (!rows.success) {
+    throw new Error(
+      "Unable to load student pronunciation scores: unexpected row shape",
+    );
+  }
+  return buildStudentSoundProfile(rows.data);
 }
 
 export type StudentProfileHeader = {
@@ -110,13 +118,19 @@ export async function getStudentProfileHeader(
   }
   if (!student.data) return null;
 
-  const row = student.data as unknown as {
-    id: string;
-    class_id: string;
-    display_name: string;
-    classes: { name: string } | { name: string }[] | null;
-  };
-  const className = one(row.classes)?.name ?? "";
+  const parsed = z
+    .object({
+      id: z.string(),
+      class_id: z.string(),
+      display_name: z.string(),
+      classes: oneOrMany(z.object({ name: z.string() })).nullable(),
+    })
+    .safeParse(student.data);
+  if (!parsed.success) {
+    throw new Error("Unable to load student: unexpected row shape");
+  }
+  const row = parsed.data;
+  const className = row.classes?.name ?? "";
 
   return {
     studentId: row.id,

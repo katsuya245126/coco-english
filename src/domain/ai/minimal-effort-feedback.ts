@@ -31,14 +31,16 @@ export function classifyMinimalEffortFeedback(
     : "short_answer";
 }
 
-function usableTargetExample(targetExample: string | null | undefined) {
-  if (!targetExample) return false;
+function usableTargetExample(
+  targetExample: string | null | undefined,
+): string | null {
+  if (!targetExample) return null;
   const normalized = targetExample.trim();
-  return (
-    normalized.length > 0 &&
+  return normalized.length > 0 &&
     !normalized.endsWith("?") &&
     !isMinimalEffortAnswer(normalized)
-  );
+    ? normalized
+    : null;
 }
 
 function trailingQuestionSentence(question: string) {
@@ -67,11 +69,9 @@ export function resolveMinimalEffortRetryExample(input: {
   missionQuestion: string;
   targetExample?: string | null;
 }) {
-  if (
-    input.evaluationMode === "preset" &&
-    usableTargetExample(input.targetExample)
-  ) {
-    return input.targetExample!.trim();
+  if (input.evaluationMode === "preset") {
+    const example = usableTargetExample(input.targetExample);
+    if (example) return example;
   }
 
   if (input.evaluationMode === "conversation") {

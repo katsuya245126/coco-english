@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
@@ -39,19 +40,24 @@ export type StudentAssignmentPage = {
   totalPages: number;
 };
 
-type AssignmentRow = {
-  id: string;
-  status: string;
-  submitted_at: string | null;
-  latest_attempt_id: string | null;
-  assignments: {
-    title: string;
-    mission_snapshot: unknown;
-    due_at: string | null;
-    canceled_at: string | null;
-  };
-  latest_attempt: { completed_at: string | null; attempt_turns?: Array<{ count: number }> } | null;
-};
+const assignmentRowSchema = z.object({
+  id: z.string(),
+  status: z.string(),
+  submitted_at: z.string().nullable(),
+  latest_attempt_id: z.string().nullable(),
+  assignments: z.object({
+    title: z.string(),
+    mission_snapshot: z.unknown(),
+    due_at: z.string().nullable(),
+    canceled_at: z.string().nullable(),
+  }),
+  latest_attempt: z
+    .object({
+      completed_at: z.string().nullable(),
+      attempt_turns: z.array(z.object({ count: z.number() })).optional(),
+    })
+    .nullable(),
+});
 
 function timestamp(value: string | null): number | null {
   if (!value) return null;
@@ -86,7 +92,15 @@ export async function listStudentAssignmentPage(
 
   if (!error && data) {
     for (const raw of data) {
-      const row = raw as unknown as AssignmentRow;
+      const parsed = assignmentRowSchema.safeParse(raw);
+      if (!parsed.success) {
+        console.error(
+          "listStudentAssignmentPage: dropping row with unexpected shape",
+          parsed.error,
+        );
+        continue;
+      }
+      const row = parsed.data;
       if (row.assignments.canceled_at) continue;
       const snapshotResult = interpretMissionSnapshot(row.assignments.mission_snapshot);
       if (snapshotResult.kind === "invalid") continue;

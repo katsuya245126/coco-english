@@ -173,7 +173,7 @@ export function toTurnRows(
     prompt: turn.prompt,
     target_pattern: turn.targetPattern ?? null,
     target_example: turn.targetExample,
-    hint_ladder: turn.hintLadder as unknown as Json,
+    hint_ladder: turn.hintLadder satisfies Json,
     answer_shape: turn.answerShape,
   }));
 }

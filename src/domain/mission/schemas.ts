@@ -169,28 +169,6 @@ export const missionSnapshotSchema = z
     requireCompleteSentenceAnswers: z.boolean().default(true),
     turns: z.array(missionSnapshotTurnSchema).default([]),
   })
-  .superRefine((snapshot, context) => {
-    if (snapshot.conversationMode) {
-      if (!snapshot.targetPattern) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["targetPattern"],
-          message: "Conversation context pattern is required.",
-        });
-      }
-      return;
-    }
-
-    snapshot.turns.forEach((turn, index) => {
-      if (!turn.targetPattern && !snapshot.targetPattern) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["turns", index, "targetPattern"],
-          message: "Turn target pattern is required.",
-        });
-      }
-    });
-  })
   .refine(
     (value) =>
       value.conversationMode || value.requiredTurns === value.turns.length,
@@ -210,22 +188,39 @@ export const missionSnapshotSchema = z
       message: "Snapshot Coco opening line is required.",
     },
   )
-  .transform<MissionSnapshot>((snapshot) =>
-    snapshot.conversationMode
-      ? {
-          ...snapshot,
-          conversationMode: true,
-          targetPattern: snapshot.targetPattern!,
-        }
-      : {
-          ...snapshot,
-          conversationMode: false,
-          turns: snapshot.turns.map((turn) => ({
-            ...turn,
-            targetPattern: turn.targetPattern ?? snapshot.targetPattern!,
-          })),
-        },
-  );
+  .transform((snapshot, context): MissionSnapshot => {
+    // Sole owner of the target-pattern requirement: report every missing
+    // pattern as an issue and abort instead of fabricating one.
+    if (snapshot.conversationMode) {
+      const targetPattern = snapshot.targetPattern;
+      if (!targetPattern) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["targetPattern"],
+          message: "Conversation context pattern is required.",
+        });
+        return z.NEVER;
+      }
+      return { ...snapshot, conversationMode: true, targetPattern };
+    }
+    const turns: Array<MissionSnapshotTurn & { targetPattern: string }> = [];
+    let missingPattern = false;
+    for (const [index, turn] of snapshot.turns.entries()) {
+      const targetPattern = turn.targetPattern ?? snapshot.targetPattern;
+      if (!targetPattern) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["turns", index, "targetPattern"],
+          message: "Turn target pattern is required.",
+        });
+        missingPattern = true;
+        continue;
+      }
+      turns.push({ ...turn, targetPattern });
+    }
+    if (missingPattern) return z.NEVER;
+    return { ...snapshot, conversationMode: false, turns };
+  });
 
 export const missionIdSchema = z.object({
   missionId: z.string().uuid("Invalid mission reference."),

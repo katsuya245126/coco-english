@@ -39,14 +39,20 @@ export function buildImprovedSentenceParts(
   const lcs = Array.from({ length: rows }, () =>
     Array<number>(columns).fill(0),
   );
+  // Out-of-range reads are the DP boundary: the LCS of an empty suffix is 0.
+  const lcsAt = (left: number, right: number) => lcs[left]?.[right] ?? 0;
 
   for (let left = originalWords.length - 1; left >= 0; left -= 1) {
+    const row = lcs[left];
+    const originalWord = originalWords[left];
+    if (!row || originalWord === undefined) continue;
     for (let right = improvedWordEntries.length - 1; right >= 0; right -= 1) {
-      lcs[left]![right] =
-        normalized(originalWords[left]!) ===
-        normalized(improvedWordEntries[right]!.token)
-          ? 1 + lcs[left + 1]![right + 1]!
-          : Math.max(lcs[left + 1]![right]!, lcs[left]![right + 1]!);
+      const entry = improvedWordEntries[right];
+      if (entry === undefined) continue;
+      row[right] =
+        normalized(originalWord) === normalized(entry.token)
+          ? 1 + lcsAt(left + 1, right + 1)
+          : Math.max(lcsAt(left + 1, right), lcsAt(left, right + 1));
     }
   }
 
@@ -54,14 +60,14 @@ export function buildImprovedSentenceParts(
   let left = 0;
   let right = 0;
   while (left < originalWords.length && right < improvedWordEntries.length) {
-    if (
-      normalized(originalWords[left]!) ===
-      normalized(improvedWordEntries[right]!.token)
-    ) {
-      unchangedTokenIndexes.add(improvedWordEntries[right]!.tokenIndex);
+    const originalWord = originalWords[left];
+    const entry = improvedWordEntries[right];
+    if (originalWord === undefined || entry === undefined) break;
+    if (normalized(originalWord) === normalized(entry.token)) {
+      unchangedTokenIndexes.add(entry.tokenIndex);
       left += 1;
       right += 1;
-    } else if (lcs[left + 1]![right]! >= lcs[left]![right + 1]!) {
+    } else if (lcsAt(left + 1, right) >= lcsAt(left, right + 1)) {
       left += 1;
     } else {
       right += 1;

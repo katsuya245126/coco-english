@@ -283,10 +283,12 @@ export function decideOriginalTurnOutcome(
   if (!validCombination) return failedOriginalContract();
 
   if (severity === "material") {
+    // validCombination already required a sentence here; narrow for the types.
+    if (improvedSentence === null) return failedOriginalContract();
     return {
       kind: "needs_correction",
       requireRepeat: true,
-      improvedSentence: improvedSentence!,
+      improvedSentence,
     };
   }
 
