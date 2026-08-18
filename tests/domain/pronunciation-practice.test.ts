@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  PRACTICE_SOUND_IDS,
+  PRACTICE_SOUNDS,
   gradePronunciationTry,
   nextPracticeWordOrder,
   pronunciationPracticeSnapshotSchema,
@@ -11,6 +13,7 @@ describe("gradePronunciationTry", () => {
     expect(
       gradePronunciationTry({
         expectedWord: "fish",
+        soundId: "f",
         targetPhoneIndex: 0,
         transcript: "fish",
         transcriptConfidence: null,
@@ -22,15 +25,17 @@ describe("gradePronunciationTry", () => {
       starBand: 3,
       fullWordPassed: true,
       targetSoundPassed: true,
+      feedback: "Your fff was strong!",
     });
   });
 
   it("uses a confident different word outcome without stars", () => {
     expect(
       gradePronunciationTry({
-        expectedWord: "fish",
+        expectedWord: "face",
+        soundId: "f",
         targetPhoneIndex: 0,
-        transcript: "dish",
+        transcript: "ship",
         transcriptConfidence: { minLogprob: -0.01, tokenCount: 1 },
         wordAccuracy: null,
         phonemes: null,
@@ -38,6 +43,7 @@ describe("gradePronunciationTry", () => {
     ).toMatchObject({
       outcome: "different_word",
       starBand: null,
+      feedback: "Let's try face — listen again.",
     });
   });
 
@@ -57,7 +63,24 @@ describe("gradePronunciationTry", () => {
       starBand: 3,
       fullWordPassed: true,
       targetSoundPassed: false,
-      feedback: "Try F again!",
+      feedback: "Almost! Teeth on your lip — fff. Try again.",
+    });
+  });
+
+  it("praises a clear target sound when the word is weak", () => {
+    expect(
+      gradePronunciationTry({
+        expectedWord: "face",
+        soundId: "f",
+        targetPhoneIndex: 0,
+        transcript: "face",
+        transcriptConfidence: null,
+        wordAccuracy: 59,
+        phonemes: [{ phoneme: "f", accuracyScore: 80 }],
+      }),
+    ).toMatchObject({
+      outcome: "word_weak",
+      feedback: "Great fff! Now say the whole word smoothly.",
     });
   });
 
@@ -85,7 +108,10 @@ describe("gradePronunciationTry", () => {
         phonemes: null,
         tryNumber: 3,
       }),
-    ).toMatchObject({ outcome: "different_word", feedback: "Good try!" });
+    ).toMatchObject({
+      outcome: "different_word",
+      feedback: "Good try! Let's do the next word.",
+    });
   });
 
   it.each([
@@ -126,7 +152,10 @@ describe("gradePronunciationTry", () => {
         ...input,
         phonemes: input.phonemes?.map((phoneme) => ({ ...phoneme })) ?? null,
       }),
-    ).toMatchObject({ outcome: _expectedOutcome, feedback: "Good try!" });
+    ).toMatchObject({
+      outcome: _expectedOutcome,
+      feedback: "Good try! Let's do the next word.",
+    });
   });
 
   it("does not classify an unclear different transcript as a different word", () => {
@@ -140,6 +169,20 @@ describe("gradePronunciationTry", () => {
         phonemes: [{ phoneme: "f", accuracyScore: 50 }],
       }),
     ).toMatchObject({ outcome: "passed" });
+  });
+});
+
+describe("PRACTICE_SOUNDS", () => {
+  it("provides the approved tip for every supported sound", () => {
+    expect(
+      PRACTICE_SOUND_IDS.map((soundId) => [soundId, PRACTICE_SOUNDS[soundId].tip]),
+    ).toEqual([
+      ["light_l", "Touch your tongue behind your top teeth"],
+      ["s", "Keep your teeth close and let air hiss"],
+      ["f", "Teeth on your lip"],
+      ["v", "Teeth on your lip and turn your voice on"],
+      ["z", "Keep your teeth close and turn your voice on"],
+    ]);
   });
 });
 

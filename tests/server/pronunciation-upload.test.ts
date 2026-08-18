@@ -82,17 +82,17 @@ vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServiceClient: () => mockSupabase,
 }));
 
-function snapshot() {
+function snapshot(soundId: "s" | "f" = "s", firstWord = "sat") {
   return {
     kind: "pronunciation",
     version: 1,
-    soundId: "s",
+    soundId,
     difficulty: "easy",
     requiredWords: 5,
     soundClipVersion: "v1",
     words: [1, 2, 3, 4, 5].map((order) => ({
       order,
-      text: order === 1 ? "sat" : `word-${order}`,
+      text: order === 1 ? firstWord : `word-${order}`,
       highlightStart: 0,
       highlightLength: 1,
       source: "verified",
@@ -111,7 +111,7 @@ function snapshot() {
   };
 }
 
-function resetState() {
+function resetState(soundId: "s" | "f" = "s", firstWord = "sat") {
   state = {
     assignment: {
       id: "assignment-student-1",
@@ -119,7 +119,7 @@ function resetState() {
       status: "started",
       assignments: {
         assignment_kind: "pronunciation",
-        mission_snapshot: snapshot(),
+        mission_snapshot: snapshot(soundId, firstWord),
         canceled_at: null,
       },
     },
@@ -153,7 +153,7 @@ function transcribed(text = "sat", confidence = { minLogprob: -0.01, tokenCount:
   };
 }
 
-function scored(wordAccuracy: number, targetSoundAccuracy: number) {
+function scored(wordAccuracy: number, targetSoundAccuracy: number, word = "sat") {
   return {
     ok: true as const,
     score: {
@@ -162,10 +162,10 @@ function scored(wordAccuracy: number, targetSoundAccuracy: number) {
       completenessScore: 100,
       pronunciationScore: wordAccuracy,
       starBand: 1 as const,
-      referenceText: "sat",
+      referenceText: word,
       wordScores: [
         {
-          word: "sat",
+          word,
           accuracyScore: wordAccuracy,
           errorType: "None",
           phonemes: [
@@ -395,6 +395,7 @@ describe("uploadPronunciationTry", () => {
   });
 
   it("uses a confident different word as one valid try without a score row", async () => {
+    resetState("f", "face");
     const transcribe = vi.fn(async () => transcribed("ship"));
     const score = vi.fn();
     const { uploadPronunciationTry } = await import(
@@ -407,7 +408,12 @@ describe("uploadPronunciationTry", () => {
       scorePronunciation: score,
     });
 
-    expect(result).toMatchObject({ ok: true, tryNumber: 1, outcome: "different_word" });
+    expect(result).toMatchObject({
+      ok: true,
+      tryNumber: 1,
+      outcome: "different_word",
+      feedback: "Let's try face — listen again.",
+    });
     expect(score).not.toHaveBeenCalled();
     expect(state.operations).toEqual(
       expect.arrayContaining([
@@ -452,12 +458,13 @@ describe("uploadPronunciationTry", () => {
   });
 
   it.each([
-    [80, 49, "target_weak"],
-    [59, 80, "word_weak"],
-    [60, 50, "passed"],
-  ] as const)("grades word accuracy %s and target accuracy %s as %s", async (wordAccuracy, targetAccuracy, expected) => {
-    const transcribe = vi.fn(async () => transcribed());
-    const score = vi.fn(async () => scored(wordAccuracy, targetAccuracy));
+    [80, 49, "target_weak", "Almost! Teeth on your lip — fff. Try again."],
+    [59, 80, "word_weak", "Great fff! Now say the whole word smoothly."],
+    [60, 50, "passed", "Your fff was strong!"],
+  ] as const)("returns sound-first feedback for %s", async (wordAccuracy, targetAccuracy, expected, feedback) => {
+    resetState("f", "face");
+    const transcribe = vi.fn(async () => transcribed("face"));
+    const score = vi.fn(async () => scored(wordAccuracy, targetAccuracy, "face"));
     const { uploadPronunciationTry } = await import(
       "@/server/student-access/pronunciation-upload"
     );
@@ -468,7 +475,33 @@ describe("uploadPronunciationTry", () => {
       scorePronunciation: score,
     });
 
-    expect(result).toMatchObject({ ok: true, outcome: expected });
+    expect(result).toMatchObject({ ok: true, outcome: expected, feedback });
+  });
+
+  it("returns the transition copy after a non-passed third try", async () => {
+    resetState("f", "face");
+    state.tries = [1, 2].map((tryNumber) => ({
+      id: `try-${tryNumber}`,
+      attempt_turn_id: "turn-1",
+      try_number: tryNumber,
+      outcome: "target_weak" as const,
+    }));
+    const { uploadPronunciationTry } = await import(
+      "@/server/student-access/pronunciation-upload"
+    );
+
+    const result = await uploadPronunciationTry(input(), {
+      consumeRequestBudget: allowBudget,
+      transcribeAudioFile: vi.fn(async () => transcribed("face")),
+      scorePronunciation: vi.fn(async () => scored(80, 49, "face")),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      tryNumber: 3,
+      outcome: "target_weak",
+      feedback: "Good try! Let's do the next word.",
+    });
   });
 
   it("prevents a fourth valid try and retries after a pass", async () => {

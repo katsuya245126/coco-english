@@ -28,30 +28,35 @@ export const PRACTICE_SOUNDS = {
     ipa: "l",
     arpabet: "L",
     clip: "/audio/pronunciation/sounds/v1/light-l.mp3",
+    tip: "Touch your tongue behind your top teeth",
   },
   s: {
     label: "S",
     ipa: "s",
     arpabet: "S",
     clip: "/audio/pronunciation/sounds/v1/s.mp3",
+    tip: "Keep your teeth close and let air hiss",
   },
   f: {
     label: "F",
     ipa: "f",
     arpabet: "F",
     clip: "/audio/pronunciation/sounds/v1/f.mp3",
+    tip: "Teeth on your lip",
   },
   v: {
     label: "V",
     ipa: "v",
     arpabet: "V",
     clip: "/audio/pronunciation/sounds/v1/v.mp3",
+    tip: "Teeth on your lip and turn your voice on",
   },
   z: {
     label: "Z",
     ipa: "z",
     arpabet: "Z",
     clip: "/audio/pronunciation/sounds/v1/z.mp3",
+    tip: "Keep your teeth close and turn your voice on",
   },
 } as const;
 
@@ -130,8 +135,27 @@ function isConfidentDifferentWord(input: GradePronunciationTryInput): boolean {
   );
 }
 
-function soundLabelForFeedback(soundId: PracticeSoundId | undefined): string {
-  return soundId ? PRACTICE_SOUNDS[soundId].label : "the sound";
+const THIRD_TRY_FEEDBACK = "Good try! Let's do the next word.";
+
+function pronunciationFeedbackForOutcome(
+  outcome: PracticeTryOutcome,
+  input: { soundId?: PracticeSoundId; word?: string },
+): string | null {
+  const sound = input.soundId ? PRACTICE_SOUNDS[input.soundId] : null;
+  const cue = sound?.ipa.repeat(3);
+
+  switch (outcome) {
+    case "passed":
+      return cue ? `Your ${cue} was strong!` : null;
+    case "target_weak":
+      return sound && cue
+        ? `Almost! ${sound.tip} — ${cue}. Try again.`
+        : null;
+    case "word_weak":
+      return cue ? `Great ${cue}! Now say the whole word smoothly.` : null;
+    case "different_word":
+      return input.word ? `Let's try ${input.word} — listen again.` : null;
+  }
 }
 
 export function resolvePronunciationFeedbackLineText(
@@ -140,17 +164,15 @@ export function resolvePronunciationFeedbackLineText(
 ): string | null {
   switch (feedbackVariant) {
     case "pronunciation_good":
-      return "Good job!";
+      return pronunciationFeedbackForOutcome("passed", input);
     case "pronunciation_target_weak":
-      return input.soundId
-        ? `Try ${PRACTICE_SOUNDS[input.soundId].label} again!`
-        : null;
+      return pronunciationFeedbackForOutcome("target_weak", input);
     case "pronunciation_word_weak":
-      return "Try again!";
+      return pronunciationFeedbackForOutcome("word_weak", input);
     case "pronunciation_different_word":
-      return input.word ? `Try again! Say: ${input.word}` : null;
+      return pronunciationFeedbackForOutcome("different_word", input);
     case "pronunciation_good_try":
-      return "Good try!";
+      return THIRD_TRY_FEEDBACK;
     default:
       return null;
   }
@@ -168,8 +190,10 @@ export function gradePronunciationTry(
       targetSoundPassed: false,
       feedback:
         input.tryNumber === 3
-          ? "Good try!"
-          : "Try again! Say: " + input.expectedWord,
+          ? THIRD_TRY_FEEDBACK
+          : pronunciationFeedbackForOutcome("different_word", {
+              word: input.expectedWord,
+            }) ?? "Try again!",
     };
   }
 
@@ -185,12 +209,15 @@ export function gradePronunciationTry(
         : "word_weak";
   const feedback =
     outcome === "passed"
-      ? "Good job!"
+      ? pronunciationFeedbackForOutcome("passed", {
+          soundId: input.soundId,
+        }) ?? "Good job!"
       : input.tryNumber === 3
-        ? "Good try!"
-        : outcome === "target_weak"
-          ? `Try ${soundLabelForFeedback(input.soundId)} again!`
-          : "Try again!";
+        ? THIRD_TRY_FEEDBACK
+        : pronunciationFeedbackForOutcome(outcome, {
+            soundId: input.soundId,
+            word: input.expectedWord,
+          }) ?? "Try again!";
 
   return {
     outcome,
