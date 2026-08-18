@@ -169,28 +169,6 @@ export const missionSnapshotSchema = z
     requireCompleteSentenceAnswers: z.boolean().default(true),
     turns: z.array(missionSnapshotTurnSchema).default([]),
   })
-  .superRefine((snapshot, context) => {
-    if (snapshot.conversationMode) {
-      if (!snapshot.targetPattern) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["targetPattern"],
-          message: "Conversation context pattern is required.",
-        });
-      }
-      return;
-    }
-
-    snapshot.turns.forEach((turn, index) => {
-      if (!turn.targetPattern && !snapshot.targetPattern) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["turns", index, "targetPattern"],
-          message: "Turn target pattern is required.",
-        });
-      }
-    });
-  })
   .refine(
     (value) =>
       value.conversationMode || value.requiredTurns === value.turns.length,
@@ -211,9 +189,8 @@ export const missionSnapshotSchema = z
     },
   )
   .transform((snapshot, context): MissionSnapshot => {
-    // The superRefine above already reported these as issues; when the input
-    // is invalid the transform still runs, so abort instead of fabricating a
-    // pattern.
+    // Sole owner of the target-pattern requirement: report every missing
+    // pattern as an issue and abort instead of fabricating one.
     if (snapshot.conversationMode) {
       const targetPattern = snapshot.targetPattern;
       if (!targetPattern) {
@@ -227,6 +204,7 @@ export const missionSnapshotSchema = z
       return { ...snapshot, conversationMode: true, targetPattern };
     }
     const turns: Array<MissionSnapshotTurn & { targetPattern: string }> = [];
+    let missingPattern = false;
     for (const [index, turn] of snapshot.turns.entries()) {
       const targetPattern = turn.targetPattern ?? snapshot.targetPattern;
       if (!targetPattern) {
@@ -235,10 +213,12 @@ export const missionSnapshotSchema = z
           path: ["turns", index, "targetPattern"],
           message: "Turn target pattern is required.",
         });
-        return z.NEVER;
+        missingPattern = true;
+        continue;
       }
       turns.push({ ...turn, targetPattern });
     }
+    if (missingPattern) return z.NEVER;
     return { ...snapshot, conversationMode: false, turns };
   });
 

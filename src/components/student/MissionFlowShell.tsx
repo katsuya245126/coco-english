@@ -210,29 +210,22 @@ function initialFlowState(
   if (!initialReview) return emptyState;
 
   if (initialReview.step === "aiFeedback") {
+    let originalFeedback: OriginalFeedback;
     if (initialReview.outcome === "needsCorrection") {
       if (!initialReview.improvedSentence) return emptyState;
-
-      return {
-        ...emptyState,
-        step: "aiFeedback",
-        originalTranscript: initialReview.transcript,
+      originalFeedback = {
+        kind: "needsCorrection",
+        transcript: initialReview.transcript,
         improvedSentence: initialReview.improvedSentence,
-        originalFeedback: {
-          kind: "needsCorrection",
-          transcript: initialReview.transcript,
-          improvedSentence: initialReview.improvedSentence,
-        },
-        cocoLine: initialReview.cocoLine,
+      };
+    } else {
+      originalFeedback = {
+        kind: initialReview.outcome,
+        transcript: initialReview.transcript,
+        minimalEffortKind: initialReview.minimalEffortKind,
+        retryExample: initialReview.retryExample,
       };
     }
-
-    const originalFeedback: OriginalFeedback = {
-      kind: initialReview.outcome,
-      transcript: initialReview.transcript,
-      minimalEffortKind: initialReview.minimalEffortKind,
-      retryExample: initialReview.retryExample,
-    };
 
     return {
       ...emptyState,
