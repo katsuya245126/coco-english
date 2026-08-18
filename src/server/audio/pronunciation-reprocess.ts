@@ -153,7 +153,7 @@ export async function reprocessClipPronunciation(
         p_completeness_score: scoring.score.completenessScore,
         p_pronunciation_score: scoring.score.pronunciationScore,
         p_star_band: scoring.score.starBand,
-        p_word_scores: scoring.score.wordScores as unknown as Json,
+        p_word_scores: scoring.score.wordScores satisfies Json,
       },
     );
     if (!error && data === "ok") {

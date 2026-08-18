@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { wordsToPractice, type WordScore } from "@/domain/pronunciation/scoring";
 import {
@@ -191,7 +192,6 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
   let finalCocoLine: string | null = null;
 
   const turns: StudentRecapTurn[] = turnRows.map((turn) => {
-    const acceptedRepeat = turn.repeat_accepted === true && Boolean(turn.repeat_transcript);
     const storedEvaluation = readEvaluationObject(turn.evaluation);
     const original = attemptFor(
       turn.id,
@@ -204,7 +204,9 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
     const repeat = turn.repeat_transcript?.trim()
       ? attemptFor(turn.id, "repeat_attempt", displayFor(turn.repeat_transcript, storedEvaluation))
       : null;
-    const transcript = acceptedRepeat ? repeat!.transcript : original.transcript;
+    // The attempt the recap shows: the accepted repeat when one exists,
+    // otherwise the original answer.
+    const shown = turn.repeat_accepted === true && repeat ? repeat : original;
 
     const cocoPrompt = conversationMode
       ? nextDynamicPrompt
@@ -228,9 +230,9 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
             )
           : null,
       cocoPrompt,
-      transcript,
-      audio: acceptedRepeat ? repeat!.audio : original.audio,
-      pronunciation: acceptedRepeat ? repeat!.pronunciation : original.pronunciation,
+      transcript: shown.transcript,
+      audio: shown.audio,
+      pronunciation: shown.pronunciation,
       original,
       improvedSentence: turn.improved_sentence?.trim() || null,
       repeat,
@@ -249,18 +251,49 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
   };
 }
 
+// Supabase nested !inner joins come back as an object or a one-element array
+// depending on the relationship; accept both and normalize below.
+const oneOrMany = <T extends z.ZodTypeAny>(schema: T) =>
+  z.union([schema, z.array(schema)]);
+
+const signedClipRowSchema = z.object({
+  object_key: z.string().nullable(),
+  processing_status: z.string(),
+  audio_expires_at: z.string().nullable(),
+  deleted_at: z.string().nullable(),
+  attempt_turns: oneOrMany(
+    z.object({
+      attempts: oneOrMany(
+        z.object({
+          id: z.string(),
+          assignment_students: oneOrMany(
+            z.object({
+              latest_attempt_id: z.string().nullable(),
+              assignments: oneOrMany(
+                z.object({ canceled_at: z.string().nullable() }),
+              ),
+            }),
+          ),
+        }),
+      ),
+    }),
+  ),
+});
+
 export async function createSignedHistoryAudioUrl(studentId: string, audioClipId: string): Promise<{ signedUrl: string } | null> {
   const supabase = createSupabaseServiceClient();
   const clip = await supabase.from("audio_clips").select("id, object_key, processing_status, audio_expires_at, deleted_at, attempt_turns!inner(attempts!inner(id, status, assignment_students!attempts_assignment_student_id_fkey!inner(student_id, status, latest_attempt_id, assignments!inner(canceled_at))))")
     .eq("id", audioClipId).eq("attempt_turns.attempts.assignment_students.student_id", studentId).in("attempt_turns.attempts.assignment_students.status", ["completed", "teacher_review"]).in("attempt_turns.attempts.status", ["completed", "teacher_review"]).maybeSingle();
   if (clip.error || !clip.data) return null;
-  const row = clip.data as unknown as { object_key: string | null; processing_status: string; audio_expires_at: string | null; deleted_at: string | null; attempt_turns: { attempts: { id: string; assignment_students: { latest_attempt_id: string | null; assignments: { canceled_at: string | null } } } } };
+  const parsed = signedClipRowSchema.safeParse(clip.data);
+  if (!parsed.success) return null;
+  const row = parsed.data;
   const turn = Array.isArray(row.attempt_turns) ? row.attempt_turns[0] : row.attempt_turns;
   const attempt = Array.isArray(turn?.attempts) ? turn.attempts[0] : turn?.attempts;
   const assignmentStudent = Array.isArray(attempt?.assignment_students) ? attempt.assignment_students[0] : attempt?.assignment_students;
   const assignment = Array.isArray(assignmentStudent?.assignments) ? assignmentStudent.assignments[0] : assignmentStudent?.assignments;
-  if (!attempt || !assignmentStudent || attempt.id !== assignmentStudent.latest_attempt_id || assignment?.canceled_at || playbackFor(row) !== "available") return null;
-  const signed = await supabase.storage.from(process.env.STUDENT_AUDIO_BUCKET || AUDIO_BUCKET).createSignedUrl(row.object_key!, AUDIO_TTL_SECONDS);
+  if (!attempt || !assignmentStudent || attempt.id !== assignmentStudent.latest_attempt_id || assignment?.canceled_at || !row.object_key || playbackFor(row) !== "available") return null;
+  const signed = await supabase.storage.from(process.env.STUDENT_AUDIO_BUCKET || AUDIO_BUCKET).createSignedUrl(row.object_key, AUDIO_TTL_SECONDS);
   if (signed.error || !signed.data?.signedUrl) return null;
   return { signedUrl: signed.data.signedUrl };
 }

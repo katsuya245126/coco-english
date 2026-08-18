@@ -177,7 +177,7 @@ describe("student completed mission recap security contracts", () => {
   it("authorizes clips through the owned latest completed attempt and signs for 300 seconds", () => {
     expect(source).toContain("attempt.id !== assignmentStudent.latest_attempt_id");
     expect(source).toContain("AUDIO_TTL_SECONDS = 300");
-    expect(source).toContain("createSignedUrl(row.object_key!, AUDIO_TTL_SECONDS)");
+    expect(source).toContain("createSignedUrl(row.object_key, AUDIO_TTL_SECONDS)");
   });
 });
 

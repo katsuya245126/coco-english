@@ -210,22 +210,37 @@ export const missionSnapshotSchema = z
       message: "Snapshot Coco opening line is required.",
     },
   )
-  .transform<MissionSnapshot>((snapshot) =>
-    snapshot.conversationMode
-      ? {
-          ...snapshot,
-          conversationMode: true,
-          targetPattern: snapshot.targetPattern!,
-        }
-      : {
-          ...snapshot,
-          conversationMode: false,
-          turns: snapshot.turns.map((turn) => ({
-            ...turn,
-            targetPattern: turn.targetPattern ?? snapshot.targetPattern!,
-          })),
-        },
-  );
+  .transform((snapshot, context): MissionSnapshot => {
+    // The superRefine above already reported these as issues; when the input
+    // is invalid the transform still runs, so abort instead of fabricating a
+    // pattern.
+    if (snapshot.conversationMode) {
+      const targetPattern = snapshot.targetPattern;
+      if (!targetPattern) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["targetPattern"],
+          message: "Conversation context pattern is required.",
+        });
+        return z.NEVER;
+      }
+      return { ...snapshot, conversationMode: true, targetPattern };
+    }
+    const turns: Array<MissionSnapshotTurn & { targetPattern: string }> = [];
+    for (const [index, turn] of snapshot.turns.entries()) {
+      const targetPattern = turn.targetPattern ?? snapshot.targetPattern;
+      if (!targetPattern) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["turns", index, "targetPattern"],
+          message: "Turn target pattern is required.",
+        });
+        return z.NEVER;
+      }
+      turns.push({ ...turn, targetPattern });
+    }
+    return { ...snapshot, conversationMode: false, turns };
+  });
 
 export const missionIdSchema = z.object({
   missionId: z.string().uuid("Invalid mission reference."),

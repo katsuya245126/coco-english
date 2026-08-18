@@ -44,7 +44,7 @@ export type SpeechClient = {
         model: string;
         voice: string;
         input: string;
-        response_format: string;
+        response_format: typeof TTS_RESPONSE_FORMAT;
         instructions?: string;
       }): Promise<{ arrayBuffer(): Promise<ArrayBuffer> }>;
     };
@@ -89,7 +89,7 @@ function resolveVoice(
 }
 
 function createClient(apiKey: string): SpeechClient {
-  return new OpenAI({ apiKey }) as unknown as SpeechClient;
+  return new OpenAI({ apiKey });
 }
 
 /**

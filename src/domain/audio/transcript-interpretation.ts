@@ -124,8 +124,8 @@ export function buildLearnerTranscript(
 
   return interpretations.reduce(
     (display, item) =>
-      item.kind === "accented_english"
-        ? display.split(item.hangul).join(item.englishReading!)
+      item.kind === "accented_english" && item.englishReading
+        ? display.split(item.hangul).join(item.englishReading)
         : display,
     rawTranscript,
   );

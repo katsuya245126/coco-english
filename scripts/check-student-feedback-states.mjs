@@ -432,7 +432,7 @@ async function main() {
     async function expectButtonEnabled(locator, slug) {
       await locator.waitFor({ state: "visible", timeout: 15_000 });
       await page.waitForFunction(
-        (label) => {
+        () => {
           const button = [...document.querySelectorAll("button")].find(
             (candidate) => candidate.getAttribute("aria-label") === "Play Coco",
           );

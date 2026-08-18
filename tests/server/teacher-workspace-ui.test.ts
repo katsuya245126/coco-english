@@ -251,7 +251,7 @@ describe("teacher workspace source contract", () => {
     expect(profileData).toContain(
       '.select("id, class_id, display_name, classes!inner(name)")',
     );
-    expect(profileData).toContain("class_id: string;");
+    expect(profileData).toContain("class_id: z.string(),");
     expect(profileData).toContain("classId: row.class_id,");
     expect(profile).toContain(
       'href={`/teacher/classes/${header.classId}/students`}',

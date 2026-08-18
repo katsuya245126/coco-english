@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   interpretMissionSnapshot,
   resolveMissionSnapshotTargetPattern,
@@ -6,13 +7,30 @@ import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
 type Client = ReturnType<typeof createSupabaseServiceClient>;
 
-type RawValue = string | number | boolean | null | RawRow | RawRow[];
-interface RawRow { [key: string]: RawValue | undefined }
+// Supabase nested joins come back as an object or a one-element array
+// depending on the relationship; accept both and take the first.
+const nested = <T extends z.ZodTypeAny>(schema: T) =>
+  z.union([schema, z.array(schema)]).transform(
+    (value): z.infer<T> | undefined =>
+      Array.isArray(value) ? value[0] : value,
+  );
 
-function one(value: RawValue | undefined): RawRow {
-  const item = Array.isArray(value) ? value[0] : value;
-  return item && typeof item === "object" ? item as RawRow : {};
-}
+const rawRowSchema = z.object({
+  id: z.string(),
+  status: z.string(),
+  submitted_at: z.string().nullable(),
+  latest_attempt_id: z.string().nullable(),
+  dismissed_at: z.string().nullable(),
+  students: nested(z.object({ display_name: z.string() })),
+  assignments: nested(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      mission_snapshot: z.unknown(),
+      classes: nested(z.object({ id: z.string(), name: z.string() })),
+    }),
+  ),
+});
 
 export type AssignmentStudentMissionTurn = {
   turnOrder: number;
@@ -58,29 +76,41 @@ export async function getAssignmentStudentEvidenceForTeacher(
   if (result.error) throw new Error(`Unable to load assignment student evidence: ${result.error.message}`);
   if (!result.data) return null;
 
-  const row = result.data as unknown as RawRow;
+  const parsed = rawRowSchema.safeParse(result.data);
+  if (!parsed.success) {
+    throw new Error(
+      "Unable to load assignment student evidence: unexpected row shape",
+    );
+  }
+  const row = parsed.data;
   if (row.latest_attempt_id !== null) return null;
 
-  const assignment = one(row.assignments);
-  const klass = one(assignment.classes);
+  const assignment = row.assignments;
+  const student = row.students;
+  const klass = assignment?.classes;
+  // The !inner joins guarantee these rows exist; a miss is a malformed result.
+  if (!assignment || !student || !klass) {
+    throw new Error(
+      "Unable to load assignment student evidence: missing joined rows",
+    );
+  }
   const snapshotResult = interpretMissionSnapshot(assignment.mission_snapshot);
   const snapshot =
     snapshotResult.kind === "invalid" ? null : snapshotResult.snapshot;
-  const status = String(row.status);
 
   return {
-    assignmentStudentId: String(row.id),
-    studentName: String(one(row.students).display_name),
-    missionTitle: snapshot?.title ?? String(assignment.title),
-    status,
+    assignmentStudentId: row.id,
+    studentName: student.display_name,
+    missionTitle: snapshot?.title ?? assignment.title,
+    status: row.status,
     statusLabel: "Not started",
-    submittedLabel: row.submitted_at === null ? "Not yet submitted" : String(row.submitted_at),
+    submittedLabel: row.submitted_at ?? "Not yet submitted",
     attemptCount: 0,
     highestHintLabel: "No hints used",
-    classId: String(klass.id),
-    className: String(klass.name),
-    assignmentId: String(assignment.id),
-    dismissedAt: row.dismissed_at ? String(row.dismissed_at) : null,
+    classId: klass.id,
+    className: klass.name,
+    assignmentId: assignment.id,
+    dismissedAt: row.dismissed_at,
     turns: snapshot
       ? snapshot.turns.map((turn) => ({
           turnOrder: turn.turnOrder,

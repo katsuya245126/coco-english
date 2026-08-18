@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { z } from "zod";
 import { notFound } from "next/navigation";
 import { requireTeacherProfile } from "@/server/auth/teacher-profile";
 import { createSupabaseServerClient } from "@/lib/supabase/server-auth";
@@ -12,13 +13,16 @@ export const dynamic = "force-dynamic";
 
 type NestedRelation<T> = T | T[] | null | undefined;
 
-type AssignmentStudentRow = {
-  id: string;
-  status: string;
-  submitted_at: string | null;
-  latest_attempt_id: string | null;
-  students: NestedRelation<{ display_name: string }>;
-};
+const studentRelationSchema = z.object({ display_name: z.string() });
+const assignmentStudentRowSchema = z.object({
+  id: z.string(),
+  status: z.string(),
+  submitted_at: z.string().nullable(),
+  latest_attempt_id: z.string().nullable(),
+  students: z
+    .union([studentRelationSchema, z.array(studentRelationSchema)])
+    .nullish(),
+});
 
 type StudentEntry = {
   id: string;
@@ -131,9 +135,14 @@ export default async function AssignmentReviewPage({
     );
   }
 
-  const entries: StudentEntry[] = (
-    (studentsResult.data ?? []) as unknown as AssignmentStudentRow[]
-  ).map((row) => ({
+  const rowsParsed = z
+    .array(assignmentStudentRowSchema)
+    .safeParse(studentsResult.data ?? []);
+  if (!rowsParsed.success) {
+    throw new Error("Unable to load student results: unexpected row shape");
+  }
+
+  const entries: StudentEntry[] = rowsParsed.data.map((row) => ({
     id: row.id,
     status: row.status,
     submittedAt: row.submitted_at,

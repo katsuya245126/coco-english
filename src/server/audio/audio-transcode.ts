@@ -52,7 +52,7 @@ export async function transcodeToWav(
 
     function runFfmpeg(buffer: Buffer) {
       try {
-        const ffmpeg = spawnFn((ffmpegPath as unknown as string) ?? "ffmpeg", [
+        const ffmpeg = spawnFn(ffmpegPath ?? "ffmpeg", [
           "-i",
           "pipe:0",
           "-ar",

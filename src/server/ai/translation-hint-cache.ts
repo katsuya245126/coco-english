@@ -88,7 +88,7 @@ export async function getOrCreateTranslationHint(
         source_digest: sourceDigest,
         student_level: input.studentLevel,
         target_locale: input.targetLocale,
-        phrases: generated.hint.phrases as unknown as Json,
+        phrases: generated.hint.phrases satisfies Json,
         last_accessed_at: new Date().toISOString(),
       },
       { onConflict: "source_digest,student_level,target_locale" },
