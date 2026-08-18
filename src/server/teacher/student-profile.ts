@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server-auth";
-import { one, parseWordScores } from "@/server/teacher/audio-evidence";
+import { parseWordScores } from "@/server/teacher/audio-evidence";
+import { oneOrMany } from "@/lib/supabase/one-or-many";
 import {
   studentSoundProfile,
   type StudentClipScore,
@@ -117,20 +118,19 @@ export async function getStudentProfileHeader(
   }
   if (!student.data) return null;
 
-  const classSchema = z.object({ name: z.string() });
   const parsed = z
     .object({
       id: z.string(),
       class_id: z.string(),
       display_name: z.string(),
-      classes: z.union([classSchema, z.array(classSchema)]).nullable(),
+      classes: oneOrMany(z.object({ name: z.string() })).nullable(),
     })
     .safeParse(student.data);
   if (!parsed.success) {
     throw new Error("Unable to load student: unexpected row shape");
   }
   const row = parsed.data;
-  const className = one(row.classes)?.name ?? "";
+  const className = row.classes?.name ?? "";
 
   return {
     studentId: row.id,

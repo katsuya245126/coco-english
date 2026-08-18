@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
+import { oneOrMany } from "@/lib/supabase/one-or-many";
 import { wordsToPractice, type WordScore } from "@/domain/pronunciation/scoring";
 import {
   interpretMissionSnapshot,
@@ -251,11 +252,6 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
   };
 }
 
-// Supabase nested !inner joins come back as an object or a one-element array
-// depending on the relationship; accept both and normalize below.
-const oneOrMany = <T extends z.ZodTypeAny>(schema: T) =>
-  z.union([schema, z.array(schema)]);
-
 const signedClipRowSchema = z.object({
   object_key: z.string().nullable(),
   processing_status: z.string(),
@@ -288,10 +284,9 @@ export async function createSignedHistoryAudioUrl(studentId: string, audioClipId
   const parsed = signedClipRowSchema.safeParse(clip.data);
   if (!parsed.success) return null;
   const row = parsed.data;
-  const turn = Array.isArray(row.attempt_turns) ? row.attempt_turns[0] : row.attempt_turns;
-  const attempt = Array.isArray(turn?.attempts) ? turn.attempts[0] : turn?.attempts;
-  const assignmentStudent = Array.isArray(attempt?.assignment_students) ? attempt.assignment_students[0] : attempt?.assignment_students;
-  const assignment = Array.isArray(assignmentStudent?.assignments) ? assignmentStudent.assignments[0] : assignmentStudent?.assignments;
+  const attempt = row.attempt_turns?.attempts;
+  const assignmentStudent = attempt?.assignment_students;
+  const assignment = assignmentStudent?.assignments;
   if (!attempt || !assignmentStudent || attempt.id !== assignmentStudent.latest_attempt_id || assignment?.canceled_at || !row.object_key || playbackFor(row) !== "available") return null;
   const signed = await supabase.storage.from(process.env.STUDENT_AUDIO_BUCKET || AUDIO_BUCKET).createSignedUrl(row.object_key, AUDIO_TTL_SECONDS);
   if (signed.error || !signed.data?.signedUrl) return null;

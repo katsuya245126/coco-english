@@ -4,16 +4,9 @@ import {
   resolveMissionSnapshotTargetPattern,
 } from "@/domain/mission/mission-snapshot";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
+import { oneOrMany } from "@/lib/supabase/one-or-many";
 
 type Client = ReturnType<typeof createSupabaseServiceClient>;
-
-// Supabase nested joins come back as an object or a one-element array
-// depending on the relationship; accept both and take the first.
-const nested = <T extends z.ZodTypeAny>(schema: T) =>
-  z.union([schema, z.array(schema)]).transform(
-    (value): z.infer<T> | undefined =>
-      Array.isArray(value) ? value[0] : value,
-  );
 
 const rawRowSchema = z.object({
   id: z.string(),
@@ -21,13 +14,13 @@ const rawRowSchema = z.object({
   submitted_at: z.string().nullable(),
   latest_attempt_id: z.string().nullable(),
   dismissed_at: z.string().nullable(),
-  students: nested(z.object({ display_name: z.string() })),
-  assignments: nested(
+  students: oneOrMany(z.object({ display_name: z.string() })),
+  assignments: oneOrMany(
     z.object({
       id: z.string(),
       title: z.string(),
       mission_snapshot: z.unknown(),
-      classes: nested(z.object({ id: z.string(), name: z.string() })),
+      classes: oneOrMany(z.object({ id: z.string(), name: z.string() })),
     }),
   ),
 });

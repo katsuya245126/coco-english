@@ -93,7 +93,13 @@ export async function listStudentAssignmentPage(
   if (!error && data) {
     for (const raw of data) {
       const parsed = assignmentRowSchema.safeParse(raw);
-      if (!parsed.success) continue;
+      if (!parsed.success) {
+        console.error(
+          "listStudentAssignmentPage: dropping row with unexpected shape",
+          parsed.error,
+        );
+        continue;
+      }
       const row = parsed.data;
       if (row.assignments.canceled_at) continue;
       const snapshotResult = interpretMissionSnapshot(row.assignments.mission_snapshot);
