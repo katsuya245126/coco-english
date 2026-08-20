@@ -2378,7 +2378,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
 
     expect(result).toMatchObject({
       ok: true,
-      cocoLine: "Thanks for telling me! What do you like about that?",
+      cocoLine: "Thanks for telling me! What is it like?",
       cocoLineModerationEvent: { kind: "canned_fallback", cause: "provider_failed" },
     });
   });
