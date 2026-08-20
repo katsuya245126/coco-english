@@ -668,6 +668,150 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     });
   });
 
+  it("treats a prompt echo as an unanswered conversation turn", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        turns: [
+          {
+            ...conversationMissionSnapshotFixture.turns[0],
+            prompt:
+              "It's almost summer vacation! What are you going to do during summer vacation?",
+          },
+        ],
+      },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginalTurn = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true as const,
+        evaluation: originalEvaluation({ targetPatternAttempted: false }),
+      })
+      .mockResolvedValueOnce({
+        ok: true as const,
+        evaluation: originalEvaluation({
+          outcome: "teacher_review",
+          meaningUnderstood: false,
+          targetPatternAttempted: false,
+          reviewReason: "ambiguous",
+        }),
+      });
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "This should not be generated." },
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber(
+        "It's almost summer vacation.",
+      ),
+      evaluateOriginalTurn,
+      generateCocoReply: generate,
+    });
+
+    expect(evaluateOriginalTurn).toHaveBeenCalledTimes(2);
+    expect(evaluateOriginalTurn.mock.calls[1]?.[0].policyRepair).toEqual({
+      violations: ["prompt_echo"],
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "retry_original",
+        retryReason: "unclear_meaning",
+        ambiguityRetries: 1,
+        contractViolations: ["prompt_echo"],
+      },
+      cocoLine: null,
+    });
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("sends a repeated prompt echo to teacher review after one retry", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        turns: [
+          {
+            ...conversationMissionSnapshotFixture.turns[0],
+            prompt:
+              "It's almost summer vacation! What are you going to do during summer vacation?",
+          },
+        ],
+      },
+      turnEvaluation: {
+        ...originalEvaluation({
+          outcome: "retry_original",
+          meaningUnderstood: false,
+          targetPatternAttempted: false,
+          reviewReason: null,
+        }),
+        retryReason: "unclear_meaning",
+        ambiguityRetries: 1,
+        ambiguityHistory: [
+          {
+            transcript: "It's almost summer vacation.",
+            audioClipId: "clip-first",
+            evaluation: originalEvaluation({
+              outcome: "teacher_review",
+              meaningUnderstood: false,
+              targetPatternAttempted: false,
+              reviewReason: "ambiguous",
+            }),
+          },
+        ],
+      },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginalTurn = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true as const,
+        evaluation: originalEvaluation({ targetPatternAttempted: false }),
+      })
+      .mockResolvedValueOnce({
+        ok: true as const,
+        evaluation: originalEvaluation({
+          outcome: "teacher_review",
+          meaningUnderstood: false,
+          targetPatternAttempted: false,
+          reviewReason: "ambiguous",
+        }),
+      });
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "Thanks for trying! What else do you want to tell me?" },
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber(
+        "It's almost summer vacation.",
+      ),
+      evaluateOriginalTurn,
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(evaluateOriginalTurn).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "teacher_review",
+        ambiguityRetries: 1,
+        contractViolations: ["prompt_echo"],
+      },
+      cocoLine: null,
+    });
+    expect(generate).not.toHaveBeenCalled();
+  });
+
   it("uses the one unclear retry for a low-confidence schema failure", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"

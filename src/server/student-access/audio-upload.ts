@@ -1527,7 +1527,11 @@ export async function uploadAttemptAudioClip(
                       ok: true,
                       evaluation: canonicalRepair,
                     };
-                    contractViolations = [];
+                    contractViolations =
+                      canonicalRepair.outcome === "teacher_review" &&
+                      firstContract.violations.includes("prompt_echo")
+                        ? ["prompt_echo"]
+                        : [];
                   } else {
                     contractViolations = repairedContract.violations;
                     log("warn", "ai.original_evaluation_contract_rejected", {
@@ -1831,7 +1835,8 @@ export async function uploadAttemptAudioClip(
     if (
       snapshot.conversationMode === true &&
       input.clipKind === "original_answer" &&
-      originalEvaluation?.retryReason !== "unclear_meaning"
+      originalEvaluation?.retryReason !== "unclear_meaning" &&
+      !originalEvaluation?.contractViolations?.includes("prompt_echo")
     ) {
       const currentStudentResponse =
         originalEvaluation?.outcome === "teacher_review"
