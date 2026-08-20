@@ -218,6 +218,43 @@ describe("PronunciationPracticeShell", () => {
     expect(container.textContent).not.toContain("transcript");
   });
 
+  it("keeps the attached practice audio controls at 44px touch targets", async () => {
+    await renderShell(page());
+
+    const expectedHeight = "clamp(44px, 10vw, 48px)";
+    const tabs = container.querySelector<HTMLElement>('.pronunciation-practice-audio-tabs');
+    const wordTab = container.querySelector<HTMLButtonElement>('button[aria-label="Hear the word"]');
+    const soundTab = container.querySelector<HTMLButtonElement>('button[aria-label="Hear the s sound"]');
+
+    expect(tabs?.style.minHeight).toBe(expectedHeight);
+    expect(tabs?.style.height).toBe(expectedHeight);
+    expect(wordTab?.style.minHeight).toBe(expectedHeight);
+    expect(wordTab?.style.height).toBe(expectedHeight);
+    expect(soundTab?.style.minHeight).toBe(expectedHeight);
+    expect(soundTab?.style.height).toBe(expectedHeight);
+
+    uploadResult = {
+      ...uploadResult,
+      outcome: "passed",
+      targetSoundAccuracy: 80,
+      targetSoundPassed: true,
+      feedback: "Your sss was strong!",
+    };
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="practice-recorder"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const touchTargetStyle = container.querySelector<HTMLStyleElement>('style');
+    expect(touchTargetStyle?.textContent).toContain(
+      ".pronunciation-practice-audio-tabs button",
+    );
+    expect(touchTargetStyle?.textContent).toContain(
+      "min-height: clamp(44px, 10vw, 48px) !important",
+    );
+  });
+
   it("explains missing word audio without blocking sound practice", async () => {
     fetchMock.mockImplementation(async (url: string) => {
       if (url.endsWith("/audio")) {

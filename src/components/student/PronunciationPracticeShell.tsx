@@ -38,6 +38,26 @@ const backLinkStyle = {
   boxSizing: "border-box",
 } as const;
 
+const PRACTICE_AUDIO_HEIGHT = "clamp(44px, 10vw, 48px)";
+const PRACTICE_AUDIO_TABS_CLASS = "pronunciation-practice-audio-tabs";
+const PRACTICE_AUDIO_TOUCH_TARGET_CSS = `
+  .pronunciation-practice-shell div:has(> span > .${PRACTICE_AUDIO_TABS_CLASS}) {
+    height: ${PRACTICE_AUDIO_HEIGHT} !important;
+    min-height: ${PRACTICE_AUDIO_HEIGHT} !important;
+  }
+  .pronunciation-practice-shell .${PRACTICE_AUDIO_TABS_CLASS} button {
+    height: ${PRACTICE_AUDIO_HEIGHT} !important;
+    min-height: ${PRACTICE_AUDIO_HEIGHT} !important;
+    min-width: 44px !important;
+  }
+`;
+
+const practiceAudioTabStyle = {
+  ...mascotHintTabStyle,
+  height: PRACTICE_AUDIO_HEIGHT,
+  minHeight: PRACTICE_AUDIO_HEIGHT,
+};
+
 type PronunciationPracticeShellProps = {
   page: PronunciationPracticePageState;
 };
@@ -329,13 +349,21 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
   const showResult = readOnly || completed;
 
   const practiceAudioTabs = currentWord ? (
-    <span style={{ display: "flex", alignItems: "center" }}>
+    <span
+      className={PRACTICE_AUDIO_TABS_CLASS}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        height: PRACTICE_AUDIO_HEIGHT,
+        minHeight: PRACTICE_AUDIO_HEIGHT,
+      }}
+    >
       <button
         type="button"
         aria-label="Hear the word"
         title="Hear the word"
         disabled={currentWordAudioStatus !== "ready"}
-        style={mascotHintTabStyle}
+        style={practiceAudioTabStyle}
         onClick={() => replay(wordAudioRef)}
       >
         Hear the word
@@ -344,7 +372,7 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
         type="button"
         aria-label={`Hear the ${sound.ipa} sound`}
         title={`Hear the ${sound.ipa} sound`}
-        style={mascotHintTabStyle}
+        style={practiceAudioTabStyle}
         onClick={() => replay(soundAudioRef)}
       >
         Hear the {sound.ipa} sound
@@ -367,7 +395,8 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
   ) : null;
 
   return (
-    <main style={missionPageStyle}>
+    <main className="pronunciation-practice-shell" style={missionPageStyle}>
+      <style>{PRACTICE_AUDIO_TOUCH_TARGET_CSS}</style>
       <div style={missionContentStyle}>
         {showResult ? (
           <Link
