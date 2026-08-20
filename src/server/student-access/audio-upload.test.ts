@@ -1469,6 +1469,86 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     );
   });
 
+  it("persists a provider-classified regular singular/plural recast as accepted minor", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...soccerConversationSnapshot,
+        targetPattern: "I watch _____.",
+        turns: [
+          {
+            ...soccerConversationSnapshot.turns[0],
+            prompt: "What do you watch?",
+            targetExample: "I watch cartoons.",
+          },
+        ],
+      } as unknown as typeof conversationMissionSnapshotFixture,
+    });
+
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginal = successfulOriginalEvaluator({
+      outcome: "needs_correction",
+      correctionNeeded: true,
+      correctionSeverity: "minor",
+      correctionReason: "grammar",
+      improvedSentence: "I watch cartoons.",
+    });
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "What kind of cartoons do you like?" },
+    }));
+    const warmTtsAudioCache = vi.fn(async () => ({
+      ok: true as const,
+      warmed: 1,
+      skipped: 0,
+      failed: 0,
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I watch cartoon."),
+      evaluateOriginalTurn: evaluateOriginal,
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+      warmTtsAudioCache,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "accepted_original",
+        correctionSeverity: "minor",
+        improvedSentence: "I watch cartoons.",
+        requireRepeat: false,
+      },
+      cocoLine: "What kind of cartoons do you like?",
+    });
+    expect(warmTtsAudioCache).toHaveBeenCalledTimes(1);
+    expect(warmTtsAudioCache).toHaveBeenCalledWith(
+      expect.objectContaining({ texts: ["What kind of cartoons do you like?"] }),
+    );
+    const turnUpsert = mockSupabase.operations.find(
+      (operation) =>
+        operation.table === "attempt_turns" &&
+        operation.action === "upsert" &&
+        (operation.payload as { original_transcript?: unknown })
+          .original_transcript === "I watch cartoon.",
+    );
+    if (!turnUpsert) throw new Error("expected a singular/plural turn upsert");
+    expect(turnUpsert.payload).toMatchObject({
+      original_transcript: "I watch cartoon.",
+      improved_sentence: "I watch cartoons.",
+      evaluation: expect.objectContaining({
+        outcome: "accepted_original",
+        correctionSeverity: "minor",
+        requireRepeat: false,
+      }),
+    });
+  });
+
   it("still warms correction TTS for a material conversation-mode correction", async () => {
     mockSupabase = createMockSupabase({
       missionSnapshot: soccerConversationSnapshot as unknown as typeof conversationMissionSnapshotFixture,

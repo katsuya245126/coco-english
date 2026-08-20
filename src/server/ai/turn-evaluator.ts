@@ -296,6 +296,7 @@ const correctionReasonInstructions = [
 const conversationSeverityInstructions = [
   "A correction is minor only when meaning is clear and relevant, content words and their word classes are intact, required clause and verb structure is intact, and only a local function-word detail changes.",
   "Example: transcript \"I'm going to library\" may be minor with improvedSentence \"I'm going to the library.\" and must not require repetition.",
+  "A local regular singular/plural number inflection is also minor when the sentence structure and meaning stay the same and exactly one word changes by a regular s/es/ies suffix. Example: transcript \"I watch cartoon.\" may be minor with improvedSentence \"I watch cartoons.\" and must not require repetition.",
   "A correction is material when required clause or verb structure is missing or incorrect, a word has the wrong class or semantic category, content must be invented or replaced, or a complete sentence is required but missing.",
   "Example: \"I want read cartoon\" is material with \"I want to read cartoons.\" because the infinitive structure is missing.",
   "Example: \"I will go to the exercise\" is material with \"I will exercise.\" because exercise is used as the wrong destination-noun category.",

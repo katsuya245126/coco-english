@@ -907,6 +907,9 @@ describe("evaluateOriginalTurn server adapter (D-01 through D-07, D-10)", () => 
     expect(instructions).toContain("I will exercise.");
     expect(instructions).toContain("wrong destination-noun category");
     expect(instructions).toContain("Never classify by edit distance");
+    expect(instructions).toContain("regular singular/plural");
+    expect(instructions).toContain("I watch cartoon.");
+    expect(instructions).toContain("I watch cartoons.");
   });
 
   it("reports preset-compatible severity without changing preset acceptance rules", async () => {
