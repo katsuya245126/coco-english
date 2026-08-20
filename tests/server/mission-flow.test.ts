@@ -191,9 +191,47 @@ describe("completion helpers: nextUnfinishedTurnOrder (D-06)", () => {
       isAttemptComplete(2, [reviewedRepeatTurn, makeCompleteTurn(2)]),
     ).toBe(true);
   });
+
+  it("treats a repeat-limit turn as finished without accepted-repeat evidence", () => {
+    const limitTurn = makeTurn(1, {
+      original_transcript: "I no play soccer.",
+      repeat_transcript: "I no play soccer again.",
+      repeat_accepted: false,
+      evaluation: {
+        version: "ai-eval-v1",
+        outcome: "repeat_limit_reached",
+        repeatCloseEnough: false,
+        repeatAccepted: false,
+        requireRepeat: false,
+      },
+    });
+
+    expect(nextUnfinishedTurnOrder(2, [limitTurn, makeCompleteTurn(2)])).toBe(3);
+    expect(isAttemptComplete(2, [limitTurn, makeCompleteTurn(2)])).toBe(true);
+  });
 });
 
 describe("completion helpers: persisted feedback resume", () => {
+  it("restores repeat-limit feedback as neutral progress, not teacher review", () => {
+    expect(
+      getPendingTurnReview({
+        ...makeCompleteTurn(1),
+        repeat_accepted: false,
+        evaluation: {
+          version: "ai-eval-v1",
+          outcome: "repeat_limit_reached",
+          repeatCloseEnough: false,
+          repeatAccepted: false,
+          requireRepeat: false,
+        },
+      }),
+    ).toMatchObject({
+      step: "repeatFeedback",
+      outcome: "repeatLimitReached",
+      transcript: "I like apples very much",
+    });
+  });
+
   it("restores an accepted-original review from persisted evaluation", () => {
     expect(
       getPendingTurnReview({

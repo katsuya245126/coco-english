@@ -46,7 +46,11 @@ export type PendingTurnReview =
     }
   | {
       step: "repeatFeedback";
-      outcome: "repeatAccepted" | "repeatRetry" | "repeatReview";
+      outcome:
+        | "repeatAccepted"
+        | "repeatRetry"
+        | "repeatReview"
+        | "repeatLimitReached";
       transcript: string | null;
       originalTranscript: string | null;
       improvedSentence: string | null;
@@ -178,14 +182,11 @@ function originalAnswerAccepted(turn: CompletionTurn): boolean {
 
 /**
  * Recognizes a repeat turn as finished when it was either accepted outright
- * (repeat_accepted === true, handled by the caller) or internally reviewed
- * (teacher_review) — a persisted repeat-path teacher-review turn is not
- * necessarily the mission's final turn, so resume and completion counting
- * must treat it as done rather than stranding the student on an
- * unreachable turn (mirrors originalAnswerAccepted's pattern for the
- * original-turn path).
+ * (repeat_accepted === true, handled by the caller), internally reviewed, or
+ * stopped at the repeat cap. Those terminal outcomes must not strand the
+ * student on an unreachable turn.
  */
-function repeatAnswerReviewed(turn: CompletionTurn): boolean {
+function repeatAnswerFinished(turn: CompletionTurn): boolean {
   if (
     turn.repeat_transcript === null ||
     turn.repeat_transcript.trim().length === 0
@@ -209,7 +210,8 @@ function repeatAnswerReviewed(turn: CompletionTurn): boolean {
 
   return (
     evaluation.version === "ai-eval-v1" &&
-    evaluation.outcome === "teacher_review" &&
+    (evaluation.outcome === "teacher_review" ||
+      evaluation.outcome === "repeat_limit_reached") &&
     evaluation.requireRepeat === false
   );
 }
@@ -232,6 +234,8 @@ export function getPendingTurnReview(
           ? "repeatRetry"
           : outcome === "teacher_review"
             ? "repeatReview"
+            : outcome === "repeat_limit_reached"
+              ? "repeatLimitReached"
             : null;
     if (!repeatOutcome) return null;
 
@@ -296,7 +300,7 @@ function isTurnFinished(turn: CompletionTurn): boolean {
   const repeatAccepted = turn.repeat_accepted === true;
   return (
     (hasAnswer && hasRepeat && repeatAccepted) ||
-    (hasAnswer && hasRepeat && repeatAnswerReviewed(turn)) ||
+    (hasAnswer && hasRepeat && repeatAnswerFinished(turn)) ||
     originalAnswerAccepted(turn)
   );
 }

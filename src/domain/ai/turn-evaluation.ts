@@ -149,6 +149,11 @@ export type RepeatTurnDecision =
       reason: "not_close_enough";
     }
   | {
+      kind: "repeat_limit_reached";
+      repeatAccepted: false;
+      requireRepeat: false;
+    }
+  | {
       kind: "teacher_review";
       repeatAccepted: null;
       reviewReason: z.infer<typeof aiEvaluationReviewReasonSchema>;
@@ -519,8 +524,8 @@ export function repeatTurnProviderFailureResult(): Extract<
  * tries, far more likely to be an unsayable target than a child who cannot
  * say it. Turn 3 of attempt 6406e6a5 (2026-07-27) asked for the invented word
  * "Baedalranteu" and rejected five clips scoring 90/93/94/94/84 — a loop the
- * child had no way to exit. Accepting after the cap ends the loop in the
- * child's favour, which is the right direction when the fault is ours.
+ * child had no way to exit. A neutral terminal outcome after the cap ends the
+ * loop in the child's favour while preserving the negative closeness evidence.
  */
 export const MAX_REPEAT_ATTEMPTS = 3 as const;
 
@@ -548,9 +553,14 @@ export function decideRepeatTurnOutcome(
   }
 
   // Stop asking rather than loop. The child has tried enough times that the
-  // target itself is the likely problem.
+  // target itself is the likely problem. Keep the negative closeness evidence
+  // auditable instead of rewriting it as accepted pronunciation.
   if (attemptNumber >= MAX_REPEAT_ATTEMPTS) {
-    return { kind: "accepted_repeat", repeatAccepted: true };
+    return {
+      kind: "repeat_limit_reached",
+      repeatAccepted: false,
+      requireRepeat: false,
+    };
   }
 
   return {

@@ -191,6 +191,31 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(repeatAcceptedBranch).toContain("RecordingReview");
   });
 
+  it("repeat-limit feedback continues neutrally without acceptance or retry", () => {
+    const shellSource = readFileSync(
+      "src/components/student/MissionFlowShell.tsx",
+      "utf8",
+    );
+    const feedbackSource = readFileSync(
+      "src/components/student/StepAiEvaluationFeedback.tsx",
+      "utf8",
+    );
+
+    expect(shellSource).toContain('"repeatLimitReached"');
+    expect(shellSource).toContain(
+      'repeatFeedback.kind === "repeatLimitReached"',
+    );
+    expect(feedbackSource).toContain('outcome === "repeatLimitReached"');
+    const limitBranch = feedbackSource.slice(
+      feedbackSource.indexOf('if (outcome === "repeatLimitReached")'),
+      feedbackSource.indexOf('if (outcome === "repeatAccepted")'),
+    );
+    expect(limitBranch).toContain("Continue mission");
+    expect(limitBranch).toContain("Let’s continue.");
+    expect(limitBranch).not.toContain("Good repeat.");
+    expect(limitBranch).not.toContain("RecordAgainRequiredNotice");
+  });
+
   it("review routing flags the owned attempt without terminalizing anything", () => {
     const missionFlowSource = readFileSync(
       "src/server/student-access/mission-flow.ts",
