@@ -43,7 +43,9 @@ vi.mock("./VoiceRecorderControl", () => ({
 
 vi.mock("./CocoSpeechAudio", () => ({
   CocoSpeechAudio: ({ line }: { line: { feedbackVariant?: string } }) => (
-    <span data-testid="feedback-audio">{line.feedbackVariant}</span>
+    <button type="button" data-testid="feedback-audio" aria-label="Play Coco">
+      {line.feedbackVariant}
+    </button>
   ),
 }));
 
@@ -59,7 +61,11 @@ vi.mock("./MascotStage", () => ({
   }) => (
     <div data-testid="mascot-stage" data-expression={expression}>
       <p data-testid="mascot-dialogue">{dialogueText}</p>
-      {voiceControl}
+      {voiceControl ? (
+        <div data-testid="mascot-dialogue-actions">
+          <span data-testid="mascot-voice-tab">{voiceControl}</span>
+        </div>
+      ) : null}
     </div>
   ),
 }));
@@ -245,6 +251,31 @@ describe("PronunciationPracticeShell", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
+
+    const actionContainer = container.querySelector<HTMLElement>(
+      '[data-testid="mascot-dialogue-actions"]',
+    );
+    const voiceTab = actionContainer?.querySelector<HTMLElement>(
+      '[data-testid="mascot-voice-tab"]',
+    );
+    const feedbackAudio = voiceTab?.querySelector<HTMLButtonElement>(
+      '[data-testid="feedback-audio"]',
+    );
+    const nestedTabs = voiceTab?.querySelector<HTMLElement>(
+      '.pronunciation-practice-audio-tabs',
+    );
+
+    expect(actionContainer).not.toBeNull();
+    expect(voiceTab).not.toBeNull();
+    expect(feedbackAudio).not.toBeNull();
+    expect(nestedTabs).not.toBeNull();
+    expect(nestedTabs?.parentElement).toBe(voiceTab);
+    expect(
+      container.querySelector(
+        '[data-testid="mascot-dialogue-actions"] > [data-testid="mascot-voice-tab"] > .pronunciation-practice-audio-tabs',
+      ),
+    ).toBe(nestedTabs);
+    expect(feedbackAudio?.closest('[data-testid="mascot-dialogue-actions"]')).toBe(actionContainer);
 
     const touchTargetStyle = container.querySelector<HTMLStyleElement>('style');
     expect(touchTargetStyle?.textContent).toContain(
