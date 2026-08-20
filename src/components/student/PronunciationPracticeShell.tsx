@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PRACTICE_SOUNDS, nextPracticeWordOrder } from "@/domain/pronunciation/practice";
 import type {
   PronunciationPracticePageState,
@@ -10,16 +10,18 @@ import type {
 import type { PracticeTryOutcome } from "@/domain/pronunciation/practice";
 import { completePronunciationAttemptAction } from "@/app/student/pronunciation/[assignmentStudentId]/actions";
 import { CocoSpeechAudio } from "@/components/student/CocoSpeechAudio";
+import { MascotStage } from "@/components/student/MascotStage";
 import { VoiceRecorderControl } from "@/components/student/VoiceRecorderControl";
-import Image from "next/image";
 import Link from "next/link";
 import {
   bodyStyle,
   displayTitleStyle,
   errorTextStyle,
+  mascotHintTabStyle,
+  missionContentStyle,
+  missionPageStyle,
   primaryButtonStyle,
   secondaryButtonStyle,
-  stepCardStyle,
 } from "@/components/student/styles";
 
 const backLinkStyle = {
@@ -131,103 +133,18 @@ const EXPRESSION_BY_OUTCOME: Record<PracticeTryOutcome, "celebrate" | "encouragi
   different_word: "encouraging",
 };
 
-/**
- * The tone of a try. A weak try is amber, never red: the child said a real
- * word and is being asked to try again, which is not an error state. Red
- * stays reserved for the genuine failures handled by `errorTextStyle`.
- */
-const VERDICT_TONE = {
-  celebrate: { background: "#EAF3DE", border: "#97C459", title: "#173404", detail: "#3B6D11" },
-  encourage: { background: "#FAEEDA", border: "#EF9F27", title: "#412402", detail: "#854F0B" },
-} as const;
-
-/**
- * One verdict for one try: Coco's face, his message, and the whole-word stars
- * underneath as a labelled detail.
- *
- * The stars and the target sound measure different things — the stars score
- * the whole word, the message reflects the target phoneme — so a strong word
- * can carry a weak target sound. Showing both as competing pass/fail badges
- * read as a contradiction ("three stars" beside a red cross), so the message
- * is the single verdict and the stars are explicitly labelled as the whole
- * word. The slot keeps one height across outcomes so the screen never grows.
- */
-function TryVerdict({
-  outcome,
-  starBand,
-  message,
-  starsTestId,
-  children,
-}: {
-  outcome: PracticeTryOutcome;
-  starBand: number | null;
-  message: string;
-  starsTestId?: string;
-  children?: React.ReactNode;
-}) {
-  const stars = starsForBand(starBand);
-  const filled = starBand === null ? 0 : Math.max(0, Math.min(3, Math.round(starBand)));
-  const expression = EXPRESSION_BY_OUTCOME[outcome];
-  const tone = outcome === "passed" ? VERDICT_TONE.celebrate : VERDICT_TONE.encourage;
-  return (
-    <div
-      data-testid="try-verdict"
-      data-outcome={outcome}
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 12,
-        minHeight: 84,
-        padding: 14,
-        borderRadius: 16,
-        background: tone.background,
-        border: `2px solid ${tone.border}`,
-      }}
-    >
-      <Image
-        data-testid="coco-face"
-        data-expression={expression}
-        src={`/images/coco-${expression}-alpha.png`}
-        alt=""
-        width={44}
-        height={44}
-        style={{ flexShrink: 0, borderRadius: "50%", objectFit: "cover" }}
-      />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ ...bodyStyle, margin: 0, fontSize: 17, fontWeight: 600, color: tone.title }}>{message}</p>
-        <p style={{ ...bodyStyle, margin: "3px 0 0", fontSize: 13, color: tone.detail }}>
-          <span
-            data-testid={starsTestId}
-            aria-label={`${filled} of 3 stars for the whole word`}
-            style={{ letterSpacing: 1 }}
-          >
-            {stars}
-          </span>{" "}
-          whole word
-        </p>
-      </div>
-      {children}
-    </div>
-  );
-}
-
 export function PronunciationPracticeShell({ page }: PronunciationPracticeShellProps) {
   const [words, setWords] = useState(page.words);
   const [currentWordOrder, setCurrentWordOrder] = useState(page.currentWordOrder);
   const [readOnly, setReadOnly] = useState(page.readOnly);
   const [completed, setCompleted] = useState(page.completed);
-  // Holds the try the student just made. The result strip must read this and
-  // not the word's derived resultTry: after a weak try 1 followed by try 2,
-  // resultTry still points at an earlier try and would show a stale sound
-  // status next to the new stars.
-  const [lastTry, setLastTry] = useState<
-    {
-      message: string;
-      starBand: 1 | 2 | 3 | null;
-      targetSoundPassed: boolean;
-      outcome: PracticeTryOutcome;
-    } | null
-  >(null);
+  // Holds the try the student just made. The stage must read this and not the
+  // word's derived resultTry, which can still point at an earlier try.
+  const [lastTry, setLastTry] = useState<{
+    message: string;
+    targetSoundPassed: boolean;
+    outcome: PracticeTryOutcome;
+  } | null>(null);
   const [feedbackVariant, setFeedbackVariant] = useState<string | null>(null);
   const [completionError, setCompletionError] = useState<string | null>(null);
   const [wordAudioUrls, setWordAudioUrls] = useState<Record<number, string>>({});
@@ -237,6 +154,17 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
   const autoPlayedWordOrders = useRef(new Set<number>());
   const soundAudioRef = useRef<HTMLAudioElement | null>(null);
   const wordAudioRef = useRef<HTMLAudioElement | null>(null);
+  const mascotAmplitudeRef = useRef(0);
+  const [mascotPlaying, setMascotPlaying] = useState(false);
+
+  const handleMascotAmplitudeFrame = useCallback((level: number) => {
+    mascotAmplitudeRef.current = level;
+  }, []);
+
+  const handleMascotPlayingChange = useCallback((playing: boolean) => {
+    setMascotPlaying(playing);
+    if (!playing) mascotAmplitudeRef.current = 0;
+  }, []);
 
   const currentWord = words.find((word) => word.order === currentWordOrder) ?? null;
   const sound = PRACTICE_SOUNDS[page.soundId];
@@ -360,7 +288,6 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
     setWords(updatedWords);
     setLastTry({
       message: result.feedback,
-      starBand: result.outcome === "different_word" ? null : result.starBand,
       targetSoundPassed: result.targetSoundPassed,
       outcome: result.outcome,
     });
@@ -398,12 +325,50 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
     setCompletionError(null);
   }
 
-  const progress = Math.round((words.filter((word) => word.finished).length / words.length) * 100);
+  const finishedWordCount = words.filter((word) => word.finished).length;
   const showResult = readOnly || completed;
 
+  const practiceAudioTabs = currentWord ? (
+    <span style={{ display: "flex", alignItems: "center" }}>
+      <button
+        type="button"
+        aria-label="Hear the word"
+        title="Hear the word"
+        disabled={currentWordAudioStatus !== "ready"}
+        style={mascotHintTabStyle}
+        onClick={() => replay(wordAudioRef)}
+      >
+        Hear the word
+      </button>
+      <button
+        type="button"
+        aria-label={`Hear the ${sound.ipa} sound`}
+        title={`Hear the ${sound.ipa} sound`}
+        style={mascotHintTabStyle}
+        onClick={() => replay(soundAudioRef)}
+      >
+        Hear the {sound.ipa} sound
+      </button>
+      {lastTry && feedbackVariant ? (
+        <CocoSpeechAudio
+          assignmentStudentId={page.assignmentStudentId}
+          label="Play Coco's message"
+          presentation="dialogue-tab"
+          line={{
+            lineKind: "coco_feedback",
+            turnOrder: currentWord.order,
+            feedbackVariant,
+          }}
+          onAmplitudeFrame={handleMascotAmplitudeFrame}
+          onPlayingChange={handleMascotPlayingChange}
+        />
+      ) : null}
+    </span>
+  ) : null;
+
   return (
-    <main style={{ minHeight: "100vh", background: "#F7F8FA", padding: 24 }}>
-      <section style={{ ...stepCardStyle, maxWidth: 640, margin: "0 auto" }}>
+    <main style={missionPageStyle}>
+      <div style={missionContentStyle}>
         {showResult ? (
           <Link
             href="/student/home"
@@ -416,18 +381,48 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
           </Link>
         ) : null}
         <h1 style={{ ...displayTitleStyle, marginBottom: 4 }}>{page.title}</h1>
-        <p
-          aria-label={`${words.filter((word) => word.finished).length} of 5 words completed`}
-          style={{ ...bodyStyle, marginBottom: 8 }}
+        <div
+          role="group"
+          aria-label={`${finishedWordCount} of 5 words completed`}
+          style={{ display: "flex", alignItems: "center", gap: 10, margin: "12px 0 8px" }}
         >
-          {showResult ? "Practice result" : `Word ${currentWordOrder ?? words.length} of 5`} · {progress}% complete
-        </p>
-        <div aria-hidden="true" style={{ height: 6, borderRadius: 999, background: "#E5E7EB", marginBottom: 20 }}>
-          <div style={{ width: `${progress}%`, height: "100%", borderRadius: 999, background: "#2563EB" }} />
+          {words.map((word) => {
+            const state = word.finished
+              ? "finished"
+              : word.order === currentWordOrder
+                ? "current"
+                : "upcoming";
+            return (
+              <span
+                key={word.order}
+                data-testid={`progress-dot-${word.order}`}
+                data-state={state}
+                aria-hidden="true"
+                style={{
+                  width: 14,
+                  height: 14,
+                  flexShrink: 0,
+                  borderRadius: "50%",
+                  border: state === "current" ? "3px solid #2563EB" : "2px solid #CBD5E1",
+                  background: state === "finished" ? "#2563EB" : "#FFFFFF",
+                  boxSizing: "border-box",
+                }}
+              />
+            );
+          })}
         </div>
 
         {showResult ? (
           <div aria-label="Pronunciation practice result">
+            <MascotStage
+              assignmentStudentId={page.assignmentStudentId}
+              displayName="Coco"
+              dialogueText="You did it!"
+              expression="celebrate"
+              step="question"
+              playing={mascotPlaying}
+              amplitudeRef={mascotAmplitudeRef}
+            />
             {words.map((word) => (
               <article key={word.order} style={{ borderTop: "1px solid #E5E7EB", padding: "14px 0" }}>
                 <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>
@@ -458,17 +453,28 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
           </div>
         ) : currentWord ? (
           <>
-            <div style={{ textAlign: "center", fontSize: 42, fontWeight: 700, margin: "28px 0" }}>
+            <div
+              style={{
+                textAlign: "center",
+                fontSize: "clamp(40px, 14vw, 52px)",
+                lineHeight: 1.1,
+                fontWeight: 700,
+                overflowWrap: "anywhere",
+                margin: "22px 0 18px",
+              }}
+            >
               {highlightedWord(currentWord, lastTry ? lastTry.targetSoundPassed : null)}
             </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 20 }}>
-              <button type="button" aria-label="Play sound" style={secondaryButtonStyle} onClick={() => replay(soundAudioRef)}>
-                Play sound
-              </button>
-              <button type="button" aria-label="Play word" disabled={currentWordAudioStatus !== "ready"} style={secondaryButtonStyle} onClick={() => replay(wordAudioRef)}>
-                Play word
-              </button>
-            </div>
+            <MascotStage
+              assignmentStudentId={page.assignmentStudentId}
+              displayName="Coco"
+              dialogueText={lastTry?.message ?? "Listen, then say it!"}
+              expression={lastTry ? EXPRESSION_BY_OUTCOME[lastTry.outcome] : "happy"}
+              step="question"
+              playing={mascotPlaying}
+              amplitudeRef={mascotAmplitudeRef}
+              voiceControl={practiceAudioTabs}
+            />
             <audio ref={soundAudioRef} src={sound.clip} preload="auto" />
             {wordAudioUrls[currentWord.order] ? <audio ref={wordAudioRef} src={wordAudioUrls[currentWord.order]} preload="auto" /> : null}
             {currentWordAudioStatus === "loading" ? (
@@ -492,30 +498,9 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
                 </button>
               </div>
             ) : null}
-            {/* Result zone. Reserved even when empty so that the screen keeps
-                one height across a try and the action below never shifts. */}
-            <div aria-live="polite" style={{ minHeight: 84, marginBottom: 16 }}>
-              {lastTry ? (
-                <TryVerdict
-                  outcome={lastTry.outcome}
-                  starBand={lastTry.starBand}
-                  message={lastTry.message}
-                  starsTestId="try-stars"
-                >
-                  {feedbackVariant ? (
-                    <CocoSpeechAudio
-                      assignmentStudentId={page.assignmentStudentId}
-                      label="Play Coco's message"
-                      line={{
-                        lineKind: "coco_feedback",
-                        turnOrder: currentWord.order,
-                        feedbackVariant,
-                      }}
-                    />
-                  ) : null}
-                </TryVerdict>
-              ) : null}
-            </div>
+            {/* Reserved verdict/action space keeps the recorder and Next word
+                in one place while the stage dialogue changes. */}
+            <div aria-live="polite" style={{ minHeight: 84, marginBottom: 16 }} />
 
             {completionError ? <p role="alert" style={errorTextStyle}>{completionError}</p> : null}
 
@@ -536,7 +521,7 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
             )}
           </>
         ) : null}
-      </section>
+      </div>
     </main>
   );
 }

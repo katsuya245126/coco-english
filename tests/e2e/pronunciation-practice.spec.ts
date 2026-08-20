@@ -116,7 +116,7 @@ async function mockPronunciationProviders(page: Page, clipIds: string[]) {
         fullWordPassed: true,
         targetSoundAccuracy: 90,
         targetSoundPassed: true,
-        feedback: "Good job!",
+        feedback: "Your fff was strong!",
       }),
     });
   });
@@ -290,10 +290,10 @@ async function seedCompletedWordEvidence(
 }
 
 async function recordWord(page: Page) {
-  await expect(page.getByRole("button", { name: "Play word" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Hear the word" })).toBeEnabled();
   await page.getByRole("button", { name: "Record", exact: true }).click();
   await page.getByRole("button", { name: "Stop recording" }).click();
-  await expect(page.getByText("Good job!", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Your fff was strong!", { exact: true }).first()).toBeVisible();
 }
 
 test("teacher-to-student pronunciation practice path stays resumable and reviewable", async ({
@@ -408,8 +408,8 @@ test("teacher-to-student pronunciation practice path stays resumable and reviewa
     await page
       .getByRole("link", { name: "Start practice" })
       .dispatchEvent("click");
-    await expect(page.getByText(/Word 1 of 5/)).toBeVisible();
-    await expect(page.getByRole("button", { name: "Play word" })).toBeEnabled();
+    await expect(page.getByLabel("0 of 5 words completed")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Hear the word" })).toBeEnabled();
 
     // One valid try is enough to prove resume state; the remaining four are
     // completed in the same run. All provider calls are browser route doubles.
@@ -425,7 +425,7 @@ test("teacher-to-student pronunciation practice path stays resumable and reviewa
       )),
     );
     await page.reload();
-    await expect(page.getByText("Word 2 of 5")).toBeVisible();
+    await expect(page.getByLabel("1 of 5 words completed")).toBeVisible();
 
     for (let index = 1; index < entries.length; index += 1) {
       if (index === entries.length - 1) {
@@ -453,7 +453,7 @@ test("teacher-to-student pronunciation practice path stays resumable and reviewa
           )),
         );
         await page.getByRole("button", { name: "Next word" }).click();
-        await expect(page.getByText(`Word ${index + 2} of 5`)).toBeVisible();
+        await expect(page.getByLabel(`${index + 1} of 5 words completed`)).toBeVisible();
       }
     }
     await page.getByRole("button", { name: "Next word" }).click();
