@@ -28,9 +28,9 @@ order.
 
 Example:
 
-> Coco: What do you like to do after school?  
-> Student: I play soccer.  
-> Coco: Who do you like to play soccer with?  
+> Coco: What do you like to do after school?
+> Student: I play soccer.
+> Coco: Who do you like to play soccer with?
 > Student: [unclear]
 
 Recovery 1:
