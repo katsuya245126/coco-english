@@ -56,7 +56,6 @@ scripts/local/
 
 # One-off production DB management scripts — not for public repo
 scripts/list-recent-assignments.mjs
-scripts/inspect-attempts.mjs
 scripts/dry-run-cleanup-fixture-classes.mjs
 scripts/delete-fixture-classes.mjs
 scripts/output/

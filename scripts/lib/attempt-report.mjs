@@ -4,6 +4,79 @@ function shown(value) {
     : String(value);
 }
 
+const BUILT_IN_TEST_CLASS_NAME_FRAGMENTS = [
+  "foundation demo class",
+  "missione2e class",
+  "mobile class",
+];
+
+export function parseConfiguredTestClassIds(value = "") {
+  return new Set(
+    String(value)
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean),
+  );
+}
+
+export function isTestClass(
+  { id = null, name = "" } = {},
+  { includeTest = false, configuredTestClassIds = new Set() } = {},
+) {
+  if (includeTest) return false;
+  const normalizedName = String(name).trim().toLowerCase();
+  return (
+    BUILT_IN_TEST_CLASS_NAME_FRAGMENTS.some((fragment) =>
+      normalizedName.includes(fragment),
+    ) || configuredTestClassIds.has(id)
+  );
+}
+
+export async function fetchAllPages(fetchPage, { pageSize = 1000 } = {}) {
+  if (!Number.isInteger(pageSize) || pageSize < 1) {
+    throw new Error("pageSize must be a positive integer");
+  }
+
+  const rows = [];
+  for (let from = 0; ; from += pageSize) {
+    const page = (await fetchPage(from, from + pageSize - 1)) ?? [];
+    rows.push(...page);
+    if (page.length < pageSize) return rows;
+  }
+}
+
+export function formatInspectionFilters({
+  scopeLabel,
+  includeTest = false,
+  configuredTestClassCount = 0,
+  showUnattempted = false,
+  rowCap,
+  pageSize = 1000,
+}) {
+  return [
+    `Scope: ${shown(scopeLabel)}`,
+    `Test traffic: ${includeTest ? "included (--include-test)" : "excluded by default"}`,
+    `Configured test class IDs: ${shown(configuredTestClassCount)} (values withheld)`,
+    `Unattempted rows: ${showUnattempted ? "included (--show-unattempted)" : "excluded by default"}`,
+    `Row cap: ${shown(rowCap)}`,
+    `Pagination: all pages fetched (page size: ${shown(pageSize)})`,
+  ];
+}
+
+export function formatInspectionSampling({
+  candidateRows = 0,
+  scannedRows = 0,
+  shownRows = 0,
+}) {
+  const samplingComplete = scannedRows >= candidateRows;
+  return [
+    `Candidate rows: ${shown(candidateRows)}`,
+    `Rows scanned: ${shown(scannedRows)}`,
+    `Shown rows: ${shown(shownRows)}`,
+    `Sampling: ${samplingComplete ? "complete" : "incomplete"} (${shown(scannedRows)} of ${shown(candidateRows)} candidate rows scanned)`,
+  ];
+}
+
 export function formatEvaluation(evaluation, { label = "evaluation" } = {}) {
   const value =
     evaluation && typeof evaluation === "object" && !Array.isArray(evaluation)
@@ -136,6 +209,32 @@ function turnContext(turn, input) {
     conversationMode: false,
     generatedTurn: false,
     targetPattern: null,
+  };
+}
+
+export function resolveAttemptPrompt({
+  turn,
+  snapshotTurnsByOrder,
+  conversationMode = false,
+  previousCocoLine = null,
+}) {
+  const snapshotTurn = snapshotTurnsByOrder?.get(turn?.turn_order) ?? null;
+  if (!conversationMode) {
+    return {
+      promptAnswered: snapshotTurn?.prompt ?? null,
+      snapshotTurn,
+      generatedTurn: false,
+    };
+  }
+
+  const isFirstTurn = turn?.turn_order === 1;
+  const promptAnswered = isFirstTurn
+    ? snapshotTurn?.prompt ?? "unavailable (legacy linkage)"
+    : previousCocoLine ?? "unavailable (legacy linkage)";
+  return {
+    promptAnswered,
+    snapshotTurn,
+    generatedTurn: !isFirstTurn || snapshotTurn === null,
   };
 }
 
