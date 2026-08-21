@@ -44,6 +44,22 @@ export type BuildConversationHistoryResult =
   | { ok: true; history: ConversationExchange[] }
   | { ok: false; error: "invalid_history" };
 
+export function selectUnclearRecoveryFallbackQuestion(input: {
+  attempt: 1 | 2;
+  activeQuestion: string;
+  conversationHistory: ConversationExchange[];
+  ambiguityHistory: Array<{ question?: string }>;
+}): string {
+  if (input.attempt === 1) return input.activeQuestion;
+  for (let index = input.conversationHistory.length - 2; index >= 0; index -= 1) {
+    const exchange = input.conversationHistory[index];
+    if (exchange?.studentResponse !== WITHHELD_STUDENT_RESPONSE) {
+      return exchange?.cocoLine ?? input.activeQuestion;
+    }
+  }
+  return input.ambiguityHistory[0]?.question?.trim() || input.activeQuestion;
+}
+
 export function buildConversationHistory(input: {
   openerLine: string;
   currentTurnOrder: number;

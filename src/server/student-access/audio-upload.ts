@@ -31,6 +31,7 @@ import {
 import {
   AI_EVALUATION_VERSION,
   CORRECTION_POLICY_VERSION,
+  MAX_AMBIGUITY_RETRIES,
   decideOriginalTurnOutcome,
   guardNonsensicalMinimalEffortCorrection,
   guardNoOpCorrection,
@@ -101,6 +102,7 @@ import {
 } from "@/domain/ai/conversation-generation";
 import {
   buildConversationHistory,
+  selectUnclearRecoveryFallbackQuestion,
   type PersistedConversationTurn,
 } from "@/server/student-access/conversation-history";
 import { log } from "@/server/logging/logger";
@@ -232,6 +234,8 @@ type StoredOriginalTurnEvaluation = StoredEvaluationProvenance & {
     transcript: string;
     audioClipId: string;
     evaluation: OriginalTurnEvaluation;
+    question?: string;
+    recoveryQuestion?: string;
   }>;
   contractViolations?: OriginalEvaluationViolation[];
   hangulInterpretations: HangulInterpretation[];
@@ -582,6 +586,26 @@ function priorAmbiguityState(evaluation: unknown): Pick<
   };
 }
 
+function persistedUnclearRetryQuestion(
+  evaluation: unknown,
+  cocoLine: unknown,
+) {
+  if (
+    typeof evaluation !== "object" ||
+    evaluation === null ||
+    Array.isArray(evaluation)
+  ) {
+    return null;
+  }
+  const stored = evaluation as { outcome?: unknown; retryReason?: unknown };
+  return stored.outcome === "retry_original" &&
+    stored.retryReason === "unclear_meaning" &&
+    typeof cocoLine === "string" &&
+    cocoLine.trim()
+    ? cocoLine.trim()
+    : null;
+}
+
 function reviewReasonOrDefault(
   reviewReason: string | null,
 ): TeacherReviewReason {
@@ -624,6 +648,7 @@ type ConversationTurnContext = {
   studentTranscript: string;
   conversationHistory: ConversationExchange[];
   responseHandling: "normal" | "review_pending";
+  generationPurpose?: GenerateCocoReplyInput["generationPurpose"];
 };
 
 type ConversationTurnOutcome = {
@@ -656,6 +681,9 @@ function fallbackLineForContext(
   context: ConversationTurnContext,
   inputUsable: boolean,
 ): string {
+  if (context.generationPurpose?.kind === "unclear_recovery") {
+    return context.generationPurpose.fallbackQuestion;
+  }
   if (conversationReplyMode(context) === "closing") {
     return selectClosingFallbackLine();
   }
@@ -722,6 +750,9 @@ async function runConversationTurn(
     safetyMode: "standard",
     responseHandling: context.responseHandling,
     conversationHistory: context.conversationHistory,
+    ...(context.generationPurpose
+      ? { generationPurpose: context.generationPurpose }
+      : {}),
   };
 
   // (c) GENERATE
@@ -994,17 +1025,6 @@ export async function uploadAttemptAudioClip(
       return { ok: false, error: "invalid_audio", retryable: false };
     }
 
-    const missionQuestion = snapshotTurn?.prompt ?? previousCocoLine;
-    // The reply hint frame OFFERED to the student for the question they just
-    // answered — recorded, not derived later, so a future change to
-    // buildReplyHintFrame cannot rewrite what old attempts actually showed.
-    // Mirrors deriveActiveStudentQuestion, which is what the UI renders, so
-    // this is the available frame regardless of whether the student expanded
-    // it. Preset missions never show one, so they stay null.
-    const replyHintFrame =
-      snapshot.conversationMode === true && missionQuestion
-        ? buildReplyHintFrame(missionQuestion)
-        : null;
     const targetExample =
       snapshot.conversationMode === true
         ? null
@@ -1025,7 +1045,9 @@ export async function uploadAttemptAudioClip(
           },
           { onConflict: "attempt_id,turn_order" },
         )
-        .select("id, original_transcript, improved_sentence, evaluation")
+        .select(
+          "id, original_transcript, improved_sentence, evaluation, coco_line",
+        )
         .single(),
     );
 
@@ -1033,6 +1055,21 @@ export async function uploadAttemptAudioClip(
       logTiming("failed", { error: "db_error", step: "turn_init" });
       return { ok: false, error: "db_error", retryable: true };
     }
+
+    const missionQuestion =
+      persistedUnclearRetryQuestion(turn.evaluation, turn.coco_line) ??
+      snapshotTurn?.prompt ??
+      previousCocoLine;
+    // The reply hint frame OFFERED to the student for the question they just
+    // answered — recorded, not derived later, so a future change to
+    // buildReplyHintFrame cannot rewrite what old attempts actually showed.
+    // Mirrors deriveActiveStudentQuestion, which is what the UI renders, so
+    // this is the available frame regardless of whether the student expanded
+    // it. Preset missions never show one, so they stay null.
+    const replyHintFrame =
+      snapshot.conversationMode === true && missionQuestion
+        ? buildReplyHintFrame(missionQuestion)
+        : null;
 
     const repeatTarget = turn.improved_sentence ?? targetExample;
     if (input.clipKind === "repeat_attempt" && repeatTarget === null) {
@@ -1617,19 +1654,25 @@ export async function uploadAttemptAudioClip(
               ];
             }
             if (
+              snapshot.conversationMode === true &&
               decision.evaluation.outcome === "retry_original" &&
               decision.evaluation.retryReason === undefined &&
               evaluationResult.ok &&
-              evaluationResult.evaluation.outcome === "teacher_review"
+              evaluationResult.evaluation.outcome === "teacher_review" &&
+              (ambiguityState.ambiguityRetries ?? 0) <
+                MAX_AMBIGUITY_RETRIES
             ) {
+              const ambiguityRetries =
+                (ambiguityState.ambiguityRetries ?? 0) + 1;
               decision.evaluation.retryReason = "unclear_meaning";
-              decision.evaluation.ambiguityRetries = 1;
+              decision.evaluation.ambiguityRetries = ambiguityRetries;
               decision.evaluation.ambiguityHistory = [
                 ...(ambiguityState.ambiguityHistory ?? []),
                 {
                   transcript,
                   audioClipId: audioClip.id,
                   evaluation: evaluationResult.evaluation,
+                  question: missionQuestion ?? snapshot.turns[0]?.prompt ?? "",
                 },
               ];
             } else if ((ambiguityState.ambiguityRetries ?? 0) > 0) {
@@ -1830,11 +1873,17 @@ export async function uploadAttemptAudioClip(
 
     if (
       snapshot.conversationMode === true &&
-      input.clipKind === "original_answer" &&
-      originalEvaluation?.retryReason !== "unclear_meaning"
+      input.clipKind === "original_answer"
     ) {
+      const recoveryAttempt: 1 | 2 | null =
+        originalEvaluation?.outcome === "retry_original" &&
+        originalEvaluation.retryReason === "unclear_meaning" &&
+        (originalEvaluation.ambiguityRetries === 1 ||
+          originalEvaluation.ambiguityRetries === 2)
+          ? originalEvaluation.ambiguityRetries
+          : null;
       const currentStudentResponse =
-        originalEvaluation?.outcome === "teacher_review"
+        recoveryAttempt !== null || originalEvaluation?.outcome === "teacher_review"
           ? WITHHELD_STUDENT_RESPONSE
           : originalEvaluation?.improvedSentence?.trim() || transcript;
       const historyResult = buildConversationHistory({
@@ -1851,6 +1900,20 @@ export async function uploadAttemptAudioClip(
         return { ok: false, error: "invalid_audio", retryable: false };
       }
 
+      const generationPurpose =
+        recoveryAttempt === null
+          ? { kind: "next_turn" as const }
+          : {
+              kind: "unclear_recovery" as const,
+              attempt: recoveryAttempt,
+              fallbackQuestion: selectUnclearRecoveryFallbackQuestion({
+                attempt: recoveryAttempt,
+                activeQuestion: missionQuestion ?? snapshot.turns[0]?.prompt ?? "",
+                conversationHistory: historyResult.history,
+                ambiguityHistory: originalEvaluation?.ambiguityHistory ?? [],
+              }),
+            };
+
       const conversationOutcome = await timeStage("conversationTurn", () =>
         runConversationTurn(
           {
@@ -1863,9 +1926,10 @@ export async function uploadAttemptAudioClip(
             studentTranscript: transcript,
             conversationHistory: historyResult.history,
             responseHandling:
-              originalEvaluation?.outcome === "teacher_review"
+              recoveryAttempt !== null || originalEvaluation?.outcome === "teacher_review"
                 ? "review_pending"
                 : "normal",
+            generationPurpose,
           },
           {
             generateCocoReply: deps.generateCocoReply ?? generateCocoReply,
@@ -1879,7 +1943,16 @@ export async function uploadAttemptAudioClip(
       const resolvedCocoLine = cocoLine;
       const resolvedModerationEvent = cocoLineModerationEvent;
 
-        if (resolvedCocoLine !== null) {
+      if (resolvedCocoLine !== null) {
+        if (
+          recoveryAttempt !== null &&
+          originalEvaluation?.ambiguityHistory?.length
+        ) {
+          const latestAmbiguity = originalEvaluation.ambiguityHistory.at(-1);
+          if (latestAmbiguity) {
+            latestAmbiguity.recoveryQuestion = resolvedCocoLine;
+          }
+        }
         const recordResult = await timeStage("cocoLineWrite", () =>
           recordCocoLine({
             studentId: input.studentId,
@@ -1888,6 +1961,9 @@ export async function uploadAttemptAudioClip(
             turnOrder: input.turnOrder,
             cocoLine: resolvedCocoLine,
             moderationEvent: resolvedModerationEvent,
+            ...(recoveryAttempt !== null && originalEvaluation
+              ? { evaluation: toJson(originalEvaluation) }
+              : {}),
           }),
         );
 
@@ -1911,25 +1987,25 @@ export async function uploadAttemptAudioClip(
 
         // Kick off TTS for Coco's new line via the existing warm-cache path
         // used for preset/improved lines — no forked audio pipeline.
-          if (originalEvaluation?.outcome !== "teacher_review") {
-            try {
-              const warm = deps.warmTtsAudioCache ?? warmTtsAudioCache;
-              await timeStage("ttsWarmupCocoLine", () =>
-                warm({
-                  characterId: snapshot.characterId,
-                  voice: DEFAULT_COCO_TTS_VOICE,
-                  texts: [resolvedCocoLine],
-                }),
-              );
-            } catch (error) {
-              log("warn", "audio.tts_coco_line_warmup_failed", {
-                assignmentStudentId: input.assignmentStudentId,
-                attemptId: input.attemptId,
-                turnOrder: input.turnOrder,
-                error: error instanceof Error ? error.message : String(error),
-              });
-            }
+        if (originalEvaluation?.outcome !== "teacher_review") {
+          try {
+            const warm = deps.warmTtsAudioCache ?? warmTtsAudioCache;
+            await timeStage("ttsWarmupCocoLine", () =>
+              warm({
+                characterId: snapshot.characterId,
+                voice: DEFAULT_COCO_TTS_VOICE,
+                texts: [resolvedCocoLine],
+              }),
+            );
+          } catch (error) {
+            log("warn", "audio.tts_coco_line_warmup_failed", {
+              assignmentStudentId: input.assignmentStudentId,
+              attemptId: input.attemptId,
+              turnOrder: input.turnOrder,
+              error: error instanceof Error ? error.message : String(error),
+            });
           }
+        }
       }
     }
 

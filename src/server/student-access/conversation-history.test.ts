@@ -1,5 +1,61 @@
 import { describe, expect, it } from "vitest";
-import { buildConversationHistory } from "@/server/student-access/conversation-history";
+import { WITHHELD_STUDENT_RESPONSE } from "@/domain/ai/conversation-generation";
+import {
+  buildConversationHistory,
+  selectUnclearRecoveryFallbackQuestion,
+} from "@/server/student-access/conversation-history";
+
+describe("selectUnclearRecoveryFallbackQuestion", () => {
+  it("uses the active question for recovery 1", () => {
+    expect(
+      selectUnclearRecoveryFallbackQuestion({
+        attempt: 1,
+        activeQuestion: "Who do you like to play soccer with?",
+        conversationHistory: [],
+        ambiguityHistory: [],
+      }),
+    ).toBe("Who do you like to play soccer with?");
+  });
+
+  it("steps back to the latest understood exchange for recovery 2", () => {
+    expect(
+      selectUnclearRecoveryFallbackQuestion({
+        attempt: 2,
+        activeQuestion: "Do you play soccer with friends or family?",
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "What do you like to do after school?",
+            studentResponse: "I play soccer.",
+          },
+          {
+            turnOrder: 2,
+            cocoLine: "Do you play soccer with friends or family?",
+            studentResponse: WITHHELD_STUDENT_RESPONSE,
+          },
+        ],
+        ambiguityHistory: [{ question: "Who do you like to play soccer with?" }],
+      }),
+    ).toBe("What do you like to do after school?");
+  });
+
+  it("uses the saved opener for a turn-one second recovery", () => {
+    expect(
+      selectUnclearRecoveryFallbackQuestion({
+        attempt: 2,
+        activeQuestion: "Do you like soccer?",
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "Do you like soccer?",
+            studentResponse: WITHHELD_STUDENT_RESPONSE,
+          },
+        ],
+        ambiguityHistory: [{ question: "What do you like to do after school?" }],
+      }),
+    ).toBe("What do you like to do after school?");
+  });
+});
 
 describe("buildConversationHistory", () => {
   it("anchors the opener and chains persisted Coco lines in order", () => {

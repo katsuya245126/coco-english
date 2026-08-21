@@ -10,6 +10,7 @@ import { hangulInterpretationSchema } from "@/domain/audio/transcript-interpreta
 
 export const AI_EVALUATION_VERSION = "ai-eval-v1" as const;
 export const CORRECTION_POLICY_VERSION = "natural-conversation-v1" as const;
+export const MAX_AMBIGUITY_RETRIES = 2 as const;
 
 export const aiEvaluationConfidenceSchema = z.enum(["high", "medium", "low"]);
 export const aiEvaluationEnglishLanguageSchema = z.enum([
@@ -200,7 +201,7 @@ export function decideOriginalTurnOutcome(
     evaluation.outcome === "teacher_review" &&
     (evaluation.reviewReason === "ambiguous" ||
       evaluation.reviewReason === "low_confidence") &&
-    priorAmbiguityRetries === 0
+    priorAmbiguityRetries < MAX_AMBIGUITY_RETRIES
   ) {
     return {
       kind: "retry_original",
