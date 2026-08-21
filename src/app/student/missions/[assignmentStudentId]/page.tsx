@@ -188,6 +188,9 @@ export default async function MissionPage({ params }: MissionPageProps) {
   const initialDynamicPrompt = deriveResumedDynamicPrompt({
     conversationMode: snapshot.conversationMode,
     startingTurnIndex,
+    pendingUnclearRetry:
+      initialReview?.step === "aiFeedback" &&
+      initialReview.outcome === "retryUnclearMeaning",
     attemptTurns,
   });
 

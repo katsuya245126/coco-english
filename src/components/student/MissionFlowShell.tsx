@@ -49,6 +49,7 @@ import {
   deriveActiveStudentQuestion,
   resolveAcceptedConversationTurn,
   type ActiveStudentQuestion,
+  type DynamicConversationPrompt,
 } from "@/domain/mission/student-question-state";
 import type { TranslatableCocoLine } from "@/domain/ai/translation-hint";
 
@@ -154,7 +155,7 @@ type FlowState = {
   // until the round-trip resolves.
   cocoLine: string | null;
   // The real persisted/returned Coco line that prompts the next dynamic turn.
-  dynamicPrompt: string | null;
+  dynamicPrompt: DynamicConversationPrompt | null;
 };
 
 export type CharacterProfileLines = {
@@ -176,7 +177,7 @@ export type MissionFlowShellProps = {
   conversationMode: boolean;
   characterProfile: CharacterProfileLines;
   startingTurnIndex: number;
-  initialDynamicPrompt: string | null;
+  initialDynamicPrompt: DynamicConversationPrompt | null;
   isResume: boolean;
   initialReview: (PendingTurnReview & { audioUrl?: string }) | null;
 };
@@ -190,7 +191,7 @@ function clearAudioUrl(ref: { current: string | null }) {
 
 function initialFlowState(
   startingTurnIndex: number,
-  initialDynamicPrompt: string | null,
+  initialDynamicPrompt: DynamicConversationPrompt | null,
   initialReview: MissionFlowShellProps["initialReview"],
 ): FlowState {
   const emptyState: FlowState = {
@@ -210,6 +211,13 @@ function initialFlowState(
   if (!initialReview) return emptyState;
 
   if (initialReview.step === "aiFeedback") {
+    if (initialReview.outcome === "retryUnclearMeaning" && initialDynamicPrompt) {
+      return {
+        ...emptyState,
+        hasRetriedThisTurn: true,
+      };
+    }
+
     let originalFeedback: OriginalFeedback;
     if (initialReview.outcome === "needsCorrection") {
       if (!initialReview.improvedSentence) return emptyState;
@@ -614,6 +622,28 @@ export function MissionFlowShell({
         upload.starBand,
         upload.wordsToPractice,
       );
+      const recoveryLine = upload.cocoLine;
+
+      if (
+        conversationMode &&
+        originalFeedback.kind === "retryUnclearMeaning" &&
+        recoveryLine
+      ) {
+        revokeAudioUrls();
+        setFlow((prev) => ({
+          ...prev,
+          step: "question",
+          originalTranscript: null,
+          originalFeedback: null,
+          cocoLine: null,
+          dynamicPrompt: {
+            text: recoveryLine,
+            sourceTurnOrder: prev.turnIndex + 1,
+          },
+          hasRetriedThisTurn: true,
+        }));
+        return;
+      }
 
       if (
         conversationMode &&

@@ -20,12 +20,31 @@ const opener: MissionSnapshotTurn = {
 };
 
 describe("student question state", () => {
+  it("uses current-row recovery without advancing turn one", () => {
+    expect(
+      deriveActiveStudentQuestion({
+        conversationMode: true,
+        turnIndex: 0,
+        turns: [opener],
+        dynamicPrompt: {
+          text: "Do you play soccer with friends or family?",
+          sourceTurnOrder: 1,
+        },
+      }),
+    ).toMatchObject({
+      kind: "conversation",
+      prompt: "Do you play soccer with friends or family?",
+      activeTurnOrder: 1,
+      line: { lineKind: "coco_dynamic_line", turnOrder: 1 },
+    });
+  });
+
   it("uses translation-only question state for a conversation opener", () => {
     const question = deriveActiveStudentQuestion({
       conversationMode: true,
       turnIndex: 0,
       turns: [opener],
-      dynamicPrompt: "Tell me more about soccer.",
+      dynamicPrompt: null,
     });
 
     expect(question).toEqual({
@@ -51,7 +70,10 @@ describe("student question state", () => {
 
     expect(advanced).toEqual({
       turnIndex: 1,
-      dynamicPrompt: "Tell me more about soccer.",
+      dynamicPrompt: {
+        text: "Tell me more about soccer.",
+        sourceTurnOrder: 1,
+      },
     });
     expect(question).toEqual({
       kind: "conversation",
@@ -75,7 +97,10 @@ describe("student question state", () => {
         conversationMode: true,
         turnIndex: 1,
         turns: [opener, legacyTail],
-        dynamicPrompt: "Tell me more about soccer.",
+        dynamicPrompt: {
+          text: "Tell me more about soccer.",
+          sourceTurnOrder: 1,
+        },
       }),
     ).toEqual({
       kind: "conversation",
@@ -91,13 +116,17 @@ describe("student question state", () => {
     const dynamicPrompt = deriveResumedDynamicPrompt({
       conversationMode: true,
       startingTurnIndex: 1,
+      pendingUnclearRetry: false,
       attemptTurns: [
         { turnOrder: 1, cocoLine: "Tell me more about soccer." },
         { turnOrder: 2, cocoLine: "A later line must not be used." },
       ],
     });
 
-    expect(dynamicPrompt).toBe("Tell me more about soccer.");
+    expect(dynamicPrompt).toEqual({
+      text: "Tell me more about soccer.",
+      sourceTurnOrder: 1,
+    });
     expect(
       deriveActiveStudentQuestion({
         conversationMode: true,
@@ -110,6 +139,43 @@ describe("student question state", () => {
       prompt: "Tell me more about soccer.",
       replyHintFrame: null,
       line: { lineKind: "coco_dynamic_line", turnOrder: 1 },
+    });
+  });
+
+  it("restores pending recovery from the current row", () => {
+    expect(
+      deriveResumedDynamicPrompt({
+        conversationMode: true,
+        startingTurnIndex: 1,
+        pendingUnclearRetry: true,
+        attemptTurns: [
+          { turnOrder: 1, cocoLine: "Who do you play soccer with?" },
+          {
+            turnOrder: 2,
+            cocoLine: "Do you play soccer with friends or family?",
+          },
+        ],
+      }),
+    ).toEqual({
+      text: "Do you play soccer with friends or family?",
+      sourceTurnOrder: 2,
+    });
+  });
+
+  it("keeps normal resume on the previous completed row", () => {
+    expect(
+      deriveResumedDynamicPrompt({
+        conversationMode: true,
+        startingTurnIndex: 1,
+        pendingUnclearRetry: false,
+        attemptTurns: [
+          { turnOrder: 1, cocoLine: "Who do you play soccer with?" },
+          { turnOrder: 2, cocoLine: "A future line must not be used." },
+        ],
+      }),
+    ).toEqual({
+      text: "Who do you play soccer with?",
+      sourceTurnOrder: 1,
     });
   });
 
@@ -133,7 +199,10 @@ describe("student question state", () => {
   });
 
   it("fails closed when a dynamic prompt is missing or blank", () => {
-    for (const dynamicPrompt of [null, "   "]) {
+    for (const dynamicPrompt of [
+      null,
+      { text: "   ", sourceTurnOrder: 1 },
+    ]) {
       expect(
         deriveActiveStudentQuestion({
           conversationMode: true,
@@ -159,7 +228,10 @@ describe("student question state", () => {
     ).toEqual({
       kind: "next",
       turnIndex: 1,
-      dynamicPrompt: "Oh, what do you like to do instead?",
+      dynamicPrompt: {
+        text: "Oh, what do you like to do instead?",
+        sourceTurnOrder: 1,
+      },
     });
   });
 

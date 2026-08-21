@@ -6,6 +6,11 @@ type StudentQuestionSpeechLine = {
   turnOrder: number;
 };
 
+export type DynamicConversationPrompt = {
+  text: string;
+  sourceTurnOrder: number;
+};
+
 type PresetStudentQuestion = {
   kind: "preset";
   prompt: string;
@@ -45,8 +50,28 @@ export function deriveActiveStudentQuestion({
   conversationMode: boolean;
   turnIndex: number;
   turns: MissionSnapshotTurn[];
-  dynamicPrompt: string | null;
+  dynamicPrompt: DynamicConversationPrompt | null;
 }): ActiveStudentQuestion {
+  const dynamicText = dynamicPrompt?.text.trim();
+  if (
+    conversationMode &&
+    dynamicPrompt &&
+    dynamicText &&
+    dynamicPrompt.sourceTurnOrder >= 1
+  ) {
+    return {
+      kind: "conversation",
+      prompt: dynamicText,
+      replyHintFrame: buildReplyHintFrame(dynamicText),
+      activeTurnOrder: turnIndex + 1,
+      recordingEnabled: true,
+      line: {
+        lineKind: "coco_dynamic_line",
+        turnOrder: dynamicPrompt.sourceTurnOrder,
+      },
+    };
+  }
+
   const snapshotTurn =
     !conversationMode || turnIndex === 0 ? turns[turnIndex] : undefined;
   if (snapshotTurn) {
@@ -71,18 +96,6 @@ export function deriveActiveStudentQuestion({
     };
   }
 
-  const prompt = dynamicPrompt?.trim();
-  if (conversationMode && turnIndex > 0 && prompt) {
-    return {
-      kind: "conversation",
-      prompt,
-      replyHintFrame: buildReplyHintFrame(prompt),
-      activeTurnOrder: turnIndex + 1,
-      recordingEnabled: true,
-      line: { lineKind: "coco_dynamic_line", turnOrder: turnIndex },
-    };
-  }
-
   return {
     kind: "unavailable",
     reason: "missing_dynamic_prompt",
@@ -96,8 +109,14 @@ export function advanceConversationQuestion({
 }: {
   turnIndex: number;
   pendingCocoLine: string | null;
-}): { turnIndex: number; dynamicPrompt: string | null } {
-  const dynamicPrompt = pendingCocoLine?.trim() || null;
+}): {
+  turnIndex: number;
+  dynamicPrompt: DynamicConversationPrompt | null;
+} {
+  const text = pendingCocoLine?.trim();
+  const dynamicPrompt = text
+    ? { text, sourceTurnOrder: turnIndex + 1 }
+    : null;
   return { turnIndex: turnIndex + 1, dynamicPrompt };
 }
 
@@ -105,7 +124,7 @@ export type AcceptedConversationTurnResolution =
   | {
       kind: "next";
       turnIndex: number;
-      dynamicPrompt: string;
+      dynamicPrompt: DynamicConversationPrompt;
     }
   | { kind: "closing"; closingLine: string }
   | { kind: "unavailable" };
@@ -129,23 +148,28 @@ export function resolveAcceptedConversationTurn({
   return {
     kind: "next",
     turnIndex: turnIndex + 1,
-    dynamicPrompt: line,
+    dynamicPrompt: { text: line, sourceTurnOrder: turnIndex + 1 },
   };
 }
 
 export function deriveResumedDynamicPrompt({
   conversationMode,
   startingTurnIndex,
+  pendingUnclearRetry,
   attemptTurns,
 }: {
   conversationMode: boolean;
   startingTurnIndex: number;
+  pendingUnclearRetry: boolean;
   attemptTurns: Array<{ turnOrder: number; cocoLine: string | null }>;
-}): string | null {
+}): DynamicConversationPrompt | null {
   if (!conversationMode || startingTurnIndex < 1) return null;
 
-  return (
-    attemptTurns.find((turn) => turn.turnOrder === startingTurnIndex)?.cocoLine?.trim() ||
-    null
-  );
+  const sourceTurnOrder = pendingUnclearRetry
+    ? startingTurnIndex + 1
+    : startingTurnIndex;
+  const text = attemptTurns
+    .find((turn) => turn.turnOrder === sourceTurnOrder)
+    ?.cocoLine?.trim();
+  return text ? { text, sourceTurnOrder } : null;
 }
