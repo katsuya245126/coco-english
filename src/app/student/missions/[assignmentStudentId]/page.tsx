@@ -160,10 +160,7 @@ export default async function MissionPage({ params }: MissionPageProps) {
       });
 
       if (persistedReview && reviewTurn) {
-        initialReview =
-          pendingConversationRecovery && persistedReview.step === "aiFeedback"
-            ? { ...persistedReview, outcome: "retryUnclearMeaning" }
-            : persistedReview;
+        initialReview = persistedReview;
 
         const { data: audioClip } = await supabase
           .from("audio_clips")
