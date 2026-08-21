@@ -934,10 +934,15 @@ describe("repeat attempt cap (attempt 6406e6a5, 2026-07-27)", () => {
     );
 
     // Turn 3 rejected five clips scoring 90/93/94/94/84 against an invented
-    // target. Past the cap the target is the likely fault, so the child moves on.
+    // target. Past the cap the target is the likely fault, so the child moves on
+    // without rewriting the negative closeness evidence as acceptance.
     expect(
       decideRepeatTurnOutcome(notCloseEnough, MAX_REPEAT_ATTEMPTS),
-    ).toEqual({ kind: "accepted_repeat", repeatAccepted: true });
+    ).toEqual({
+      kind: "repeat_limit_reached",
+      repeatAccepted: false,
+      requireRepeat: false,
+    });
   });
 
   it("still asks again on earlier attempts", async () => {

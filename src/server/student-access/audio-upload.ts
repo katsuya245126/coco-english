@@ -1711,22 +1711,26 @@ export async function uploadAttemptAudioClip(
                     koreanSpans,
                   });
                 });
-            // Count the repeat clips recorded for this turn, this one
-            // included: the row was inserted before evaluation. The turn row
-            // itself cannot supply this — each repeat overwrites the last —
-            // so the clip table is the only durable tally.
-            const { count: repeatClipCount } = await timeStage(
+            // Count only prior repeats that completed transcription. The
+            // current row is still pending here, so add it after its upload,
+            // transcription, and evaluation have succeeded.
+            const {
+              count: priorRepeatClipCount,
+              error: repeatCountError,
+            } = await timeStage(
               "repeatAttemptCount",
               () =>
                 supabase
                   .from("audio_clips")
                   .select("id", { count: "exact", head: true })
                   .eq("attempt_turn_id", turn.id)
-                  .eq("clip_kind", "repeat_attempt"),
+                  .eq("clip_kind", "repeat_attempt")
+                  .eq("processing_status", "transcribed"),
             );
+            if (repeatCountError) return { error: repeatCountError };
             const decision = applyRepeatTurnEvaluation(
               evaluationResult,
-              repeatClipCount ?? 1,
+              (priorRepeatClipCount ?? 0) + 1,
             );
             repeatEvaluation = decision;
 

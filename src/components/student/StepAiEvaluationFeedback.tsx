@@ -25,7 +25,11 @@ type OriginalOutcome =
   | "retryMinimalEffort"
   | "teacherReview";
 
-type RepeatOutcome = "repeatAccepted" | "repeatRetry" | "repeatReview";
+type RepeatOutcome =
+  | "repeatAccepted"
+  | "repeatRetry"
+  | "repeatReview"
+  | "repeatLimitReached";
 
 type StepAiEvaluationFeedbackProps = {
   mode: "original" | "repeat";
@@ -241,6 +245,30 @@ export function StepAiEvaluationFeedback({
           Continue mission
         </button>
         <RecordingReview onRetry={onRetry} />
+      </div>
+    );
+  }
+
+  if (outcome === "repeatLimitReached") {
+    return (
+      <div style={stepCardStyle} aria-live="polite">
+        <Transcript transcript={transcript} audioUrl={audioUrl} />
+        {showCocoLine ? (
+          <div style={{ ...evaluationReviewStyle, marginTop: transcript ? 16 : 0 }}>
+            <h2 style={headingInlineStyle}>Let’s continue.</h2>
+          </div>
+        ) : null}
+        <PronunciationStars starBand={starBand} />
+        <WordsToPractice words={wordsToPractice} />
+        <button
+          className="student-primary-button"
+          type="button"
+          style={{ ...primaryButtonStyle, marginTop: 16 }}
+          onClick={onContinue}
+          disabled={isSubmitting}
+        >
+          Continue mission
+        </button>
       </div>
     );
   }

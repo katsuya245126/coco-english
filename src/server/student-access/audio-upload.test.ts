@@ -206,6 +206,8 @@ function createMockSupabase(options: {
   cocoLineUpsertError?: { message: string } | null;
   turnEvaluation?: unknown;
   turnImprovedSentence?: string | null;
+  priorRepeatClipStatuses?: Database["public"]["Enums"]["audio_processing_status"][];
+  repeatCountError?: { message: string } | null;
 } = {}) {
   const operations: Operation[] = [];
   const upload = vi.fn(async () => ({ error: options.uploadError ?? null }));
@@ -279,6 +281,23 @@ function createMockSupabase(options: {
         onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
       ) => {
         if (!operations.includes(operation)) operations.push(operation);
+        if (table === "audio_clips" && operation.action === "select") {
+          const statuses = options.priorRepeatClipStatuses ?? [];
+          const transcribedOnly = operation.filters.some(
+            ([column, value]) =>
+              column === "processing_status" && value === "transcribed",
+          );
+          const count = statuses.filter(
+            (status) => !transcribedOnly || status === "transcribed",
+          ).length;
+          return Promise.resolve({
+            count,
+            error: options.repeatCountError ?? null,
+          }).then(
+            onFulfilled ?? undefined,
+            onRejected ?? undefined,
+          );
+        }
         return Promise.resolve({ error: resolvedError() }).then(
           onFulfilled ?? undefined,
           onRejected ?? undefined,
@@ -3400,6 +3419,145 @@ describe("repeat write preserves the original evaluation (2026-07-25)", () => {
     );
 
     expect(findRepeatTurnUpdate()).not.toHaveProperty("originalEvaluation");
+  });
+});
+
+describe("repeat cap accounting (issue #51)", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    mockLog.mockClear();
+    mockConsumeRequestBudget.mockReset();
+    mockConsumeRequestBudget.mockResolvedValue({ allowed: true });
+    process.env.STUDENT_AUDIO_BUCKET = "student-audio";
+  });
+
+  it("counts only prior transcribed repeats plus this processed clip", async () => {
+    mockSupabase = createMockSupabase({
+      turnImprovedSentence: "I like adventure cartoons.",
+      priorRepeatClipStatuses: [
+        "transcribed",
+        "failed",
+        "pending_upload",
+        "transcribed",
+      ],
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateRepeatTurn = vi.fn(async () => ({
+      ok: true as const,
+      evaluation: {
+        version: "ai-eval-v1" as const,
+        outcome: "repeat_retry" as const,
+        repeatCloseEnough: false,
+        englishLanguage: "english" as const,
+        confidence: "high" as const,
+        reviewReason: null,
+        hangulInterpretations: [],
+      },
+    }));
+
+    const result = await uploadAttemptAudioClip(
+      { ...audioInput({ turnOrder: 1 }), clipKind: "repeat_attempt" as const },
+      {
+        transcribeAudioFile: successfulTranscriber("I like adventure books."),
+        evaluateRepeatTurn,
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "repeat_limit_reached",
+        repeatCloseEnough: false,
+        repeatAccepted: false,
+        requireRepeat: false,
+      },
+    });
+    expect(evaluateRepeatTurn).toHaveBeenCalledTimes(1);
+    expect(
+      mockSupabase.operations.some(
+        (operation) =>
+          operation.table === "attempts" &&
+          operation.action === "update" &&
+          typeof operation.payload === "object" &&
+          operation.payload !== null &&
+          "needs_review_reason" in operation.payload,
+      ),
+    ).toBe(false);
+    const countQuery = mockSupabase.operations.find(
+      (operation) =>
+        operation.table === "audio_clips" &&
+        operation.action === "select" &&
+        operation.filters.some(
+          ([column, value]) =>
+            column === "clip_kind" && value === "repeat_attempt",
+        ),
+    );
+    expect(countQuery?.filters).toEqual(
+      expect.arrayContaining([
+        ["processing_status", "transcribed"],
+      ]),
+    );
+  });
+
+  it("returns a retryable database error when repeat-count lookup fails", async () => {
+    mockSupabase = createMockSupabase({
+      turnImprovedSentence: "I like adventure cartoons.",
+      priorRepeatClipStatuses: ["transcribed"],
+      repeatCountError: { message: "count unavailable" },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateRepeatTurn = vi.fn(async () => ({
+      ok: true as const,
+      evaluation: {
+        version: "ai-eval-v1" as const,
+        outcome: "repeat_retry" as const,
+        repeatCloseEnough: false,
+        englishLanguage: "english" as const,
+        confidence: "high" as const,
+        reviewReason: null,
+        hangulInterpretations: [],
+      },
+    }));
+
+    const result = await uploadAttemptAudioClip(
+      { ...audioInput({ turnOrder: 1 }), clipKind: "repeat_attempt" as const },
+      {
+        transcribeAudioFile: successfulTranscriber("I like adventure books."),
+        evaluateRepeatTurn,
+      },
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: "db_error",
+      retryable: true,
+    });
+    expect(
+      mockSupabase.operations.some(
+        (operation) =>
+          operation.table === "attempt_turns" &&
+          operation.action === "update" &&
+          typeof operation.payload === "object" &&
+          operation.payload !== null &&
+          "repeat_transcript" in operation.payload,
+      ),
+    ).toBe(false);
+    expect(
+      mockSupabase.operations.some(
+        (operation) =>
+          operation.table === "audio_clips" &&
+          operation.action === "update" &&
+          typeof operation.payload === "object" &&
+          operation.payload !== null &&
+          "processing_status" in operation.payload &&
+          operation.payload.processing_status === "failed",
+      ),
+    ).toBe(true);
+    expect(evaluateRepeatTurn).toHaveBeenCalledTimes(1);
   });
 });
 
