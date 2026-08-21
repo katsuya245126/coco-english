@@ -175,23 +175,41 @@ const VIOLATION_CORRECTION_HINTS: Record<
 function replyPolicyCorrection(
   expectsQuestion: boolean,
   violations: GeneratedCocoReplyLineViolation[],
+  recovery: boolean,
 ) {
+  const questionCorrection = recovery
+    ? "Regenerate the full recovery line once with exactly one short, concrete question; set reaction and focus to null. A simple yes/no or two-choice scaffold is allowed."
+    : "Regenerate the full line once with complete, correctly punctuated sentences and one open question that stays on the active activity.";
+  const groundingCorrection = recovery
+    ? "The previous candidate was rejected. Use the supplied fallbackQuestion and earlier understood context only; ignore every withheld response and do not invent a detail."
+    : "The previous candidate was rejected. Do not repeat its question direction. Use the most recent understood student response and ask one short, concrete WH-question about a different unanswered detail. Never invent a detail.";
+  const questionPolicyCorrection = recovery
+    ? "For recovery, set reaction and focus to null and include exactly one question. A simple yes/no or two-choice scaffold is allowed."
+    : "For a closing, set focus and question to null; otherwise include exactly one question.";
+  const questionStyleCorrection = recovery
+    ? "Keep the recovery question short, concrete, and grounded in fallbackQuestion or earlier understood context."
+    : "Prefer one or two short, simple sentences. After a meaningful answer the question must be an open WH question, not an either-or or yes/no question.";
+
   return [
     ...violations.map(
       (violation) => `${violation}: ${VIOLATION_CORRECTION_HINTS[violation]}`,
     ),
     expectsQuestion
-      ? "Regenerate the full line once with complete, correctly punctuated sentences and one open question that stays on the active activity."
+      ? questionCorrection
       : "Regenerate the full line once as one complete, correctly punctuated closing line with no question.",
     expectsQuestion
-      ? "The previous candidate was rejected. Do not repeat its question direction. Use the most recent understood student response and ask one short, concrete WH-question about a different unanswered detail. Never invent a detail."
+      ? groundingCorrection
       : "The previous candidate was rejected. Regenerate the closing without inventing a detail.",
-    "Return reaction, focus, and question separately. Choose at most one focus from the most recent understood studentResponse.",
+    recovery
+      ? "Return reaction, focus, and question separately. For recovery, set reaction and focus to null."
+      : "Return reaction, focus, and question separately. Choose at most one focus from the most recent understood studentResponse.",
     "A follow-up may react briefly or mention one learner-owned detail, but must not summarize a list.",
     expectsQuestion
-      ? "For a closing, set focus and question to null; otherwise include exactly one question."
+      ? questionPolicyCorrection
       : "For a closing, use reaction only and set focus and question to null.",
-    "Prefer one or two short, simple sentences. After a meaningful answer the question must be an open WH question, not an either-or or yes/no question.",
+    expectsQuestion
+      ? questionStyleCorrection
+      : "Prefer one or two short, simple sentences. After a meaningful answer the question must be an open WH question, not an either-or or yes/no question.",
     "Return only data matching the schema.",
   ].join(" ");
 }
@@ -220,16 +238,22 @@ export async function generateCocoReply(
 
   const systemMessage = systemMessageFor(validInput.data.safetyMode);
   const conversationPrompt = buildConversationPrompt(validInput.data);
+  const recovery =
+    validInput.data.generationPurpose?.kind === "unclear_recovery"
+      ? validInput.data.generationPurpose
+      : null;
   const groundingExchange = mostRecentUnderstoodExchange(validInput.data);
   const activeQuestion =
-    validInput.data.responseHandling === "review_pending"
+    recovery?.fallbackQuestion ??
+    (validInput.data.responseHandling === "review_pending"
       ? undefined
-      : groundingExchange?.cocoLine;
+      : groundingExchange?.cocoLine);
   const latestResponse = groundingExchange?.studentResponse;
   const topicGroundingText =
-    validInput.data.responseHandling === "review_pending" && !groundingExchange
+    recovery?.fallbackQuestion ??
+    (validInput.data.responseHandling === "review_pending" && !groundingExchange
       ? validInput.data.conversationHistory[0]?.cocoLine
-      : undefined;
+      : undefined);
   const replyMode = conversationReplyMode(validInput.data);
   const expectsQuestion = replyMode === "follow_up";
 
@@ -262,6 +286,8 @@ export async function generateCocoReply(
       activeQuestion,
       latestStudentResponse: latestResponse,
       topicGroundingText,
+      allowClosedQuestion: recovery !== null,
+      questionOnly: recovery !== null,
       requireClosingGrounding:
         !expectsQuestion && validInput.data.responseHandling === "normal",
     });
@@ -276,7 +302,7 @@ export async function generateCocoReply(
           input: [
             {
               role: "system",
-              content: `${systemMessage} ${replyPolicyCorrection(expectsQuestion, linePolicy.reasons)}`,
+              content: `${systemMessage} ${replyPolicyCorrection(expectsQuestion, linePolicy.reasons, recovery !== null)}`,
             },
             {
               role: "user",
@@ -304,6 +330,8 @@ export async function generateCocoReply(
           activeQuestion,
           latestStudentResponse: latestResponse,
           topicGroundingText,
+          allowClosedQuestion: recovery !== null,
+          questionOnly: recovery !== null,
           requireClosingGrounding:
             !expectsQuestion && validInput.data.responseHandling === "normal",
         });

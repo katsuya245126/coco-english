@@ -140,6 +140,59 @@ describe("most recent understood conversation grounding", () => {
   });
 });
 
+describe("unclear-answer recovery generation", () => {
+  it("builds recovery without the unclear transcript", () => {
+    const recoveryInput: GenerateCocoReplyInput = {
+      ...input,
+      turnOrder: 2,
+      requiredTurns: 2,
+      responseHandling: "review_pending",
+      generationPurpose: {
+        kind: "unclear_recovery",
+        attempt: 1,
+        fallbackQuestion: "Who do you like to play soccer with?",
+      },
+      conversationHistory: [
+        {
+          turnOrder: 1,
+          cocoLine: "What do you like to do after school?",
+          studentResponse: "I play soccer.",
+        },
+        {
+          turnOrder: 2,
+          cocoLine: "Who do you like to play soccer with?",
+          studentResponse: "garbled words must disappear",
+        },
+      ],
+    };
+    const prompt = buildConversationPrompt(recoveryInput);
+    expect(conversationReplyMode(recoveryInput)).toBe("follow_up");
+    expect(prompt.instructions.join(" ")).toContain(
+      "Simplify the supplied fallbackQuestion",
+    );
+    expect(JSON.stringify(prompt)).not.toContain("garbled words must disappear");
+  });
+
+  it("allows a question-only concrete choice on recovery", () => {
+    expect(
+      validateGeneratedCocoReplyParts(
+        {
+          reaction: null,
+          focus: null,
+          question: "Do you play soccer with friends or family?",
+        },
+        {
+          expectsQuestion: true,
+          activeQuestion: "Who do you like to play soccer with?",
+          latestStudentResponse: "I play soccer.",
+          allowClosedQuestion: true,
+          questionOnly: true,
+        },
+      ),
+    ).toEqual({ ok: true });
+  });
+});
+
 describe("structured Coco reply parts", () => {
   it("assembles a follow-up while preserving reply.line for consumers", () => {
     expect(

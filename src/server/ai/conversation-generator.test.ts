@@ -133,6 +133,76 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     });
   });
 
+  it("generates a question-only recovery", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(async () => ({
+      output_parsed: {
+        reaction: null,
+        focus: null,
+        question: "Do you play soccer with friends or family?",
+      },
+    }));
+
+    const result = await generateCocoReply(
+      {
+        ...baseInput,
+        responseHandling: "review_pending",
+        generationPurpose: {
+          kind: "unclear_recovery",
+          attempt: 1,
+          fallbackQuestion: "Who do you like to play soccer with?",
+        },
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      reply: { line: "Do you play soccer with friends or family?" },
+    });
+  });
+
+  it("repairs a recovery reaction into a question-only line", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          output_parsed: {
+            reaction: "That sounds fun!",
+            focus: null,
+            question: "Do you play soccer with friends or family?",
+          },
+        })
+        .mockResolvedValueOnce({
+          output_parsed: {
+            reaction: null,
+            focus: null,
+            question: "Do you play soccer with friends or family?",
+          },
+        }),
+    );
+
+    const result = await generateCocoReply(
+      {
+        ...baseInput,
+        responseHandling: "review_pending",
+        generationPurpose: {
+          kind: "unclear_recovery",
+          attempt: 1,
+          fallbackQuestion: "Who do you like to play soccer with?",
+        },
+      },
+      { apiKey: "test-key", client },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      reply: { line: "Do you play soccer with friends or family?" },
+    });
+    expect(client.responses.parse).toHaveBeenCalledTimes(2);
+  });
+
   it("repairs a multi-detail echo with the exact policy reason", async () => {
     const { generateCocoReply } = await import("@/server/ai/conversation-generator");
     const client = createFakeClient(
