@@ -11,6 +11,7 @@ import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/lib/db/types";
 import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
 import { resolveMissionSnapshotTargetPattern } from "@/domain/mission/mission-snapshot";
+import { isPendingConversationRecovery } from "@/domain/mission/student-question-state";
 import { isExactTargetMatch } from "@/domain/ai/fast-path";
 import { isIncompleteUtterance } from "@/domain/ai/incomplete-utterance";
 import { buildReplyHintFrame } from "@/domain/ai/reply-hint-frame";
@@ -586,24 +587,22 @@ function priorAmbiguityState(evaluation: unknown): Pick<
   };
 }
 
-function persistedUnclearRetryQuestion(
+function persistedConversationRecoveryQuestion(
   evaluation: unknown,
   cocoLine: unknown,
+  conversationMode: boolean,
 ) {
   if (
-    typeof evaluation !== "object" ||
-    evaluation === null ||
-    Array.isArray(evaluation)
+    !isPendingConversationRecovery({
+      conversationMode,
+      evaluation,
+      cocoLine: typeof cocoLine === "string" ? cocoLine : null,
+    })
   ) {
     return null;
   }
-  const stored = evaluation as { outcome?: unknown; retryReason?: unknown };
-  return stored.outcome === "retry_original" &&
-    stored.retryReason === "unclear_meaning" &&
-    typeof cocoLine === "string" &&
-    cocoLine.trim()
-    ? cocoLine.trim()
-    : null;
+
+  return typeof cocoLine === "string" ? cocoLine.trim() : null;
 }
 
 function reviewReasonOrDefault(
@@ -1057,7 +1056,11 @@ export async function uploadAttemptAudioClip(
     }
 
     const missionQuestion =
-      persistedUnclearRetryQuestion(turn.evaluation, turn.coco_line) ??
+      persistedConversationRecoveryQuestion(
+        turn.evaluation,
+        turn.coco_line,
+        snapshot.conversationMode === true,
+      ) ??
       snapshotTurn?.prompt ??
       previousCocoLine;
     // The reply hint frame OFFERED to the student for the question they just

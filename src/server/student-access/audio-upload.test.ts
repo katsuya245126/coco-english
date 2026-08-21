@@ -1256,6 +1256,58 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     );
   });
 
+  it.each([
+    ["minimal_effort"],
+    ["incomplete_recording"],
+  ] as const)(
+    "keeps the current recovery question after a %s retry guard",
+    async (retryReason) => {
+      mockSupabase = createMockSupabase({
+        turnEvaluation: {
+          ...originalEvaluation({
+            outcome: "retry_original",
+            meaningUnderstood: false,
+            targetPatternAttempted: false,
+            confidence: "medium",
+            reviewReason: null,
+          }),
+          retryReason,
+          ambiguityRetries: 1,
+        },
+        turnCocoLine: "Do you want juice or water?",
+      });
+      const { uploadAttemptAudioClip } = await import(
+        "@/server/student-access/audio-upload"
+      );
+      const evaluateOriginalTurn = successfulOriginalEvaluator({
+        outcome: "teacher_review",
+        meaningUnderstood: false,
+        targetPatternAttempted: false,
+        confidence: "medium",
+        reviewReason: "ambiguous",
+      });
+
+      await uploadAttemptAudioClip(audioInput(), {
+        transcribeAudioFile: successfulTranscriber("I like juice."),
+        evaluateOriginalTurn,
+        generateCocoReply: fakeGenerateCocoReply(async () => ({
+          ok: true,
+          reply: { line: "What else do you like?" },
+        })),
+        isContentSafe: fakeIsContentSafe(async () => ({
+          safe: true,
+          failedOpen: false,
+        })),
+      });
+
+      expect(evaluateOriginalTurn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          missionQuestion: "Do you want juice or water?",
+        }),
+      );
+    },
+  );
+
   it("routes a second unsafe correction to review without repeat or correction TTS", async () => {
     mockSupabase = createMockSupabase({
       missionSnapshot: {

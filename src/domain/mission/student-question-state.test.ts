@@ -5,6 +5,7 @@ import {
   deriveActiveStudentQuestion,
   deriveSameTurnRecoveryPrompt,
   deriveResumedDynamicPrompt,
+  isPendingConversationRecovery,
   resolveAcceptedConversationTurn,
 } from "@/domain/mission/student-question-state";
 
@@ -180,6 +181,50 @@ describe("student question state", () => {
       text: "Do you play soccer with friends or family?",
       sourceTurnOrder: 1,
     });
+  });
+
+  it("keeps incomplete and minimal-effort recovery rows pending", () => {
+    for (const retryReason of [
+      "incomplete_recording",
+      "minimal_effort",
+    ] as const) {
+      const pendingRecovery = isPendingConversationRecovery({
+        conversationMode: true,
+        evaluation: {
+          outcome: "retry_original",
+          retryReason,
+          ambiguityRetries: 1,
+        },
+        cocoLine: "Do you play soccer with friends or family?",
+      });
+
+      expect(pendingRecovery).toBe(true);
+      expect(
+        deriveResumedDynamicPrompt({
+          conversationMode: true,
+          startingTurnIndex: 0,
+          pendingUnclearRetry: pendingRecovery,
+          attemptTurns: [
+            { turnOrder: 1, cocoLine: "Do you play soccer with friends or family?" },
+          ],
+        }),
+      ).toEqual({
+        text: "Do you play soccer with friends or family?",
+        sourceTurnOrder: 1,
+      });
+    }
+  });
+
+  it("does not keep accepted or teacher-review rows pending", () => {
+    for (const outcome of ["accepted_original", "teacher_review"] as const) {
+      expect(
+        isPendingConversationRecovery({
+          conversationMode: true,
+          evaluation: { outcome, ambiguityRetries: 1 },
+          cocoLine: "A stale recovery question.",
+        }),
+      ).toBe(false);
+    }
   });
 
   it("keeps normal first-turn resume without a dynamic prompt", () => {
