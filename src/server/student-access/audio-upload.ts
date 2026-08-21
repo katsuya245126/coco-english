@@ -11,7 +11,6 @@ import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/lib/db/types";
 import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
 import { resolveMissionSnapshotTargetPattern } from "@/domain/mission/mission-snapshot";
-import { isPendingConversationRecovery } from "@/domain/mission/student-question-state";
 import { isExactTargetMatch } from "@/domain/ai/fast-path";
 import { isIncompleteUtterance } from "@/domain/ai/incomplete-utterance";
 import { buildReplyHintFrame } from "@/domain/ai/reply-hint-frame";
@@ -587,22 +586,24 @@ function priorAmbiguityState(evaluation: unknown): Pick<
   };
 }
 
-function persistedConversationRecoveryQuestion(
+function persistedUnclearRetryQuestion(
   evaluation: unknown,
   cocoLine: unknown,
-  conversationMode: boolean,
 ) {
   if (
-    !isPendingConversationRecovery({
-      conversationMode,
-      evaluation,
-      cocoLine: typeof cocoLine === "string" ? cocoLine : null,
-    })
+    typeof evaluation !== "object" ||
+    evaluation === null ||
+    Array.isArray(evaluation)
   ) {
     return null;
   }
-
-  return typeof cocoLine === "string" ? cocoLine.trim() : null;
+  const stored = evaluation as { outcome?: unknown; retryReason?: unknown };
+  return stored.outcome === "retry_original" &&
+    stored.retryReason === "unclear_meaning" &&
+    typeof cocoLine === "string" &&
+    cocoLine.trim()
+    ? cocoLine.trim()
+    : null;
 }
 
 function reviewReasonOrDefault(
@@ -698,8 +699,7 @@ function fallbackLineForContext(
 /**
  * Conversation-mode orchestration (CHAT-01/03/05/06, D-10/D-11/D-13,
  * RESEARCH.md step a-f pipeline). Runs ONLY for conversationMode missions,
- * after evaluation. Normal paths write the original-answer turn first; an
- * unclear recovery defers that write until its generated line is ready.
+ * after the student's original-answer turn write has already succeeded.
  * All generation/moderation calls live HERE (never in mission-flow.ts),
  * preserving the AI-06 boundary.
  *
@@ -713,8 +713,7 @@ function fallbackLineForContext(
  *     (via safetyMode: "retry") — an unavailable check fails closed immediately,
  *     never spending a useless generation retry
  *  e. provider/schema/policy failures persist their attributable cause
- *  f. return the moderated line; the caller persists it, using a conditional
- *     turn update for unclear recovery and recordCocoLine otherwise
+ *  f. persist (recordCocoLine) — coco_line + moderation_event
  */
 async function runConversationTurn(
   context: ConversationTurnContext,
@@ -1047,7 +1046,7 @@ export async function uploadAttemptAudioClip(
           { onConflict: "attempt_id,turn_order" },
         )
         .select(
-          "id, original_transcript, improved_sentence, evaluation, coco_line, updated_at",
+          "id, original_transcript, improved_sentence, evaluation, coco_line",
         )
         .single(),
     );
@@ -1058,11 +1057,7 @@ export async function uploadAttemptAudioClip(
     }
 
     const missionQuestion =
-      persistedConversationRecoveryQuestion(
-        turn.evaluation,
-        turn.coco_line,
-        snapshot.conversationMode === true,
-      ) ??
+      persistedUnclearRetryQuestion(turn.evaluation, turn.coco_line) ??
       snapshotTurn?.prompt ??
       previousCocoLine;
     // The reply hint frame OFFERED to the student for the question they just
@@ -1453,8 +1448,6 @@ export async function uploadAttemptAudioClip(
       });
     }
 
-    let recoveryPersistencePending = false;
-
     /*
      * All-English traffic keeps the existing fast path: scoring starts here and
      * runs concurrently with evaluation. Only a Hangul original answer waits,
@@ -1690,17 +1683,6 @@ export async function uploadAttemptAudioClip(
             }
             originalEvaluation = decision.evaluation;
 
-            recoveryPersistencePending =
-              snapshot.conversationMode === true &&
-              decision.evaluation.outcome === "retry_original" &&
-              decision.evaluation.retryReason === "unclear_meaning" &&
-              (decision.evaluation.ambiguityRetries === 1 ||
-                decision.evaluation.ambiguityRetries === 2);
-
-            if (recoveryPersistencePending) {
-              return { error: null };
-            }
-
             const write = await timeStage("turnWrite", () =>
               supabase.from("attempt_turns").upsert(
                 {
@@ -1859,9 +1841,8 @@ export async function uploadAttemptAudioClip(
     }
 
     // Derive the learner-facing text and start any deferred scoring here —
-    // immediately after evaluation (and the normal turn write) and *before*
-    // conversation generation, moderation, Coco-line persistence, and TTS
-    // warmup. A Hangul original
+    // immediately after the turn write succeeded and *before* conversation
+    // generation, moderation, Coco-line persistence, and TTS warmup. A Hangul
     // original must cost evaluator latency only; if this ran after the block
     // below, its scoring would be serialized behind Coco's reply.
     const currentEvaluation = originalEvaluation ?? repeatEvaluation;
@@ -1884,8 +1865,8 @@ export async function uploadAttemptAudioClip(
 
     // Conversation-mode dynamic-turn orchestration (CHAT-01/03/05/06). Runs
     // only for chat-mode missions, only on the original-answer turn (the
-    // student's utterance Coco is replying to). Preset missions
-    // (conversationMode !== true)
+    // student's utterance Coco is replying to), after the turn write above
+    // has already succeeded. Preset missions (conversationMode !== true)
     // behave exactly as before — no generateCocoReply/isContentSafe call.
     let cocoLine: string | null = null;
     let cocoLineModerationEvent: CocoLineModerationEvent | null = null;
@@ -1962,22 +1943,6 @@ export async function uploadAttemptAudioClip(
       const resolvedCocoLine = cocoLine;
       const resolvedModerationEvent = cocoLineModerationEvent;
 
-      if (
-        recoveryAttempt !== null &&
-        recoveryPersistencePending &&
-        (!resolvedCocoLine || !resolvedCocoLine.trim())
-      ) {
-        await supabase
-          .from("audio_clips")
-          .update({ processing_status: "failed" })
-          .eq("id", audioClip.id);
-        logTiming("failed", {
-          error: "db_error",
-          step: "recovery_line_missing",
-        });
-        return { ok: false, error: "db_error", retryable: true };
-      }
-
       if (resolvedCocoLine !== null) {
         if (
           recoveryAttempt !== null &&
@@ -1988,42 +1953,19 @@ export async function uploadAttemptAudioClip(
             latestAmbiguity.recoveryQuestion = resolvedCocoLine;
           }
         }
-        const recoveryEvaluation = originalEvaluation;
-        const recordResult =
-          recoveryAttempt !== null &&
-          recoveryPersistencePending &&
-          recoveryEvaluation
-            ? await timeStage("recoveryTurnWrite", async () => {
-                const { data, error } = await supabase
-                  .from("attempt_turns")
-                  .update({
-                    original_transcript: transcript,
-                    target_attempted: recoveryEvaluation.targetPatternAttempted,
-                    improved_sentence: recoveryEvaluation.improvedSentence,
-                    evaluation: toJson(recoveryEvaluation),
-                    coco_line: resolvedCocoLine,
-                    moderation_event: (resolvedModerationEvent ?? null) as Json,
-                    reply_hint_frame: replyHintFrame,
-                  })
-                  .eq("id", turn.id)
-                  .eq("updated_at", turn.updated_at)
-                  .select("id")
-                  .maybeSingle();
-
-                return error || !data
-                  ? { ok: false as const, error: "db_error" as const }
-                  : { ok: true as const };
-              })
-            : await timeStage("cocoLineWrite", () =>
-                recordCocoLine({
-                  studentId: input.studentId,
-                  assignmentStudentId: input.assignmentStudentId,
-                  attemptId: input.attemptId,
-                  turnOrder: input.turnOrder,
-                  cocoLine: resolvedCocoLine,
-                  moderationEvent: resolvedModerationEvent,
-                }),
-              );
+        const recordResult = await timeStage("cocoLineWrite", () =>
+          recordCocoLine({
+            studentId: input.studentId,
+            assignmentStudentId: input.assignmentStudentId,
+            attemptId: input.attemptId,
+            turnOrder: input.turnOrder,
+            cocoLine: resolvedCocoLine,
+            moderationEvent: resolvedModerationEvent,
+            ...(recoveryAttempt !== null && originalEvaluation
+              ? { evaluation: toJson(originalEvaluation) }
+              : {}),
+          }),
+        );
 
         if (!recordResult.ok) {
           await supabase

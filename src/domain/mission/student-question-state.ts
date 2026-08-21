@@ -11,36 +11,6 @@ export type DynamicConversationPrompt = {
   sourceTurnOrder: number;
 };
 
-export function isPendingConversationRecovery({
-  conversationMode,
-  evaluation,
-  cocoLine,
-}: {
-  conversationMode: boolean;
-  evaluation: unknown;
-  cocoLine: string | null;
-}): boolean {
-  if (!conversationMode || !cocoLine?.trim()) return false;
-  if (
-    typeof evaluation !== "object" ||
-    evaluation === null ||
-    Array.isArray(evaluation)
-  ) {
-    return false;
-  }
-
-  const stored = evaluation as {
-    outcome?: unknown;
-    ambiguityRetries?: unknown;
-  };
-  return (
-    stored.outcome === "retry_original" &&
-    typeof stored.ambiguityRetries === "number" &&
-    Number.isFinite(stored.ambiguityRetries) &&
-    stored.ambiguityRetries > 0
-  );
-}
-
 export function deriveSameTurnRecoveryPrompt({
   turnIndex,
   pendingCocoLine,
@@ -204,22 +174,22 @@ export function resolveAcceptedConversationTurn({
 export function deriveResumedDynamicPrompt({
   conversationMode,
   startingTurnIndex,
-  pendingRecovery,
+  pendingUnclearRetry,
   attemptTurns,
 }: {
   conversationMode: boolean;
   startingTurnIndex: number;
-  pendingRecovery: boolean;
+  pendingUnclearRetry: boolean;
   attemptTurns: Array<{ turnOrder: number; cocoLine: string | null }>;
 }): DynamicConversationPrompt | null {
   if (
     !conversationMode ||
-    (startingTurnIndex < 1 && !pendingRecovery)
+    (startingTurnIndex < 1 && !pendingUnclearRetry)
   ) {
     return null;
   }
 
-  const sourceTurnOrder = pendingRecovery
+  const sourceTurnOrder = pendingUnclearRetry
     ? startingTurnIndex + 1
     : startingTurnIndex;
   const text = attemptTurns

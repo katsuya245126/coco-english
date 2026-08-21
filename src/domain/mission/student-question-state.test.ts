@@ -5,7 +5,6 @@ import {
   deriveActiveStudentQuestion,
   deriveSameTurnRecoveryPrompt,
   deriveResumedDynamicPrompt,
-  isPendingConversationRecovery,
   resolveAcceptedConversationTurn,
 } from "@/domain/mission/student-question-state";
 
@@ -118,7 +117,7 @@ describe("student question state", () => {
     const dynamicPrompt = deriveResumedDynamicPrompt({
       conversationMode: true,
       startingTurnIndex: 1,
-      pendingRecovery: false,
+      pendingUnclearRetry: false,
       attemptTurns: [
         { turnOrder: 1, cocoLine: "Tell me more about soccer." },
         { turnOrder: 2, cocoLine: "A later line must not be used." },
@@ -149,7 +148,7 @@ describe("student question state", () => {
       deriveResumedDynamicPrompt({
         conversationMode: true,
         startingTurnIndex: 1,
-        pendingRecovery: true,
+        pendingUnclearRetry: true,
         attemptTurns: [
           { turnOrder: 1, cocoLine: "Who do you play soccer with?" },
           {
@@ -164,38 +163,12 @@ describe("student question state", () => {
     });
   });
 
-  it("keeps a current-row recovery pending after a minimal-effort retry guard", () => {
-    expect(
-      isPendingConversationRecovery({
-        conversationMode: true,
-        evaluation: {
-          outcome: "retry_original",
-          retryReason: "minimal_effort",
-          ambiguityRetries: 1,
-        },
-        cocoLine: "Do you play soccer with friends or family?",
-      }),
-    ).toBe(true);
-  });
-
-  it("does not mark accepted or teacher-review rows as pending recovery", () => {
-    for (const outcome of ["accepted_original", "teacher_review"]) {
-      expect(
-        isPendingConversationRecovery({
-          conversationMode: true,
-          evaluation: { outcome, ambiguityRetries: 1 },
-          cocoLine: "A stale line must not be used.",
-        }),
-      ).toBe(false);
-    }
-  });
-
   it("restores pending recovery on the first conversation turn", () => {
     expect(
       deriveResumedDynamicPrompt({
         conversationMode: true,
         startingTurnIndex: 0,
-        pendingRecovery: true,
+        pendingUnclearRetry: true,
         attemptTurns: [
           {
             turnOrder: 1,
@@ -214,7 +187,7 @@ describe("student question state", () => {
       deriveResumedDynamicPrompt({
         conversationMode: true,
         startingTurnIndex: 0,
-        pendingRecovery: false,
+        pendingUnclearRetry: false,
         attemptTurns: [
           { turnOrder: 1, cocoLine: "A future line must not be used." },
         ],
@@ -251,7 +224,7 @@ describe("student question state", () => {
       deriveResumedDynamicPrompt({
         conversationMode: true,
         startingTurnIndex: 1,
-        pendingRecovery: false,
+        pendingUnclearRetry: false,
         attemptTurns: [
           { turnOrder: 1, cocoLine: "Who do you play soccer with?" },
           { turnOrder: 2, cocoLine: "A future line must not be used." },
