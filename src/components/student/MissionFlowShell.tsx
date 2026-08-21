@@ -47,6 +47,7 @@ import type { RecorderState } from "@/components/student/VoiceRecorderControl";
 import type { PendingTurnReview } from "@/domain/flow/completion";
 import {
   deriveActiveStudentQuestion,
+  deriveSameTurnRecoveryPrompt,
   resolveAcceptedConversationTurn,
   type ActiveStudentQuestion,
   type DynamicConversationPrompt,
@@ -194,8 +195,16 @@ function initialFlowState(
   initialDynamicPrompt: DynamicConversationPrompt | null,
   initialReview: MissionFlowShellProps["initialReview"],
 ): FlowState {
+  const pendingRecoveryPrompt =
+    initialReview?.step === "aiFeedback" &&
+    initialReview.outcome === "retryUnclearMeaning"
+      ? deriveSameTurnRecoveryPrompt({
+          turnIndex: startingTurnIndex,
+          pendingCocoLine: initialDynamicPrompt?.text ?? null,
+        })
+      : null;
   const emptyState: FlowState = {
-    turnIndex: startingTurnIndex,
+    turnIndex: pendingRecoveryPrompt?.turnIndex ?? startingTurnIndex,
     step: "question",
     hintLevel: 0,
     originalTranscript: null,
@@ -205,13 +214,13 @@ function initialFlowState(
     repeatFeedback: null,
     hasRetriedThisTurn: false,
     cocoLine: null,
-    dynamicPrompt: initialDynamicPrompt,
+    dynamicPrompt: pendingRecoveryPrompt?.dynamicPrompt ?? initialDynamicPrompt,
   };
 
   if (!initialReview) return emptyState;
 
   if (initialReview.step === "aiFeedback") {
-    if (initialReview.outcome === "retryUnclearMeaning" && initialDynamicPrompt) {
+    if (initialReview.outcome === "retryUnclearMeaning" && pendingRecoveryPrompt) {
       return {
         ...emptyState,
         hasRetriedThisTurn: true,
@@ -622,24 +631,26 @@ export function MissionFlowShell({
         upload.starBand,
         upload.wordsToPractice,
       );
-      const recoveryLine = upload.cocoLine;
+      const recoveryLine = upload.cocoLine ?? null;
+      const sameTurnRecovery = deriveSameTurnRecoveryPrompt({
+        turnIndex: flow.turnIndex,
+        pendingCocoLine: recoveryLine,
+      });
 
       if (
         conversationMode &&
         originalFeedback.kind === "retryUnclearMeaning" &&
-        recoveryLine
+        sameTurnRecovery
       ) {
         revokeAudioUrls();
         setFlow((prev) => ({
           ...prev,
+          turnIndex: sameTurnRecovery.turnIndex,
           step: "question",
           originalTranscript: null,
           originalFeedback: null,
           cocoLine: null,
-          dynamicPrompt: {
-            text: recoveryLine,
-            sourceTurnOrder: prev.turnIndex + 1,
-          },
+          dynamicPrompt: sameTurnRecovery.dynamicPrompt,
           hasRetriedThisTurn: true,
         }));
         return;

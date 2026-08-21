@@ -11,6 +11,25 @@ export type DynamicConversationPrompt = {
   sourceTurnOrder: number;
 };
 
+export function deriveSameTurnRecoveryPrompt({
+  turnIndex,
+  pendingCocoLine,
+}: {
+  turnIndex: number;
+  pendingCocoLine: string | null;
+}): {
+  turnIndex: number;
+  dynamicPrompt: DynamicConversationPrompt;
+} | null {
+  const text = pendingCocoLine?.trim();
+  if (!text) return null;
+
+  return {
+    turnIndex,
+    dynamicPrompt: { text, sourceTurnOrder: turnIndex + 1 },
+  };
+}
+
 type PresetStudentQuestion = {
   kind: "preset";
   prompt: string;
@@ -163,7 +182,12 @@ export function deriveResumedDynamicPrompt({
   pendingUnclearRetry: boolean;
   attemptTurns: Array<{ turnOrder: number; cocoLine: string | null }>;
 }): DynamicConversationPrompt | null {
-  if (!conversationMode || startingTurnIndex < 1) return null;
+  if (
+    !conversationMode ||
+    (startingTurnIndex < 1 && !pendingUnclearRetry)
+  ) {
+    return null;
+  }
 
   const sourceTurnOrder = pendingUnclearRetry
     ? startingTurnIndex + 1

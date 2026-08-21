@@ -3,6 +3,7 @@ import type { MissionSnapshotTurn } from "@/domain/mission/schemas";
 import {
   advanceConversationQuestion,
   deriveActiveStudentQuestion,
+  deriveSameTurnRecoveryPrompt,
   deriveResumedDynamicPrompt,
   resolveAcceptedConversationTurn,
 } from "@/domain/mission/student-question-state";
@@ -160,6 +161,62 @@ describe("student question state", () => {
       text: "Do you play soccer with friends or family?",
       sourceTurnOrder: 2,
     });
+  });
+
+  it("restores pending recovery on the first conversation turn", () => {
+    expect(
+      deriveResumedDynamicPrompt({
+        conversationMode: true,
+        startingTurnIndex: 0,
+        pendingUnclearRetry: true,
+        attemptTurns: [
+          {
+            turnOrder: 1,
+            cocoLine: "Do you play soccer with friends or family?",
+          },
+        ],
+      }),
+    ).toEqual({
+      text: "Do you play soccer with friends or family?",
+      sourceTurnOrder: 1,
+    });
+  });
+
+  it("keeps normal first-turn resume without a dynamic prompt", () => {
+    expect(
+      deriveResumedDynamicPrompt({
+        conversationMode: true,
+        startingTurnIndex: 0,
+        pendingUnclearRetry: false,
+        attemptTurns: [
+          { turnOrder: 1, cocoLine: "A future line must not be used." },
+        ],
+      }),
+    ).toBeNull();
+  });
+
+  it("keeps a recovery prompt on the current turn", () => {
+    expect(
+      deriveSameTurnRecoveryPrompt({
+        turnIndex: 0,
+        pendingCocoLine: " Do you play soccer with friends or family? ",
+      }),
+    ).toEqual({
+      turnIndex: 0,
+      dynamicPrompt: {
+        text: "Do you play soccer with friends or family?",
+        sourceTurnOrder: 1,
+      },
+    });
+  });
+
+  it("fails closed when a same-turn recovery line is blank", () => {
+    expect(
+      deriveSameTurnRecoveryPrompt({
+        turnIndex: 1,
+        pendingCocoLine: "   ",
+      }),
+    ).toBeNull();
   });
 
   it("keeps normal resume on the previous completed row", () => {
