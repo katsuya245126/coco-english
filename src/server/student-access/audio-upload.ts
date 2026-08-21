@@ -1057,12 +1057,13 @@ export async function uploadAttemptAudioClip(
       return { ok: false, error: "db_error", retryable: true };
     }
 
+    const persistedRecoveryQuestion = persistedConversationRecoveryQuestion(
+      turn.evaluation,
+      turn.coco_line,
+      snapshot.conversationMode === true,
+    );
     const missionQuestion =
-      persistedConversationRecoveryQuestion(
-        turn.evaluation,
-        turn.coco_line,
-        snapshot.conversationMode === true,
-      ) ??
+      persistedRecoveryQuestion ??
       snapshotTurn?.prompt ??
       previousCocoLine;
     // The reply hint frame OFFERED to the student for the question they just
@@ -1690,12 +1691,18 @@ export async function uploadAttemptAudioClip(
             }
             originalEvaluation = decision.evaluation;
 
-            recoveryPersistencePending =
+            const isUnclearRecovery =
               snapshot.conversationMode === true &&
               decision.evaluation.outcome === "retry_original" &&
               decision.evaluation.retryReason === "unclear_meaning" &&
               (decision.evaluation.ambiguityRetries === 1 ||
                 decision.evaluation.ambiguityRetries === 2);
+            const isAcceptedPersistedRecovery =
+              snapshot.conversationMode === true &&
+              persistedRecoveryQuestion !== null &&
+              decision.evaluation.outcome === "accepted_original";
+            recoveryPersistencePending =
+              isUnclearRecovery || isAcceptedPersistedRecovery;
 
             if (recoveryPersistencePending) {
               return { error: null };
@@ -1963,7 +1970,6 @@ export async function uploadAttemptAudioClip(
       const resolvedModerationEvent = cocoLineModerationEvent;
 
       if (
-        recoveryAttempt !== null &&
         recoveryPersistencePending &&
         (!resolvedCocoLine || !resolvedCocoLine.trim())
       ) {
@@ -1990,7 +1996,6 @@ export async function uploadAttemptAudioClip(
         }
         const recoveryEvaluation = originalEvaluation;
         const recordResult =
-          recoveryAttempt !== null &&
           recoveryPersistencePending &&
           recoveryEvaluation
             ? await timeStage("recoveryTurnWrite", async () => {
@@ -2004,6 +2009,7 @@ export async function uploadAttemptAudioClip(
                     coco_line: resolvedCocoLine,
                     moderation_event: (resolvedModerationEvent ?? null) as Json,
                     reply_hint_frame: replyHintFrame,
+                    updated_at: new Date().toISOString(),
                   })
                   .eq("id", turn.id)
                   .eq("updated_at", turn.updated_at)
