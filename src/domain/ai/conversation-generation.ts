@@ -86,6 +86,16 @@ export const conversationTurnInputSchema = z
         message: "history must end at turnOrder",
       });
     }
+    if (
+      input.generationPurpose?.kind === "unclear_recovery" &&
+      input.responseHandling !== "review_pending"
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["responseHandling"],
+        message: "unclear recovery requires review_pending response handling",
+      });
+    }
   });
 
 export type GenerateCocoReplyInput = z.infer<typeof conversationTurnInputSchema>;

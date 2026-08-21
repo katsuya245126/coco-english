@@ -136,10 +136,19 @@ const CONVERSATION_SYSTEM_MESSAGE = [
 const SAFETY_RETRY_SYSTEM_MESSAGE =
   "The previous candidate was rejected by output moderation. Generate a different neutral, child-safe classroom line. Do not repeat, quote, or refer to the rejected candidate.";
 
-function systemMessageFor(safetyMode: ConversationSafetyMode): string {
-  return safetyMode === "retry"
-    ? `${CONVERSATION_SYSTEM_MESSAGE} ${SAFETY_RETRY_SYSTEM_MESSAGE}`
+const RECOVERY_SYSTEM_MESSAGE =
+  "Recovery overrides the normal follow-up acknowledgement: ask exactly one question with reaction and focus set to null. Do not acknowledge or react before the question.";
+
+function systemMessageFor(
+  safetyMode: ConversationSafetyMode,
+  recovery: boolean,
+): string {
+  const baseMessage = recovery
+    ? `${CONVERSATION_SYSTEM_MESSAGE} ${RECOVERY_SYSTEM_MESSAGE}`
     : CONVERSATION_SYSTEM_MESSAGE;
+  return safetyMode === "retry"
+    ? `${baseMessage} ${SAFETY_RETRY_SYSTEM_MESSAGE}`
+    : baseMessage;
 }
 
 const VIOLATION_CORRECTION_HINTS: Record<
@@ -236,12 +245,15 @@ export async function generateCocoReply(
     return { ok: false, error: "missing_api_key" };
   }
 
-  const systemMessage = systemMessageFor(validInput.data.safetyMode);
-  const conversationPrompt = buildConversationPrompt(validInput.data);
   const recovery =
     validInput.data.generationPurpose?.kind === "unclear_recovery"
       ? validInput.data.generationPurpose
       : null;
+  const systemMessage = systemMessageFor(
+    validInput.data.safetyMode,
+    recovery !== null,
+  );
+  const conversationPrompt = buildConversationPrompt(validInput.data);
   const groundingExchange = mostRecentUnderstoodExchange(validInput.data);
   const activeQuestion =
     recovery?.fallbackQuestion ??

@@ -141,6 +141,27 @@ describe("most recent understood conversation grounding", () => {
 });
 
 describe("unclear-answer recovery generation", () => {
+  it("requires review_pending handling for unclear recovery", () => {
+    const recoveryInput: GenerateCocoReplyInput = {
+      ...input,
+      generationPurpose: {
+        kind: "unclear_recovery",
+        attempt: 1,
+        fallbackQuestion: "Who do you like to play soccer with?",
+      },
+    };
+
+    expect(
+      conversationTurnInputSchema.safeParse(recoveryInput).success,
+    ).toBe(false);
+    expect(
+      conversationTurnInputSchema.safeParse({
+        ...recoveryInput,
+        responseHandling: "review_pending",
+      }).success,
+    ).toBe(true);
+  });
+
   it("builds recovery without the unclear transcript", () => {
     const recoveryInput: GenerateCocoReplyInput = {
       ...input,

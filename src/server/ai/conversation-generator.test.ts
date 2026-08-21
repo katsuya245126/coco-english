@@ -162,6 +162,41 @@ describe("generateCocoReply server adapter (CHAT-04 stateless per-turn re-ground
     });
   });
 
+  it("overrides follow-up acknowledgement instructions for recovery", async () => {
+    const { generateCocoReply } = await import("@/server/ai/conversation-generator");
+    const client = createFakeClient(async () => ({
+      output_parsed: {
+        reaction: null,
+        focus: null,
+        question: "Do you play soccer with friends or family?",
+      },
+    }));
+
+    await generateCocoReply(
+      {
+        ...baseInput,
+        responseHandling: "review_pending",
+        generationPurpose: {
+          kind: "unclear_recovery",
+          attempt: 1,
+          fallbackQuestion: "Who do you like to play soccer with?",
+        },
+      },
+      { apiKey: "test-key", client },
+    );
+
+    const systemMessage = vi
+      .mocked(client.responses.parse)
+      .mock.calls[0]?.[0].input.find((message) => message.role === "system")
+      ?.content;
+    expect(systemMessage).toContain(
+      "Recovery overrides the normal follow-up acknowledgement",
+    );
+    expect(systemMessage).toContain(
+      "ask exactly one question with reaction and focus set to null",
+    );
+  });
+
   it("repairs a recovery reaction into a question-only line", async () => {
     const { generateCocoReply } = await import("@/server/ai/conversation-generator");
     const client = createFakeClient(
