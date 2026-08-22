@@ -21,7 +21,7 @@
 export type FollowUpFallbackKind = "meaningful" | "vague_or_stuck" | "uncertain";
 
 export const FOLLOW_UP_FALLBACK_LINES = {
-  meaningful: "Thanks for telling me! What is it like?",
+  meaningful: "Thanks for telling me! Can you tell me one more thing?",
   vague_or_stuck: "That's okay! Can you give me one example?",
   uncertain: "Thanks for trying! What else do you want to tell me?",
 } as const satisfies Record<FollowUpFallbackKind, string>;

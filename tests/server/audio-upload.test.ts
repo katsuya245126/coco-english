@@ -742,6 +742,33 @@ describe("uploadAttemptAudioClip", () => {
     expect(timingCall?.[2]).toMatchObject({ evaluationFastPath: 1 });
   });
 
+  it("gives a low-confidence exact target a free retry before the fast path", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginal = successfulOriginalEvaluator();
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: vi.fn(async () => ({
+        ok: true as const,
+        text: "I like playing soccer after school.",
+        koreanSpans: [],
+        model: "test-transcriber",
+        confidence: { minLogprob: -1.5, tokenCount: 7 },
+      })),
+      evaluateOriginalTurn: evaluateOriginal,
+    });
+
+    expect(evaluateOriginal).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "retry_original",
+        retryReason: "unclear_meaning",
+        lowConfidenceAudioRetries: 1,
+      },
+    });
+  });
+
   it("uses semantic evaluation for a relevant open-ended answer that differs from the example", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"

@@ -17,7 +17,7 @@ describe("conversation fallback lines", () => {
   });
 
   it.each([
-    ["meaningful", "Thanks for telling me! What is it like?"],
+    ["meaningful", "Thanks for telling me! Can you tell me one more thing?"],
     ["vague_or_stuck", "That's okay! Can you give me one example?"],
     ["uncertain", "Thanks for trying! What else do you want to tell me?"],
   ] as const)("returns the exact %s follow-up fallback", (kind, expected) => {
@@ -27,7 +27,7 @@ describe("conversation fallback lines", () => {
     expect(line.endsWith("?")).toBe(true);
   });
 
-  it("keeps the meaningful fallback concrete and policy-compatible", () => {
+  it("asks for one bounded detail without an ambiguous reference", () => {
     const oldMeaningfulLine = "Thanks for telling me! What do you like about that?";
     const unboundedMeaningfulLine =
       "Thanks for telling me! What else can you tell me about it?";
@@ -35,10 +35,11 @@ describe("conversation fallback lines", () => {
 
     expect(line).not.toBe(oldMeaningfulLine);
     expect(line).not.toBe(unboundedMeaningfulLine);
-    expect(line).toBe("Thanks for telling me! What is it like?");
+    expect(line).toContain("one more thing");
+    expect(line).not.toMatch(/\b(?:it|that)\b/iu);
     // A static line cannot carry dynamic lexical topic grounding without
-    // interpolating learner text. Apply only the shared structural/open-WH
-    // policy here; the production-shaped anaphora checks below cover relevance.
+    // interpolating learner text. Apply only the shared structural question
+    // policy here; the production-shaped cases below cover answerability.
     expect(
       validateGeneratedCocoReplyLine(line, { expectsQuestion: true }),
     ).toEqual({ ok: true });
@@ -54,7 +55,7 @@ describe("conversation fallback lines", () => {
       latestStudentResponse: "I have one sister.",
     },
   ])(
-    "uses an anaphoric fallback for $name",
+    "uses a bounded fallback for $name",
     (context) => {
       const kind = classifyFollowUpFallbackKind({
         latestResponse: context.latestStudentResponse,
@@ -65,7 +66,7 @@ describe("conversation fallback lines", () => {
 
       expect(kind).toBe("meaningful");
       expect(line).toBe(
-        "Thanks for telling me! What is it like?",
+        "Thanks for telling me! Can you tell me one more thing?",
       );
       expect(line).not.toContain("What else can you tell me about it?");
       expect(line).not.toContain("What do you like about that?");

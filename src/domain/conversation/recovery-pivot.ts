@@ -24,6 +24,12 @@ export const RECOVERY_QUESTION_WORDS = [
 
 export type RecoveryQuestionWord = (typeof RECOVERY_QUESTION_WORDS)[number];
 
+const NON_TOPIC_ANCHOR_WORDS = new Set(
+  `what who when where why how am is are was were be been being do does did have has had can could will would shall should may might must going often i you he she it we they me him her us them my your his its our their mine yours hers ours theirs this that these those a an the about after against among around at as before behind below beside between beyond by during except for from in inside into near of on outside over through to toward under upon with within without please like play say tell rather because homework mission practice scene free talking one more thing answer`.split(
+    /\s+/u,
+  ),
+);
+
 const QUESTION_WORD_PATTERN = new RegExp(
   `^["'“”\\s]*(?:okay|ok|alright|so|well[,:]?\\s+)?(${RECOVERY_QUESTION_WORDS.join("|")})\\b`,
   "iu",
@@ -56,10 +62,12 @@ export type RecoveryPivotInput = {
   /** The question the student just failed to answer understandably. */
   failedQuestion: string;
   /**
-   * Teacher-authored topic text for anchoring (mission title + target
-   * pattern). Empty means no topic anchor is available.
+   * Teacher-authored target/question text for anchoring. Empty means no topic
+   * anchor is available.
    */
   topicSeed?: string | null;
+  /** Questions already asked in this attempt, used to avoid verbatim repeats. */
+  previouslyAsked?: string[];
 };
 
 /**
@@ -68,7 +76,9 @@ export type RecoveryPivotInput = {
  */
 export function topicAnchorWords(topicSeed: string | null | undefined): string[] {
   const normalized = (topicSeed ?? "").toLocaleLowerCase("en-US");
-  const words = normalized.match(/[a-z]{4,}/gu) ?? [];
+  const words = (normalized.match(/[a-z]{4,}/gu) ?? []).filter(
+    (word) => !NON_TOPIC_ANCHOR_WORDS.has(word),
+  );
   const unique = new Set(words);
   return [...unique];
 }
@@ -88,28 +98,16 @@ export type RecoveryPivotViolation =
   | "repeats_asked_question"
   | "off_topic";
 
-/**
- * Recovery accepts open WH questions and simple yes/no or two-choice
- * scaffolds (the generation policy allows both for recovery), so an
- * auxiliary-led question counts as a valid shape. Only a candidate that is
- * neither WH- nor auxiliary-led fails the shape check.
- */
-const AUXILIARY_LEAD_PATTERN =
-  /^(?:is|are|am|can|could|do|does|did|will|would|have|has|was|were)\b/iu;
-
 export function validateRecoveryPivotQuestion(
   candidate: string,
-  input: RecoveryPivotInput & { previouslyAsked?: string[] },
+  input: RecoveryPivotInput,
 ): { ok: true } | { ok: false; reasons: RecoveryPivotViolation[] } {
   const reasons: RecoveryPivotViolation[] = [];
   const trimmed = candidate.trim();
   if (!trimmed.endsWith("?")) reasons.push("not_question");
 
   const candidateWord = leadingQuestionWord(trimmed);
-  if (
-    candidateWord === null &&
-    !AUXILIARY_LEAD_PATTERN.test(trimmed)
-  ) {
+  if (candidateWord === null) {
     reasons.push("missing_question_word");
   } else {
     const failedWord = leadingQuestionWord(input.failedQuestion);
@@ -160,13 +158,12 @@ function buildFuturePlanPivot(failedQuestion: string): string | null {
 }
 
 /**
- * Deterministic fallback pivot. Guaranteed to satisfy
- * validateRecoveryPivotQuestion by construction:
- * - the future-plan family yields a WH pivot different from the failed word,
- * - otherwise the scaffold is auxiliary-led and embeds a short topic phrase
- *   derived from the seed so the topic anchor check passes,
- * - both contain phrasing that cannot verbatim-match any authored question
- *   already asked.
+ * Deterministic fallback pivot:
+ * - the future-plan family yields a WH pivot different from the failed word
+ *   and is validated against the supplied topic,
+ * - otherwise an ordered set of short, topic-grounded WH questions is tried
+ *   until one is grammatical, changes the failed W, and is not a repeat;
+ *   finite-history word-count variants keep searching if all templates repeat.
  */
 export function buildDeterministicPivotQuestion(
   input: RecoveryPivotInput,
@@ -179,14 +176,30 @@ export function buildDeterministicPivotQuestion(
     return futurePlanPivot;
   }
 
-  const anchors = topicAnchorWords(input.topicSeed);
-  if (anchors.length > 0) {
-    // A two-word noun phrase reads naturally aloud; the raw teacher title
-    // ("Summer Vacation Free Talking Homework") does not.
-    const phrase = anchors.slice(0, 2).join(" ");
-    const phraseCapitalized =
-      phrase.charAt(0).toLocaleUpperCase("en-US") + phrase.slice(1);
-    return `Can you tell me one more thing about ${phraseCapitalized}?`;
+  const anchors = topicAnchorWords(input.topicSeed).slice(0, 2);
+  const topic = anchors.length > 0
+    ? `the topic "${anchors.join(" ")}"`
+    : "your answer";
+  const candidates = [
+    `What can you tell me about ${topic}?`,
+    `Who do you talk to about ${topic}?`,
+    `When do you talk about ${topic}?`,
+    `Where do you talk about ${topic}?`,
+    `Why is ${topic} interesting to you?`,
+    `How do you feel about ${topic}?`,
+  ];
+
+  const firstValidTemplate = candidates.find((candidate) =>
+    validateRecoveryPivotQuestion(candidate, input).ok,
+  );
+  if (firstValidTemplate) return firstValidTemplate;
+
+  const fallbackBase =
+    leadingQuestionWord(input.failedQuestion) === "what"
+      ? `How do you feel about ${topic}`
+      : `What can you tell me about ${topic}`;
+  for (let wordCount = 3; ; wordCount += 1) {
+    const candidate = `${fallbackBase} in ${wordCount} words?`;
+    if (validateRecoveryPivotQuestion(candidate, input).ok) return candidate;
   }
-  return "Can you tell me one more thing about that?";
 }

@@ -33,10 +33,15 @@ describe("topicAnchorWords", () => {
     expect(topicAnchorWords("Summer Vacation Free Talking Homework")).toEqual([
       "summer",
       "vacation",
-      "free",
-      "talking",
-      "homework",
     ]);
+    expect(topicAnchorWords("I like soccer.")).toEqual(["soccer"]);
+    expect(topicAnchorWords("Coffee shop scene")).toEqual(["coffee", "shop"]);
+    expect(topicAnchorWords("I'd rather _____ because _____")).toEqual([]);
+    expect(
+      topicAnchorWords("What are you going to do during summer vacation?"),
+    ).toEqual(["summer", "vacation"]);
+    expect(topicAnchorWords("How often do you _____?")).toEqual([]);
+    expect(topicAnchorWords("Homework 3")).toEqual([]);
     expect(topicAnchorWords(null)).toEqual([]);
   });
 });
@@ -57,10 +62,16 @@ describe("validateRecoveryPivotQuestion", () => {
     ).toEqual({ ok: true });
   });
 
-  it("accepts an auxiliary-led scaffold, which recovery policy allows", () => {
+  it("rejects an auxiliary-led scaffold without a leading WH word", () => {
     expect(
-      validateRecoveryPivotQuestion("Can you tell me one more thing about summer vacation?", validInput),
-    ).toEqual({ ok: true });
+      validateRecoveryPivotQuestion("Can you tell me more about soccer?", {
+        failedQuestion: "What do you like to play?",
+        topicSeed: "soccer",
+      }),
+    ).toMatchObject({
+      ok: false,
+      reasons: expect.arrayContaining(["missing_question_word"]),
+    });
   });
 
   it("rejects a candidate that is not a question", () => {
@@ -131,12 +142,14 @@ describe("buildDeterministicPivotQuestion", () => {
     ).toEqual({ ok: true });
   });
 
-  it("falls back to a topic-seeded scaffold for other question shapes", () => {
+  it("falls back to a grammatical different-W question for other shapes", () => {
     const pivot = buildDeterministicPivotQuestion({
       failedQuestion: "Who do you like to play soccer with?",
       topicSeed: SUMMER_TOPIC,
     });
-    expect(pivot).toBe("Can you tell me one more thing about Summer vacation?");
+    expect(pivot).toBe(
+      'What can you tell me about the topic "summer vacation"?',
+    );
     expect(
       validateRecoveryPivotQuestion(pivot, {
         failedQuestion: "Who do you like to play soccer with?",
@@ -150,6 +163,63 @@ describe("buildDeterministicPivotQuestion", () => {
     const pivot = buildDeterministicPivotQuestion({
       failedQuestion: "Who do you like to play soccer with?",
     });
-    expect(pivot).toBe("Can you tell me one more thing about that?");
+    expect(pivot).toBe("What can you tell me about your answer?");
+  });
+
+  it("uses a grammatical different-W fallback for fill-in target patterns", () => {
+    const pivot = buildDeterministicPivotQuestion({
+      failedQuestion: "Can I have ___, please?",
+      topicSeed: "Coffee shop scene",
+    });
+
+    expect(pivot).toBe(
+      'What can you tell me about the topic "coffee shop"?',
+    );
+    expect(pivot).not.toContain("___");
+    expect(leadingQuestionWord(pivot)).toBe("what");
+  });
+
+  it("skips the failed what angle in the ordered fallback set", () => {
+    const pivot = buildDeterministicPivotQuestion({
+      failedQuestion: "What do you like to play?",
+      topicSeed: "soccer",
+    });
+
+    expect(pivot).toBe('Who do you talk to about the topic "soccer"?');
+  });
+
+  it("skips a deterministic template already asked in recovery history", () => {
+    const pivot = buildDeterministicPivotQuestion({
+      failedQuestion: "Who do you like to play with?",
+      topicSeed: "Coffee shop scene",
+      previouslyAsked: ['What can you tell me about the topic "coffee shop"?'],
+    });
+
+    expect(pivot).toBe('When do you talk about the topic "coffee shop"?');
+  });
+
+  it("keeps searching with a validated word-count fallback when templates repeat", () => {
+    const topic = 'the topic "coffee shop"';
+    const previouslyAsked = [
+      `What can you tell me about ${topic}?`,
+      `Who do you talk to about ${topic}?`,
+      `When do you talk about ${topic}?`,
+      `Where do you talk about ${topic}?`,
+      `Why is ${topic} interesting to you?`,
+      `How do you feel about ${topic}?`,
+      `What can you tell me about ${topic} in 3 words?`,
+    ];
+    const input = {
+      failedQuestion: "Who do you like to play with?",
+      topicSeed: "Coffee shop scene",
+      previouslyAsked,
+    };
+
+    const pivot = buildDeterministicPivotQuestion(input);
+
+    expect(pivot).toBe(
+      'What can you tell me about the topic "coffee shop" in 4 words?',
+    );
+    expect(validateRecoveryPivotQuestion(pivot, input)).toEqual({ ok: true });
   });
 });

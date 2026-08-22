@@ -137,7 +137,7 @@ export const MAX_LOW_CONFIDENCE_AUDIO_RETRIES = 2;
  * (issue #65). `failed_schema` stays reserved for genuinely malformed or
  * unparseable output.
  */
-const CONTRACT_REJECTED_REVIEW_REASON = "contract_rejected";
+const CONTRACT_REJECTED_REVIEW_REASON = "contract_rejected" as const;
 const LOW_CONFIDENCE_REVIEW_REASON = "low_confidence";
 export const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
 export const MAX_AUDIO_DURATION_MS = 90_000;
@@ -1543,6 +1543,9 @@ export async function uploadAttemptAudioClip(
           ? beginPronunciationScoring(transcript)
           : null;
 
+    let recoveryPersistencePending = false;
+    let lowConfidenceGateRetryApplied = false;
+
     const turnWrite =
       input.clipKind === "original_answer"
         ? await (async () => {
@@ -1584,10 +1587,10 @@ export async function uploadAttemptAudioClip(
             // cannot loop forever; exhausting the gate falls through to the
             // normal evaluation path, so escalation stays unchanged.
             const lowConfidenceGateRetry =
-              !fastPathMatched &&
               transcriptConfidence !== null &&
               isTranscriptConfidenceBelowGate(transcriptConfidence) &&
               storedLowConfidenceRetries < MAX_LOW_CONFIDENCE_AUDIO_RETRIES;
+            lowConfidenceGateRetryApplied = lowConfidenceGateRetry;
             if (lowConfidenceGateRetry) {
               timings.evaluationSkippedLowConfidence = 1;
               log("warn", "audio.low_confidence_gate_retry", {
@@ -1650,6 +1653,7 @@ export async function uploadAttemptAudioClip(
             }
 
             let contractViolations: OriginalEvaluationViolation[] = [];
+            let contractRejected = false;
             if (lowConfidenceGateRetry) {
               // Skipped entirely: the transcript is not trusted text, so
               // canonicalizing it or paying for a policy-repair call about
@@ -1707,6 +1711,7 @@ export async function uploadAttemptAudioClip(
                     contractViolations = [];
                   } else {
                     contractViolations = repairedContract.violations;
+                    contractRejected = true;
                     log("warn", "ai.original_evaluation_contract_rejected", {
                       violations: repairedContract.violations,
                     });
@@ -1810,10 +1815,7 @@ export async function uploadAttemptAudioClip(
               // the only !ok error it can express; relabel here where the
               // violations are known. Genuine malformed-output failures carry
               // no violations and keep failed_schema.
-              if (
-                decision.evaluation.outcome === "teacher_review" &&
-                decision.evaluation.reviewReason === FAILED_SCHEMA_REVIEW_REASON
-              ) {
+              if (contractRejected && decision.evaluation.outcome === "teacher_review") {
                 decision.evaluation.reviewReason =
                   CONTRACT_REJECTED_REVIEW_REASON;
               }
@@ -1836,7 +1838,7 @@ export async function uploadAttemptAudioClip(
                 improvedSentence: null,
                 englishLanguage: "uncertain" as const,
                 confidence: "low" as const,
-                reviewReason: "failed_schema" as const,
+                reviewReason: decision.evaluation.reviewReason,
               };
               decision.evaluation.outcome = "retry_original";
               decision.evaluation.reviewReason = null;
@@ -1880,6 +1882,15 @@ export async function uploadAttemptAudioClip(
                 ambiguityState.ambiguityHistory;
             }
             originalEvaluation = decision.evaluation;
+            recoveryPersistencePending =
+              snapshot.conversationMode === true &&
+              decision.evaluation.outcome === "retry_original" &&
+              decision.evaluation.retryReason === "unclear_meaning" &&
+              (decision.evaluation.ambiguityRetries === 1 ||
+                decision.evaluation.ambiguityRetries === 2 ||
+                (typeof decision.evaluation.lowConfidenceAudioRetries ===
+                  "number" &&
+                  decision.evaluation.lowConfidenceAudioRetries > 0));
 
             const write = await timeStage("turnWrite", () =>
               supabase.from("attempt_turns").upsert(
@@ -1889,7 +1900,9 @@ export async function uploadAttemptAudioClip(
                   original_transcript: transcript,
                   target_attempted: decision.targetAttempted,
                   improved_sentence: decision.improvedSentence,
-                  evaluation: toJson(decision.evaluation),
+                  ...(recoveryPersistencePending
+                    ? {}
+                    : { evaluation: toJson(decision.evaluation) }),
                   reply_hint_frame: replyHintFrame,
                 },
                 { onConflict: "attempt_id,turn_order" },
@@ -2074,6 +2087,7 @@ export async function uploadAttemptAudioClip(
       input.clipKind === "original_answer"
     ) {
       const recoveryAttempt: 1 | 2 | null =
+        !lowConfidenceGateRetryApplied &&
         originalEvaluation?.outcome === "retry_original" &&
         originalEvaluation.retryReason === "unclear_meaning" &&
         (originalEvaluation.ambiguityRetries === 1 ||
@@ -2084,11 +2098,12 @@ export async function uploadAttemptAudioClip(
       // retry, but its counter is separate — it must never consume or advance
       // the ambiguity ladder.
       const lowConfidenceAudioRetry =
-        recoveryAttempt === null &&
-        originalEvaluation?.outcome === "retry_original" &&
-        originalEvaluation.retryReason === "unclear_meaning" &&
-        typeof originalEvaluation.lowConfidenceAudioRetries === "number" &&
-        originalEvaluation.lowConfidenceAudioRetries > 0;
+        lowConfidenceGateRetryApplied ||
+        (recoveryAttempt === null &&
+          originalEvaluation?.outcome === "retry_original" &&
+          originalEvaluation.retryReason === "unclear_meaning" &&
+          typeof originalEvaluation.lowConfidenceAudioRetries === "number" &&
+          originalEvaluation.lowConfidenceAudioRetries > 0);
       const freeSameTurnRetry = recoveryAttempt !== null || lowConfidenceAudioRetry;
       const reviewPendingContinuation =
         originalEvaluation?.outcome === "teacher_review";
@@ -2121,10 +2136,21 @@ export async function uploadAttemptAudioClip(
 
         const failedRecoveryQuestion =
           missionQuestion ?? snapshot.turns[0]?.prompt ?? "";
-        const recoveryTopicSeed = snapshot.title;
+        const previouslyAsked = collectPreviouslyAskedQuestions({
+          conversationHistory: historyResult.history,
+          ambiguityHistory: originalEvaluation?.ambiguityHistory,
+        });
+        const recoveryTopicSeed = [
+          /_{2,}/u.test(targetPattern) ? "" : targetPattern,
+          snapshot.title,
+          failedRecoveryQuestion,
+        ]
+          .map((value) => value.trim())
+          .find((value) => topicAnchorWords(value).length > 0) ?? "";
         const deterministicPivot = buildDeterministicPivotQuestion({
           failedQuestion: failedRecoveryQuestion,
           topicSeed: recoveryTopicSeed,
+          previouslyAsked,
         });
 
         const generationPurpose =
@@ -2175,10 +2201,7 @@ export async function uploadAttemptAudioClip(
           const pivotCheck = validateRecoveryPivotQuestion(cocoLine, {
             failedQuestion: failedRecoveryQuestion,
             topicSeed: recoveryTopicSeed,
-            previouslyAsked: collectPreviouslyAskedQuestions({
-              conversationHistory: historyResult.history,
-              ambiguityHistory: originalEvaluation?.ambiguityHistory,
-            }),
+            previouslyAsked,
           });
           if (!pivotCheck.ok) {
             log("warn", "ai.recovery_pivot_rejected", {
@@ -2210,6 +2233,21 @@ export async function uploadAttemptAudioClip(
 
       const resolvedCocoLine = cocoLine;
       const resolvedModerationEvent = cocoLineModerationEvent;
+
+      if (
+        recoveryPersistencePending &&
+        (!resolvedCocoLine || !resolvedCocoLine.trim())
+      ) {
+        await supabase
+          .from("audio_clips")
+          .update({ processing_status: "failed" })
+          .eq("id", audioClip.id);
+        logTiming("failed", {
+          error: "db_error",
+          step: "recovery_line_missing",
+        });
+        return { ok: false, error: "db_error", retryable: true };
+      }
 
       if (resolvedCocoLine !== null) {
         if (
