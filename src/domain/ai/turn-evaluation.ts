@@ -10,6 +10,7 @@ import { hangulInterpretationSchema } from "@/domain/audio/transcript-interpreta
 
 export const AI_EVALUATION_VERSION = "ai-eval-v1" as const;
 export const CORRECTION_POLICY_VERSION = "natural-conversation-v1" as const;
+export const MAX_AMBIGUITY_RETRIES = 2 as const;
 
 export const aiEvaluationConfidenceSchema = z.enum(["high", "medium", "low"]);
 export const aiEvaluationEnglishLanguageSchema = z.enum([
@@ -22,6 +23,13 @@ export const aiEvaluationReviewReasonSchema = z.enum([
   "ambiguous",
   "failed_schema",
   "provider_failed",
+  /**
+   * The provider returned a well-formed verdict but a deterministic contract
+   * check rejected it and the policy repair could not fix it (issue #65).
+   * Distinct from failed_schema so the audit shows WHY the verdict was
+   * rejected rather than implying malformed output.
+   */
+  "contract_rejected",
 ]);
 
 export const correctionSeveritySchema = z.enum(["none", "minor", "material"]);
@@ -205,7 +213,7 @@ export function decideOriginalTurnOutcome(
     evaluation.outcome === "teacher_review" &&
     (evaluation.reviewReason === "ambiguous" ||
       evaluation.reviewReason === "low_confidence") &&
-    priorAmbiguityRetries === 0
+    priorAmbiguityRetries < MAX_AMBIGUITY_RETRIES
   ) {
     return {
       kind: "retry_original",

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { validateGeneratedCocoReplyLine } from "@/domain/ai/conversation-generation";
 import {
   CANNED_CLOSING_FALLBACK_LINE,
   classifyFollowUpFallbackKind,
@@ -16,7 +17,7 @@ describe("conversation fallback lines", () => {
   });
 
   it.each([
-    ["meaningful", "Thanks for telling me! What do you like about that?"],
+    ["meaningful", "Thanks for telling me! Can you tell me one more thing?"],
     ["vague_or_stuck", "That's okay! Can you give me one example?"],
     ["uncertain", "Thanks for trying! What else do you want to tell me?"],
   ] as const)("returns the exact %s follow-up fallback", (kind, expected) => {
@@ -25,6 +26,52 @@ describe("conversation fallback lines", () => {
     expect(line.match(/\?/gu)).toHaveLength(1);
     expect(line.endsWith("?")).toBe(true);
   });
+
+  it("asks for one bounded detail without an ambiguous reference", () => {
+    const oldMeaningfulLine = "Thanks for telling me! What do you like about that?";
+    const unboundedMeaningfulLine =
+      "Thanks for telling me! What else can you tell me about it?";
+    const line = selectFollowUpFallbackLine("meaningful");
+
+    expect(line).not.toBe(oldMeaningfulLine);
+    expect(line).not.toBe(unboundedMeaningfulLine);
+    expect(line).toContain("one more thing");
+    expect(line).not.toMatch(/\b(?:it|that)\b/iu);
+    // A static line cannot carry dynamic lexical topic grounding without
+    // interpolating learner text. Apply only the shared structural question
+    // policy here; the production-shaped cases below cover answerability.
+    expect(
+      validateGeneratedCocoReplyLine(line, { expectsQuestion: true }),
+    ).toEqual({ ok: true });
+  });
+
+  it.each([
+    {
+      name: "a sushi plan",
+      latestStudentResponse: "I will eat sushi.",
+    },
+    {
+      name: "a family fact",
+      latestStudentResponse: "I have one sister.",
+    },
+  ])(
+    "uses a bounded fallback for $name",
+    (context) => {
+      const kind = classifyFollowUpFallbackKind({
+        latestResponse: context.latestStudentResponse,
+        responseHandling: "normal",
+        inputUsable: true,
+      });
+      const line = selectFollowUpFallbackLine(kind);
+
+      expect(kind).toBe("meaningful");
+      expect(line).toBe(
+        "Thanks for telling me! Can you tell me one more thing?",
+      );
+      expect(line).not.toContain("What else can you tell me about it?");
+      expect(line).not.toContain("What do you like about that?");
+    },
+  );
 
   it("keeps the uncertain fallback moving without another retry request", () => {
     const line = selectFollowUpFallbackLine("uncertain");

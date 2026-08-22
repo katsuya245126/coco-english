@@ -11,6 +11,7 @@ import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/lib/db/types";
 import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
 import { resolveMissionSnapshotTargetPattern } from "@/domain/mission/mission-snapshot";
+import { isPendingConversationRecovery } from "@/domain/mission/student-question-state";
 import { isExactTargetMatch } from "@/domain/ai/fast-path";
 import { isIncompleteUtterance } from "@/domain/ai/incomplete-utterance";
 import { buildReplyHintFrame } from "@/domain/ai/reply-hint-frame";
@@ -31,6 +32,7 @@ import {
 import {
   AI_EVALUATION_VERSION,
   CORRECTION_POLICY_VERSION,
+  MAX_AMBIGUITY_RETRIES,
   decideOriginalTurnOutcome,
   guardNonsensicalMinimalEffortCorrection,
   guardNoOpCorrection,
@@ -52,7 +54,11 @@ import {
   transcribeAudioFile,
   type TranscriptionEvidence,
 } from "@/server/audio/transcription";
-import { isLowConfidenceTranscript } from "@/domain/audio/transcript-confidence";
+import {
+  isLowConfidenceTranscript,
+  isTranscriptConfidenceBelowGate,
+} from "@/domain/audio/transcript-confidence";
+import { buildTranscriptionVocabularyHint } from "@/domain/audio/vocabulary-hint";
 import { DEFAULT_COCO_TTS_VOICE } from "@/domain/audio/tts";
 import { warmTtsAudioCache } from "@/server/audio/tts-cache";
 import { scorePronunciation } from "@/server/audio/pronunciation-scorer";
@@ -90,7 +96,17 @@ import {
   classifyFollowUpFallbackKind,
   selectClosingFallbackLine,
   selectFollowUpFallbackLine,
+  SAY_IT_AGAIN_FALLBACK_LINE,
+  withReviewPendingAcknowledgment,
 } from "@/domain/conversation/fallback-lines";
+import {
+  buildDeterministicPivotQuestion,
+  leadingQuestionWord,
+  pickRecoveryPivotWord,
+  topicAnchorWords,
+  validateRecoveryPivotQuestion,
+  type RecoveryPivotViolation,
+} from "@/domain/conversation/recovery-pivot";
 import {
   WITHHELD_STUDENT_RESPONSE,
   conversationReplyMode,
@@ -101,12 +117,27 @@ import {
 } from "@/domain/ai/conversation-generation";
 import {
   buildConversationHistory,
+  collectPreviouslyAskedQuestions,
   type PersistedConversationTurn,
 } from "@/server/student-access/conversation-history";
 import { log } from "@/server/logging/logger";
 
 const DEFAULT_AUDIO_BUCKET = "student-audio";
 const FAILED_SCHEMA_REVIEW_REASON = "failed_schema";
+/**
+ * Free say-it-again retries granted for low-confidence transcripts before
+ * the evaluator is allowed to see the text (issue #64). Mirrors the bounded
+ * shape of the ambiguity ladder; exhausting it falls through to normal
+ * evaluation, never straight to review.
+ */
+export const MAX_LOW_CONFIDENCE_AUDIO_RETRIES = 2;
+/**
+ * Review reason for a well-formed provider verdict rejected by a
+ * deterministic contract check when policy repair could not fix it
+ * (issue #65). `failed_schema` stays reserved for genuinely malformed or
+ * unparseable output.
+ */
+const CONTRACT_REJECTED_REVIEW_REASON = "contract_rejected" as const;
 const LOW_CONFIDENCE_REVIEW_REASON = "low_confidence";
 export const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
 export const MAX_AUDIO_DURATION_MS = 90_000;
@@ -153,6 +184,12 @@ export type CocoLineModerationEvent =
       violations: GeneratedCocoReplyLineViolation[];
       rejectedCandidate: GeneratedCocoReplyParts;
       rejectedAttempt: "first" | "corrected";
+    }
+  | {
+      /** W-pivot candidate broke a recovery rule; deterministic pivot used. */
+      kind: "canned_fallback";
+      cause: "recovery_pivot_rejected";
+      violations: RecoveryPivotViolation[];
     };
 
 export type CocoLineModerationEventKind =
@@ -228,10 +265,19 @@ type StoredOriginalTurnEvaluation = StoredEvaluationProvenance & {
   minimalEffortKind?: MinimalEffortKind;
   retryExample?: string | null;
   ambiguityRetries?: number;
+  /**
+   * Free say-it-again retries granted because the transcript itself decoded
+   * with low confidence (issue #64). Deliberately separate from
+   * `ambiguityRetries`: audio problems must not consume the meaningful-
+   * answer recovery budget nor escalate toward review on their own.
+   */
+  lowConfidenceAudioRetries?: number;
   ambiguityHistory?: Array<{
     transcript: string;
     audioClipId: string;
     evaluation: OriginalTurnEvaluation;
+    question?: string;
+    recoveryQuestion?: string;
   }>;
   contractViolations?: OriginalEvaluationViolation[];
   hangulInterpretations: HangulInterpretation[];
@@ -557,6 +603,30 @@ function priorMinimalEffortBlocks(evaluation: unknown): number {
     : 0;
 }
 
+/**
+ * How many times this turn already answered a low-confidence transcript with
+ * the free say-it-again retry (issue #64). Tracked separately from
+ * `ambiguityRetries` so microphone problems never consume the meaningful-
+ * answer recovery budget, and never escalate toward teacher review by
+ * themselves.
+ */
+function priorLowConfidenceAudioRetries(evaluation: unknown): number {
+  if (
+    typeof evaluation !== "object" ||
+    evaluation === null ||
+    Array.isArray(evaluation)
+  ) {
+    return 0;
+  }
+  const stored = evaluation as {
+    lowConfidenceAudioRetries?: unknown;
+  };
+  return typeof stored.lowConfidenceAudioRetries === "number" &&
+    Number.isFinite(stored.lowConfidenceAudioRetries)
+    ? Math.max(0, Math.floor(stored.lowConfidenceAudioRetries))
+    : 0;
+}
+
 function priorAmbiguityState(evaluation: unknown): Pick<
   StoredOriginalTurnEvaluation,
   "ambiguityRetries" | "ambiguityHistory"
@@ -582,6 +652,24 @@ function priorAmbiguityState(evaluation: unknown): Pick<
   };
 }
 
+function persistedConversationRecoveryQuestion(
+  evaluation: unknown,
+  cocoLine: unknown,
+  conversationMode: boolean,
+) {
+  if (
+    !isPendingConversationRecovery({
+      conversationMode,
+      evaluation,
+      cocoLine: typeof cocoLine === "string" ? cocoLine : null,
+    })
+  ) {
+    return null;
+  }
+
+  return typeof cocoLine === "string" ? cocoLine.trim() : null;
+}
+
 function reviewReasonOrDefault(
   reviewReason: string | null,
 ): TeacherReviewReason {
@@ -589,7 +677,8 @@ function reviewReasonOrDefault(
     reviewReason === "low_confidence" ||
     reviewReason === "ambiguous" ||
     reviewReason === "failed_schema" ||
-    reviewReason === "provider_failed"
+    reviewReason === "provider_failed" ||
+    reviewReason === "contract_rejected"
   ) {
     return reviewReason;
   }
@@ -624,6 +713,7 @@ type ConversationTurnContext = {
   studentTranscript: string;
   conversationHistory: ConversationExchange[];
   responseHandling: "normal" | "review_pending";
+  generationPurpose?: GenerateCocoReplyInput["generationPurpose"];
 };
 
 type ConversationTurnOutcome = {
@@ -656,6 +746,9 @@ function fallbackLineForContext(
   context: ConversationTurnContext,
   inputUsable: boolean,
 ): string {
+  if (context.generationPurpose?.kind === "unclear_recovery") {
+    return context.generationPurpose.fallbackQuestion;
+  }
   if (conversationReplyMode(context) === "closing") {
     return selectClosingFallbackLine();
   }
@@ -722,6 +815,9 @@ async function runConversationTurn(
     safetyMode: "standard",
     responseHandling: context.responseHandling,
     conversationHistory: context.conversationHistory,
+    ...(context.generationPurpose
+      ? { generationPurpose: context.generationPurpose }
+      : {}),
   };
 
   // (c) GENERATE
@@ -994,17 +1090,6 @@ export async function uploadAttemptAudioClip(
       return { ok: false, error: "invalid_audio", retryable: false };
     }
 
-    const missionQuestion = snapshotTurn?.prompt ?? previousCocoLine;
-    // The reply hint frame OFFERED to the student for the question they just
-    // answered — recorded, not derived later, so a future change to
-    // buildReplyHintFrame cannot rewrite what old attempts actually showed.
-    // Mirrors deriveActiveStudentQuestion, which is what the UI renders, so
-    // this is the available frame regardless of whether the student expanded
-    // it. Preset missions never show one, so they stay null.
-    const replyHintFrame =
-      snapshot.conversationMode === true && missionQuestion
-        ? buildReplyHintFrame(missionQuestion)
-        : null;
     const targetExample =
       snapshot.conversationMode === true
         ? null
@@ -1025,7 +1110,9 @@ export async function uploadAttemptAudioClip(
           },
           { onConflict: "attempt_id,turn_order" },
         )
-        .select("id, original_transcript, improved_sentence, evaluation")
+        .select(
+          "id, original_transcript, improved_sentence, evaluation, coco_line",
+        )
         .single(),
     );
 
@@ -1033,6 +1120,25 @@ export async function uploadAttemptAudioClip(
       logTiming("failed", { error: "db_error", step: "turn_init" });
       return { ok: false, error: "db_error", retryable: true };
     }
+
+    const missionQuestion =
+      persistedConversationRecoveryQuestion(
+        turn.evaluation,
+        turn.coco_line,
+        snapshot.conversationMode === true,
+      ) ??
+      snapshotTurn?.prompt ??
+      previousCocoLine;
+    // The reply hint frame OFFERED to the student for the question they just
+    // answered — recorded, not derived later, so a future change to
+    // buildReplyHintFrame cannot rewrite what old attempts actually showed.
+    // Mirrors deriveActiveStudentQuestion, which is what the UI renders, so
+    // this is the available frame regardless of whether the student expanded
+    // it. Preset missions never show one, so they stay null.
+    const replyHintFrame =
+      snapshot.conversationMode === true && missionQuestion
+        ? buildReplyHintFrame(missionQuestion)
+        : null;
 
     const repeatTarget = turn.improved_sentence ?? targetExample;
     if (input.clipKind === "repeat_attempt" && repeatTarget === null) {
@@ -1083,10 +1189,21 @@ export async function uploadAttemptAudioClip(
     );
 
     const transcribe = deps.transcribeAudioFile ?? transcribeAudioFile;
+    // Teacher-authored mission vocabulary biases the decode toward lesson
+    // phrases ("I'd rather" instead of "I letter") — issue #64.
+    const transcriptionVocabularyHint = buildTranscriptionVocabularyHint({
+      title: snapshot.title,
+      targetPattern,
+      activePrompt: snapshotTurn?.prompt ?? null,
+      targetExample: snapshotTurn?.targetExample ?? null,
+    });
     const transcriptionPromise = timeStage("transcription", () =>
       transcribe({
         file: createAudioBlob(),
         mimeType: input.mimeType,
+        ...(transcriptionVocabularyHint
+          ? { vocabularyHint: transcriptionVocabularyHint }
+          : {}),
       }),
     );
 
@@ -1426,6 +1543,9 @@ export async function uploadAttemptAudioClip(
           ? beginPronunciationScoring(transcript)
           : null;
 
+    let recoveryPersistencePending = false;
+    let lowConfidenceGateRetryApplied = false;
+
     const turnWrite =
       input.clipKind === "original_answer"
         ? await (async () => {
@@ -1454,30 +1574,91 @@ export async function uploadAttemptAudioClip(
               transcriptionEvidence,
               runtimeVersion: resolveEvaluationRuntimeVersion(),
             } as const;
-            let evaluationResult: OriginalTurnEvaluationResult = fastPathMatched
-              ? {
-                  ok: true,
-                  evaluation: {
-                    ...fallbackProvenance,
-                    version: AI_EVALUATION_VERSION,
-                    outcome: "correct",
-                    meaningUnderstood: true,
-                    targetPatternAttempted: true,
-                    correctionNeeded: false,
-                    correctionSeverity: "none",
-                    correctionReason: "none",
-                    improvedSentence: null,
-                    englishLanguage: "english",
-                    confidence: "high",
-                    reviewReason: null,
-                    evaluationSource: "deterministic",
-                    hangulInterpretations: [],
-                  },
-                }
-              : await timeStage("evaluation", () => evaluate(evaluationInput));
+            let evaluationResult: OriginalTurnEvaluationResult;
+            const storedLowConfidenceRetries = priorLowConfidenceAudioRetries(
+              turn.evaluation,
+            );
+            const transcriptConfidence = transcriptionEvidence.confidence;
+            // Issue #64 low-confidence gate: a transcript that decoded below
+            // the confidence threshold gets a free say-it-again retry BEFORE
+            // any evaluation call. The evaluator would only see garbled text
+            // and route it to teacher review — the dominant spurious-review
+            // cause in the 2026-08-21 export. Bounded so a broken microphone
+            // cannot loop forever; exhausting the gate falls through to the
+            // normal evaluation path, so escalation stays unchanged.
+            const lowConfidenceGateRetry =
+              transcriptConfidence !== null &&
+              isTranscriptConfidenceBelowGate(transcriptConfidence) &&
+              storedLowConfidenceRetries < MAX_LOW_CONFIDENCE_AUDIO_RETRIES;
+            lowConfidenceGateRetryApplied = lowConfidenceGateRetry;
+            if (lowConfidenceGateRetry) {
+              timings.evaluationSkippedLowConfidence = 1;
+              log("warn", "audio.low_confidence_gate_retry", {
+                assignmentStudentId: input.assignmentStudentId,
+                attemptId: input.attemptId,
+                turnOrder: input.turnOrder,
+                minLogprob: transcriptConfidence.minLogprob,
+                tokenCount: transcriptConfidence.tokenCount,
+                retriesAfter: storedLowConfidenceRetries + 1,
+              });
+              evaluationResult = {
+                ok: true,
+                // The provider-shaped outcome satisfies the result type; the
+                // gated decision below rewrites it to retry_original without
+                // passing through decideOriginalTurnOutcome, so no ambiguity
+                // budget is consumed.
+                evaluation: {
+                  ...fallbackProvenance,
+                  version: AI_EVALUATION_VERSION,
+                  outcome: "teacher_review",
+                  meaningUnderstood: false,
+                  targetPatternAttempted: false,
+                  correctionNeeded: false,
+                  correctionSeverity: "none",
+                  correctionReason: "none",
+                  improvedSentence: null,
+                  englishLanguage: "uncertain",
+                  confidence: "low",
+                  reviewReason: null,
+                  hangulInterpretations: [],
+                  evaluationSource: "deterministic",
+                },
+              };
+            } else if (fastPathMatched) {
+              timings.evaluationFastPath = fastPathMatched ? 1 : 0;
+              evaluationResult = {
+                ok: true,
+                evaluation: {
+                  ...fallbackProvenance,
+                  version: AI_EVALUATION_VERSION,
+                  outcome: "correct",
+                  meaningUnderstood: true,
+                  targetPatternAttempted: true,
+                  correctionNeeded: false,
+                  correctionSeverity: "none",
+                  correctionReason: "none",
+                  improvedSentence: null,
+                  englishLanguage: "english",
+                  confidence: "high",
+                  reviewReason: null,
+                  evaluationSource: "deterministic",
+                  hangulInterpretations: [],
+                },
+              };
+            } else {
+              timings.evaluationSkippedLowConfidence = 0;
+              evaluationResult = await timeStage("evaluation", () =>
+                evaluate(evaluationInput),
+              );
+            }
 
             let contractViolations: OriginalEvaluationViolation[] = [];
-            if (evaluationResult.ok) {
+            let contractRejected = false;
+            if (lowConfidenceGateRetry) {
+              // Skipped entirely: the transcript is not trusted text, so
+              // canonicalizing it or paying for a policy-repair call about
+              // it would defeat the gate.
+            } else if (evaluationResult.ok) {
               const canonicalEvaluation = canonicalizeNoOpOriginalEvaluation(
                 evaluationResult.evaluation,
                 transcript,
@@ -1534,6 +1715,7 @@ export async function uploadAttemptAudioClip(
                         : [];
                   } else {
                     contractViolations = repairedContract.violations;
+                    contractRejected = true;
                     log("warn", "ai.original_evaluation_contract_rejected", {
                       violations: repairedContract.violations,
                     });
@@ -1573,19 +1755,78 @@ export async function uploadAttemptAudioClip(
               };
             }
 
-            const decision = applyOriginalTurnEvaluation(evaluationResult, {
-              evaluationMode:
-                snapshot.conversationMode === true ? "conversation" : "preset",
-              missionQuestion: missionQuestion ?? null,
-              transcript,
-              priorMinimalEffortBlocks: minimalEffortBlocks,
-              priorAmbiguityRetries: ambiguityState.ambiguityRetries,
-            }, fallbackProvenance);
+            // The gated decision is synthesized directly — no contract
+            // canonicalization or repair round-trip, either: the transcript
+            // is not trusted text, so spending another evaluation call to
+            // repair a verdict about it would defeat the gate.
+            const decision: OriginalTurnWriteDecision = lowConfidenceGateRetry
+              ? {
+                  evaluation: {
+                    ...fallbackProvenance,
+                    version: AI_EVALUATION_VERSION,
+                    outcome: "retry_original",
+                    confidence: "low",
+                    reviewReason: null,
+                    meaningUnderstood: false,
+                    targetPatternAttempted: false,
+                    englishLanguage: "uncertain",
+                    correctionNeeded: false,
+                    correctionSeverity: "none",
+                    correctionReason: "none",
+                    improvedSentence: null,
+                    requireRepeat: false,
+                    retryReason: "unclear_meaning",
+                    ambiguityRetries: priorAmbiguityState(turn.evaluation)
+                      .ambiguityRetries,
+                    lowConfidenceAudioRetries: storedLowConfidenceRetries + 1,
+                    hangulInterpretations: [],
+                    evaluationSource: "deterministic",
+                  },
+                  targetAttempted: false,
+                  improvedSentence: null,
+                }
+              : applyOriginalTurnEvaluation(
+                  evaluationResult,
+                  {
+                    evaluationMode:
+                      snapshot.conversationMode === true ? "conversation" : "preset",
+                    missionQuestion: missionQuestion ?? null,
+                    transcript,
+                    priorMinimalEffortBlocks: minimalEffortBlocks,
+                    priorAmbiguityRetries:
+                      contractViolations.includes("prompt_echo") &&
+                      (ambiguityState.ambiguityRetries ?? 0) > 0
+                        ? MAX_AMBIGUITY_RETRIES
+                        : ambiguityState.ambiguityRetries,
+                  },
+                  fallbackProvenance,
+                );
             if (minimalEffortBlocks > 0) {
               decision.evaluation.minimalEffortBlocks = minimalEffortBlocks;
             }
+            // Preserve how many free audio retries this turn has already
+            // spent when the normal evaluation path takes over (gate
+            // exhausted or confident decode) — the synthesized gated
+            // decision sets it directly.
+            const carriedLowConfidenceRetries = priorLowConfidenceAudioRetries(
+              turn.evaluation,
+            );
+            if (!lowConfidenceGateRetry && carriedLowConfidenceRetries > 0) {
+              decision.evaluation.lowConfidenceAudioRetries =
+                carriedLowConfidenceRetries;
+            }
             if (contractViolations.length > 0) {
               decision.evaluation.contractViolations = contractViolations;
+              // Issue #65: a rejected verdict that policy repair could not
+              // fix is a contract rejection, not a schema decode failure.
+              // The synthesis path labels it failed_schema because that is
+              // the only !ok error it can express; relabel here where the
+              // violations are known. Genuine malformed-output failures carry
+              // no violations and keep failed_schema.
+              if (contractRejected && decision.evaluation.outcome === "teacher_review") {
+                decision.evaluation.reviewReason =
+                  CONTRACT_REJECTED_REVIEW_REASON;
+              }
             }
             if (
               snapshot.conversationMode !== true &&
@@ -1605,7 +1846,7 @@ export async function uploadAttemptAudioClip(
                 improvedSentence: null,
                 englishLanguage: "uncertain" as const,
                 confidence: "low" as const,
-                reviewReason: "failed_schema" as const,
+                reviewReason: decision.evaluation.reviewReason,
               };
               decision.evaluation.outcome = "retry_original";
               decision.evaluation.reviewReason = null;
@@ -1621,19 +1862,27 @@ export async function uploadAttemptAudioClip(
               ];
             }
             if (
+              snapshot.conversationMode === true &&
               decision.evaluation.outcome === "retry_original" &&
               decision.evaluation.retryReason === undefined &&
               evaluationResult.ok &&
-              evaluationResult.evaluation.outcome === "teacher_review"
+              evaluationResult.evaluation.outcome === "teacher_review" &&
+              (ambiguityState.ambiguityRetries ?? 0) <
+                (contractViolations.includes("prompt_echo")
+                  ? 1
+                  : MAX_AMBIGUITY_RETRIES)
             ) {
+              const ambiguityRetries =
+                (ambiguityState.ambiguityRetries ?? 0) + 1;
               decision.evaluation.retryReason = "unclear_meaning";
-              decision.evaluation.ambiguityRetries = 1;
+              decision.evaluation.ambiguityRetries = ambiguityRetries;
               decision.evaluation.ambiguityHistory = [
                 ...(ambiguityState.ambiguityHistory ?? []),
                 {
                   transcript,
                   audioClipId: audioClip.id,
                   evaluation: evaluationResult.evaluation,
+                  question: missionQuestion ?? snapshot.turns[0]?.prompt ?? "",
                 },
               ];
             } else if ((ambiguityState.ambiguityRetries ?? 0) > 0) {
@@ -1643,6 +1892,16 @@ export async function uploadAttemptAudioClip(
                 ambiguityState.ambiguityHistory;
             }
             originalEvaluation = decision.evaluation;
+            recoveryPersistencePending =
+              snapshot.conversationMode === true &&
+              decision.evaluation.outcome === "retry_original" &&
+              decision.evaluation.retryReason === "unclear_meaning" &&
+              !decision.evaluation.contractViolations?.includes("prompt_echo") &&
+              (decision.evaluation.ambiguityRetries === 1 ||
+                decision.evaluation.ambiguityRetries === 2 ||
+                (typeof decision.evaluation.lowConfidenceAudioRetries ===
+                  "number" &&
+                  decision.evaluation.lowConfidenceAudioRetries > 0));
 
             const write = await timeStage("turnWrite", () =>
               supabase.from("attempt_turns").upsert(
@@ -1652,7 +1911,9 @@ export async function uploadAttemptAudioClip(
                   original_transcript: transcript,
                   target_attempted: decision.targetAttempted,
                   improved_sentence: decision.improvedSentence,
-                  evaluation: toJson(decision.evaluation),
+                  ...(recoveryPersistencePending
+                    ? {}
+                    : { evaluation: toJson(decision.evaluation) }),
                   reply_hint_frame: replyHintFrame,
                 },
                 { onConflict: "attempt_id,turn_order" },
@@ -1839,56 +2100,181 @@ export async function uploadAttemptAudioClip(
     if (
       snapshot.conversationMode === true &&
       input.clipKind === "original_answer" &&
-      originalEvaluation?.retryReason !== "unclear_meaning" &&
       !originalEvaluation?.contractViolations?.includes("prompt_echo")
     ) {
+      const recoveryAttempt: 1 | 2 | null =
+        !lowConfidenceGateRetryApplied &&
+        originalEvaluation?.outcome === "retry_original" &&
+        originalEvaluation.retryReason === "unclear_meaning" &&
+        (originalEvaluation.ambiguityRetries === 1 ||
+          originalEvaluation.ambiguityRetries === 2)
+          ? originalEvaluation.ambiguityRetries
+          : null;
+      // Issue #64: a low-confidence-gated retry is also a free same-turn
+      // retry, but its counter is separate — it must never consume or advance
+      // the ambiguity ladder.
+      const lowConfidenceAudioRetry =
+        lowConfidenceGateRetryApplied ||
+        (recoveryAttempt === null &&
+          originalEvaluation?.outcome === "retry_original" &&
+          originalEvaluation.retryReason === "unclear_meaning" &&
+          typeof originalEvaluation.lowConfidenceAudioRetries === "number" &&
+          originalEvaluation.lowConfidenceAudioRetries > 0);
+      const freeSameTurnRetry = recoveryAttempt !== null || lowConfidenceAudioRetry;
+      const reviewPendingContinuation =
+        originalEvaluation?.outcome === "teacher_review";
       const currentStudentResponse =
-        originalEvaluation?.outcome === "teacher_review"
+        freeSameTurnRetry || reviewPendingContinuation
           ? WITHHELD_STUDENT_RESPONSE
           : originalEvaluation?.improvedSentence?.trim() || transcript;
-      const historyResult = buildConversationHistory({
-        openerLine: snapshot.turns[0]?.prompt ?? "",
-        currentTurnOrder: input.turnOrder,
-        currentStudentResponse,
-        priorTurns: priorConversationTurns,
-      });
-      if (!historyResult.ok) {
-        logTiming("failed", {
-          error: "invalid_audio",
-          step: "conversation_history",
+
+      // Recovery ladder (2026-08-22): the first unclear answer gets the
+      // static say-it-again line — no generation call, nothing derived from
+      // the withheld transcript reaches the student, so history and
+      // moderation round-trips are skipped entirely. A low-confidence-gated
+      // retry is likewise always the free static line.
+      if (recoveryAttempt === 1 || lowConfidenceAudioRetry) {
+        cocoLine = SAY_IT_AGAIN_FALLBACK_LINE;
+      } else {
+        const historyResult = buildConversationHistory({
+          openerLine: snapshot.turns[0]?.prompt ?? "",
+          currentTurnOrder: input.turnOrder,
+          currentStudentResponse,
+          priorTurns: priorConversationTurns,
         });
-        return { ok: false, error: "invalid_audio", retryable: false };
+        if (!historyResult.ok) {
+          logTiming("failed", {
+            error: "invalid_audio",
+            step: "conversation_history",
+          });
+          return { ok: false, error: "invalid_audio", retryable: false };
+        }
+
+        const failedRecoveryQuestion =
+          missionQuestion ?? snapshot.turns[0]?.prompt ?? "";
+        const previouslyAsked = collectPreviouslyAskedQuestions({
+          conversationHistory: historyResult.history,
+          ambiguityHistory: originalEvaluation?.ambiguityHistory,
+        });
+        const recoveryTopicSeed = [
+          /_{2,}/u.test(targetPattern) ? "" : targetPattern,
+          snapshot.title,
+          failedRecoveryQuestion,
+        ]
+          .map((value) => value.trim())
+          .find((value) => topicAnchorWords(value).length > 0) ?? "";
+        const deterministicPivot = buildDeterministicPivotQuestion({
+          failedQuestion: failedRecoveryQuestion,
+          topicSeed: recoveryTopicSeed,
+          previouslyAsked,
+        });
+
+        const generationPurpose =
+          recoveryAttempt === null
+            ? { kind: "next_turn" as const }
+            : {
+                kind: "unclear_recovery" as const,
+                attempt: recoveryAttempt,
+                fallbackQuestion: deterministicPivot,
+                ...((() => {
+                  const failedWord = leadingQuestionWord(failedRecoveryQuestion);
+                  const pivotWord = pickRecoveryPivotWord(failedWord);
+                  return pivotWord ? { pivotWord } : {};
+                })()),
+                ...(topicAnchorWords(recoveryTopicSeed).length > 0
+                  ? { topicSeed: recoveryTopicSeed }
+                  : {}),
+              };
+
+        const conversationOutcome = await timeStage("conversationTurn", () =>
+          runConversationTurn(
+            {
+              studentId: input.studentId,
+              assignmentStudentId: input.assignmentStudentId,
+              attemptId: input.attemptId,
+              turnOrder: input.turnOrder,
+              targetPattern,
+              requiredTurns: snapshot.requiredTurns,
+              studentTranscript: transcript,
+              conversationHistory: historyResult.history,
+              responseHandling:
+                recoveryAttempt !== null || reviewPendingContinuation
+                  ? "review_pending"
+                  : "normal",
+              generationPurpose,
+            },
+            {
+              generateCocoReply: deps.generateCocoReply ?? generateCocoReply,
+              isContentSafe: deps.isContentSafe ?? isContentSafe,
+            },
+          ),
+        );
+
+        cocoLine = conversationOutcome.cocoLine;
+        cocoLineModerationEvent = conversationOutcome.moderationEvent;
+
+        if (recoveryAttempt === 2 && cocoLine !== null) {
+          const pivotCheck = validateRecoveryPivotQuestion(cocoLine, {
+            failedQuestion: failedRecoveryQuestion,
+            topicSeed: recoveryTopicSeed,
+            previouslyAsked,
+          });
+          if (!pivotCheck.ok) {
+            log("warn", "ai.recovery_pivot_rejected", {
+              assignmentStudentId: input.assignmentStudentId,
+              attemptId: input.attemptId,
+              turnOrder: input.turnOrder,
+              reasons: pivotCheck.reasons,
+            });
+            cocoLine = deterministicPivot;
+            cocoLineModerationEvent = {
+              kind: "canned_fallback",
+              cause: "recovery_pivot_rejected",
+              violations: pivotCheck.reasons,
+            };
+          }
+        }
       }
 
-      const conversationOutcome = await timeStage("conversationTurn", () =>
-        runConversationTurn(
-          {
-            studentId: input.studentId,
-            assignmentStudentId: input.assignmentStudentId,
-            attemptId: input.attemptId,
-            turnOrder: input.turnOrder,
-            targetPattern,
-            requiredTurns: snapshot.requiredTurns,
-            studentTranscript: transcript,
-            conversationHistory: historyResult.history,
-            responseHandling:
-              originalEvaluation?.outcome === "teacher_review"
-                ? "review_pending"
-                : "normal",
-          },
-          {
-            generateCocoReply: deps.generateCocoReply ?? generateCocoReply,
-            isContentSafe: deps.isContentSafe ?? isContentSafe,
-          },
-        ),
-      );
+      // After a third-strike turn is flagged for teacher review in the
+      // background, the continuation question opens with a short spoken
+      // acknowledgment so the handoff does not read as a silent topic jump.
+      if (
+        cocoLine !== null &&
+        recoveryAttempt === null &&
+        reviewPendingContinuation
+      ) {
+        cocoLine = withReviewPendingAcknowledgment(cocoLine);
+      }
 
-      cocoLine = conversationOutcome.cocoLine;
-      cocoLineModerationEvent = conversationOutcome.moderationEvent;
       const resolvedCocoLine = cocoLine;
       const resolvedModerationEvent = cocoLineModerationEvent;
 
-        if (resolvedCocoLine !== null) {
+      if (
+        recoveryPersistencePending &&
+        (!resolvedCocoLine || !resolvedCocoLine.trim())
+      ) {
+        await supabase
+          .from("audio_clips")
+          .update({ processing_status: "failed" })
+          .eq("id", audioClip.id);
+        logTiming("failed", {
+          error: "db_error",
+          step: "recovery_line_missing",
+        });
+        return { ok: false, error: "db_error", retryable: true };
+      }
+
+      if (resolvedCocoLine !== null) {
+        if (
+          recoveryAttempt !== null &&
+          originalEvaluation?.ambiguityHistory?.length
+        ) {
+          const latestAmbiguity = originalEvaluation.ambiguityHistory.at(-1);
+          if (latestAmbiguity) {
+            latestAmbiguity.recoveryQuestion = resolvedCocoLine;
+          }
+        }
         const recordResult = await timeStage("cocoLineWrite", () =>
           recordCocoLine({
             studentId: input.studentId,
@@ -1897,6 +2283,9 @@ export async function uploadAttemptAudioClip(
             turnOrder: input.turnOrder,
             cocoLine: resolvedCocoLine,
             moderationEvent: resolvedModerationEvent,
+            ...(freeSameTurnRetry && originalEvaluation
+              ? { evaluation: toJson(originalEvaluation) }
+              : {}),
           }),
         );
 
@@ -1920,25 +2309,25 @@ export async function uploadAttemptAudioClip(
 
         // Kick off TTS for Coco's new line via the existing warm-cache path
         // used for preset/improved lines — no forked audio pipeline.
-          if (originalEvaluation?.outcome !== "teacher_review") {
-            try {
-              const warm = deps.warmTtsAudioCache ?? warmTtsAudioCache;
-              await timeStage("ttsWarmupCocoLine", () =>
-                warm({
-                  characterId: snapshot.characterId,
-                  voice: DEFAULT_COCO_TTS_VOICE,
-                  texts: [resolvedCocoLine],
-                }),
-              );
-            } catch (error) {
-              log("warn", "audio.tts_coco_line_warmup_failed", {
-                assignmentStudentId: input.assignmentStudentId,
-                attemptId: input.attemptId,
-                turnOrder: input.turnOrder,
-                error: error instanceof Error ? error.message : String(error),
-              });
-            }
+        if (originalEvaluation?.outcome !== "teacher_review") {
+          try {
+            const warm = deps.warmTtsAudioCache ?? warmTtsAudioCache;
+            await timeStage("ttsWarmupCocoLine", () =>
+              warm({
+                characterId: snapshot.characterId,
+                voice: DEFAULT_COCO_TTS_VOICE,
+                texts: [resolvedCocoLine],
+              }),
+            );
+          } catch (error) {
+            log("warn", "audio.tts_coco_line_warmup_failed", {
+              assignmentStudentId: input.assignmentStudentId,
+              attemptId: input.attemptId,
+              turnOrder: input.turnOrder,
+              error: error instanceof Error ? error.message : String(error),
+            });
           }
+        }
       }
     }
 

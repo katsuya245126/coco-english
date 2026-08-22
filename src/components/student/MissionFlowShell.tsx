@@ -47,8 +47,10 @@ import type { RecorderState } from "@/components/student/VoiceRecorderControl";
 import type { PendingTurnReview } from "@/domain/flow/completion";
 import {
   deriveActiveStudentQuestion,
+  deriveSameTurnRecoveryPrompt,
   resolveAcceptedConversationTurn,
   type ActiveStudentQuestion,
+  type DynamicConversationPrompt,
 } from "@/domain/mission/student-question-state";
 import type { TranslatableCocoLine } from "@/domain/ai/translation-hint";
 
@@ -163,7 +165,7 @@ type FlowState = {
   // until the round-trip resolves.
   cocoLine: string | null;
   // The real persisted/returned Coco line that prompts the next dynamic turn.
-  dynamicPrompt: string | null;
+  dynamicPrompt: DynamicConversationPrompt | null;
 };
 
 export type CharacterProfileLines = {
@@ -185,7 +187,7 @@ export type MissionFlowShellProps = {
   conversationMode: boolean;
   characterProfile: CharacterProfileLines;
   startingTurnIndex: number;
-  initialDynamicPrompt: string | null;
+  initialDynamicPrompt: DynamicConversationPrompt | null;
   isResume: boolean;
   initialReview: (PendingTurnReview & { audioUrl?: string }) | null;
 };
@@ -199,11 +201,19 @@ function clearAudioUrl(ref: { current: string | null }) {
 
 function initialFlowState(
   startingTurnIndex: number,
-  initialDynamicPrompt: string | null,
+  initialDynamicPrompt: DynamicConversationPrompt | null,
   initialReview: MissionFlowShellProps["initialReview"],
 ): FlowState {
+  const pendingRecoveryPrompt =
+    initialReview?.step === "aiFeedback" &&
+    initialReview.outcome === "retryUnclearMeaning"
+      ? deriveSameTurnRecoveryPrompt({
+          turnIndex: startingTurnIndex,
+          pendingCocoLine: initialDynamicPrompt?.text ?? null,
+        })
+      : null;
   const emptyState: FlowState = {
-    turnIndex: startingTurnIndex,
+    turnIndex: pendingRecoveryPrompt?.turnIndex ?? startingTurnIndex,
     step: "question",
     hintLevel: 0,
     originalTranscript: null,
@@ -213,12 +223,19 @@ function initialFlowState(
     repeatFeedback: null,
     hasRetriedThisTurn: false,
     cocoLine: null,
-    dynamicPrompt: initialDynamicPrompt,
+    dynamicPrompt: pendingRecoveryPrompt?.dynamicPrompt ?? initialDynamicPrompt,
   };
 
   if (!initialReview) return emptyState;
 
   if (initialReview.step === "aiFeedback") {
+    if (initialReview.outcome === "retryUnclearMeaning" && pendingRecoveryPrompt) {
+      return {
+        ...emptyState,
+        hasRetriedThisTurn: true,
+      };
+    }
+
     let originalFeedback: OriginalFeedback;
     if (initialReview.outcome === "needsCorrection") {
       if (!initialReview.improvedSentence) return emptyState;
@@ -631,6 +648,30 @@ export function MissionFlowShell({
         upload.starBand,
         upload.wordsToPractice,
       );
+      const recoveryLine = upload.cocoLine ?? null;
+      const sameTurnRecovery = deriveSameTurnRecoveryPrompt({
+        turnIndex: flow.turnIndex,
+        pendingCocoLine: recoveryLine,
+      });
+
+      if (
+        conversationMode &&
+        originalFeedback.kind === "retryUnclearMeaning" &&
+        sameTurnRecovery
+      ) {
+        revokeAudioUrls();
+        setFlow((prev) => ({
+          ...prev,
+          turnIndex: sameTurnRecovery.turnIndex,
+          step: "question",
+          originalTranscript: null,
+          originalFeedback: null,
+          cocoLine: null,
+          dynamicPrompt: sameTurnRecovery.dynamicPrompt,
+          hasRetriedThisTurn: true,
+        }));
+        return;
+      }
 
       if (
         conversationMode &&

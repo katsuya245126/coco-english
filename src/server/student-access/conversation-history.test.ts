@@ -1,5 +1,48 @@
 import { describe, expect, it } from "vitest";
-import { buildConversationHistory } from "@/server/student-access/conversation-history";
+import { WITHHELD_STUDENT_RESPONSE } from "@/domain/ai/conversation-generation";
+import {
+  buildConversationHistory,
+  collectPreviouslyAskedQuestions,
+} from "@/server/student-access/conversation-history";
+
+describe("collectPreviouslyAskedQuestions", () => {
+  it("collects persisted conversation lines and recovery questions", () => {
+    expect(
+      collectPreviouslyAskedQuestions({
+        conversationHistory: [
+          {
+            turnOrder: 1,
+            cocoLine: "What do you like to do after school?",
+            studentResponse: "I play soccer.",
+          },
+          {
+            turnOrder: 2,
+            cocoLine: "Who do you like to play soccer with?",
+            studentResponse: WITHHELD_STUDENT_RESPONSE,
+          },
+        ],
+        ambiguityHistory: [
+          { question: "Who do you like to play soccer with?" },
+          { question: "Who do you like to play soccer with?", recoveryQuestion: "Hmm... can you say it again?" },
+        ],
+      }),
+    ).toEqual([
+      "What do you like to do after school?",
+      "Who do you like to play soccer with?",
+      "Who do you like to play soccer with?",
+      "Who do you like to play soccer with?",
+      "Hmm... can you say it again?",
+    ]);
+  });
+
+  it("returns an empty list for a bare opener history", () => {
+    expect(
+      collectPreviouslyAskedQuestions({
+        conversationHistory: [],
+      }),
+    ).toEqual([]);
+  });
+});
 
 describe("buildConversationHistory", () => {
   it("anchors the opener and chains persisted Coco lines in order", () => {

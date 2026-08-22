@@ -478,6 +478,33 @@ describe("uploadAttemptAudioClip", () => {
     expect(transcribeAudioFile).toHaveBeenCalled();
   });
 
+  it("keeps failed_schema for a genuine malformed-output failure with no contract involvement", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like apples."),
+      evaluateOriginalTurn: vi.fn(async () => ({
+        ok: false as const,
+        error: "schema_failed" as const,
+      })),
+    });
+
+    // Issue #65: only contract-check rejections relabel to
+    // contract_rejected; malformed output keeps the honest label.
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "teacher_review",
+        reviewReason: "failed_schema",
+      },
+    });
+    expect(
+      result.ok && result.evaluation && "contractViolations" in result.evaluation,
+    ).toBe(false);
+  });
+
   it("sends an on-frame open answer to the evaluator so grammar is still checked", async () => {
     // The frame regex proves shape ("I'd rather ___ because ___"), not grammar,
     // so an on-frame answer must still reach the model. A prior fast path
@@ -664,10 +691,14 @@ describe("uploadAttemptAudioClip", () => {
       ]),
     );
     expect(mockSupabase.storage.from).toHaveBeenCalledWith("student-audio");
-    expect(transcribe).toHaveBeenCalledWith({
-      file: expect.any(Blob),
-      mimeType: "audio/webm",
-    });
+    // Mission-derived vocabulary rides along in both modes (issue #64).
+    expect(transcribe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        file: expect.any(Blob),
+        mimeType: "audio/webm",
+        vocabularyHint: expect.stringMatching(/\S/),
+      }),
+    );
     expect(evaluateOriginal).toHaveBeenCalledWith(
       expect.objectContaining({
         evaluationMode: "preset",
@@ -709,6 +740,33 @@ describe("uploadAttemptAudioClip", () => {
       ([level, event]) => level === "info" && event === "audio.upload_timing",
     );
     expect(timingCall?.[2]).toMatchObject({ evaluationFastPath: 1 });
+  });
+
+  it("gives a low-confidence exact target a free retry before the fast path", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginal = successfulOriginalEvaluator();
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: vi.fn(async () => ({
+        ok: true as const,
+        text: "I like playing soccer after school.",
+        koreanSpans: [],
+        model: "test-transcriber",
+        confidence: { minLogprob: -1.5, tokenCount: 7 },
+      })),
+      evaluateOriginalTurn: evaluateOriginal,
+    });
+
+    expect(evaluateOriginal).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "retry_original",
+        retryReason: "unclear_meaning",
+        lowConfidenceAudioRetries: 1,
+      },
+    });
   });
 
   it("uses semantic evaluation for a relevant open-ended answer that differs from the example", async () => {

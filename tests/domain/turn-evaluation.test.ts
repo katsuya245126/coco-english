@@ -81,7 +81,7 @@ describe("original evaluation schema and correction intent", () => {
 });
 
 describe("original turn AI evaluation decisions (AI-01, AI-02, AI-03, AI-05)", () => {
-  it("uses one same-turn retry for the first coherent ambiguity", async () => {
+  it("uses recovery 1 for the first coherent ambiguity", async () => {
     const { decideOriginalTurnOutcome } = await import(
       "@/domain/ai/turn-evaluation"
     );
@@ -106,7 +106,7 @@ describe("original turn AI evaluation decisions (AI-01, AI-02, AI-03, AI-05)", (
     });
   });
 
-  it("sends a second same-turn ambiguity to teacher review", async () => {
+  it("uses recovery 2 for the second same-turn ambiguity", async () => {
     const { decideOriginalTurnOutcome } = await import(
       "@/domain/ai/turn-evaluation"
     );
@@ -123,6 +123,31 @@ describe("original turn AI evaluation decisions (AI-01, AI-02, AI-03, AI-05)", (
         "conversation",
         "What will you do at the beach?",
         1,
+      ),
+    ).toEqual({
+      kind: "retry_original",
+      reason: "unclear_meaning",
+      requireRepeat: false,
+    });
+  });
+
+  it("sends a third same-turn ambiguity to teacher review", async () => {
+    const { decideOriginalTurnOutcome } = await import(
+      "@/domain/ai/turn-evaluation"
+    );
+
+    expect(
+      decideOriginalTurnOutcome(
+        {
+          ...baseOriginalEvaluation,
+          outcome: "teacher_review",
+          meaningUnderstood: false,
+          targetPatternAttempted: false,
+          reviewReason: "ambiguous",
+        },
+        "conversation",
+        "What will you do at the beach?",
+        2,
       ),
     ).toMatchObject({
       kind: "teacher_review",

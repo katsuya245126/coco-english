@@ -15,7 +15,10 @@ import {
 } from "@/components/student/styles";
 import { MissionFlowShell } from "@/components/student/MissionFlowShell";
 import { warmEvaluators } from "@/server/ai/evaluator-warmup";
-import { deriveResumedDynamicPrompt } from "@/domain/mission/student-question-state";
+import {
+  deriveResumedDynamicPrompt,
+  isPendingConversationRecovery,
+} from "@/domain/mission/student-question-state";
 
 // Student mission-flow route (FLOW-01, D-12, PILOT-01).
 //
@@ -102,6 +105,7 @@ export default async function MissionPage({ params }: MissionPageProps) {
   let attemptId: string | null = null;
   let initialReview: InitialReview | null = null;
   let attemptTurns: Array<{ turnOrder: number; cocoLine: string | null }> = [];
+  let pendingConversationRecovery = false;
 
   if (asRow.latest_attempt_id) {
     const { data: attempt } = await supabase
@@ -149,6 +153,12 @@ export default async function MissionPage({ params }: MissionPageProps) {
         ? getPendingTurnReview(reviewTurn)
         : null;
 
+      pendingConversationRecovery = isPendingConversationRecovery({
+        conversationMode: snapshot.conversationMode,
+        evaluation: reviewTurn?.evaluation,
+        cocoLine: reviewTurn?.coco_line ?? null,
+      });
+
       if (persistedReview && reviewTurn) {
         initialReview = persistedReview;
 
@@ -188,6 +198,7 @@ export default async function MissionPage({ params }: MissionPageProps) {
   const initialDynamicPrompt = deriveResumedDynamicPrompt({
     conversationMode: snapshot.conversationMode,
     startingTurnIndex,
+    pendingUnclearRetry: pendingConversationRecovery,
     attemptTurns,
   });
 

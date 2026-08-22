@@ -28,6 +28,30 @@ export type ConversationResponseHandling = z.infer<
   typeof conversationResponseHandlingSchema
 >;
 
+export const conversationGenerationPurposeSchema = z.discriminatedUnion(
+  "kind",
+  [
+    z.object({ kind: z.literal("next_turn") }),
+    z.object({
+      kind: z.literal("unclear_recovery"),
+      attempt: z.union([z.literal(1), z.literal(2)]),
+      fallbackQuestion: z.string().trim().min(1),
+      /**
+       * Attempt-2 W-pivot contract: when present, the recovery question must
+       * lead with this interrogative — always different from the failed
+       * question's word — so the retry changes the angle instead of
+       * repeating the ask (2026-08-22 recovery ladder).
+       */
+      pivotWord: z.enum(["what", "who", "when", "where", "why", "how"]).optional(),
+      /** Teacher-authored mission text anchoring the pivot to the topic. */
+      topicSeed: z.string().trim().max(200).optional(),
+    }),
+  ],
+);
+export type ConversationGenerationPurpose = z.infer<
+  typeof conversationGenerationPurposeSchema
+>;
+
 export const conversationExchangeSchema = z.object({
   turnOrder: z.number().int().min(1).max(HARD_TURN_CAP),
   cocoLine: z.string().trim().min(1),
@@ -60,6 +84,7 @@ export const conversationTurnInputSchema = z
     hardCap: z.literal(HARD_TURN_CAP),
     safetyMode: conversationSafetyModeSchema,
     responseHandling: conversationResponseHandlingSchema,
+    generationPurpose: conversationGenerationPurposeSchema.optional(),
     conversationHistory: conversationHistorySchema,
   })
   .superRefine((input, context) => {
@@ -68,6 +93,16 @@ export const conversationTurnInputSchema = z
         code: z.ZodIssueCode.custom,
         path: ["conversationHistory"],
         message: "history must end at turnOrder",
+      });
+    }
+    if (
+      input.generationPurpose?.kind === "unclear_recovery" &&
+      input.responseHandling !== "review_pending"
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["responseHandling"],
+        message: "unclear recovery requires review_pending response handling",
       });
     }
   });
@@ -406,6 +441,8 @@ export function validateGeneratedCocoReplyParts(
     topicGroundingText?: string;
     allowReactionTopicGrounding?: boolean;
     requireClosingGrounding?: boolean;
+    allowClosedQuestion?: boolean;
+    questionOnly?: boolean;
   },
 ): GeneratedCocoReplyLinePolicyResult {
   const line = assembleGeneratedCocoReply(parts).line;
@@ -417,6 +454,14 @@ export function validateGeneratedCocoReplyParts(
     options.expectsQuestion
       ? parts.question === null || questionMarks !== 1 || !normalized.endsWith("?")
       : parts.question !== null || parts.focus !== null || questionMarks !== 0 || !/[.!]$/u.test(normalized)
+  ) {
+    reasons.push("question_format");
+  }
+
+  if (
+    options.questionOnly &&
+    (parts.reaction !== null || parts.focus !== null) &&
+    !reasons.includes("question_format")
   ) {
     reasons.push("question_format");
   }
@@ -461,6 +506,7 @@ export function validateGeneratedCocoReplyParts(
    */
   if (
     options.expectsQuestion &&
+    !options.allowClosedQuestion &&
     isClosedQuestion(parts.question) &&
     latestResponseIsMeaningful(options.latestStudentResponse)
   ) {
@@ -675,7 +721,9 @@ export type ConversationReplyMode = "follow_up" | "closing";
 export function conversationReplyMode(input: {
   turnOrder: number;
   requiredTurns: number;
+  generationPurpose?: ConversationGenerationPurpose;
 }): ConversationReplyMode {
+  if (input.generationPurpose?.kind === "unclear_recovery") return "follow_up";
   return input.turnOrder >= input.requiredTurns ? "closing" : "follow_up";
 }
 
@@ -746,6 +794,31 @@ export function buildConversationPrompt(input: GenerateCocoReplyInput) {
   const replyMode = conversationReplyMode(input);
   const turnsRemaining = Math.max(0, input.requiredTurns - input.turnOrder);
   const windDown = replyMode === "follow_up" && turnsRemaining <= 1;
+  const recovery =
+    input.generationPurpose?.kind === "unclear_recovery"
+      ? input.generationPurpose
+      : null;
+  const recoveryInstructions = recovery
+    ? recovery.attempt === 1
+      ? [
+          "This is unclear-answer recovery 1. Ask exactly one question and set reaction and focus to null.",
+          "Do not advance. Simplify the supplied fallbackQuestion with easier words, a short WH form, yes/no, or two concrete choices.",
+          `The fallbackQuestion is: ${recovery.fallbackQuestion}`,
+        ]
+      : [
+          "This is unclear-answer recovery 2. Ask exactly one question and set reaction and focus to null.",
+          "Do not advance. Branch from the supplied fallbackQuestion and earlier understood context; ignore every withheld response.",
+          `The fallbackQuestion is: ${recovery.fallbackQuestion}`,
+          ...(recovery.pivotWord
+            ? [
+                `W-pivot: the question must start with "${recovery.pivotWord}" — a different angle than any question already asked. Never repeat an earlier question.`,
+              ]
+            : []),
+          ...(recovery.topicSeed
+            ? [`Stay on the mission topic: ${recovery.topicSeed}.`]
+            : []),
+        ]
+    : [];
   const reviewPendingInstructions: string[] =
     input.responseHandling === "review_pending"
       ? [
@@ -809,6 +882,7 @@ export function buildConversationPrompt(input: GenerateCocoReplyInput) {
       "Reject a follow-up that merely swaps in a new noun or activity to repeat targetPattern; the follow-up must connect to the student's actual answer.",
       "If windDown is true, begin gently wrapping up the scene toward a natural close.",
       "If the latest studentResponse contains a Korean word you cannot confidently translate, never spell it out in Latin letters. Refer to it by what the conversation shows it is ('that game', 'it', 'that place') instead of naming it.",
+      ...recoveryInstructions,
       "Elementary ESL classroom-safe. No student names, PINs, audio keys, or private data.",
     ],
   };

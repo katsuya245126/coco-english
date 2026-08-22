@@ -44,6 +44,31 @@ export type BuildConversationHistoryResult =
   | { ok: true; history: ConversationExchange[] }
   | { ok: false; error: "invalid_history" };
 
+export type PersistedAmbiguityEntry = {
+  question?: string;
+  recoveryQuestion?: string;
+};
+
+/**
+ * Every question already put to the student this turn: the persisted
+ * conversation lines plus anything recorded while recovering from unclear
+ * answers. Recovery pivots must never repeat any of them verbatim.
+ */
+export function collectPreviouslyAskedQuestions(input: {
+  conversationHistory: ConversationExchange[];
+  ambiguityHistory?: PersistedAmbiguityEntry[];
+}): string[] {
+  const asked: string[] = [];
+  for (const exchange of input.conversationHistory) {
+    if (exchange?.cocoLine?.trim()) asked.push(exchange.cocoLine.trim());
+  }
+  for (const entry of input.ambiguityHistory ?? []) {
+    if (entry?.question?.trim()) asked.push(entry.question.trim());
+    if (entry?.recoveryQuestion?.trim()) asked.push(entry.recoveryQuestion.trim());
+  }
+  return asked;
+}
+
 export function buildConversationHistory(input: {
   openerLine: string;
   currentTurnOrder: number;

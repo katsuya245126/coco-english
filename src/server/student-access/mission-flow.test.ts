@@ -222,7 +222,7 @@ describe("canGenerateNextDynamicTurn (CHAT-03, T-11-08 hard cap)", () => {
   });
 });
 
-describe("recordCocoLine (CHAT-06, T-11-11 idempotent upsert + ownership)", () => {
+describe("Coco line persistence (recordCocoLine, CHAT-06, T-11-11)", () => {
   beforeEach(() => {
     vi.resetModules();
     mockSupabase = createMockSupabase();
@@ -252,6 +252,33 @@ describe("recordCocoLine (CHAT-06, T-11-11 idempotent upsert + ownership)", () =
       turn_order: 2,
       coco_line: "That sounds fun! What did you do next?",
       moderation_event: null,
+    });
+    expect(upsertOp?.payload).not.toHaveProperty("evaluation");
+  });
+
+  it("includes evaluation evidence only when supplied", async () => {
+    const { recordCocoLine } = await import(
+      "@/server/student-access/mission-flow"
+    );
+
+    const evaluation = {
+      outcome: "retry_original",
+      retryReason: "unclear_meaning",
+    };
+    const result = await recordCocoLine({
+      studentId: "student-1",
+      assignmentStudentId: "as-1",
+      attemptId: "attempt-1",
+      turnOrder: 2,
+      cocoLine: "Who do you play soccer with?",
+      moderationEvent: null,
+      evaluation,
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(mockSupabase.operations.at(-1)?.payload).toMatchObject({
+      coco_line: "Who do you play soccer with?",
+      evaluation,
     });
   });
 

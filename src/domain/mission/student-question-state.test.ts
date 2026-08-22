@@ -3,7 +3,9 @@ import type { MissionSnapshotTurn } from "@/domain/mission/schemas";
 import {
   advanceConversationQuestion,
   deriveActiveStudentQuestion,
+  deriveSameTurnRecoveryPrompt,
   deriveResumedDynamicPrompt,
+  isPendingConversationRecovery,
   resolveAcceptedConversationTurn,
 } from "@/domain/mission/student-question-state";
 
@@ -20,12 +22,31 @@ const opener: MissionSnapshotTurn = {
 };
 
 describe("student question state", () => {
+  it("uses current-row recovery without advancing turn one", () => {
+    expect(
+      deriveActiveStudentQuestion({
+        conversationMode: true,
+        turnIndex: 0,
+        turns: [opener],
+        dynamicPrompt: {
+          text: "Do you play soccer with friends or family?",
+          sourceTurnOrder: 1,
+        },
+      }),
+    ).toMatchObject({
+      kind: "conversation",
+      prompt: "Do you play soccer with friends or family?",
+      activeTurnOrder: 1,
+      line: { lineKind: "coco_dynamic_line", turnOrder: 1 },
+    });
+  });
+
   it("uses translation-only question state for a conversation opener", () => {
     const question = deriveActiveStudentQuestion({
       conversationMode: true,
       turnIndex: 0,
       turns: [opener],
-      dynamicPrompt: "Tell me more about soccer.",
+      dynamicPrompt: null,
     });
 
     expect(question).toEqual({
@@ -51,7 +72,10 @@ describe("student question state", () => {
 
     expect(advanced).toEqual({
       turnIndex: 1,
-      dynamicPrompt: "Tell me more about soccer.",
+      dynamicPrompt: {
+        text: "Tell me more about soccer.",
+        sourceTurnOrder: 1,
+      },
     });
     expect(question).toEqual({
       kind: "conversation",
@@ -75,7 +99,10 @@ describe("student question state", () => {
         conversationMode: true,
         turnIndex: 1,
         turns: [opener, legacyTail],
-        dynamicPrompt: "Tell me more about soccer.",
+        dynamicPrompt: {
+          text: "Tell me more about soccer.",
+          sourceTurnOrder: 1,
+        },
       }),
     ).toEqual({
       kind: "conversation",
@@ -91,13 +118,17 @@ describe("student question state", () => {
     const dynamicPrompt = deriveResumedDynamicPrompt({
       conversationMode: true,
       startingTurnIndex: 1,
+      pendingUnclearRetry: false,
       attemptTurns: [
         { turnOrder: 1, cocoLine: "Tell me more about soccer." },
         { turnOrder: 2, cocoLine: "A later line must not be used." },
       ],
     });
 
-    expect(dynamicPrompt).toBe("Tell me more about soccer.");
+    expect(dynamicPrompt).toEqual({
+      text: "Tell me more about soccer.",
+      sourceTurnOrder: 1,
+    });
     expect(
       deriveActiveStudentQuestion({
         conversationMode: true,
@@ -110,6 +141,143 @@ describe("student question state", () => {
       prompt: "Tell me more about soccer.",
       replyHintFrame: null,
       line: { lineKind: "coco_dynamic_line", turnOrder: 1 },
+    });
+  });
+
+  it("restores pending recovery from the current row", () => {
+    expect(
+      deriveResumedDynamicPrompt({
+        conversationMode: true,
+        startingTurnIndex: 1,
+        pendingUnclearRetry: true,
+        attemptTurns: [
+          { turnOrder: 1, cocoLine: "Who do you play soccer with?" },
+          {
+            turnOrder: 2,
+            cocoLine: "Do you play soccer with friends or family?",
+          },
+        ],
+      }),
+    ).toEqual({
+      text: "Do you play soccer with friends or family?",
+      sourceTurnOrder: 2,
+    });
+  });
+
+  it("restores pending recovery on the first conversation turn", () => {
+    expect(
+      deriveResumedDynamicPrompt({
+        conversationMode: true,
+        startingTurnIndex: 0,
+        pendingUnclearRetry: true,
+        attemptTurns: [
+          {
+            turnOrder: 1,
+            cocoLine: "Do you play soccer with friends or family?",
+          },
+        ],
+      }),
+    ).toEqual({
+      text: "Do you play soccer with friends or family?",
+      sourceTurnOrder: 1,
+    });
+  });
+
+  it("keeps incomplete and minimal-effort recovery rows pending", () => {
+    for (const retryReason of [
+      "incomplete_recording",
+      "minimal_effort",
+    ] as const) {
+      const pendingRecovery = isPendingConversationRecovery({
+        conversationMode: true,
+        evaluation: {
+          outcome: "retry_original",
+          retryReason,
+          ambiguityRetries: 1,
+        },
+        cocoLine: "Do you play soccer with friends or family?",
+      });
+
+      expect(pendingRecovery).toBe(true);
+      expect(
+        deriveResumedDynamicPrompt({
+          conversationMode: true,
+          startingTurnIndex: 0,
+          pendingUnclearRetry: pendingRecovery,
+          attemptTurns: [
+            { turnOrder: 1, cocoLine: "Do you play soccer with friends or family?" },
+          ],
+        }),
+      ).toEqual({
+        text: "Do you play soccer with friends or family?",
+        sourceTurnOrder: 1,
+      });
+    }
+  });
+
+  it("does not keep accepted or teacher-review rows pending", () => {
+    for (const outcome of ["accepted_original", "teacher_review"] as const) {
+      expect(
+        isPendingConversationRecovery({
+          conversationMode: true,
+          evaluation: { outcome, ambiguityRetries: 1 },
+          cocoLine: "A stale recovery question.",
+        }),
+      ).toBe(false);
+    }
+  });
+
+  it("keeps normal first-turn resume without a dynamic prompt", () => {
+    expect(
+      deriveResumedDynamicPrompt({
+        conversationMode: true,
+        startingTurnIndex: 0,
+        pendingUnclearRetry: false,
+        attemptTurns: [
+          { turnOrder: 1, cocoLine: "A future line must not be used." },
+        ],
+      }),
+    ).toBeNull();
+  });
+
+  it("keeps a recovery prompt on the current turn", () => {
+    expect(
+      deriveSameTurnRecoveryPrompt({
+        turnIndex: 0,
+        pendingCocoLine: " Do you play soccer with friends or family? ",
+      }),
+    ).toEqual({
+      turnIndex: 0,
+      dynamicPrompt: {
+        text: "Do you play soccer with friends or family?",
+        sourceTurnOrder: 1,
+      },
+    });
+  });
+
+  it("fails closed when a same-turn recovery line is blank", () => {
+    expect(
+      deriveSameTurnRecoveryPrompt({
+        turnIndex: 1,
+        pendingCocoLine: "   ",
+      }),
+    ).toBeNull();
+  });
+
+  it("keeps normal resume on the previous completed row", () => {
+    expect(
+      deriveResumedDynamicPrompt({
+        conversationMode: true,
+        startingTurnIndex: 1,
+        pendingUnclearRetry: false,
+        attemptTurns: [
+          { turnOrder: 1, cocoLine: "Who do you play soccer with?" },
+          { turnOrder: 2, cocoLine: "A future line must not be used." },
+        ],
+      }),
+    ).toEqual({
+      text: "Who do you play soccer with?",
+      sourceTurnOrder: 1,
     });
   });
 
@@ -133,7 +301,10 @@ describe("student question state", () => {
   });
 
   it("fails closed when a dynamic prompt is missing or blank", () => {
-    for (const dynamicPrompt of [null, "   "]) {
+    for (const dynamicPrompt of [
+      null,
+      { text: "   ", sourceTurnOrder: 1 },
+    ]) {
       expect(
         deriveActiveStudentQuestion({
           conversationMode: true,
@@ -159,7 +330,10 @@ describe("student question state", () => {
     ).toEqual({
       kind: "next",
       turnIndex: 1,
-      dynamicPrompt: "Oh, what do you like to do instead?",
+      dynamicPrompt: {
+        text: "Oh, what do you like to do instead?",
+        sourceTurnOrder: 1,
+      },
     });
   });
 

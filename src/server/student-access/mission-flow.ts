@@ -53,7 +53,8 @@ export type TeacherReviewReason =
   | "low_confidence"
   | "ambiguous"
   | "failed_schema"
-  | "provider_failed";
+  | "provider_failed"
+  | "contract_rejected";
 
 export type RouteTeacherReviewResult =
   | { ok: true }
@@ -441,6 +442,7 @@ export async function recordCocoLine(input: {
   turnOrder: number;
   cocoLine: string;
   moderationEvent?: object | null;
+  evaluation?: Json;
 }): Promise<RecordCocoLineResult> {
   try {
     const supabase = createSupabaseServiceClient();
@@ -472,6 +474,7 @@ export async function recordCocoLine(input: {
           turn_order: input.turnOrder,
           coco_line: input.cocoLine,
           moderation_event: (input.moderationEvent ?? null) as Json,
+          ...(input.evaluation === undefined ? {} : { evaluation: input.evaluation }),
         },
         { onConflict: "attempt_id,turn_order" },
       );
