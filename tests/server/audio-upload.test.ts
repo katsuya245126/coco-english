@@ -664,10 +664,14 @@ describe("uploadAttemptAudioClip", () => {
       ]),
     );
     expect(mockSupabase.storage.from).toHaveBeenCalledWith("student-audio");
-    expect(transcribe).toHaveBeenCalledWith({
-      file: expect.any(Blob),
-      mimeType: "audio/webm",
-    });
+    // Mission-derived vocabulary rides along in both modes (issue #64).
+    expect(transcribe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        file: expect.any(Blob),
+        mimeType: "audio/webm",
+        vocabularyHint: expect.stringMatching(/\S/),
+      }),
+    );
     expect(evaluateOriginal).toHaveBeenCalledWith(
       expect.objectContaining({
         evaluationMode: "preset",

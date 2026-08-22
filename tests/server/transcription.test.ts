@@ -73,6 +73,48 @@ describe("transcribeAudioFile", () => {
     );
   });
 
+  it("appends mission vocabulary to the decode prompt (issue #64)", async () => {
+    const { transcribeAudioFile, TRANSCRIPTION_PROMPT } = await import(
+      "@/server/audio/transcription"
+    );
+    const client = createFakeClient({ text: "I'd rather go to Busan." });
+
+    await transcribeAudioFile(
+      {
+        file: new Blob(["voice"], { type: "audio/webm" }),
+        mimeType: "audio/webm",
+        vocabularyHint: "Lesson topic: Summer Vacation. Target sentence: I'd rather",
+      },
+      { apiKey: "test-key", client, model: "test-transcriber" },
+    );
+
+    const call = vi.mocked(client.audio.transcriptions.create).mock.calls[0]?.[0];
+    expect(call?.prompt).toBe(
+      `${TRANSCRIPTION_PROMPT} Lesson topic: Summer Vacation. Target sentence: I'd rather`,
+    );
+  });
+
+  it("gives no-speech echo detection the same combined prompt so a vocabulary echo is still caught", async () => {
+    const { transcribeAudioFile } = await import("@/server/audio/transcription");
+    // The transcript IS the combined prompt — the classic silent-clip echo.
+    const combinedPrompt =
+      "The student is a Korean ESL learner speaking English. Transcribe the English words spoken. If the student says a Korean word, write it in Hangul exactly as spoken." +
+      " Lesson topic: Summer Vacation.";
+    const client = createFakeClient({ text: combinedPrompt });
+
+    const result = await transcribeAudioFile(
+      {
+        file: new Blob(["silence"], { type: "audio/webm" }),
+        mimeType: "audio/webm",
+        vocabularyHint: "Lesson topic: Summer Vacation.",
+      },
+      { apiKey: "test-key", client, model: "test-transcriber" },
+    );
+
+    expect(result).toMatchObject({ ok: false, error: "no_speech" });
+  });
+
+
   it("keeps Korean script verbatim instead of deleting the student's answer", async () => {
     // Deleting the span used to yield "I like after school." — fluent, and
     // missing the actual answer, with nothing downstream able to tell.

@@ -59,6 +59,26 @@ export type TranscriptConfidence = {
 export const LOW_CONFIDENCE_LOGPROB_THRESHOLD = -0.1;
 
 /**
+ * Gate-specific threshold for the free say-it-again retry (issue #64).
+ *
+ * Fitted to the 2026-08-21 production export rather than reused from the
+ * provisional adult-measured value above: every teacher-reviewed turn in the
+ * export decoded between -0.84 and -2.28, while the worst transcript that
+ * still flowed through an accepted/corrected flow sat at -0.72. -0.78 lands
+ * inside that observed gap, so the gate retries garbled decodes without
+ * harassing confident kids with extra recordings. Revisit when more exports
+ * accumulate.
+ */
+export const LOW_CONFIDENCE_GATE_LOGPROB_THRESHOLD = -0.78;
+
+export function isTranscriptConfidenceBelowGate(
+  confidence: TranscriptConfidence | null,
+): boolean {
+  if (!confidence) return false;
+  return confidence.minLogprob < LOW_CONFIDENCE_GATE_LOGPROB_THRESHOLD;
+}
+
+/**
  * Reduce provider logprobs to the worst single token.
  *
  * Returns null when the provider sent nothing usable. Absence of logprobs is

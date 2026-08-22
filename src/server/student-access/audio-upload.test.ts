@@ -77,6 +77,20 @@ function successfulTranscriber(
   }));
 }
 
+function lowConfidenceTranscriber(
+  text: string,
+  minLogprob = -1.5,
+  tokenCount = 7,
+) {
+  return vi.fn(async () => ({
+    ok: true as const,
+    text,
+    koreanSpans: [],
+    model: "test-transcriber",
+    confidence: { minLogprob, tokenCount },
+  }));
+}
+
 function originalEvaluation(overrides = {}) {
   return {
     version: "ai-eval-v1" as const,
@@ -701,6 +715,10 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: "Do you want juice or water?" },
     }));
 
+    // Confidence between the gate (-0.78) and hallucination (-0.1)
+    // thresholds: the evaluator runs, fails the schema, and the
+    // conversation-mode low-confidence fallback consumes the ambiguity
+    // ladder — the gate must not intercept this band.
     const result = await uploadAttemptAudioClip(audioInput(), {
       transcribeAudioFile: vi.fn(async () => ({
         ok: true as const,
@@ -708,7 +726,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         koreanSpans: [],
         model: "test-transcriber",
         confidence: {
-          minLogprob: -0.9235518574714661,
+          minLogprob: -0.5,
           tokenCount: 9,
         },
       })),
@@ -731,12 +749,196 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         retryReason: "unclear_meaning",
         ambiguityRetries: 1,
         transcriptionConfidence: {
-          minLogprob: -0.9235518574714661,
+          minLogprob: -0.5,
           tokenCount: 9,
         },
       },
       cocoLine: SAY_IT_AGAIN_FALLBACK_LINE,
     });
+  });
+
+  it("gates a garbled low-confidence transcript behind a free say-it-again retry before any evaluation call", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluate = successfulOriginalEvaluator({
+      outcome: "correct",
+      meaningUnderstood: true,
+      targetPatternAttempted: true,
+      confidence: "high",
+      reviewReason: null,
+    });
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "should never be generated" },
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: lowConfidenceTranscriber("I'm letter Busan because beach is beautiful."),
+      evaluateOriginalTurn: evaluate,
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(evaluate).not.toHaveBeenCalled();
+    expect(generate).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "retry_original",
+        retryReason: "unclear_meaning",
+        ambiguityRetries: 0,
+        lowConfidenceAudioRetries: 1,
+      },
+      cocoLine: SAY_IT_AGAIN_FALLBACK_LINE,
+    });
+    expect(mockSupabase.operations).toContainEqual(
+      expect.objectContaining({
+        table: "attempt_turns",
+        action: "upsert",
+        payload: expect.objectContaining({
+          evaluation: expect.objectContaining({
+            outcome: "retry_original",
+            lowConfidenceAudioRetries: 1,
+            ambiguityRetries: 0,
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("spends the second free gate retry without calling the evaluator", async () => {
+    mockSupabase = createMockSupabase({
+      turnEvaluation: {
+        ...originalEvaluation({
+          outcome: "retry_original",
+          meaningUnderstood: false,
+          targetPatternAttempted: false,
+          confidence: "low",
+          reviewReason: null,
+        }),
+        retryReason: "unclear_meaning",
+        lowConfidenceAudioRetries: 1,
+      },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluate = successfulOriginalEvaluator();
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: lowConfidenceTranscriber("Still garbled audio.", -1.2),
+      evaluateOriginalTurn: evaluate,
+      generateCocoReply: fakeGenerateCocoReply(async () => ({
+        ok: true,
+        reply: { line: "unused" },
+      })),
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(evaluate).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "retry_original",
+        retryReason: "unclear_meaning",
+        ambiguityRetries: 0,
+        lowConfidenceAudioRetries: 2,
+      },
+      cocoLine: SAY_IT_AGAIN_FALLBACK_LINE,
+    });
+  });
+
+  it("falls through to the evaluator once the gate budget is exhausted", async () => {
+    mockSupabase = createMockSupabase({
+      turnEvaluation: {
+        ...originalEvaluation({
+          outcome: "retry_original",
+          meaningUnderstood: false,
+          targetPatternAttempted: false,
+          confidence: "low",
+          reviewReason: null,
+        }),
+        retryReason: "unclear_meaning",
+        lowConfidenceAudioRetries: 2,
+      },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluate = successfulOriginalEvaluator({
+      outcome: "teacher_review",
+      meaningUnderstood: false,
+      targetPatternAttempted: false,
+      confidence: "medium",
+      reviewReason: "ambiguous",
+    });
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: lowConfidenceTranscriber("Still garbled audio.", -1.2),
+      evaluateOriginalTurn: evaluate,
+      generateCocoReply: fakeGenerateCocoReply(async () => ({
+        ok: true,
+        reply: { line: "Okay! No worries! What is your favorite game?" },
+      })),
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(evaluate).toHaveBeenCalledTimes(1);
+    // Gate exhausted + ambiguous verdict consumes the ambiguity ladder as
+    // normal — audio retries never bought a pass on meaningful-answer rules.
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "retry_original",
+        retryReason: "unclear_meaning",
+        ambiguityRetries: 1,
+        lowConfidenceAudioRetries: 2,
+      },
+    });
+  });
+
+  it("does not gate a confident transcript even when it decodes oddly", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluate = successfulOriginalEvaluator();
+    const transcribe = vi.fn(async () => ({
+      ok: true as const,
+      text: "I'm letter Busan because beach is beautiful.",
+      koreanSpans: [],
+      model: "test-transcriber",
+      confidence: { minLogprob: -0.3, tokenCount: 8 },
+    }));
+
+    await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: transcribe,
+      evaluateOriginalTurn: evaluate,
+      generateCocoReply: fakeGenerateCocoReply(async () => ({
+        ok: true,
+        reply: { line: "unused" },
+      })),
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(transcribe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        vocabularyHint: expect.stringContaining("Coffee shop"),
+      }),
+    );
+    expect(evaluate).toHaveBeenCalledTimes(1);
   });
 
   it("preserves first-try ambiguity evidence when the retry is still unclear", async () => {

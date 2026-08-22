@@ -84,6 +84,16 @@ export type TranscribeAudioFileInput = {
   file: Blob;
   mimeType: string;
   model?: string;
+  /**
+   * Mission-derived vocabulary appended to the decode prompt so lesson
+   * phrases ("I'd rather", destination names) stop being misheard
+   * (issue #64). Teacher-authored content only; must be composed via
+   * buildTranscriptionVocabularyHint. The SAME effective prompt string is
+   * passed to detectNoSpeech, which catches the transcriber echoing the
+   * prompt back on silent recordings — changing one without the other
+   * silently weakens that guard.
+   */
+  vocabularyHint?: string;
 };
 
 export type TranscribeAudioFileDeps = {
@@ -210,6 +220,10 @@ export async function transcribeAudioFile(
   try {
     const client = deps?.client ?? createClient(apiKey);
     const model = resolveModel(input, deps);
+    const hint = input.vocabularyHint?.trim() ?? "";
+    const effectivePrompt = hint
+      ? `${TRANSCRIPTION_PROMPT} ${hint}`
+      : TRANSCRIPTION_PROMPT;
     const transcriptFile = new File([input.file], fileNameForMimeType(input.mimeType), {
       type: input.mimeType,
     });
@@ -220,7 +234,7 @@ export async function transcribeAudioFile(
       // Whisper-family models to switch the whole transcript to Korean — a
       // known failure mode with code-switched/bilingual audio.
       language: "en",
-      prompt: TRANSCRIPTION_PROMPT,
+      prompt: effectivePrompt,
       // Token logprobs are the only signal that separates a hallucinated
       // decode from a real answer — see domain/audio/transcript-confidence.
       // `include` requires response_format "json" on gpt-4o-mini-transcribe;
@@ -237,7 +251,7 @@ export async function transcribeAudioFile(
       return { ok: false, error: "empty_transcript" };
     }
 
-    const noSpeechReason = detectNoSpeech(text, TRANSCRIPTION_PROMPT);
+    const noSpeechReason = detectNoSpeech(text, effectivePrompt);
     if (noSpeechReason) {
       log("error", "audio.transcription_failed", {
         error: "no_speech",

@@ -54,7 +54,11 @@ import {
   transcribeAudioFile,
   type TranscriptionEvidence,
 } from "@/server/audio/transcription";
-import { isLowConfidenceTranscript } from "@/domain/audio/transcript-confidence";
+import {
+  isLowConfidenceTranscript,
+  isTranscriptConfidenceBelowGate,
+} from "@/domain/audio/transcript-confidence";
+import { buildTranscriptionVocabularyHint } from "@/domain/audio/vocabulary-hint";
 import { DEFAULT_COCO_TTS_VOICE } from "@/domain/audio/tts";
 import { warmTtsAudioCache } from "@/server/audio/tts-cache";
 import { scorePronunciation } from "@/server/audio/pronunciation-scorer";
@@ -120,6 +124,13 @@ import { log } from "@/server/logging/logger";
 
 const DEFAULT_AUDIO_BUCKET = "student-audio";
 const FAILED_SCHEMA_REVIEW_REASON = "failed_schema";
+/**
+ * Free say-it-again retries granted for low-confidence transcripts before
+ * the evaluator is allowed to see the text (issue #64). Mirrors the bounded
+ * shape of the ambiguity ladder; exhausting it falls through to normal
+ * evaluation, never straight to review.
+ */
+export const MAX_LOW_CONFIDENCE_AUDIO_RETRIES = 2;
 const LOW_CONFIDENCE_REVIEW_REASON = "low_confidence";
 export const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
 export const MAX_AUDIO_DURATION_MS = 90_000;
@@ -247,6 +258,13 @@ type StoredOriginalTurnEvaluation = StoredEvaluationProvenance & {
   minimalEffortKind?: MinimalEffortKind;
   retryExample?: string | null;
   ambiguityRetries?: number;
+  /**
+   * Free say-it-again retries granted because the transcript itself decoded
+   * with low confidence (issue #64). Deliberately separate from
+   * `ambiguityRetries`: audio problems must not consume the meaningful-
+   * answer recovery budget nor escalate toward review on their own.
+   */
+  lowConfidenceAudioRetries?: number;
   ambiguityHistory?: Array<{
     transcript: string;
     audioClipId: string;
@@ -575,6 +593,30 @@ function priorMinimalEffortBlocks(evaluation: unknown): number {
   return typeof stored.minimalEffortBlocks === "number" &&
     Number.isFinite(stored.minimalEffortBlocks)
     ? Math.max(0, Math.floor(stored.minimalEffortBlocks))
+    : 0;
+}
+
+/**
+ * How many times this turn already answered a low-confidence transcript with
+ * the free say-it-again retry (issue #64). Tracked separately from
+ * `ambiguityRetries` so microphone problems never consume the meaningful-
+ * answer recovery budget, and never escalate toward teacher review by
+ * themselves.
+ */
+function priorLowConfidenceAudioRetries(evaluation: unknown): number {
+  if (
+    typeof evaluation !== "object" ||
+    evaluation === null ||
+    Array.isArray(evaluation)
+  ) {
+    return 0;
+  }
+  const stored = evaluation as {
+    lowConfidenceAudioRetries?: unknown;
+  };
+  return typeof stored.lowConfidenceAudioRetries === "number" &&
+    Number.isFinite(stored.lowConfidenceAudioRetries)
+    ? Math.max(0, Math.floor(stored.lowConfidenceAudioRetries))
     : 0;
 }
 
@@ -1139,10 +1181,21 @@ export async function uploadAttemptAudioClip(
     );
 
     const transcribe = deps.transcribeAudioFile ?? transcribeAudioFile;
+    // Teacher-authored mission vocabulary biases the decode toward lesson
+    // phrases ("I'd rather" instead of "I letter") — issue #64.
+    const transcriptionVocabularyHint = buildTranscriptionVocabularyHint({
+      title: snapshot.title,
+      targetPattern,
+      activePrompt: snapshotTurn?.prompt ?? null,
+      targetExample: snapshotTurn?.targetExample ?? null,
+    });
     const transcriptionPromise = timeStage("transcription", () =>
       transcribe({
         file: createAudioBlob(),
         mimeType: input.mimeType,
+        ...(transcriptionVocabularyHint
+          ? { vocabularyHint: transcriptionVocabularyHint }
+          : {}),
       }),
     );
 
@@ -1510,30 +1563,90 @@ export async function uploadAttemptAudioClip(
               transcriptionEvidence,
               runtimeVersion: resolveEvaluationRuntimeVersion(),
             } as const;
-            let evaluationResult: OriginalTurnEvaluationResult = fastPathMatched
-              ? {
-                  ok: true,
-                  evaluation: {
-                    ...fallbackProvenance,
-                    version: AI_EVALUATION_VERSION,
-                    outcome: "correct",
-                    meaningUnderstood: true,
-                    targetPatternAttempted: true,
-                    correctionNeeded: false,
-                    correctionSeverity: "none",
-                    correctionReason: "none",
-                    improvedSentence: null,
-                    englishLanguage: "english",
-                    confidence: "high",
-                    reviewReason: null,
-                    evaluationSource: "deterministic",
-                    hangulInterpretations: [],
-                  },
-                }
-              : await timeStage("evaluation", () => evaluate(evaluationInput));
+            let evaluationResult: OriginalTurnEvaluationResult;
+            const storedLowConfidenceRetries = priorLowConfidenceAudioRetries(
+              turn.evaluation,
+            );
+            const transcriptConfidence = transcriptionEvidence.confidence;
+            // Issue #64 low-confidence gate: a transcript that decoded below
+            // the confidence threshold gets a free say-it-again retry BEFORE
+            // any evaluation call. The evaluator would only see garbled text
+            // and route it to teacher review — the dominant spurious-review
+            // cause in the 2026-08-21 export. Bounded so a broken microphone
+            // cannot loop forever; exhausting the gate falls through to the
+            // normal evaluation path, so escalation stays unchanged.
+            const lowConfidenceGateRetry =
+              !fastPathMatched &&
+              transcriptConfidence !== null &&
+              isTranscriptConfidenceBelowGate(transcriptConfidence) &&
+              storedLowConfidenceRetries < MAX_LOW_CONFIDENCE_AUDIO_RETRIES;
+            if (lowConfidenceGateRetry) {
+              timings.evaluationSkippedLowConfidence = 1;
+              log("warn", "audio.low_confidence_gate_retry", {
+                assignmentStudentId: input.assignmentStudentId,
+                attemptId: input.attemptId,
+                turnOrder: input.turnOrder,
+                minLogprob: transcriptConfidence.minLogprob,
+                tokenCount: transcriptConfidence.tokenCount,
+                retriesAfter: storedLowConfidenceRetries + 1,
+              });
+              evaluationResult = {
+                ok: true,
+                // The provider-shaped outcome satisfies the result type; the
+                // gated decision below rewrites it to retry_original without
+                // passing through decideOriginalTurnOutcome, so no ambiguity
+                // budget is consumed.
+                evaluation: {
+                  ...fallbackProvenance,
+                  version: AI_EVALUATION_VERSION,
+                  outcome: "teacher_review",
+                  meaningUnderstood: false,
+                  targetPatternAttempted: false,
+                  correctionNeeded: false,
+                  correctionSeverity: "none",
+                  correctionReason: "none",
+                  improvedSentence: null,
+                  englishLanguage: "uncertain",
+                  confidence: "low",
+                  reviewReason: null,
+                  hangulInterpretations: [],
+                  evaluationSource: "deterministic",
+                },
+              };
+            } else if (fastPathMatched) {
+              timings.evaluationFastPath = fastPathMatched ? 1 : 0;
+              evaluationResult = {
+                ok: true,
+                evaluation: {
+                  ...fallbackProvenance,
+                  version: AI_EVALUATION_VERSION,
+                  outcome: "correct",
+                  meaningUnderstood: true,
+                  targetPatternAttempted: true,
+                  correctionNeeded: false,
+                  correctionSeverity: "none",
+                  correctionReason: "none",
+                  improvedSentence: null,
+                  englishLanguage: "english",
+                  confidence: "high",
+                  reviewReason: null,
+                  evaluationSource: "deterministic",
+                  hangulInterpretations: [],
+                },
+              };
+            } else {
+              timings.evaluationSkippedLowConfidence = 0;
+              evaluationResult = await timeStage("evaluation", () =>
+                evaluate(evaluationInput),
+              );
+            }
 
             let contractViolations: OriginalEvaluationViolation[] = [];
-            if (evaluationResult.ok) {
+            if (lowConfidenceGateRetry) {
+              // Skipped entirely: the transcript is not trusted text, so
+              // canonicalizing it or paying for a policy-repair call about
+              // it would defeat the gate.
+            } else if (evaluationResult.ok) {
               const canonicalEvaluation = canonicalizeNoOpOriginalEvaluation(
                 evaluationResult.evaluation,
                 transcript,
@@ -1625,16 +1738,61 @@ export async function uploadAttemptAudioClip(
               };
             }
 
-            const decision = applyOriginalTurnEvaluation(evaluationResult, {
-              evaluationMode:
-                snapshot.conversationMode === true ? "conversation" : "preset",
-              missionQuestion: missionQuestion ?? null,
-              transcript,
-              priorMinimalEffortBlocks: minimalEffortBlocks,
-              priorAmbiguityRetries: ambiguityState.ambiguityRetries,
-            }, fallbackProvenance);
+            // The gated decision is synthesized directly — no contract
+            // canonicalization or repair round-trip, either: the transcript
+            // is not trusted text, so spending another evaluation call to
+            // repair a verdict about it would defeat the gate.
+            const decision: OriginalTurnWriteDecision = lowConfidenceGateRetry
+              ? {
+                  evaluation: {
+                    ...fallbackProvenance,
+                    version: AI_EVALUATION_VERSION,
+                    outcome: "retry_original",
+                    confidence: "low",
+                    reviewReason: null,
+                    meaningUnderstood: false,
+                    targetPatternAttempted: false,
+                    englishLanguage: "uncertain",
+                    correctionNeeded: false,
+                    correctionSeverity: "none",
+                    correctionReason: "none",
+                    improvedSentence: null,
+                    requireRepeat: false,
+                    retryReason: "unclear_meaning",
+                    ambiguityRetries: priorAmbiguityState(turn.evaluation)
+                      .ambiguityRetries,
+                    lowConfidenceAudioRetries: storedLowConfidenceRetries + 1,
+                    hangulInterpretations: [],
+                    evaluationSource: "deterministic",
+                  },
+                  targetAttempted: false,
+                  improvedSentence: null,
+                }
+              : applyOriginalTurnEvaluation(
+                  evaluationResult,
+                  {
+                    evaluationMode:
+                      snapshot.conversationMode === true ? "conversation" : "preset",
+                    missionQuestion: missionQuestion ?? null,
+                    transcript,
+                    priorMinimalEffortBlocks: minimalEffortBlocks,
+                    priorAmbiguityRetries: ambiguityState.ambiguityRetries,
+                  },
+                  fallbackProvenance,
+                );
             if (minimalEffortBlocks > 0) {
               decision.evaluation.minimalEffortBlocks = minimalEffortBlocks;
+            }
+            // Preserve how many free audio retries this turn has already
+            // spent when the normal evaluation path takes over (gate
+            // exhausted or confident decode) — the synthesized gated
+            // decision sets it directly.
+            const carriedLowConfidenceRetries = priorLowConfidenceAudioRetries(
+              turn.evaluation,
+            );
+            if (!lowConfidenceGateRetry && carriedLowConfidenceRetries > 0) {
+              decision.evaluation.lowConfidenceAudioRetries =
+                carriedLowConfidenceRetries;
             }
             if (contractViolations.length > 0) {
               decision.evaluation.contractViolations = contractViolations;
@@ -1901,18 +2059,29 @@ export async function uploadAttemptAudioClip(
           originalEvaluation.ambiguityRetries === 2)
           ? originalEvaluation.ambiguityRetries
           : null;
+      // Issue #64: a low-confidence-gated retry is also a free same-turn
+      // retry, but its counter is separate — it must never consume or advance
+      // the ambiguity ladder.
+      const lowConfidenceAudioRetry =
+        recoveryAttempt === null &&
+        originalEvaluation?.outcome === "retry_original" &&
+        originalEvaluation.retryReason === "unclear_meaning" &&
+        typeof originalEvaluation.lowConfidenceAudioRetries === "number" &&
+        originalEvaluation.lowConfidenceAudioRetries > 0;
+      const freeSameTurnRetry = recoveryAttempt !== null || lowConfidenceAudioRetry;
       const reviewPendingContinuation =
         originalEvaluation?.outcome === "teacher_review";
       const currentStudentResponse =
-        recoveryAttempt !== null || reviewPendingContinuation
+        freeSameTurnRetry || reviewPendingContinuation
           ? WITHHELD_STUDENT_RESPONSE
           : originalEvaluation?.improvedSentence?.trim() || transcript;
 
       // Recovery ladder (2026-08-22): the first unclear answer gets the
       // static say-it-again line — no generation call, nothing derived from
       // the withheld transcript reaches the student, so history and
-      // moderation round-trips are skipped entirely.
-      if (recoveryAttempt === 1) {
+      // moderation round-trips are skipped entirely. A low-confidence-gated
+      // retry is likewise always the free static line.
+      if (recoveryAttempt === 1 || lowConfidenceAudioRetry) {
         cocoLine = SAY_IT_AGAIN_FALLBACK_LINE;
       } else {
         const historyResult = buildConversationHistory({
@@ -2039,7 +2208,7 @@ export async function uploadAttemptAudioClip(
             turnOrder: input.turnOrder,
             cocoLine: resolvedCocoLine,
             moderationEvent: resolvedModerationEvent,
-            ...(recoveryAttempt !== null && originalEvaluation
+            ...(freeSameTurnRetry && originalEvaluation
               ? { evaluation: toJson(originalEvaluation) }
               : {}),
           }),
