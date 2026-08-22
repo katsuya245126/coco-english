@@ -1708,7 +1708,11 @@ export async function uploadAttemptAudioClip(
                       ok: true,
                       evaluation: canonicalRepair,
                     };
-                    contractViolations = [];
+                    contractViolations =
+                      canonicalRepair.outcome === "teacher_review" &&
+                      firstContract.violations.includes("prompt_echo")
+                        ? ["prompt_echo"]
+                        : [];
                   } else {
                     contractViolations = repairedContract.violations;
                     contractRejected = true;
@@ -1789,7 +1793,11 @@ export async function uploadAttemptAudioClip(
                     missionQuestion: missionQuestion ?? null,
                     transcript,
                     priorMinimalEffortBlocks: minimalEffortBlocks,
-                    priorAmbiguityRetries: ambiguityState.ambiguityRetries,
+                    priorAmbiguityRetries:
+                      contractViolations.includes("prompt_echo") &&
+                      (ambiguityState.ambiguityRetries ?? 0) > 0
+                        ? MAX_AMBIGUITY_RETRIES
+                        : ambiguityState.ambiguityRetries,
                   },
                   fallbackProvenance,
                 );
@@ -1860,7 +1868,9 @@ export async function uploadAttemptAudioClip(
               evaluationResult.ok &&
               evaluationResult.evaluation.outcome === "teacher_review" &&
               (ambiguityState.ambiguityRetries ?? 0) <
-                MAX_AMBIGUITY_RETRIES
+                (contractViolations.includes("prompt_echo")
+                  ? 1
+                  : MAX_AMBIGUITY_RETRIES)
             ) {
               const ambiguityRetries =
                 (ambiguityState.ambiguityRetries ?? 0) + 1;
@@ -1886,6 +1896,7 @@ export async function uploadAttemptAudioClip(
               snapshot.conversationMode === true &&
               decision.evaluation.outcome === "retry_original" &&
               decision.evaluation.retryReason === "unclear_meaning" &&
+              !decision.evaluation.contractViolations?.includes("prompt_echo") &&
               (decision.evaluation.ambiguityRetries === 1 ||
                 decision.evaluation.ambiguityRetries === 2 ||
                 (typeof decision.evaluation.lowConfidenceAudioRetries ===
@@ -1961,22 +1972,26 @@ export async function uploadAttemptAudioClip(
                     koreanSpans,
                   });
                 });
-            // Count the repeat clips recorded for this turn, this one
-            // included: the row was inserted before evaluation. The turn row
-            // itself cannot supply this — each repeat overwrites the last —
-            // so the clip table is the only durable tally.
-            const { count: repeatClipCount } = await timeStage(
+            // Count only prior repeats that completed transcription. The
+            // current row is still pending here, so add it after its upload,
+            // transcription, and evaluation have succeeded.
+            const {
+              count: priorRepeatClipCount,
+              error: repeatCountError,
+            } = await timeStage(
               "repeatAttemptCount",
               () =>
                 supabase
                   .from("audio_clips")
                   .select("id", { count: "exact", head: true })
                   .eq("attempt_turn_id", turn.id)
-                  .eq("clip_kind", "repeat_attempt"),
+                  .eq("clip_kind", "repeat_attempt")
+                  .eq("processing_status", "transcribed"),
             );
+            if (repeatCountError) return { error: repeatCountError };
             const decision = applyRepeatTurnEvaluation(
               evaluationResult,
-              repeatClipCount ?? 1,
+              (priorRepeatClipCount ?? 0) + 1,
             );
             repeatEvaluation = decision;
 
@@ -2084,7 +2099,8 @@ export async function uploadAttemptAudioClip(
 
     if (
       snapshot.conversationMode === true &&
-      input.clipKind === "original_answer"
+      input.clipKind === "original_answer" &&
+      !originalEvaluation?.contractViolations?.includes("prompt_echo")
     ) {
       const recoveryAttempt: 1 | 2 | null =
         !lowConfidenceGateRetryApplied &&

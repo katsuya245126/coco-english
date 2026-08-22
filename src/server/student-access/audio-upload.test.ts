@@ -222,6 +222,8 @@ function createMockSupabase(options: {
   turnEvaluation?: unknown;
   turnImprovedSentence?: string | null;
   turnCocoLine?: string | null;
+  priorRepeatClipStatuses?: Database["public"]["Enums"]["audio_processing_status"][];
+  repeatCountError?: { message: string } | null;
 } = {}) {
   const operations: Operation[] = [];
   const upload = vi.fn(async () => ({ error: options.uploadError ?? null }));
@@ -295,6 +297,23 @@ function createMockSupabase(options: {
         onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
       ) => {
         if (!operations.includes(operation)) operations.push(operation);
+        if (table === "audio_clips" && operation.action === "select") {
+          const statuses = options.priorRepeatClipStatuses ?? [];
+          const transcribedOnly = operation.filters.some(
+            ([column, value]) =>
+              column === "processing_status" && value === "transcribed",
+          );
+          const count = statuses.filter(
+            (status) => !transcribedOnly || status === "transcribed",
+          ).length;
+          return Promise.resolve({
+            count,
+            error: options.repeatCountError ?? null,
+          }).then(
+            onFulfilled ?? undefined,
+            onRejected ?? undefined,
+          );
+        }
         return Promise.resolve({ error: resolvedError() }).then(
           onFulfilled ?? undefined,
           onRejected ?? undefined,
@@ -789,6 +808,163 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         !("coco_line" in operation.payload),
     );
     expect(counterWriteWithoutRecoveryLine).toBeUndefined();
+  });
+
+  it("treats a prompt echo as an unanswered conversation turn", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        turns: [
+          {
+            ...conversationMissionSnapshotFixture.turns[0],
+            prompt:
+              "It's almost summer vacation! What are you going to do during summer vacation?",
+          },
+        ],
+      },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginalTurn = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true as const,
+        evaluation: originalEvaluation({ targetPatternAttempted: false }),
+      })
+      .mockResolvedValueOnce({
+        ok: true as const,
+        evaluation: originalEvaluation({
+          outcome: "teacher_review",
+          meaningUnderstood: false,
+          targetPatternAttempted: false,
+          reviewReason: "ambiguous",
+        }),
+      });
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "This should not be generated." },
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber(
+        "It's almost summer vacation.",
+      ),
+      evaluateOriginalTurn,
+      generateCocoReply: generate,
+    });
+
+    expect(evaluateOriginalTurn).toHaveBeenCalledTimes(2);
+    expect(evaluateOriginalTurn.mock.calls[1]?.[0].policyRepair).toEqual({
+      violations: ["prompt_echo"],
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "retry_original",
+        retryReason: "unclear_meaning",
+        ambiguityRetries: 1,
+        contractViolations: ["prompt_echo"],
+      },
+      cocoLine: null,
+    });
+    expect(generate).not.toHaveBeenCalled();
+    expect(mockSupabase.operations).toContainEqual(
+      expect.objectContaining({
+        table: "attempt_turns",
+        action: "upsert",
+        payload: expect.objectContaining({
+          evaluation: expect.objectContaining({
+            outcome: "retry_original",
+            ambiguityRetries: 1,
+            contractViolations: ["prompt_echo"],
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("sends a repeated prompt echo to teacher review after one retry", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...conversationMissionSnapshotFixture,
+        turns: [
+          {
+            ...conversationMissionSnapshotFixture.turns[0],
+            prompt:
+              "It's almost summer vacation! What are you going to do during summer vacation?",
+          },
+        ],
+      },
+      turnEvaluation: {
+        ...originalEvaluation({
+          outcome: "retry_original",
+          meaningUnderstood: false,
+          targetPatternAttempted: false,
+          reviewReason: null,
+        }),
+        retryReason: "unclear_meaning",
+        ambiguityRetries: 1,
+        ambiguityHistory: [
+          {
+            transcript: "It's almost summer vacation.",
+            audioClipId: "clip-first",
+            evaluation: originalEvaluation({
+              outcome: "teacher_review",
+              meaningUnderstood: false,
+              targetPatternAttempted: false,
+              reviewReason: "ambiguous",
+            }),
+          },
+        ],
+      },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginalTurn = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true as const,
+        evaluation: originalEvaluation({ targetPatternAttempted: false }),
+      })
+      .mockResolvedValueOnce({
+        ok: true as const,
+        evaluation: originalEvaluation({
+          outcome: "teacher_review",
+          meaningUnderstood: false,
+          targetPatternAttempted: false,
+          reviewReason: "ambiguous",
+        }),
+      });
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "Thanks for trying! What else do you want to tell me?" },
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber(
+        "It's almost summer vacation.",
+      ),
+      evaluateOriginalTurn,
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(evaluateOriginalTurn).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "teacher_review",
+        ambiguityRetries: 1,
+        contractViolations: ["prompt_echo"],
+      },
+      cocoLine: null,
+    });
+    expect(generate).not.toHaveBeenCalled();
   });
 
   it("uses the one unclear retry for a low-confidence schema failure", async () => {
@@ -2502,6 +2678,86 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         }),
       }),
     );
+  });
+
+  it("persists a provider-classified regular singular/plural recast as accepted minor", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...soccerConversationSnapshot,
+        targetPattern: "I watch _____.",
+        turns: [
+          {
+            ...soccerConversationSnapshot.turns[0],
+            prompt: "What do you watch?",
+            targetExample: "I watch cartoons.",
+          },
+        ],
+      } as unknown as typeof conversationMissionSnapshotFixture,
+    });
+
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginal = successfulOriginalEvaluator({
+      outcome: "needs_correction",
+      correctionNeeded: true,
+      correctionSeverity: "minor",
+      correctionReason: "grammar",
+      improvedSentence: "I watch cartoons.",
+    });
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "What kind of cartoons do you like?" },
+    }));
+    const warmTtsAudioCache = vi.fn(async () => ({
+      ok: true as const,
+      warmed: 1,
+      skipped: 0,
+      failed: 0,
+    }));
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I watch cartoon."),
+      evaluateOriginalTurn: evaluateOriginal,
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+      warmTtsAudioCache,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "accepted_original",
+        correctionSeverity: "minor",
+        improvedSentence: "I watch cartoons.",
+        requireRepeat: false,
+      },
+      cocoLine: "What kind of cartoons do you like?",
+    });
+    expect(warmTtsAudioCache).toHaveBeenCalledTimes(1);
+    expect(warmTtsAudioCache).toHaveBeenCalledWith(
+      expect.objectContaining({ texts: ["What kind of cartoons do you like?"] }),
+    );
+    const turnUpsert = mockSupabase.operations.find(
+      (operation) =>
+        operation.table === "attempt_turns" &&
+        operation.action === "upsert" &&
+        (operation.payload as { original_transcript?: unknown })
+          .original_transcript === "I watch cartoon.",
+    );
+    if (!turnUpsert) throw new Error("expected a singular/plural turn upsert");
+    expect(turnUpsert.payload).toMatchObject({
+      original_transcript: "I watch cartoon.",
+      improved_sentence: "I watch cartoons.",
+      evaluation: expect.objectContaining({
+        outcome: "accepted_original",
+        correctionSeverity: "minor",
+        requireRepeat: false,
+      }),
+    });
   });
 
   it("still warms correction TTS for a material conversation-mode correction", async () => {
@@ -4343,6 +4599,145 @@ describe("repeat write preserves the original evaluation (2026-07-25)", () => {
     );
 
     expect(findRepeatTurnUpdate()).not.toHaveProperty("originalEvaluation");
+  });
+});
+
+describe("repeat cap accounting (issue #51)", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    mockLog.mockClear();
+    mockConsumeRequestBudget.mockReset();
+    mockConsumeRequestBudget.mockResolvedValue({ allowed: true });
+    process.env.STUDENT_AUDIO_BUCKET = "student-audio";
+  });
+
+  it("counts only prior transcribed repeats plus this processed clip", async () => {
+    mockSupabase = createMockSupabase({
+      turnImprovedSentence: "I like adventure cartoons.",
+      priorRepeatClipStatuses: [
+        "transcribed",
+        "failed",
+        "pending_upload",
+        "transcribed",
+      ],
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateRepeatTurn = vi.fn(async () => ({
+      ok: true as const,
+      evaluation: {
+        version: "ai-eval-v1" as const,
+        outcome: "repeat_retry" as const,
+        repeatCloseEnough: false,
+        englishLanguage: "english" as const,
+        confidence: "high" as const,
+        reviewReason: null,
+        hangulInterpretations: [],
+      },
+    }));
+
+    const result = await uploadAttemptAudioClip(
+      { ...audioInput({ turnOrder: 1 }), clipKind: "repeat_attempt" as const },
+      {
+        transcribeAudioFile: successfulTranscriber("I like adventure books."),
+        evaluateRepeatTurn,
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "repeat_limit_reached",
+        repeatCloseEnough: false,
+        repeatAccepted: false,
+        requireRepeat: false,
+      },
+    });
+    expect(evaluateRepeatTurn).toHaveBeenCalledTimes(1);
+    expect(
+      mockSupabase.operations.some(
+        (operation) =>
+          operation.table === "attempts" &&
+          operation.action === "update" &&
+          typeof operation.payload === "object" &&
+          operation.payload !== null &&
+          "needs_review_reason" in operation.payload,
+      ),
+    ).toBe(false);
+    const countQuery = mockSupabase.operations.find(
+      (operation) =>
+        operation.table === "audio_clips" &&
+        operation.action === "select" &&
+        operation.filters.some(
+          ([column, value]) =>
+            column === "clip_kind" && value === "repeat_attempt",
+        ),
+    );
+    expect(countQuery?.filters).toEqual(
+      expect.arrayContaining([
+        ["processing_status", "transcribed"],
+      ]),
+    );
+  });
+
+  it("returns a retryable database error when repeat-count lookup fails", async () => {
+    mockSupabase = createMockSupabase({
+      turnImprovedSentence: "I like adventure cartoons.",
+      priorRepeatClipStatuses: ["transcribed"],
+      repeatCountError: { message: "count unavailable" },
+    });
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateRepeatTurn = vi.fn(async () => ({
+      ok: true as const,
+      evaluation: {
+        version: "ai-eval-v1" as const,
+        outcome: "repeat_retry" as const,
+        repeatCloseEnough: false,
+        englishLanguage: "english" as const,
+        confidence: "high" as const,
+        reviewReason: null,
+        hangulInterpretations: [],
+      },
+    }));
+
+    const result = await uploadAttemptAudioClip(
+      { ...audioInput({ turnOrder: 1 }), clipKind: "repeat_attempt" as const },
+      {
+        transcribeAudioFile: successfulTranscriber("I like adventure books."),
+        evaluateRepeatTurn,
+      },
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: "db_error",
+      retryable: true,
+    });
+    expect(
+      mockSupabase.operations.some(
+        (operation) =>
+          operation.table === "attempt_turns" &&
+          operation.action === "update" &&
+          typeof operation.payload === "object" &&
+          operation.payload !== null &&
+          "repeat_transcript" in operation.payload,
+      ),
+    ).toBe(false);
+    expect(
+      mockSupabase.operations.some(
+        (operation) =>
+          operation.table === "audio_clips" &&
+          operation.action === "update" &&
+          typeof operation.payload === "object" &&
+          operation.payload !== null &&
+          "processing_status" in operation.payload &&
+          operation.payload.processing_status === "failed",
+      ),
+    ).toBe(true);
+    expect(evaluateRepeatTurn).toHaveBeenCalledTimes(1);
   });
 });
 

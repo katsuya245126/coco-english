@@ -116,7 +116,10 @@ type OriginalFeedback = (
   retryExample?: string | null;
 };
 
-export type RepeatFeedbackCompatibility = "repeatAccepted" | "teacherReview";
+export type RepeatFeedbackCompatibility =
+  | "repeatAccepted"
+  | "teacherReview"
+  | "repeatLimitReached";
 
 type RepeatFeedback =
   | {
@@ -133,6 +136,12 @@ type RepeatFeedback =
     }
   | {
       kind: "repeatReview";
+      transcript: string | null;
+      starBand?: PronunciationStarBand | null;
+      wordsToPractice?: WordHighlight[];
+    }
+  | {
+      kind: "repeatLimitReached";
       transcript: string | null;
       starBand?: PronunciationStarBand | null;
       wordsToPractice?: WordHighlight[];
@@ -458,6 +467,14 @@ export function MissionFlowShell({
     if (evaluation?.outcome === "teacher" + "_" + "review") {
       return { kind: "repeatReview", transcript, starBand, wordsToPractice };
     }
+    if (evaluation?.outcome === "repeat_limit_reached") {
+      return {
+        kind: "repeatLimitReached",
+        transcript,
+        starBand,
+        wordsToPractice,
+      };
+    }
     return { kind: "repeatAccepted", transcript, starBand, wordsToPractice };
   }
 
@@ -734,7 +751,8 @@ export function MissionFlowShell({
       if (
         conversationMode &&
         (repeatFeedback.kind === "repeatAccepted" ||
-          repeatFeedback.kind === "repeatReview")
+          repeatFeedback.kind === "repeatReview" ||
+          repeatFeedback.kind === "repeatLimitReached")
       ) {
         await continueAcceptedConversationTurn(aid, flow.cocoLine);
         return;
@@ -758,7 +776,11 @@ export function MissionFlowShell({
     }
 
     const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
-    if (isFinalTurn && flow.repeatFeedback?.kind === "repeatAccepted") {
+    if (
+      isFinalTurn &&
+      (flow.repeatFeedback?.kind === "repeatAccepted" ||
+        flow.repeatFeedback?.kind === "repeatLimitReached")
+    ) {
       const result = await completeMissionAction({
         assignmentStudentId,
         attemptId: aid,
@@ -959,7 +981,11 @@ export function MissionFlowShell({
         }
         step={flow.step}
         originalFeedbackKind={flow.originalFeedback?.kind}
-        repeatFeedbackKind={flow.repeatFeedback?.kind}
+        repeatFeedbackKind={
+          flow.repeatFeedback?.kind === "repeatLimitReached"
+            ? undefined
+            : flow.repeatFeedback?.kind
+        }
         playing={mascotPlaying}
         amplitudeRef={mascotAmplitudeRef}
         expression={
@@ -969,7 +995,9 @@ export function MissionFlowShell({
             : flow.originalFeedback?.kind === "acceptedOriginal" ||
                 flow.repeatFeedback?.kind === "repeatAccepted"
               ? "celebrate"
-            : undefined
+              : flow.repeatFeedback?.kind === "repeatLimitReached"
+                ? "encouraging"
+              : undefined
         }
       />
 
@@ -1103,7 +1131,9 @@ export function MissionFlowShell({
             showCocoLine={false}
             showSentenceCard={true}
             forceRetryBeforeContinue={
-              flow.repeatFeedback.starBand === 1 && !flow.hasRetriedThisTurn
+              flow.repeatFeedback.kind !== "repeatLimitReached" &&
+              flow.repeatFeedback.starBand === 1 &&
+              !flow.hasRetriedThisTurn
             }
             onContinue={
               flow.repeatFeedback.kind === "repeatRetry"
@@ -1113,7 +1143,8 @@ export function MissionFlowShell({
                   : finishRepeatFeedback
             }
             onRetry={
-              flow.repeatFeedback.kind === "repeatReview"
+              flow.repeatFeedback.kind === "repeatReview" ||
+              flow.repeatFeedback.kind === "repeatLimitReached"
                 ? undefined
                 : retryRepeat
             }
@@ -1335,6 +1366,13 @@ function getMascotDialogue({
       text: "Good repeat.",
       line: { lineKind: "coco_feedback", feedbackVariant: "repeat_accepted" },
     };
+  }
+
+  if (
+    flow.step === "repeatFeedback" &&
+    flow.repeatFeedback?.kind === "repeatLimitReached"
+  ) {
+    return { text: "Let's continue.", line: null };
   }
 
   if (flow.step === "repeatFeedback" && flow.repeatFeedback?.kind === "repeatReview") {

@@ -59,6 +59,14 @@ describe("original evaluation contract", () => {
     });
   });
 
+  it("preserves a preset correction when only a curly apostrophe differs", () => {
+    const evaluation = correction("I can't swim.");
+
+    expect(
+      canonicalizeNoOpOriginalEvaluation(evaluation, "I can’t swim."),
+    ).toEqual(evaluation);
+  });
+
   it.each([
     ["I make sandcastles at the beach.", "I make sandcastles."],
     ["I use a shovel at the beach.", "I use a shovel."],
@@ -268,6 +276,240 @@ describe("original evaluation contract", () => {
       ok: false,
       violations: ["non_english_contract_mismatch"],
     });
+  });
+
+  it("rejects a conversation answer that only echoes the prompt", () => {
+    const result = validateOriginalEvaluationContract({
+      evaluation: { ...baseEvaluation, targetPatternAttempted: false },
+      evaluationMode: "conversation",
+      answerShape: "open",
+      missionQuestion:
+        "It's almost summer vacation! What are you going to do during summer vacation?",
+      targetPattern: "I'm going to ________",
+      transcript: "It's almost summer vacation.",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violations).toContain("prompt_echo");
+  });
+
+  it("rejects a near-verbatim prompt echo with an omitted prompt word", () => {
+    const result = validateOriginalEvaluationContract({
+      evaluation: { ...baseEvaluation, targetPatternAttempted: false },
+      evaluationMode: "conversation",
+      answerShape: "open",
+      missionQuestion: "What are you going to do during summer vacation?",
+      targetPattern: "I'm going to ________",
+      transcript: "What are you going to do summer vacation",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violations).toContain("prompt_echo");
+  });
+
+  it("rejects an exact prompt echo with a leading discourse prefix", () => {
+    const result = validateOriginalEvaluationContract({
+      evaluation: { ...baseEvaluation, targetPatternAttempted: false },
+      evaluationMode: "conversation",
+      answerShape: "open",
+      missionQuestion: "What are you going to do during summer vacation?",
+      targetPattern: "I'm going to ________",
+      transcript: "Okay, what are you going to do during summer vacation?",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violations).toContain("prompt_echo");
+  });
+
+  it("rejects a prefixed near-verbatim prompt echo with an omitted prompt word", () => {
+    const result = validateOriginalEvaluationContract({
+      evaluation: { ...baseEvaluation, targetPatternAttempted: false },
+      evaluationMode: "conversation",
+      answerShape: "open",
+      missionQuestion: "What are you going to do during summer vacation?",
+      targetPattern: "I'm going to ________",
+      transcript: "Okay, what are you going to do summer vacation",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violations).toContain("prompt_echo");
+  });
+
+  it("rejects a prefixed near-verbatim prompt echo with an omitted leading prompt word", () => {
+    const result = validateOriginalEvaluationContract({
+      evaluation: { ...baseEvaluation, targetPatternAttempted: false },
+      evaluationMode: "conversation",
+      answerShape: "open",
+      missionQuestion: "What are you going to do during summer vacation?",
+      targetPattern: "I'm going to ________",
+      transcript: "Okay, are you going to do during summer vacation?",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violations).toContain("prompt_echo");
+  });
+
+  it("rejects a prefixed near-verbatim prompt echo with an omitted trailing prompt word", () => {
+    const result = validateOriginalEvaluationContract({
+      evaluation: { ...baseEvaluation, targetPatternAttempted: false },
+      evaluationMode: "conversation",
+      answerShape: "open",
+      missionQuestion: "What are you going to do during summer vacation?",
+      targetPattern: "I'm going to ________",
+      transcript: "Okay, what are you going to do during summer?",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violations).toContain("prompt_echo");
+  });
+
+  it("rejects a stuttered near-verbatim prompt echo", () => {
+    const result = validateOriginalEvaluationContract({
+      evaluation: { ...baseEvaluation, targetPatternAttempted: false },
+      evaluationMode: "conversation",
+      answerShape: "open",
+      missionQuestion: "What are you going to do during summer vacation?",
+      targetPattern: "I'm going to ________",
+      transcript: "What, what are you going to do summer vacation",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violations).toContain("prompt_echo");
+  });
+
+  it("rejects a prompt echo preceded by a disfluency", () => {
+    const result = validateOriginalEvaluationContract({
+      evaluation: { ...baseEvaluation, targetPatternAttempted: false },
+      evaluationMode: "conversation",
+      answerShape: "open",
+      missionQuestion: "What are you going to do during summer vacation?",
+      targetPattern: "I'm going to ________",
+      transcript: "Um, what are you going to do during summer vacation?",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violations).toContain("prompt_echo");
+  });
+
+  it("rejects a multi-sentence near-verbatim prompt echo", () => {
+    const result = validateOriginalEvaluationContract({
+      evaluation: { ...baseEvaluation, targetPatternAttempted: false },
+      evaluationMode: "conversation",
+      answerShape: "open",
+      missionQuestion:
+        "It's almost summer vacation! What are you going to do during summer vacation?",
+      targetPattern: "I'm going to ________",
+      transcript:
+        "It's almost summer vacation. What are you going to do summer vacation?",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violations).toContain("prompt_echo");
+  });
+
+  it("keeps accepting a short relevant conversation answer", () => {
+    expect(
+      validateOriginalEvaluationContract({
+        evaluation: { ...baseEvaluation, targetPatternAttempted: false },
+        evaluationMode: "conversation",
+        answerShape: "open",
+        missionQuestion:
+          "It's almost summer vacation! What are you going to do during summer vacation?",
+        targetPattern: "I'm going to ________",
+        transcript: "I'm going to go camping.",
+      }),
+    ).toEqual({ ok: true, evaluation: expect.anything() });
+  });
+
+  it("accepts a prompt lead-in followed by a relevant answer", () => {
+    expect(
+      validateOriginalEvaluationContract({
+        evaluation: { ...baseEvaluation, targetPatternAttempted: false },
+        evaluationMode: "conversation",
+        answerShape: "open",
+        missionQuestion:
+          "It's almost summer vacation! What are you going to do during summer vacation?",
+        targetPattern: "I'm going to ________",
+        transcript: "It's almost summer vacation, and I'm going camping.",
+      }),
+    ).toEqual({ ok: true, evaluation: expect.anything() });
+  });
+
+  it("accepts a punctuation-free short answer before an echoed prompt", () => {
+    expect(
+      validateOriginalEvaluationContract({
+        evaluation: { ...baseEvaluation, targetPatternAttempted: false },
+        evaluationMode: "conversation",
+        answerShape: "open",
+        missionQuestion: "Do you like camping?",
+        targetPattern: "I like ________",
+        transcript: "Yes do you like camping",
+      }),
+    ).toEqual({ ok: true, evaluation: expect.anything() });
+  });
+
+  it("accepts a polar prompt followed by a short answer", () => {
+    expect(
+      validateOriginalEvaluationContract({
+        evaluation: { ...baseEvaluation, targetPatternAttempted: false },
+        evaluationMode: "conversation",
+        answerShape: "open",
+        missionQuestion: "Do you like camping?",
+        targetPattern: "I like ________",
+        transcript: "Do you like camping? Yes, I do.",
+      }),
+    ).toEqual({ ok: true, evaluation: expect.anything() });
+  });
+
+  it.each([
+    {
+      missionQuestion: "Is it fun?",
+      transcript: "Is it fun? It is.",
+    },
+    {
+      missionQuestion: "Do you like to swim fast or slow?",
+      transcript: "Do you like to swim fast or slow? Fast.",
+    },
+  ])("accepts an echoed prompt followed by a prompt-vocabulary answer", ({
+    missionQuestion,
+    transcript,
+  }) => {
+    expect(
+      validateOriginalEvaluationContract({
+        evaluation: { ...baseEvaluation, targetPatternAttempted: false },
+        evaluationMode: "conversation",
+        answerShape: "open",
+        missionQuestion,
+        targetPattern: "I ________",
+        transcript,
+      }),
+    ).toEqual({ ok: true, evaluation: expect.anything() });
+  });
+
+  it("accepts a punctuation-free prompt followed by a prompt-vocabulary answer", () => {
+    expect(
+      validateOriginalEvaluationContract({
+        evaluation: { ...baseEvaluation, targetPatternAttempted: false },
+        evaluationMode: "conversation",
+        answerShape: "open",
+        missionQuestion: "Is it fun?",
+        targetPattern: "I ________",
+        transcript: "Is it fun it is",
+      }),
+    ).toEqual({ ok: true, evaluation: expect.anything() });
+  });
+
+  it("accepts a punctuation-free prompt with an omitted prompt word and trailing answer", () => {
+    expect(
+      validateOriginalEvaluationContract({
+        evaluation: { ...baseEvaluation, targetPatternAttempted: false },
+        evaluationMode: "conversation",
+        answerShape: "open",
+        missionQuestion: "Do you like to swim fast or slow?",
+        targetPattern: "I ________",
+        transcript: "Do you like swim fast or slow fast",
+      }),
+    ).toEqual({ ok: true, evaluation: expect.anything() });
   });
 
   it("accepts a coherent non-English outcome", () => {

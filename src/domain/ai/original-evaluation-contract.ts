@@ -5,6 +5,7 @@ import {
 } from "@/domain/ai/correction-policy";
 import { detectHangulSpans } from "@/domain/audio/hangul-romanization";
 import { validateHangulInterpretations } from "@/domain/audio/transcript-interpretation";
+import { detectNoSpeech } from "@/domain/audio/no-speech-detection";
 import type { OriginalTurnEvaluation } from "@/domain/ai/turn-evaluation";
 import type { AnswerShape } from "@/domain/mission/schemas";
 
@@ -15,6 +16,7 @@ export type OriginalEvaluationViolation =
   | "teacher_review_meaning_understood"
   | "english_language_mismatch"
   | "non_english_contract_mismatch"
+  | "prompt_echo"
   | "hangul_interpretation_invalid"
   | "hangul_interpretation_missing"
   | CorrectionPolicyViolation;
@@ -38,6 +40,103 @@ function normalizeSentence(value: string) {
     .replace(/[^\p{L}\p{N}']+/gu, " ")
     .replace(/\s+/gu, " ")
     .trim();
+}
+
+function normalizePromptEchoSentence(value: string) {
+  return normalizeSentence(value.replace(/[’]/gu, "'"));
+}
+
+const PROMPT_ECHO_LEADING_MARKERS = new Set([
+  "ah",
+  "er",
+  "erm",
+  "hm",
+  "hmm",
+  "oh",
+  "uh",
+  "uhh",
+  "um",
+  "umm",
+  "well",
+  "ok",
+  "okay",
+]);
+
+function normalizedWords(value: string) {
+  const normalized = normalizePromptEchoSentence(value);
+  return normalized ? normalized.split(" ") : [];
+}
+
+function isPromptEchoWithoutAnswer(
+  transcript: string,
+  missionQuestion: string | null,
+) {
+  if (!normalizePromptEchoSentence(transcript) || !missionQuestion?.trim()) {
+    return false;
+  }
+
+  const promptSegments = missionQuestion.split(/(?<=[.!?])\s+/u);
+  const promptWords = promptSegments.map(normalizedWords);
+  const transcriptClauses = transcript
+    .split(/(?<=[.!?])\s+/u)
+    .map(normalizedWords)
+    .filter((clause) => clause.length > 0);
+
+  const isEchoClause = (clause: string[]) =>
+    promptSegments.some((promptSegment, promptIndex) => {
+      if (detectNoSpeech(clause.join(" "), promptSegment) !== "prompt_echo") {
+        return false;
+      }
+
+      let contentStart = 0;
+      while (
+        contentStart < clause.length &&
+        PROMPT_ECHO_LEADING_MARKERS.has(clause[contentStart])
+      ) {
+        contentStart += 1;
+      }
+      const contentWords = clause.slice(contentStart);
+      const words = promptWords[promptIndex] ?? [];
+      if (contentWords.length === 0 || words.length === 0) return false;
+
+      const exactPromptMatches = words.every(
+        (word, offset) => contentWords[offset] === word,
+      );
+      if (exactPromptMatches) {
+        return contentWords.length === words.length;
+      }
+
+      // ponytail: fuzzy prompt matching only permits omitted prompt words and
+      // consecutive prompt-token stutters before the prompt is complete.
+      let promptIndexInWords = 0;
+      let transcriptIndex = 0;
+      while (transcriptIndex < contentWords.length) {
+        if (promptIndexInWords >= words.length) break;
+        const matchedPromptIndex = words.indexOf(
+          contentWords[transcriptIndex],
+          promptIndexInWords,
+        );
+        if (matchedPromptIndex >= 0) {
+          promptIndexInWords = matchedPromptIndex + 1;
+          transcriptIndex += 1;
+          continue;
+        }
+        if (
+          transcriptIndex > 0 &&
+          contentWords[transcriptIndex] === contentWords[transcriptIndex - 1] &&
+          words.includes(contentWords[transcriptIndex])
+        ) {
+          transcriptIndex += 1;
+          continue;
+        }
+        break;
+      }
+      return transcriptIndex === contentWords.length;
+    });
+
+  return (
+    transcriptClauses.length > 0 && transcriptClauses.every(isEchoClause)
+  );
 }
 
 export function canonicalizeNoOpOriginalEvaluation(
@@ -123,6 +222,15 @@ export function validateOriginalEvaluationContract(
     evaluation.reviewReason !== null
   ) {
     violations.push("non_english_contract_mismatch");
+  }
+
+  if (
+    input.evaluationMode === "conversation" &&
+    (evaluation.outcome === "correct" ||
+      evaluation.outcome === "needs_correction") &&
+    isPromptEchoWithoutAnswer(input.transcript, input.missionQuestion)
+  ) {
+    violations.push("prompt_echo");
   }
 
   if (
