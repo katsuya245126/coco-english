@@ -194,9 +194,6 @@ export type UploadAttemptAudioClipDeps = {
   /** Provider adapters, threaded through to the answer-evaluation module. */
   evaluateOriginalTurn?: typeof evaluateOriginalTurn;
   evaluateRepeatTurn?: typeof evaluateRepeatTurn;
-  /** Full pipeline override; defaults to the real evaluation module. */
-  evaluateOriginalTurnAnswer?: typeof evaluateOriginalTurnAnswer;
-  evaluateRepeatTurnAnswer?: typeof evaluateRepeatTurnAnswer;
   generateCocoReply?: typeof generateCocoReply;
   isContentSafe?: typeof isContentSafe;
   warmTtsAudioCache?: typeof warmTtsAudioCache;
@@ -1247,9 +1244,7 @@ export async function uploadAttemptAudioClip(
     const turnWrite =
       input.clipKind === "original_answer"
         ? await (async () => {
-            const evaluationOutcome = await (
-              deps.evaluateOriginalTurnAnswer ?? evaluateOriginalTurnAnswer
-            )(
+            const evaluationOutcome = await evaluateOriginalTurnAnswer(
               {
                 evaluationInput,
                 priorTurnEvaluation: (
@@ -1352,9 +1347,7 @@ export async function uploadAttemptAudioClip(
             );
             if (repeatCountError) return { error: repeatCountError };
 
-            const repeatOutcome = await (
-              deps.evaluateRepeatTurnAnswer ?? evaluateRepeatTurnAnswer
-            )(
+            const repeatOutcome = await evaluateRepeatTurnAnswer(
               {
                 repeatTarget,
                 originalTranscript: turn.original_transcript ?? "",
