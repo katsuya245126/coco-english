@@ -36,6 +36,15 @@ export const conversationGenerationPurposeSchema = z.discriminatedUnion(
       kind: z.literal("unclear_recovery"),
       attempt: z.union([z.literal(1), z.literal(2)]),
       fallbackQuestion: z.string().trim().min(1),
+      /**
+       * Attempt-2 W-pivot contract: when present, the recovery question must
+       * lead with this interrogative — always different from the failed
+       * question's word — so the retry changes the angle instead of
+       * repeating the ask (2026-08-22 recovery ladder).
+       */
+      pivotWord: z.enum(["what", "who", "when", "where", "why", "how"]).optional(),
+      /** Teacher-authored mission text anchoring the pivot to the topic. */
+      topicSeed: z.string().trim().max(200).optional(),
     }),
   ],
 );
@@ -800,6 +809,14 @@ export function buildConversationPrompt(input: GenerateCocoReplyInput) {
           "This is unclear-answer recovery 2. Ask exactly one question and set reaction and focus to null.",
           "Do not advance. Branch from the supplied fallbackQuestion and earlier understood context; ignore every withheld response.",
           `The fallbackQuestion is: ${recovery.fallbackQuestion}`,
+          ...(recovery.pivotWord
+            ? [
+                `W-pivot: the question must start with "${recovery.pivotWord}" — a different angle than any question already asked. Never repeat an earlier question.`,
+              ]
+            : []),
+          ...(recovery.topicSeed
+            ? [`Stay on the mission topic: ${recovery.topicSeed}.`]
+            : []),
         ]
     : [];
   const reviewPendingInstructions: string[] =

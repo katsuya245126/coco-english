@@ -44,20 +44,29 @@ export type BuildConversationHistoryResult =
   | { ok: true; history: ConversationExchange[] }
   | { ok: false; error: "invalid_history" };
 
-export function selectUnclearRecoveryFallbackQuestion(input: {
-  attempt: 1 | 2;
-  activeQuestion: string;
+export type PersistedAmbiguityEntry = {
+  question?: string;
+  recoveryQuestion?: string;
+};
+
+/**
+ * Every question already put to the student this turn: the persisted
+ * conversation lines plus anything recorded while recovering from unclear
+ * answers. Recovery pivots must never repeat any of them verbatim.
+ */
+export function collectPreviouslyAskedQuestions(input: {
   conversationHistory: ConversationExchange[];
-  ambiguityHistory: Array<{ question?: string }>;
-}): string {
-  if (input.attempt === 1) return input.activeQuestion;
-  for (let index = input.conversationHistory.length - 2; index >= 0; index -= 1) {
-    const exchange = input.conversationHistory[index];
-    if (exchange?.studentResponse !== WITHHELD_STUDENT_RESPONSE) {
-      return exchange?.cocoLine ?? input.activeQuestion;
-    }
+  ambiguityHistory?: PersistedAmbiguityEntry[];
+}): string[] {
+  const asked: string[] = [];
+  for (const exchange of input.conversationHistory) {
+    if (exchange?.cocoLine?.trim()) asked.push(exchange.cocoLine.trim());
   }
-  return input.ambiguityHistory[0]?.question?.trim() || input.activeQuestion;
+  for (const entry of input.ambiguityHistory ?? []) {
+    if (entry?.question?.trim()) asked.push(entry.question.trim());
+    if (entry?.recoveryQuestion?.trim()) asked.push(entry.recoveryQuestion.trim());
+  }
+  return asked;
 }
 
 export function buildConversationHistory(input: {

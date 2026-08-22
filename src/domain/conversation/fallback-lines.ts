@@ -67,3 +67,33 @@ export const CANNED_CLOSING_FALLBACK_LINE =
 export function selectClosingFallbackLine(): string {
   return CANNED_CLOSING_FALLBACK_LINE;
 }
+
+/**
+ * Static same-turn retry line for the first unclear answer (2026-08-22
+ * recovery ladder): cheaper and more natural for an elementary learner than
+ * burning a generation call on a rephrased question. Never scored, never a
+ * model sentence — it must not be confusable with the material-correction
+ * repeat flow.
+ */
+export const SAY_IT_AGAIN_FALLBACK_LINE =
+  "Hmm... can you say it again?" as const;
+
+/**
+ * Deterministic prefix for the continuation line Coco speaks after a turn is
+ * flagged for teacher review in the background, so the handoff to the next
+ * question reads as part of the conversation instead of a silent topic jump.
+ */
+export const REVIEW_PENDING_ACKNOWLEDGMENT_PREFIX = "Okay! No worries!" as const;
+
+export function withReviewPendingAcknowledgment(line: string): string {
+  const trimmed = line.trim();
+  if (!trimmed) return trimmed;
+  if (
+    trimmed.toLocaleLowerCase("en-US").startsWith(
+      REVIEW_PENDING_ACKNOWLEDGMENT_PREFIX.toLocaleLowerCase("en-US"),
+    )
+  ) {
+    return trimmed;
+  }
+  return `${REVIEW_PENDING_ACKNOWLEDGMENT_PREFIX} ${trimmed}`;
+}

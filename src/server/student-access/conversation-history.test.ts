@@ -2,26 +2,13 @@ import { describe, expect, it } from "vitest";
 import { WITHHELD_STUDENT_RESPONSE } from "@/domain/ai/conversation-generation";
 import {
   buildConversationHistory,
-  selectUnclearRecoveryFallbackQuestion,
+  collectPreviouslyAskedQuestions,
 } from "@/server/student-access/conversation-history";
 
-describe("selectUnclearRecoveryFallbackQuestion", () => {
-  it("uses the active question for recovery 1", () => {
+describe("collectPreviouslyAskedQuestions", () => {
+  it("collects persisted conversation lines and recovery questions", () => {
     expect(
-      selectUnclearRecoveryFallbackQuestion({
-        attempt: 1,
-        activeQuestion: "Who do you like to play soccer with?",
-        conversationHistory: [],
-        ambiguityHistory: [],
-      }),
-    ).toBe("Who do you like to play soccer with?");
-  });
-
-  it("steps back to the latest understood exchange for recovery 2", () => {
-    expect(
-      selectUnclearRecoveryFallbackQuestion({
-        attempt: 2,
-        activeQuestion: "Do you play soccer with friends or family?",
+      collectPreviouslyAskedQuestions({
         conversationHistory: [
           {
             turnOrder: 1,
@@ -30,30 +17,30 @@ describe("selectUnclearRecoveryFallbackQuestion", () => {
           },
           {
             turnOrder: 2,
-            cocoLine: "Do you play soccer with friends or family?",
+            cocoLine: "Who do you like to play soccer with?",
             studentResponse: WITHHELD_STUDENT_RESPONSE,
           },
         ],
-        ambiguityHistory: [{ question: "Who do you like to play soccer with?" }],
+        ambiguityHistory: [
+          { question: "Who do you like to play soccer with?" },
+          { question: "Who do you like to play soccer with?", recoveryQuestion: "Hmm... can you say it again?" },
+        ],
       }),
-    ).toBe("What do you like to do after school?");
+    ).toEqual([
+      "What do you like to do after school?",
+      "Who do you like to play soccer with?",
+      "Who do you like to play soccer with?",
+      "Who do you like to play soccer with?",
+      "Hmm... can you say it again?",
+    ]);
   });
 
-  it("uses the saved opener for a turn-one second recovery", () => {
+  it("returns an empty list for a bare opener history", () => {
     expect(
-      selectUnclearRecoveryFallbackQuestion({
-        attempt: 2,
-        activeQuestion: "Do you like soccer?",
-        conversationHistory: [
-          {
-            turnOrder: 1,
-            cocoLine: "Do you like soccer?",
-            studentResponse: WITHHELD_STUDENT_RESPONSE,
-          },
-        ],
-        ambiguityHistory: [{ question: "What do you like to do after school?" }],
+      collectPreviouslyAskedQuestions({
+        conversationHistory: [],
       }),
-    ).toBe("What do you like to do after school?");
+    ).toEqual([]);
   });
 });
 

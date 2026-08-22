@@ -92,7 +92,17 @@ import {
   classifyFollowUpFallbackKind,
   selectClosingFallbackLine,
   selectFollowUpFallbackLine,
+  SAY_IT_AGAIN_FALLBACK_LINE,
+  withReviewPendingAcknowledgment,
 } from "@/domain/conversation/fallback-lines";
+import {
+  buildDeterministicPivotQuestion,
+  leadingQuestionWord,
+  pickRecoveryPivotWord,
+  topicAnchorWords,
+  validateRecoveryPivotQuestion,
+  type RecoveryPivotViolation,
+} from "@/domain/conversation/recovery-pivot";
 import {
   WITHHELD_STUDENT_RESPONSE,
   conversationReplyMode,
@@ -103,7 +113,7 @@ import {
 } from "@/domain/ai/conversation-generation";
 import {
   buildConversationHistory,
-  selectUnclearRecoveryFallbackQuestion,
+  collectPreviouslyAskedQuestions,
   type PersistedConversationTurn,
 } from "@/server/student-access/conversation-history";
 import { log } from "@/server/logging/logger";
@@ -156,6 +166,12 @@ export type CocoLineModerationEvent =
       violations: GeneratedCocoReplyLineViolation[];
       rejectedCandidate: GeneratedCocoReplyParts;
       rejectedAttempt: "first" | "corrected";
+    }
+  | {
+      /** W-pivot candidate broke a recovery rule; deterministic pivot used. */
+      kind: "canned_fallback";
+      cause: "recovery_pivot_rejected";
+      violations: RecoveryPivotViolation[];
     };
 
 export type CocoLineModerationEventKind =
@@ -1885,64 +1901,123 @@ export async function uploadAttemptAudioClip(
           originalEvaluation.ambiguityRetries === 2)
           ? originalEvaluation.ambiguityRetries
           : null;
+      const reviewPendingContinuation =
+        originalEvaluation?.outcome === "teacher_review";
       const currentStudentResponse =
-        recoveryAttempt !== null || originalEvaluation?.outcome === "teacher_review"
+        recoveryAttempt !== null || reviewPendingContinuation
           ? WITHHELD_STUDENT_RESPONSE
           : originalEvaluation?.improvedSentence?.trim() || transcript;
-      const historyResult = buildConversationHistory({
-        openerLine: snapshot.turns[0]?.prompt ?? "",
-        currentTurnOrder: input.turnOrder,
-        currentStudentResponse,
-        priorTurns: priorConversationTurns,
-      });
-      if (!historyResult.ok) {
-        logTiming("failed", {
-          error: "invalid_audio",
-          step: "conversation_history",
+
+      // Recovery ladder (2026-08-22): the first unclear answer gets the
+      // static say-it-again line — no generation call, nothing derived from
+      // the withheld transcript reaches the student, so history and
+      // moderation round-trips are skipped entirely.
+      if (recoveryAttempt === 1) {
+        cocoLine = SAY_IT_AGAIN_FALLBACK_LINE;
+      } else {
+        const historyResult = buildConversationHistory({
+          openerLine: snapshot.turns[0]?.prompt ?? "",
+          currentTurnOrder: input.turnOrder,
+          currentStudentResponse,
+          priorTurns: priorConversationTurns,
         });
-        return { ok: false, error: "invalid_audio", retryable: false };
+        if (!historyResult.ok) {
+          logTiming("failed", {
+            error: "invalid_audio",
+            step: "conversation_history",
+          });
+          return { ok: false, error: "invalid_audio", retryable: false };
+        }
+
+        const failedRecoveryQuestion =
+          missionQuestion ?? snapshot.turns[0]?.prompt ?? "";
+        const recoveryTopicSeed = snapshot.title;
+        const deterministicPivot = buildDeterministicPivotQuestion({
+          failedQuestion: failedRecoveryQuestion,
+          topicSeed: recoveryTopicSeed,
+        });
+
+        const generationPurpose =
+          recoveryAttempt === null
+            ? { kind: "next_turn" as const }
+            : {
+                kind: "unclear_recovery" as const,
+                attempt: recoveryAttempt,
+                fallbackQuestion: deterministicPivot,
+                ...((() => {
+                  const failedWord = leadingQuestionWord(failedRecoveryQuestion);
+                  const pivotWord = pickRecoveryPivotWord(failedWord);
+                  return pivotWord ? { pivotWord } : {};
+                })()),
+                ...(topicAnchorWords(recoveryTopicSeed).length > 0
+                  ? { topicSeed: recoveryTopicSeed }
+                  : {}),
+              };
+
+        const conversationOutcome = await timeStage("conversationTurn", () =>
+          runConversationTurn(
+            {
+              studentId: input.studentId,
+              assignmentStudentId: input.assignmentStudentId,
+              attemptId: input.attemptId,
+              turnOrder: input.turnOrder,
+              targetPattern,
+              requiredTurns: snapshot.requiredTurns,
+              studentTranscript: transcript,
+              conversationHistory: historyResult.history,
+              responseHandling:
+                recoveryAttempt !== null || reviewPendingContinuation
+                  ? "review_pending"
+                  : "normal",
+              generationPurpose,
+            },
+            {
+              generateCocoReply: deps.generateCocoReply ?? generateCocoReply,
+              isContentSafe: deps.isContentSafe ?? isContentSafe,
+            },
+          ),
+        );
+
+        cocoLine = conversationOutcome.cocoLine;
+        cocoLineModerationEvent = conversationOutcome.moderationEvent;
+
+        if (recoveryAttempt === 2 && cocoLine !== null) {
+          const pivotCheck = validateRecoveryPivotQuestion(cocoLine, {
+            failedQuestion: failedRecoveryQuestion,
+            topicSeed: recoveryTopicSeed,
+            previouslyAsked: collectPreviouslyAskedQuestions({
+              conversationHistory: historyResult.history,
+              ambiguityHistory: originalEvaluation?.ambiguityHistory,
+            }),
+          });
+          if (!pivotCheck.ok) {
+            log("warn", "ai.recovery_pivot_rejected", {
+              assignmentStudentId: input.assignmentStudentId,
+              attemptId: input.attemptId,
+              turnOrder: input.turnOrder,
+              reasons: pivotCheck.reasons,
+            });
+            cocoLine = deterministicPivot;
+            cocoLineModerationEvent = {
+              kind: "canned_fallback",
+              cause: "recovery_pivot_rejected",
+              violations: pivotCheck.reasons,
+            };
+          }
+        }
       }
 
-      const generationPurpose =
-        recoveryAttempt === null
-          ? { kind: "next_turn" as const }
-          : {
-              kind: "unclear_recovery" as const,
-              attempt: recoveryAttempt,
-              fallbackQuestion: selectUnclearRecoveryFallbackQuestion({
-                attempt: recoveryAttempt,
-                activeQuestion: missionQuestion ?? snapshot.turns[0]?.prompt ?? "",
-                conversationHistory: historyResult.history,
-                ambiguityHistory: originalEvaluation?.ambiguityHistory ?? [],
-              }),
-            };
+      // After a third-strike turn is flagged for teacher review in the
+      // background, the continuation question opens with a short spoken
+      // acknowledgment so the handoff does not read as a silent topic jump.
+      if (
+        cocoLine !== null &&
+        recoveryAttempt === null &&
+        reviewPendingContinuation
+      ) {
+        cocoLine = withReviewPendingAcknowledgment(cocoLine);
+      }
 
-      const conversationOutcome = await timeStage("conversationTurn", () =>
-        runConversationTurn(
-          {
-            studentId: input.studentId,
-            assignmentStudentId: input.assignmentStudentId,
-            attemptId: input.attemptId,
-            turnOrder: input.turnOrder,
-            targetPattern,
-            requiredTurns: snapshot.requiredTurns,
-            studentTranscript: transcript,
-            conversationHistory: historyResult.history,
-            responseHandling:
-              recoveryAttempt !== null || originalEvaluation?.outcome === "teacher_review"
-                ? "review_pending"
-                : "normal",
-            generationPurpose,
-          },
-          {
-            generateCocoReply: deps.generateCocoReply ?? generateCocoReply,
-            isContentSafe: deps.isContentSafe ?? isContentSafe,
-          },
-        ),
-      );
-
-      cocoLine = conversationOutcome.cocoLine;
-      cocoLineModerationEvent = conversationOutcome.moderationEvent;
       const resolvedCocoLine = cocoLine;
       const resolvedModerationEvent = cocoLineModerationEvent;
 
