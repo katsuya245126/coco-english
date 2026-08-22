@@ -4737,7 +4737,9 @@ describe("repeat cap accounting (issue #51)", () => {
           operation.payload.processing_status === "failed",
       ),
     ).toBe(true);
-    expect(evaluateRepeatTurn).toHaveBeenCalledTimes(1);
+    // Issue #66 extraction: the repeat-count lookup now precedes evaluation,
+    // so a known-broken write path fails before any paid provider call.
+    expect(evaluateRepeatTurn).not.toHaveBeenCalled();
   });
 });
 

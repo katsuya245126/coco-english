@@ -16,11 +16,6 @@ import { isExactTargetMatch } from "@/domain/ai/fast-path";
 import { isIncompleteUtterance } from "@/domain/ai/incomplete-utterance";
 import { buildReplyHintFrame } from "@/domain/ai/reply-hint-frame";
 import {
-  canonicalizeNoOpOriginalEvaluation,
-  validateOriginalEvaluationContract,
-  type OriginalEvaluationViolation,
-} from "@/domain/ai/original-evaluation-contract";
-import {
   isMinimalEffortAnswer,
   MAX_MINIMAL_EFFORT_BLOCKS,
 } from "@/domain/ai/minimal-effort-detection";
@@ -29,43 +24,18 @@ import {
   resolveMinimalEffortRetryExample,
   type MinimalEffortKind,
 } from "@/domain/ai/minimal-effort-feedback";
-import {
-  AI_EVALUATION_VERSION,
-  CORRECTION_POLICY_VERSION,
-  MAX_AMBIGUITY_RETRIES,
-  decideOriginalTurnOutcome,
-  guardNonsensicalMinimalEffortCorrection,
-  guardNoOpCorrection,
-  guardParrotedConversationCorrection,
-  type OriginalTurnGuardContext,
-  decideRepeatTurnOutcome,
-  originalTurnProviderFailureResult,
-  originalTurnSchemaFailureResult,
-  repeatTurnProviderFailureResult,
-  repeatTurnSchemaFailureResult,
-  type OriginalTurnDecision,
-  type OriginalTurnEvaluation,
-  type RepeatTurnDecision,
-  type RepeatTurnEvaluation,
-} from "@/domain/ai/turn-evaluation";
+import { AI_EVALUATION_VERSION } from "@/domain/ai/turn-evaluation";
 import {
   hasEnglishTranscript,
   normalizeEnglishTranscript,
   transcribeAudioFile,
   type TranscriptionEvidence,
 } from "@/server/audio/transcription";
-import {
-  isLowConfidenceTranscript,
-  isTranscriptConfidenceBelowGate,
-} from "@/domain/audio/transcript-confidence";
 import { buildTranscriptionVocabularyHint } from "@/domain/audio/vocabulary-hint";
 import { DEFAULT_COCO_TTS_VOICE } from "@/domain/audio/tts";
 import { warmTtsAudioCache } from "@/server/audio/tts-cache";
 import { scorePronunciation } from "@/server/audio/pronunciation-scorer";
-import {
-  buildLearnerTranscript,
-  type HangulInterpretation,
-} from "@/domain/audio/transcript-interpretation";
+import { buildLearnerTranscript } from "@/domain/audio/transcript-interpretation";
 import {
   wordsToPractice,
   type PronunciationStarBand,
@@ -74,11 +44,19 @@ import {
 import {
   evaluateOriginalTurn,
   evaluateRepeatTurn,
-  resolveEvaluationModel,
   resolveEvaluationRuntimeVersion,
-  type OriginalTurnEvaluationResult,
-  type RepeatTurnEvaluationResult,
 } from "@/server/ai/turn-evaluator";
+import {
+  buildFallbackProvenance,
+  deterministicOriginalEvaluation,
+  evaluateOriginalTurnAnswer,
+  evaluateRepeatTurnAnswer,
+  LOW_CONFIDENCE_REVIEW_REASON,
+  priorAmbiguityState,
+  priorMinimalEffortBlocks,
+  type StoredOriginalTurnEvaluation,
+  type StoredRepeatTurnEvaluation,
+} from "@/server/ai/answer-evaluation";
 import {
   canGenerateNextDynamicTurn,
   flagAttemptForTeacherReview,
@@ -123,22 +101,6 @@ import {
 import { log } from "@/server/logging/logger";
 
 const DEFAULT_AUDIO_BUCKET = "student-audio";
-const FAILED_SCHEMA_REVIEW_REASON = "failed_schema";
-/**
- * Free say-it-again retries granted for low-confidence transcripts before
- * the evaluator is allowed to see the text (issue #64). Mirrors the bounded
- * shape of the ambiguity ladder; exhausting it falls through to normal
- * evaluation, never straight to review.
- */
-export const MAX_LOW_CONFIDENCE_AUDIO_RETRIES = 2;
-/**
- * Review reason for a well-formed provider verdict rejected by a
- * deterministic contract check when policy repair could not fix it
- * (issue #65). `failed_schema` stays reserved for genuinely malformed or
- * unparseable output.
- */
-const CONTRACT_REJECTED_REVIEW_REASON = "contract_rejected" as const;
-const LOW_CONFIDENCE_REVIEW_REASON = "low_confidence";
 export const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
 export const MAX_AUDIO_DURATION_MS = 90_000;
 export const MIN_TRANSCRIBABLE_AUDIO_DURATION_MS = 500;
@@ -229,58 +191,16 @@ export type UploadAttemptAudioClipResult =
 export type UploadAttemptAudioClipDeps = {
   consumeRequestBudget?: typeof consumeRequestBudget;
   transcribeAudioFile?: typeof transcribeAudioFile;
+  /** Provider adapters, threaded through to the answer-evaluation module. */
   evaluateOriginalTurn?: typeof evaluateOriginalTurn;
   evaluateRepeatTurn?: typeof evaluateRepeatTurn;
+  /** Full pipeline override; defaults to the real evaluation module. */
+  evaluateOriginalTurnAnswer?: typeof evaluateOriginalTurnAnswer;
+  evaluateRepeatTurnAnswer?: typeof evaluateRepeatTurnAnswer;
   generateCocoReply?: typeof generateCocoReply;
   isContentSafe?: typeof isContentSafe;
   warmTtsAudioCache?: typeof warmTtsAudioCache;
   scorePronunciation?: typeof scorePronunciation;
-};
-
-type StoredEvaluationProvenance = Pick<
-  OriginalTurnEvaluation,
-  | "policyVersion"
-  | "evaluationModel"
-  | "evaluationSource"
-  | "transcriptionModel"
-  | "transcriptionConfidence"
-  | "runtimeVersion"
->;
-
-type StoredOriginalTurnEvaluation = StoredEvaluationProvenance & {
-  version: typeof AI_EVALUATION_VERSION;
-  outcome: OriginalTurnDecision["kind"];
-  confidence: OriginalTurnEvaluation["confidence"];
-  reviewReason: OriginalTurnEvaluation["reviewReason"];
-  meaningUnderstood: OriginalTurnEvaluation["meaningUnderstood"];
-  targetPatternAttempted: OriginalTurnEvaluation["targetPatternAttempted"];
-  englishLanguage: OriginalTurnEvaluation["englishLanguage"];
-  correctionNeeded: OriginalTurnEvaluation["correctionNeeded"];
-  correctionSeverity: OriginalTurnEvaluation["correctionSeverity"] | null;
-  correctionReason: OriginalTurnEvaluation["correctionReason"];
-  improvedSentence: string | null;
-  requireRepeat: boolean;
-  retryReason?: "minimal_effort" | "incomplete_recording" | "unclear_meaning";
-  minimalEffortBlocks?: number;
-  minimalEffortKind?: MinimalEffortKind;
-  retryExample?: string | null;
-  ambiguityRetries?: number;
-  /**
-   * Free say-it-again retries granted because the transcript itself decoded
-   * with low confidence (issue #64). Deliberately separate from
-   * `ambiguityRetries`: audio problems must not consume the meaningful-
-   * answer recovery budget nor escalate toward review on their own.
-   */
-  lowConfidenceAudioRetries?: number;
-  ambiguityHistory?: Array<{
-    transcript: string;
-    audioClipId: string;
-    evaluation: OriginalTurnEvaluation;
-    question?: string;
-    recoveryQuestion?: string;
-  }>;
-  contractViolations?: OriginalEvaluationViolation[];
-  hangulInterpretations: HangulInterpretation[];
 };
 
 /**
@@ -334,171 +254,6 @@ export function toStudentEvaluation(
   }
 
   return projected;
-}
-
-type OriginalTurnWriteDecision = {
-  evaluation: StoredOriginalTurnEvaluation;
-  targetAttempted: boolean | null;
-  improvedSentence: string | null;
-};
-
-type StoredRepeatTurnEvaluation = {
-  version: typeof AI_EVALUATION_VERSION;
-  outcome: RepeatTurnDecision["kind"];
-  confidence: RepeatTurnEvaluation["confidence"];
-  reviewReason: RepeatTurnEvaluation["reviewReason"];
-  englishLanguage: RepeatTurnEvaluation["englishLanguage"];
-  repeatCloseEnough: RepeatTurnEvaluation["repeatCloseEnough"];
-  repeatAccepted: boolean | null;
-  requireRepeat: boolean;
-  originalEvaluation?: StoredOriginalTurnEvaluation;
-  hangulInterpretations: HangulInterpretation[];
-};
-
-function deterministicOriginalEvaluation(
-  fields: Omit<StoredOriginalTurnEvaluation, keyof StoredEvaluationProvenance>,
-  evidence: StoredEvaluationProvenance,
-): StoredOriginalTurnEvaluation {
-  return {
-    ...fields,
-    ...evidence,
-    evaluationSource: "deterministic",
-  };
-}
-
-export function applyOriginalTurnEvaluation(
-  result: OriginalTurnEvaluationResult,
-  guardContext?: OriginalTurnGuardContext,
-  fallbackProvenance: StoredEvaluationProvenance = {
-    policyVersion: CORRECTION_POLICY_VERSION,
-    evaluationModel: "unknown",
-    evaluationSource: "model",
-    transcriptionModel: "unknown",
-    transcriptionConfidence: null,
-    runtimeVersion: "unknown",
-  },
-): OriginalTurnWriteDecision {
-  if (!result.ok) {
-    const decision =
-      result.error === "schema_failed"
-        ? originalTurnSchemaFailureResult()
-        : originalTurnProviderFailureResult();
-    const reviewReason =
-      result.error === "schema_failed"
-        ? FAILED_SCHEMA_REVIEW_REASON
-        : "provider_failed";
-
-    return {
-      evaluation: {
-        ...fallbackProvenance,
-        version: AI_EVALUATION_VERSION,
-        outcome: decision.kind,
-        confidence: "low",
-        reviewReason,
-        meaningUnderstood: false,
-        targetPatternAttempted: false,
-        englishLanguage: "uncertain",
-        correctionNeeded: false,
-        correctionSeverity: null,
-        correctionReason: "none",
-        improvedSentence: null,
-        requireRepeat: decision.requireRepeat,
-        hangulInterpretations: [],
-      },
-      targetAttempted: null,
-      improvedSentence: null,
-    };
-  }
-
-  const resolvedGuardContext = guardContext ?? {
-    evaluationMode: "preset",
-    missionQuestion: null,
-  };
-  const decision = guardNoOpCorrection(
-    guardNonsensicalMinimalEffortCorrection(
-      guardParrotedConversationCorrection(
-        decideOriginalTurnOutcome(
-          result.evaluation,
-          resolvedGuardContext.evaluationMode,
-          resolvedGuardContext.missionQuestion,
-          resolvedGuardContext.priorAmbiguityRetries ?? 0,
-        ),
-        resolvedGuardContext,
-      ),
-      resolvedGuardContext,
-    ),
-    resolvedGuardContext,
-  );
-  const improvedSentence =
-    decision.kind === "needs_correction" || decision.kind === "accepted_original"
-      ? decision.improvedSentence
-      : null;
-
-  return {
-    evaluation: {
-      ...result.evaluation,
-      version: AI_EVALUATION_VERSION,
-      outcome: decision.kind,
-      confidence: result.evaluation.confidence,
-      reviewReason:
-        decision.kind === "teacher_review"
-          ? decision.reviewReason || LOW_CONFIDENCE_REVIEW_REASON
-          : null,
-      meaningUnderstood: result.evaluation.meaningUnderstood,
-      targetPatternAttempted: result.evaluation.targetPatternAttempted,
-      englishLanguage: result.evaluation.englishLanguage,
-      correctionNeeded: result.evaluation.correctionNeeded,
-      correctionSeverity: result.evaluation.correctionSeverity,
-      correctionReason: result.evaluation.correctionReason,
-      improvedSentence,
-      requireRepeat: decision.requireRepeat,
-    },
-    targetAttempted: result.evaluation.targetPatternAttempted,
-    improvedSentence,
-  };
-}
-
-export function applyRepeatTurnEvaluation(
-  result: RepeatTurnEvaluationResult,
-  /** Repeat clips submitted for this turn so far, including this one. */
-  attemptNumber = 1,
-): StoredRepeatTurnEvaluation {
-  if (!result.ok) {
-    const decision =
-      result.error === "schema_failed"
-        ? repeatTurnSchemaFailureResult()
-        : repeatTurnProviderFailureResult();
-    const reviewReason =
-      result.error === "schema_failed"
-        ? FAILED_SCHEMA_REVIEW_REASON
-        : "provider_failed";
-
-    return {
-      version: AI_EVALUATION_VERSION,
-      outcome: decision.kind,
-      confidence: "low",
-      reviewReason,
-      englishLanguage: "uncertain",
-      repeatCloseEnough: false,
-      repeatAccepted: decision.repeatAccepted,
-      requireRepeat: decision.requireRepeat,
-      hangulInterpretations: [],
-    };
-  }
-
-  const decision = decideRepeatTurnOutcome(result.evaluation, attemptNumber);
-  return {
-    version: AI_EVALUATION_VERSION,
-    outcome: decision.kind,
-    confidence: result.evaluation.confidence,
-    reviewReason:
-      decision.kind === "teacher_review" ? decision.reviewReason : null,
-    englishLanguage: result.evaluation.englishLanguage,
-    repeatCloseEnough: result.evaluation.repeatCloseEnough,
-    repeatAccepted: decision.repeatAccepted,
-    requireRepeat: decision.kind === "retry_repeat" ? true : false,
-    hangulInterpretations: result.evaluation.hangulInterpretations,
-  };
 }
 
 function getStudentAudioBucketId() {
@@ -584,72 +339,6 @@ function isStoredOriginalEvaluation(
     "correctionSeverity" in value &&
     !("repeatCloseEnough" in value)
   );
-}
-
-function priorMinimalEffortBlocks(evaluation: unknown): number {
-  if (
-    typeof evaluation !== "object" ||
-    evaluation === null ||
-    Array.isArray(evaluation)
-  ) {
-    return 0;
-  }
-  const stored = evaluation as {
-    minimalEffortBlocks?: unknown;
-  };
-  return typeof stored.minimalEffortBlocks === "number" &&
-    Number.isFinite(stored.minimalEffortBlocks)
-    ? Math.max(0, Math.floor(stored.minimalEffortBlocks))
-    : 0;
-}
-
-/**
- * How many times this turn already answered a low-confidence transcript with
- * the free say-it-again retry (issue #64). Tracked separately from
- * `ambiguityRetries` so microphone problems never consume the meaningful-
- * answer recovery budget, and never escalate toward teacher review by
- * themselves.
- */
-function priorLowConfidenceAudioRetries(evaluation: unknown): number {
-  if (
-    typeof evaluation !== "object" ||
-    evaluation === null ||
-    Array.isArray(evaluation)
-  ) {
-    return 0;
-  }
-  const stored = evaluation as {
-    lowConfidenceAudioRetries?: unknown;
-  };
-  return typeof stored.lowConfidenceAudioRetries === "number" &&
-    Number.isFinite(stored.lowConfidenceAudioRetries)
-    ? Math.max(0, Math.floor(stored.lowConfidenceAudioRetries))
-    : 0;
-}
-
-function priorAmbiguityState(evaluation: unknown): Pick<
-  StoredOriginalTurnEvaluation,
-  "ambiguityRetries" | "ambiguityHistory"
-> {
-  if (
-    typeof evaluation !== "object" ||
-    evaluation === null ||
-    Array.isArray(evaluation)
-  ) {
-    return { ambiguityRetries: 0, ambiguityHistory: [] };
-  }
-
-  const stored = evaluation as Partial<StoredOriginalTurnEvaluation>;
-  return {
-    ambiguityRetries:
-      typeof stored.ambiguityRetries === "number" &&
-      Number.isFinite(stored.ambiguityRetries)
-        ? Math.max(0, Math.floor(stored.ambiguityRetries))
-        : 0,
-    ambiguityHistory: Array.isArray(stored.ambiguityHistory)
-      ? stored.ambiguityHistory
-      : [],
-  };
 }
 
 function persistedConversationRecoveryQuestion(
@@ -1301,14 +990,7 @@ export async function uploadAttemptAudioClip(
       model: transcription.model,
       confidence: transcription.confidence,
     };
-    const fallbackProvenance: StoredEvaluationProvenance = {
-      policyVersion: CORRECTION_POLICY_VERSION,
-      evaluationModel: resolveEvaluationModel(),
-      evaluationSource: "model",
-      transcriptionModel: transcriptionEvidence.model,
-      transcriptionConfidence: transcriptionEvidence.confidence,
-      runtimeVersion: resolveEvaluationRuntimeVersion(),
-    };
+    const fallbackProvenance = buildFallbackProvenance(transcriptionEvidence);
     const ambiguityState = priorAmbiguityState(
       (turn as { evaluation?: unknown }).evaluation,
     );
@@ -1546,357 +1228,69 @@ export async function uploadAttemptAudioClip(
     let recoveryPersistencePending = false;
     let lowConfidenceGateRetryApplied = false;
 
+    const evaluationInput = {
+      evaluationMode:
+        snapshot.conversationMode === true ? "conversation" : "preset",
+      missionQuestion: missionQuestion ?? undefined,
+      targetPattern,
+      targetExample,
+      level: snapshot.level,
+      turnOrder: input.turnOrder,
+      transcript,
+      requireCompleteSentenceAnswers:
+        snapshot.requireCompleteSentenceAnswers,
+      koreanSpans,
+      answerShape,
+      transcriptionEvidence,
+      runtimeVersion: resolveEvaluationRuntimeVersion(),
+    } as const;
     const turnWrite =
       input.clipKind === "original_answer"
         ? await (async () => {
-            // Skip the evaluator only for an exact authored-target match. An
-            // open answer that merely fits the frame shape (e.g. "I'd rather
-            // big city because more things to do") is structurally on-frame but
-            // may be ungrammatical, so it still needs the model — the frame
-            // regex proves shape, not grammar. The model prompt already keeps
-            // the child's own choice while correcting genuinely-wrong English.
-            const fastPathMatched = exactTargetMatched;
-            timings.evaluationFastPath = fastPathMatched ? 1 : 0;
-            const evaluate = deps.evaluateOriginalTurn ?? evaluateOriginalTurn;
-            const evaluationInput = {
-              evaluationMode:
-                snapshot.conversationMode === true ? "conversation" : "preset",
-              missionQuestion: missionQuestion ?? undefined,
-              targetPattern,
-              targetExample,
-              level: snapshot.level,
-              turnOrder: input.turnOrder,
-              transcript,
-              requireCompleteSentenceAnswers:
-                snapshot.requireCompleteSentenceAnswers,
-              koreanSpans,
-              answerShape,
-              transcriptionEvidence,
-              runtimeVersion: resolveEvaluationRuntimeVersion(),
-            } as const;
-            let evaluationResult: OriginalTurnEvaluationResult;
-            const storedLowConfidenceRetries = priorLowConfidenceAudioRetries(
-              turn.evaluation,
+            const evaluationOutcome = await (
+              deps.evaluateOriginalTurnAnswer ?? evaluateOriginalTurnAnswer
+            )(
+              {
+                evaluationInput,
+                priorTurnEvaluation: (
+                  turn as { evaluation?: unknown }
+                ).evaluation,
+                audioClipId: audioClip.id,
+                ...(snapshot.turns[0]?.prompt
+                  ? { openingPrompt: snapshot.turns[0].prompt }
+                  : {}),
+              },
+              { evaluate: deps.evaluateOriginalTurn ?? evaluateOriginalTurn },
             );
-            const transcriptConfidence = transcriptionEvidence.confidence;
-            // Issue #64 low-confidence gate: a transcript that decoded below
-            // the confidence threshold gets a free say-it-again retry BEFORE
-            // any evaluation call. The evaluator would only see garbled text
-            // and route it to teacher review — the dominant spurious-review
-            // cause in the 2026-08-21 export. Bounded so a broken microphone
-            // cannot loop forever; exhausting the gate falls through to the
-            // normal evaluation path, so escalation stays unchanged.
-            const lowConfidenceGateRetry =
-              transcriptConfidence !== null &&
-              isTranscriptConfidenceBelowGate(transcriptConfidence) &&
-              storedLowConfidenceRetries < MAX_LOW_CONFIDENCE_AUDIO_RETRIES;
-            lowConfidenceGateRetryApplied = lowConfidenceGateRetry;
-            if (lowConfidenceGateRetry) {
+            timings.evaluationFastPath = evaluationOutcome.fastPathUsed
+              ? 1
+              : 0;
+            if (evaluationOutcome.lowConfidenceGateRetryApplied) {
               timings.evaluationSkippedLowConfidence = 1;
               log("warn", "audio.low_confidence_gate_retry", {
                 assignmentStudentId: input.assignmentStudentId,
                 attemptId: input.attemptId,
                 turnOrder: input.turnOrder,
-                minLogprob: transcriptConfidence.minLogprob,
-                tokenCount: transcriptConfidence.tokenCount,
-                retriesAfter: storedLowConfidenceRetries + 1,
+                minLogprob: evaluationOutcome.gateRetryDetail?.minLogprob,
+                tokenCount: evaluationOutcome.gateRetryDetail?.tokenCount,
+                retriesAfter: evaluationOutcome.gateRetryDetail?.retriesAfter,
               });
-              evaluationResult = {
-                ok: true,
-                // The provider-shaped outcome satisfies the result type; the
-                // gated decision below rewrites it to retry_original without
-                // passing through decideOriginalTurnOutcome, so no ambiguity
-                // budget is consumed.
-                evaluation: {
-                  ...fallbackProvenance,
-                  version: AI_EVALUATION_VERSION,
-                  outcome: "teacher_review",
-                  meaningUnderstood: false,
-                  targetPatternAttempted: false,
-                  correctionNeeded: false,
-                  correctionSeverity: "none",
-                  correctionReason: "none",
-                  improvedSentence: null,
-                  englishLanguage: "uncertain",
-                  confidence: "low",
-                  reviewReason: null,
-                  hangulInterpretations: [],
-                  evaluationSource: "deterministic",
-                },
-              };
-            } else if (fastPathMatched) {
-              timings.evaluationFastPath = fastPathMatched ? 1 : 0;
-              evaluationResult = {
-                ok: true,
-                evaluation: {
-                  ...fallbackProvenance,
-                  version: AI_EVALUATION_VERSION,
-                  outcome: "correct",
-                  meaningUnderstood: true,
-                  targetPatternAttempted: true,
-                  correctionNeeded: false,
-                  correctionSeverity: "none",
-                  correctionReason: "none",
-                  improvedSentence: null,
-                  englishLanguage: "english",
-                  confidence: "high",
-                  reviewReason: null,
-                  evaluationSource: "deterministic",
-                  hangulInterpretations: [],
-                },
-              };
-            } else {
+            } else if (!evaluationOutcome.fastPathUsed) {
               timings.evaluationSkippedLowConfidence = 0;
-              evaluationResult = await timeStage("evaluation", () =>
-                evaluate(evaluationInput),
-              );
             }
+            Object.assign(timings, evaluationOutcome.stageMs);
+            lowConfidenceGateRetryApplied =
+              evaluationOutcome.lowConfidenceGateRetryApplied;
 
-            let contractViolations: OriginalEvaluationViolation[] = [];
-            let contractRejected = false;
-            if (lowConfidenceGateRetry) {
-              // Skipped entirely: the transcript is not trusted text, so
-              // canonicalizing it or paying for a policy-repair call about
-              // it would defeat the gate.
-            } else if (evaluationResult.ok) {
-              const canonicalEvaluation = canonicalizeNoOpOriginalEvaluation(
-                evaluationResult.evaluation,
-                transcript,
-                evaluationInput.evaluationMode,
-              );
-              const firstContract = validateOriginalEvaluationContract({
-                evaluation: canonicalEvaluation,
-                evaluationMode: evaluationInput.evaluationMode,
-                answerShape,
-                missionQuestion: missionQuestion ?? null,
-                targetPattern,
-                transcript,
-              });
-
-              if (firstContract.ok) {
-                evaluationResult = {
-                  ok: true,
-                  evaluation: canonicalEvaluation,
-                };
-              } else {
-                contractViolations = firstContract.violations;
-                const repaired = await timeStage("evaluationRepair", () =>
-                  evaluate({
-                    ...evaluationInput,
-                    policyRepair: { violations: firstContract.violations },
-                  }),
-                );
-
-                if (!repaired.ok) {
-                  evaluationResult = repaired;
-                } else {
-                  const canonicalRepair = canonicalizeNoOpOriginalEvaluation(
-                    repaired.evaluation,
-                    transcript,
-                    evaluationInput.evaluationMode,
-                  );
-                  const repairedContract = validateOriginalEvaluationContract({
-                    evaluation: canonicalRepair,
-                    evaluationMode: evaluationInput.evaluationMode,
-                    answerShape,
-                    missionQuestion: missionQuestion ?? null,
-                    targetPattern,
-                    transcript,
-                  });
-                  if (repairedContract.ok) {
-                    evaluationResult = {
-                      ok: true,
-                      evaluation: canonicalRepair,
-                    };
-                    contractViolations =
-                      canonicalRepair.outcome === "teacher_review" &&
-                      firstContract.violations.includes("prompt_echo")
-                        ? ["prompt_echo"]
-                        : [];
-                  } else {
-                    contractViolations = repairedContract.violations;
-                    contractRejected = true;
-                    log("warn", "ai.original_evaluation_contract_rejected", {
-                      violations: repairedContract.violations,
-                    });
-                    evaluationResult = {
-                      ok: false,
-                      error: "schema_failed",
-                    };
-                  }
-                }
-              }
-            }
-
-            if (
-              !evaluationResult.ok &&
-              evaluationResult.error === "schema_failed" &&
-              snapshot.conversationMode === true &&
-              isLowConfidenceTranscript(transcriptionEvidence.confidence)
-            ) {
-              evaluationResult = {
-                ok: true,
-                evaluation: {
-                  ...fallbackProvenance,
-                  version: AI_EVALUATION_VERSION,
-                  outcome: "teacher_review",
-                  meaningUnderstood: false,
-                  targetPatternAttempted: false,
-                  correctionNeeded: false,
-                  correctionSeverity: "none",
-                  correctionReason: "none",
-                  improvedSentence: null,
-                  englishLanguage: "uncertain",
-                  confidence: "low",
-                  reviewReason: "low_confidence",
-                  evaluationSource: "deterministic",
-                  hangulInterpretations: [],
-                },
-              };
-            }
-
-            // The gated decision is synthesized directly — no contract
-            // canonicalization or repair round-trip, either: the transcript
-            // is not trusted text, so spending another evaluation call to
-            // repair a verdict about it would defeat the gate.
-            const decision: OriginalTurnWriteDecision = lowConfidenceGateRetry
-              ? {
-                  evaluation: {
-                    ...fallbackProvenance,
-                    version: AI_EVALUATION_VERSION,
-                    outcome: "retry_original",
-                    confidence: "low",
-                    reviewReason: null,
-                    meaningUnderstood: false,
-                    targetPatternAttempted: false,
-                    englishLanguage: "uncertain",
-                    correctionNeeded: false,
-                    correctionSeverity: "none",
-                    correctionReason: "none",
-                    improvedSentence: null,
-                    requireRepeat: false,
-                    retryReason: "unclear_meaning",
-                    ambiguityRetries: priorAmbiguityState(turn.evaluation)
-                      .ambiguityRetries,
-                    lowConfidenceAudioRetries: storedLowConfidenceRetries + 1,
-                    hangulInterpretations: [],
-                    evaluationSource: "deterministic",
-                  },
-                  targetAttempted: false,
-                  improvedSentence: null,
-                }
-              : applyOriginalTurnEvaluation(
-                  evaluationResult,
-                  {
-                    evaluationMode:
-                      snapshot.conversationMode === true ? "conversation" : "preset",
-                    missionQuestion: missionQuestion ?? null,
-                    transcript,
-                    priorMinimalEffortBlocks: minimalEffortBlocks,
-                    priorAmbiguityRetries:
-                      contractViolations.includes("prompt_echo") &&
-                      (ambiguityState.ambiguityRetries ?? 0) > 0
-                        ? MAX_AMBIGUITY_RETRIES
-                        : ambiguityState.ambiguityRetries,
-                  },
-                  fallbackProvenance,
-                );
-            if (minimalEffortBlocks > 0) {
-              decision.evaluation.minimalEffortBlocks = minimalEffortBlocks;
-            }
-            // Preserve how many free audio retries this turn has already
-            // spent when the normal evaluation path takes over (gate
-            // exhausted or confident decode) — the synthesized gated
-            // decision sets it directly.
-            const carriedLowConfidenceRetries = priorLowConfidenceAudioRetries(
-              turn.evaluation,
-            );
-            if (!lowConfidenceGateRetry && carriedLowConfidenceRetries > 0) {
-              decision.evaluation.lowConfidenceAudioRetries =
-                carriedLowConfidenceRetries;
-            }
-            if (contractViolations.length > 0) {
-              decision.evaluation.contractViolations = contractViolations;
-              // Issue #65: a rejected verdict that policy repair could not
-              // fix is a contract rejection, not a schema decode failure.
-              // The synthesis path labels it failed_schema because that is
-              // the only !ok error it can express; relabel here where the
-              // violations are known. Genuine malformed-output failures carry
-              // no violations and keep failed_schema.
-              if (contractRejected && decision.evaluation.outcome === "teacher_review") {
-                decision.evaluation.reviewReason =
-                  CONTRACT_REJECTED_REVIEW_REASON;
-              }
-            }
-            if (
-              snapshot.conversationMode !== true &&
-              answerShape === "open" &&
-              contractViolations.includes("unsupported_detail") &&
-              minimalEffortBlocks === 0 &&
-              (ambiguityState.ambiguityRetries ?? 0) === 0
-            ) {
-              const rejectedEvaluation = {
-                ...decision.evaluation,
-                outcome: "teacher_review" as const,
-                meaningUnderstood: false,
-                targetPatternAttempted: false,
-                correctionNeeded: false,
-                correctionSeverity: "none" as const,
-                correctionReason: "none" as const,
-                improvedSentence: null,
-                englishLanguage: "uncertain" as const,
-                confidence: "low" as const,
-                reviewReason: decision.evaluation.reviewReason,
-              };
-              decision.evaluation.outcome = "retry_original";
-              decision.evaluation.reviewReason = null;
-              decision.evaluation.retryReason = "unclear_meaning";
-              decision.evaluation.ambiguityRetries = 1;
-              decision.evaluation.ambiguityHistory = [
-                ...(ambiguityState.ambiguityHistory ?? []),
-                {
-                  transcript,
-                  audioClipId: audioClip.id,
-                  evaluation: rejectedEvaluation,
-                },
-              ];
-            }
-            if (
-              snapshot.conversationMode === true &&
-              decision.evaluation.outcome === "retry_original" &&
-              decision.evaluation.retryReason === undefined &&
-              evaluationResult.ok &&
-              evaluationResult.evaluation.outcome === "teacher_review" &&
-              (ambiguityState.ambiguityRetries ?? 0) <
-                (contractViolations.includes("prompt_echo")
-                  ? 1
-                  : MAX_AMBIGUITY_RETRIES)
-            ) {
-              const ambiguityRetries =
-                (ambiguityState.ambiguityRetries ?? 0) + 1;
-              decision.evaluation.retryReason = "unclear_meaning";
-              decision.evaluation.ambiguityRetries = ambiguityRetries;
-              decision.evaluation.ambiguityHistory = [
-                ...(ambiguityState.ambiguityHistory ?? []),
-                {
-                  transcript,
-                  audioClipId: audioClip.id,
-                  evaluation: evaluationResult.evaluation,
-                  question: missionQuestion ?? snapshot.turns[0]?.prompt ?? "",
-                },
-              ];
-            } else if ((ambiguityState.ambiguityRetries ?? 0) > 0) {
-              decision.evaluation.ambiguityRetries =
-                ambiguityState.ambiguityRetries;
-              decision.evaluation.ambiguityHistory =
-                ambiguityState.ambiguityHistory;
-            }
+            const decision = evaluationOutcome.decision;
             originalEvaluation = decision.evaluation;
             recoveryPersistencePending =
               snapshot.conversationMode === true &&
               decision.evaluation.outcome === "retry_original" &&
               decision.evaluation.retryReason === "unclear_meaning" &&
-              !decision.evaluation.contractViolations?.includes("prompt_echo") &&
+              !decision.evaluation.contractViolations?.includes(
+                "prompt_echo",
+              ) &&
               (decision.evaluation.ambiguityRetries === 1 ||
                 decision.evaluation.ambiguityRetries === 2 ||
                 (typeof decision.evaluation.lowConfidenceAudioRetries ===
@@ -1940,41 +1334,9 @@ export async function uploadAttemptAudioClip(
             return write;
           })()
         : await (async () => {
-            // Skip the OpenAI evaluation call entirely when the repeat
-            // transcript is an exact normalized match for the sentence the
-            // student was asked to repeat — mirrors the original-answer fast
-            // path above. Without this, a verbatim repeat still depends on a
-            // non-deterministic LLM judgment call, which can (and did) reject
-            // an exact match.
-            const fastPathMatched = isExactTargetMatch(transcript, repeatTarget);
-            timings.evaluationFastPath = fastPathMatched ? 1 : 0;
-            const evaluationResult: RepeatTurnEvaluationResult = fastPathMatched
-              ? {
-                  ok: true,
-                  evaluation: {
-                    version: AI_EVALUATION_VERSION,
-                    outcome: "repeat_accepted",
-                    repeatCloseEnough: true,
-                    englishLanguage: "english",
-                    confidence: "high",
-                    reviewReason: null,
-                    hangulInterpretations: [],
-                  },
-                }
-              : await timeStage("evaluation", () => {
-                  const evaluate = deps.evaluateRepeatTurn ?? evaluateRepeatTurn;
-                  return evaluate({
-                    originalTranscript: turn.original_transcript ?? "",
-                    improvedSentence: repeatTarget,
-                    targetPattern,
-                    level: snapshot.level,
-                    repeatTranscript: transcript,
-                    koreanSpans,
-                  });
-                });
             // Count only prior repeats that completed transcription. The
-            // current row is still pending here, so add it after its upload,
-            // transcription, and evaluation have succeeded.
+            // current row is still pending here, so it is counted by the
+            // evaluation module as this clip's attempt number.
             const {
               count: priorRepeatClipCount,
               error: repeatCountError,
@@ -1989,10 +1351,24 @@ export async function uploadAttemptAudioClip(
                   .eq("processing_status", "transcribed"),
             );
             if (repeatCountError) return { error: repeatCountError };
-            const decision = applyRepeatTurnEvaluation(
-              evaluationResult,
-              (priorRepeatClipCount ?? 0) + 1,
+
+            const repeatOutcome = await (
+              deps.evaluateRepeatTurnAnswer ?? evaluateRepeatTurnAnswer
+            )(
+              {
+                repeatTarget,
+                originalTranscript: turn.original_transcript ?? "",
+                transcript,
+                koreanSpans,
+                targetPattern,
+                level: snapshot.level,
+                attemptNumber: (priorRepeatClipCount ?? 0) + 1,
+              },
+              { evaluate: deps.evaluateRepeatTurn ?? evaluateRepeatTurn },
             );
+            timings.evaluationFastPath = repeatOutcome.fastPathUsed ? 1 : 0;
+            Object.assign(timings, repeatOutcome.stageMs);
+            const decision = repeatOutcome.evaluation;
             repeatEvaluation = decision;
 
             // The original and the repeat arrive as separate uploads, so the
