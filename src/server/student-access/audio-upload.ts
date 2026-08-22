@@ -131,6 +131,13 @@ const FAILED_SCHEMA_REVIEW_REASON = "failed_schema";
  * evaluation, never straight to review.
  */
 export const MAX_LOW_CONFIDENCE_AUDIO_RETRIES = 2;
+/**
+ * Review reason for a well-formed provider verdict rejected by a
+ * deterministic contract check when policy repair could not fix it
+ * (issue #65). `failed_schema` stays reserved for genuinely malformed or
+ * unparseable output.
+ */
+const CONTRACT_REJECTED_REVIEW_REASON = "contract_rejected";
 const LOW_CONFIDENCE_REVIEW_REASON = "low_confidence";
 export const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
 export const MAX_AUDIO_DURATION_MS = 90_000;
@@ -670,7 +677,8 @@ function reviewReasonOrDefault(
     reviewReason === "low_confidence" ||
     reviewReason === "ambiguous" ||
     reviewReason === "failed_schema" ||
-    reviewReason === "provider_failed"
+    reviewReason === "provider_failed" ||
+    reviewReason === "contract_rejected"
   ) {
     return reviewReason;
   }
@@ -1796,6 +1804,19 @@ export async function uploadAttemptAudioClip(
             }
             if (contractViolations.length > 0) {
               decision.evaluation.contractViolations = contractViolations;
+              // Issue #65: a rejected verdict that policy repair could not
+              // fix is a contract rejection, not a schema decode failure.
+              // The synthesis path labels it failed_schema because that is
+              // the only !ok error it can express; relabel here where the
+              // violations are known. Genuine malformed-output failures carry
+              // no violations and keep failed_schema.
+              if (
+                decision.evaluation.outcome === "teacher_review" &&
+                decision.evaluation.reviewReason === FAILED_SCHEMA_REVIEW_REASON
+              ) {
+                decision.evaluation.reviewReason =
+                  CONTRACT_REJECTED_REVIEW_REASON;
+              }
             }
             if (
               snapshot.conversationMode !== true &&

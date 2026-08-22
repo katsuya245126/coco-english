@@ -1706,7 +1706,9 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     expect(result.evaluation).toMatchObject({
       outcome: "teacher_review",
       requireRepeat: false,
-      reviewReason: "failed_schema",
+      // Issue #65: a rejected verdict that repair could not fix is a
+      // contract rejection, not a schema decode failure.
+      reviewReason: "contract_rejected",
       contractViolations: ["pure_embellishment"],
     });
     expect(evaluateOriginalTurn).toHaveBeenCalledTimes(2);
@@ -3586,7 +3588,7 @@ describe("minimal-effort answer guard (conversation mode)", () => {
       ok: true,
       evaluation: {
         outcome: "teacher_review",
-        reviewReason: "failed_schema",
+        reviewReason: "contract_rejected",
         improvedSentence: null,
         requireRepeat: false,
         minimalEffortBlocks: 2,

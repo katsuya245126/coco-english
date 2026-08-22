@@ -23,6 +23,13 @@ export const aiEvaluationReviewReasonSchema = z.enum([
   "ambiguous",
   "failed_schema",
   "provider_failed",
+  /**
+   * The provider returned a well-formed verdict but a deterministic contract
+   * check rejected it and the policy repair could not fix it (issue #65).
+   * Distinct from failed_schema so the audit shows WHY the verdict was
+   * rejected rather than implying malformed output.
+   */
+  "contract_rejected",
 ]);
 
 export const correctionSeveritySchema = z.enum(["none", "minor", "material"]);

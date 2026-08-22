@@ -478,6 +478,33 @@ describe("uploadAttemptAudioClip", () => {
     expect(transcribeAudioFile).toHaveBeenCalled();
   });
 
+  it("keeps failed_schema for a genuine malformed-output failure with no contract involvement", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+
+    const result = await uploadAttemptAudioClip(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like apples."),
+      evaluateOriginalTurn: vi.fn(async () => ({
+        ok: false as const,
+        error: "schema_failed" as const,
+      })),
+    });
+
+    // Issue #65: only contract-check rejections relabel to
+    // contract_rejected; malformed output keeps the honest label.
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "teacher_review",
+        reviewReason: "failed_schema",
+      },
+    });
+    expect(
+      result.ok && result.evaluation && "contractViolations" in result.evaluation,
+    ).toBe(false);
+  });
+
   it("sends an on-frame open answer to the evaluator so grammar is still checked", async () => {
     // The frame regex proves shape ("I'd rather ___ because ___"), not grammar,
     // so an on-frame answer must still reach the model. A prior fast path

@@ -53,7 +53,8 @@ export type TeacherReviewReason =
   | "low_confidence"
   | "ambiguous"
   | "failed_schema"
-  | "provider_failed";
+  | "provider_failed"
+  | "contract_rejected";
 
 export type RouteTeacherReviewResult =
   | { ok: true }
