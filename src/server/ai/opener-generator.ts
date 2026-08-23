@@ -1,5 +1,9 @@
-import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
+import {
+  structuredOutputCall,
+  type StructuredOutputClient,
+  type StructuredOutputDeps,
+} from "@/server/ai/structured-output";
 import {
   generatedCocoOpenerSchema,
   openerGenerationInputSchema,
@@ -12,39 +16,16 @@ import { log } from "@/server/logging/logger";
 const DEFAULT_OPENER_MODEL = "gpt-4.1-mini";
 
 export type GenerateOpenerError =
-  | "missing_api_key"
-  | "provider_error"
-  | "schema_failed";
+  "missing_api_key" | "provider_failed" | "schema_failed";
 
 export type GenerateOpenerResult =
   | { ok: true; opener: GeneratedCocoOpener["opener"] }
   | { ok: false; error: GenerateOpenerError };
 
-export type OpenerResponsesClient = {
-  responses: {
-    parse(input: {
-      model: string;
-      input: Array<{
-        role: "system" | "user";
-        content: string;
-      }>;
-      text: {
-        format: unknown;
-      };
-    }): Promise<{ output_parsed?: unknown }>;
-  };
-};
+/** Shared wire shape since the structured-output seam (issue #69). */
+export type OpenerResponsesClient = StructuredOutputClient;
 
-export type GenerateOpenerDeps = {
-  apiKey?: string;
-  model?: string;
-  client?: OpenerResponsesClient;
-};
-
-function resolveApiKey(deps?: GenerateOpenerDeps) {
-  if (deps && "apiKey" in deps) return deps.apiKey?.trim() ?? "";
-  return process.env.OPENAI_API_KEY?.trim() ?? "";
-}
+export type GenerateOpenerDeps = StructuredOutputDeps;
 
 function resolveModel(deps?: GenerateOpenerDeps) {
   return (
@@ -52,10 +33,6 @@ function resolveModel(deps?: GenerateOpenerDeps) {
     process.env.OPENAI_OPENER_MODEL?.trim() ||
     DEFAULT_OPENER_MODEL
   );
-}
-
-function createClient(apiKey: string): OpenerResponsesClient {
-  return new OpenAI({ apiKey }) as OpenerResponsesClient;
 }
 
 const OPENER_SYSTEM_MESSAGE = [
@@ -85,34 +62,26 @@ export async function generateOpener(
     return { ok: false, error: "schema_failed" };
   }
 
-  const apiKey = resolveApiKey(deps);
-  if (!deps?.client && !apiKey) {
-    return { ok: false, error: "missing_api_key" };
-  }
-
-  try {
-    const client = deps?.client ?? createClient(apiKey);
-    const response = await client.responses.parse({
-      model: resolveModel(deps),
-      input: [
-        { role: "system", content: OPENER_SYSTEM_MESSAGE },
-        {
-          role: "user",
-          content: JSON.stringify(buildOpenerPrompt(validInput.data)),
-        },
-      ],
-      text: {
-        format: zodTextFormat(generatedCocoOpenerSchema, "coco_opener"),
-      },
-    });
-    const parsed = parseGeneratedCocoOpener(response.output_parsed);
-    if (!parsed.ok) {
-      return { ok: false, error: "schema_failed" };
+  const result = await structuredOutputCall({
+    deps,
+    model: resolveModel(deps),
+    systemMessage: OPENER_SYSTEM_MESSAGE,
+    userContent: JSON.stringify(buildOpenerPrompt(validInput.data)),
+    format: zodTextFormat(generatedCocoOpenerSchema, "coco_opener"),
+  });
+  if (!result.ok) {
+    if (result.error === "provider_failed") {
+      log("error", "ai.coco_opener_generation_failed", {
+        error: "provider_failed",
+      });
     }
-
-    return { ok: true, opener: parsed.opener.opener };
-  } catch {
-    log("error", "ai.coco_opener_generation_failed", { error: "provider_error" });
-    return { ok: false, error: "provider_error" };
+    return { ok: false, error: result.error };
   }
+
+  const parsed = parseGeneratedCocoOpener(result.outputParsed);
+  if (!parsed.ok) {
+    return { ok: false, error: "schema_failed" };
+  }
+
+  return { ok: true, opener: parsed.opener.opener };
 }

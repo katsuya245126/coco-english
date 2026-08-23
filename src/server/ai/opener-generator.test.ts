@@ -72,13 +72,13 @@ describe("generateOpener", () => {
     expect(requests).toHaveLength(0);
   });
 
-  it("fails provider_error when the injected client throws", async () => {
+  it("fails provider_failed when the injected client throws", async () => {
     const result = await generateOpener(
       { targetPattern: "I like ___." },
       { client: throwingClient() },
     );
 
-    expect(result).toEqual({ ok: false, error: "provider_error" });
+    expect(result).toEqual({ ok: false, error: "provider_failed" });
   });
 
   it("fails missing_api_key without creating a provider client", async () => {

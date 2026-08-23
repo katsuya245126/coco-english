@@ -5,8 +5,13 @@
  * the paid OpenAI API.
  */
 
-import OpenAI from "openai";
 import { z } from "zod";
+import {
+  hasApiKey,
+  structuredOutputCall,
+  type StructuredOutputClient,
+  type StructuredOutputDeps,
+} from "@/server/ai/structured-output";
 import type { OriginalEvaluationViolation } from "@/domain/ai/original-evaluation-contract";
 import type { HangulSpan } from "@/domain/audio/hangul-romanization";
 import { log } from "@/server/logging/logger";
@@ -29,9 +34,7 @@ import {
 const DEFAULT_EVALUATION_MODEL = "gpt-4.1-mini";
 
 export type TurnEvaluationError =
-  | "missing_api_key"
-  | "provider_failed"
-  | "schema_failed";
+  "missing_api_key" | "provider_failed" | "schema_failed";
 
 export type OriginalTurnEvaluationResult =
   | { ok: true; evaluation: OriginalTurnEvaluation }
@@ -41,20 +44,8 @@ export type RepeatTurnEvaluationResult =
   | { ok: true; evaluation: RepeatTurnEvaluation }
   | { ok: false; error: TurnEvaluationError };
 
-export type TurnEvaluationResponsesClient = {
-  responses: {
-    parse(input: {
-      model: string;
-      input: Array<{
-        role: "system" | "user";
-        content: string;
-      }>;
-      text: {
-        format: unknown;
-      };
-    }): Promise<{ output_parsed?: unknown }>;
-  };
-};
+/** Shared wire shape since the structured-output seam (issue #69). */
+export type TurnEvaluationResponsesClient = StructuredOutputClient;
 
 export type EvaluateOriginalTurnInput = {
   evaluationMode: "preset" | "conversation";
@@ -95,16 +86,7 @@ export type EvaluateRepeatTurnInput = {
   koreanSpans?: HangulSpan[];
 };
 
-export type TurnEvaluatorDeps = {
-  apiKey?: string;
-  model?: string;
-  client?: TurnEvaluationResponsesClient;
-};
-
-function resolveApiKey(deps?: TurnEvaluatorDeps) {
-  if (deps && "apiKey" in deps) return deps.apiKey?.trim() ?? "";
-  return process.env.OPENAI_API_KEY?.trim() ?? "";
-}
+export type TurnEvaluatorDeps = StructuredOutputDeps;
 
 export function resolveEvaluationModel(deps?: TurnEvaluatorDeps) {
   return (
@@ -116,14 +98,8 @@ export function resolveEvaluationModel(deps?: TurnEvaluatorDeps) {
 
 export function resolveEvaluationRuntimeVersion(override?: string) {
   return (
-    override?.trim() ||
-    process.env.VERCEL_GIT_COMMIT_SHA?.trim() ||
-    "local-dev"
+    override?.trim() || process.env.VERCEL_GIT_COMMIT_SHA?.trim() || "local-dev"
   );
-}
-
-function createClient(apiKey: string): TurnEvaluationResponsesClient {
-  return new OpenAI({ apiKey }) as TurnEvaluationResponsesClient;
 }
 
 /**
@@ -225,7 +201,9 @@ function missingSchemaFields(
 function blankStringFields(value: unknown): string[] | null {
   if (typeof value !== "object" || value === null) return null;
   return Object.entries(value as Record<string, unknown>)
-    .filter(([, entry]) => typeof entry === "string" && entry.trim().length === 0)
+    .filter(
+      ([, entry]) => typeof entry === "string" && entry.trim().length === 0,
+    )
     .map(([key]) => key);
 }
 
@@ -295,11 +273,11 @@ const correctionReasonInstructions = [
 
 const conversationSeverityInstructions = [
   "A correction is minor only when meaning is clear and relevant, content words and their word classes are intact, required clause and verb structure is intact, and only a local function-word detail changes.",
-  "Example: transcript \"I'm going to library\" may be minor with improvedSentence \"I'm going to the library.\" and must not require repetition.",
-  "A local regular singular/plural number inflection is also minor when the sentence structure and meaning stay the same and exactly one word changes by a regular s/es/ies suffix. Example: transcript \"I watch cartoon.\" may be minor with improvedSentence \"I watch cartoons.\" and must not require repetition.",
+  'Example: transcript "I\'m going to library" may be minor with improvedSentence "I\'m going to the library." and must not require repetition.',
+  'A local regular singular/plural number inflection is also minor when the sentence structure and meaning stay the same and exactly one word changes by a regular s/es/ies suffix. Example: transcript "I watch cartoon." may be minor with improvedSentence "I watch cartoons." and must not require repetition.',
   "A correction is material when required clause or verb structure is missing or incorrect, a word has the wrong class or semantic category, content must be invented or replaced, or a complete sentence is required but missing.",
-  "Example: \"I want read cartoon\" is material with \"I want to read cartoons.\" because the infinitive structure is missing.",
-  "Example: \"I will go to the exercise\" is material with \"I will exercise.\" because exercise is used as the wrong destination-noun category.",
+  'Example: "I want read cartoon" is material with "I want to read cartoons." because the infinitive structure is missing.',
+  'Example: "I will go to the exercise" is material with "I will exercise." because exercise is used as the wrong destination-noun category.',
   "Never classify by edit distance, character count, token count, or the short length of an inserted word.",
 ];
 
@@ -403,7 +381,7 @@ function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
           // whose romanization sounds like an English word, which are English
           // the child accented and must never be counted as the Korean side
           // (UAT 2026-07-24).
-          "This transcript mixes Korean and English. First, any Korean span whose romanization sounds like an English word (per the rule above) IS that English word — count it as English, not Korean. Then decide which of two cases the rest is. (a) Code-switch: the student built an English sentence and used Korean for one or two remaining words inside it, as in \"I'm going to 거제도 this summer\" or \"I like 축구\". This is NOT non_english — classify those Korean words as instructed below. (b) Korean answer in an English frame: the remaining Korean words carry the answer's meaning and the English words are only connective scaffolding such as a copula, article, conjunction or comparative, as in \"불고기 is 맛있어요\" (only \"is\" is English). Set englishLanguage to non_english; the student needs to try again in English. Judge by whether the English words — accented-English spans included — would still express an answer, not by counting words. (c) The transcript is entirely Korean, with no English words at all. Apply the same test: if the accented-English spans alone express the answer, this is an English answer the transcriber wrote in Hangul — as in \"바나나스\" (Bananaseu) for \"bananas\" — so it is NOT non_english; read it as that English word and judge it normally. Otherwise the student answered in Korean: set englishLanguage to non_english so they try again in English."
+          'This transcript mixes Korean and English. First, any Korean span whose romanization sounds like an English word (per the rule above) IS that English word — count it as English, not Korean. Then decide which of two cases the rest is. (a) Code-switch: the student built an English sentence and used Korean for one or two remaining words inside it, as in "I\'m going to 거제도 this summer" or "I like 축구". This is NOT non_english — classify those Korean words as instructed below. (b) Korean answer in an English frame: the remaining Korean words carry the answer\'s meaning and the English words are only connective scaffolding such as a copula, article, conjunction or comparative, as in "불고기 is 맛있어요" (only "is" is English). Set englishLanguage to non_english; the student needs to try again in English. Judge by whether the English words — accented-English spans included — would still express an answer, not by counting words. (c) The transcript is entirely Korean, with no English words at all. Apply the same test: if the accented-English spans alone express the answer, this is an English answer the transcriber wrote in Hangul — as in "바나나스" (Bananaseu) for "bananas" — so it is NOT non_english; read it as that English word and judge it normally. Otherwise the student answered in Korean: set englishLanguage to non_english so they try again in English.'
         : "Treat non-English transcripts as non_english and not successful practice.",
       "Common English phrasing variants (contractions like 'I am' vs 'I'm', minor word-order or article differences that preserve the same meaning) are equivalent and should not cause needs_correction.",
       ...koreanSpanInstructions,
@@ -433,7 +411,8 @@ function buildOriginalPrompt(input: EvaluateOriginalTurnInput) {
 }
 
 function buildRepeatPrompt(input: EvaluateRepeatTurnInput) {
-  const improvedSentence = input.improvedSentence ?? input.expectedSentence ?? "";
+  const improvedSentence =
+    input.improvedSentence ?? input.expectedSentence ?? "";
   const repeatTranscript = input.repeatTranscript ?? input.transcript ?? "";
   const koreanSpans = input.koreanSpans ?? [];
   const koreanSpanInstructions =
@@ -443,7 +422,7 @@ function buildRepeatPrompt(input: EvaluateRepeatTurnInput) {
             .map((span) => `"${span.hangul}" (romanized: ${span.romanized})`)
             .join(", ")}.`,
           "For each Korean-script span, say its romanization aloud in your head. If the romanization sounds like an English word or phrase in improvedSentence (Banilra -> vanilla, Aiseukeurim -> ice cream, Chokolrit -> chocolate, Pija -> pizza), treat that span as the English word the child repeated with a Korean accent, not non_english.",
-          "Compare the normalized reading to improvedSentence. Example: repeatTranscript \"바닐라 아이스크림 is tastier than strawberry 아이스크림.\" with improvedSentence \"Vanilla ice cream is tastier than strawberry ice cream.\" should be repeat_accepted when the only differences are those phonetic Korean-script spans.",
+          'Compare the normalized reading to improvedSentence. Example: repeatTranscript "바닐라 아이스크림 is tastier than strawberry 아이스크림." with improvedSentence "Vanilla ice cream is tastier than strawberry ice cream." should be repeat_accepted when the only differences are those phonetic Korean-script spans.',
           "Only mark englishLanguage non_english when the repeat meaning is carried by Korean words that do not phonetically resemble the expected English sentence.",
           "Return exactly one hangulInterpretations item for each supplied Korean-script span, in the same order, and no other items.",
           "Use kind accented_english only when the romanization clearly sounds like an English word or phrase the child intended. Put that English spelling in englishReading.",
@@ -489,7 +468,8 @@ function validOriginalInput(input: EvaluateOriginalTurnInput) {
 }
 
 function validRepeatInput(input: EvaluateRepeatTurnInput) {
-  const improvedSentence = input.improvedSentence ?? input.expectedSentence ?? "";
+  const improvedSentence =
+    input.improvedSentence ?? input.expectedSentence ?? "";
   const repeatTranscript = input.repeatTranscript ?? input.transcript ?? "";
 
   return (
@@ -507,85 +487,80 @@ export async function evaluateOriginalTurn(
     return { ok: false, error: "schema_failed" };
   }
 
-  const apiKey = resolveApiKey(deps);
-  if (!apiKey) {
+  if (!hasApiKey(deps)) {
     return { ok: false, error: "missing_api_key" };
   }
 
-  try {
-    const client = deps?.client ?? createClient(apiKey);
-    const model = resolveEvaluationModel(deps);
-    const transcriptionEvidence =
-      input.transcriptionEvidence ?? { model: "unknown", confidence: null };
-    const repairInstruction = input.policyRepair
-      ? ` The previous evaluation was rejected by deterministic correction policy. Violations: ${input.policyRepair.violations.join(", ")}.${
-          input.policyRepair.violations.includes("romanization_artifact")
-            ? " romanization_artifact means the improved sentence spelled a Korean word out letter by letter instead of translating it, producing a word that does not exist in English. Never do this: it becomes a word the child is asked to pronounce. If you cannot confidently translate the Korean word, do not correct this turn — return outcome teacher_review."
-            : ""
-        } Return one replacement evaluation that fixes every named violation. Do not quote or defend the rejected sentence.`
-      : "";
-    const response = await client.responses.parse({
-      model,
-      input: [
-        {
-          role: "system",
-          content:
-            `Evaluate a child's guided ESL original answer. Return only data matching the schema.${repairInstruction}`,
-        },
-        {
-          role: "user",
-          content: JSON.stringify(buildOriginalPrompt(input)),
-        },
-      ],
-      text: {
-        format: zodTextFormat(
-          originalTurnProviderEvaluationSchema,
-          "original_turn_evaluation",
-        ),
-      },
-    });
-    if (response.output_parsed == null) {
-      logUnparsedEvaluationResponse("original", model, response);
-      return { ok: false, error: "provider_failed" };
-    }
-    const parsed = originalTurnProviderEvaluationSchema.safeParse(
-      response.output_parsed,
-    );
-
-    if (!parsed.success) {
-      logSchemaFailure("original", model, response, parsed.error);
-      return { ok: false, error: "schema_failed" };
-    }
-
-    const evaluation: OriginalTurnEvaluation = {
-      ...parsed.data,
-      policyVersion: CORRECTION_POLICY_VERSION,
-      evaluationModel: model,
-      evaluationSource: "model",
-      transcriptionModel: transcriptionEvidence.model,
-      transcriptionConfidence: transcriptionEvidence.confidence,
-      runtimeVersion: resolveEvaluationRuntimeVersion(input.runtimeVersion),
-    };
-
-    return { ok: true, evaluation };
-  } catch (cause) {
+  const model = resolveEvaluationModel(deps);
+  const transcriptionEvidence = input.transcriptionEvidence ?? {
+    model: "unknown",
+    confidence: null,
+  };
+  const repairInstruction = input.policyRepair
+    ? ` The previous evaluation was rejected by deterministic correction policy. Violations: ${input.policyRepair.violations.join(", ")}.${
+        input.policyRepair.violations.includes("romanization_artifact")
+          ? " romanization_artifact means the improved sentence spelled a Korean word out letter by letter instead of translating it, producing a word that does not exist in English. Never do this: it becomes a word the child is asked to pronounce. If you cannot confidently translate the Korean word, do not correct this turn — return outcome teacher_review."
+          : ""
+      } Return one replacement evaluation that fixes every named violation. Do not quote or defend the rejected sentence.`
+    : "";
+  const call = await structuredOutputCall({
+    deps,
+    model,
+    systemMessage: `Evaluate a child's guided ESL original answer. Return only data matching the schema.${repairInstruction}`,
+    userContent: JSON.stringify(buildOriginalPrompt(input)),
+    format: zodTextFormat(
+      originalTurnProviderEvaluationSchema,
+      "original_turn_evaluation",
+    ),
+  });
+  if (!call.ok) {
     log("error", "ai.evaluation_failed", {
       turnKind: "original",
       error: "provider_failed",
-      ...describeThrown(cause),
+      ...(call.error === "provider_failed" ? describeThrown(call.cause) : {}),
     });
+    return { ok: false, error: call.error };
+  }
+  if (call.outputParsed == null) {
+    logUnparsedEvaluationResponse("original", model, call.response);
     return { ok: false, error: "provider_failed" };
   }
+  const parsed = originalTurnProviderEvaluationSchema.safeParse(
+    call.outputParsed,
+  );
+
+  if (!parsed.success) {
+    logSchemaFailure("original", model, call.response, parsed.error);
+    return { ok: false, error: "schema_failed" };
+  }
+
+  const evaluation: OriginalTurnEvaluation = {
+    ...parsed.data,
+    policyVersion: CORRECTION_POLICY_VERSION,
+    evaluationModel: model,
+    evaluationSource: "model",
+    transcriptionModel: transcriptionEvidence.model,
+    transcriptionConfidence: transcriptionEvidence.confidence,
+    runtimeVersion: resolveEvaluationRuntimeVersion(input.runtimeVersion),
+  };
+
+  return { ok: true, evaluation };
 }
 
 /** Provider error shape, without leaking prompt or student content. */
 function describeThrown(cause: unknown) {
-  const err = cause as { name?: unknown; status?: unknown; code?: unknown; message?: unknown };
+  const err = cause as {
+    name?: unknown;
+    status?: unknown;
+    code?: unknown;
+    message?: unknown;
+  };
   return {
     causeName: typeof err?.name === "string" ? err.name : null,
     causeStatus: typeof err?.status === "number" ? err.status : null,
     causeCode: typeof err?.code === "string" ? err.code : null,
-    causeMessage: typeof err?.message === "string" ? err.message.slice(0, 200) : null,
+    causeMessage:
+      typeof err?.message === "string" ? err.message.slice(0, 200) : null,
   };
 }
 
@@ -597,81 +572,61 @@ export async function evaluateRepeatTurn(
     return { ok: false, error: "schema_failed" };
   }
 
-  const apiKey = resolveApiKey(deps);
-  if (!apiKey) {
+  if (!hasApiKey(deps)) {
     return { ok: false, error: "missing_api_key" };
   }
 
-  try {
-    const client = deps?.client ?? createClient(apiKey);
-    const model = resolveEvaluationModel(deps);
-    const response = await client.responses.parse({
-      model,
-      input: [
-        {
-          role: "system",
-          content:
-            "Evaluate a child's guided ESL repeat attempt. Return only data matching the schema.",
-        },
-        {
-          role: "user",
-          content: JSON.stringify(buildRepeatPrompt(input)),
-        },
-      ],
-      text: {
-        format: zodTextFormat(
-          repeatTurnEvaluationSchema,
-          "repeat_turn_evaluation",
-        ),
-      },
-    });
-    if (response.output_parsed == null) {
-      logUnparsedEvaluationResponse("repeat", model, response);
-      return { ok: false, error: "provider_failed" };
-    }
-    const parsed = repeatTurnEvaluationSchema.safeParse(response.output_parsed);
-
-    if (!parsed.success) {
-      logSchemaFailure(
-        "repeat",
-        model,
-        response,
-        parsed.error,
-      );
-      return { ok: false, error: "schema_failed" };
-    }
-
-    /*
-     * Repeats have no policy-repair loop, so coverage is enforced here instead.
-     * Incomplete metadata against a Hangul repeat would otherwise reach the
-     * display helper and silently hide the transcript with no stored reason.
-     */
-    const repeatTranscript = input.repeatTranscript ?? input.transcript ?? "";
-    const interpretationValidation = validateHangulInterpretations(
-      repeatTranscript,
-      parsed.data.hangulInterpretations,
-    );
-    if (!interpretationValidation.ok) {
-      log("error", "ai.evaluation_schema_failed", {
-        turnKind: "repeat",
-        model,
-        issues: [
-          {
-            path: "hangulInterpretations",
-            code: interpretationValidation.reason,
-          },
-        ],
-      });
-      return { ok: false, error: "schema_failed" };
-    }
-
-    return { ok: true, evaluation: parsed.data };
-  } catch (cause) {
+  const model = resolveEvaluationModel(deps);
+  const call = await structuredOutputCall({
+    deps,
+    model,
+    systemMessage:
+      "Evaluate a child's guided ESL repeat attempt. Return only data matching the schema.",
+    userContent: JSON.stringify(buildRepeatPrompt(input)),
+    format: zodTextFormat(repeatTurnEvaluationSchema, "repeat_turn_evaluation"),
+  });
+  if (!call.ok) {
     log("error", "ai.evaluation_failed", {
       turnKind: "repeat",
       error: "provider_failed",
-      ...describeThrown(cause),
+      ...(call.error === "provider_failed" ? describeThrown(call.cause) : {}),
     });
+    return { ok: false, error: call.error };
+  }
+  if (call.outputParsed == null) {
+    logUnparsedEvaluationResponse("repeat", model, call.response);
     return { ok: false, error: "provider_failed" };
   }
+  const parsed = repeatTurnEvaluationSchema.safeParse(call.outputParsed);
+
+  if (!parsed.success) {
+    logSchemaFailure("repeat", model, call.response, parsed.error);
+    return { ok: false, error: "schema_failed" };
+  }
+
+  /*
+   * Repeats have no policy-repair loop, so coverage is enforced here instead.
+   * Incomplete metadata against a Hangul repeat would otherwise reach the
+   * display helper and silently hide the transcript with no stored reason.
+   */
+  const repeatTranscript = input.repeatTranscript ?? input.transcript ?? "";
+  const interpretationValidation = validateHangulInterpretations(
+    repeatTranscript,
+    parsed.data.hangulInterpretations,
+  );
+  if (!interpretationValidation.ok) {
+    log("error", "ai.evaluation_schema_failed", {
+      turnKind: "repeat",
+      model,
+      issues: [
+        {
+          path: "hangulInterpretations",
+          code: interpretationValidation.reason,
+        },
+      ],
+    });
+    return { ok: false, error: "schema_failed" };
+  }
+
+  return { ok: true, evaluation: parsed.data };
 }
