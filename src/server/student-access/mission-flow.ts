@@ -11,10 +11,10 @@
  */
 
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
+import { requireOwnedAssignmentStudent } from "@/server/student-access/owned-assignment";
 import type { Json } from "@/lib/db/types";
 import { assertTransitionRequest } from "@/domain/foundation/status";
 import { buildPlaceholderEvaluation } from "@/domain/flow/evaluation";
-import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
 import { log } from "@/server/logging/logger";
 import { nextUnfinishedTurnOrder } from "@/domain/flow/completion";
 import { HARD_TURN_CAP } from "@/domain/ai/conversation-generation";
@@ -66,26 +66,6 @@ export type RecordCocoLineResult =
 
 // ─── Helpers ───
 
-/** Load assignment_students row scoped to both id AND student_id (V4 ownership). */
-async function loadOwnedAssignmentStudent(
-  supabase: ReturnType<typeof createSupabaseServiceClient>,
-  assignmentStudentId: string,
-  studentId: string,
-) {
-  const { data, error } = await supabase
-    .from("assignment_students")
-    .select("id, assignment_id, student_id, status, latest_attempt_id, attempt_count, highest_hint_level, assignments(canceled_at)")
-    .eq("id", assignmentStudentId)
-    .eq("student_id", studentId)
-    .maybeSingle();
-
-  if (error || !data) return null;
-  const assignment = (data as { assignments?: { canceled_at?: string | null } | null })
-    .assignments;
-  if (assignment?.canceled_at) return null;
-  return data;
-}
-
 async function loadOwnedAttempt(
   supabase: ReturnType<typeof createSupabaseServiceClient>,
   assignmentStudentId: string,
@@ -101,21 +81,6 @@ async function loadOwnedAttempt(
   if (error) return { ok: false as const, error: "db_error" as const };
   if (!data) return { ok: false as const, error: "not_found" as const };
   return { ok: true as const, attempt: data };
-}
-
-async function loadCompleteMissionSnapshot(
-  supabase: ReturnType<typeof createSupabaseServiceClient>,
-  assignmentId: string,
-) {
-  const { data, error } = await supabase
-    .from("assignments")
-    .select("mission_snapshot")
-    .eq("id", assignmentId)
-    .maybeSingle();
-
-  if (error || !data) return null;
-  const result = interpretMissionSnapshot(data.mission_snapshot);
-  return result.kind === "complete" ? result.snapshot : null;
 }
 
 // ─── Service functions ───
@@ -161,11 +126,11 @@ export async function flagAttemptForTeacherReview(input: {
 }): Promise<RouteTeacherReviewResult> {
   try {
     const supabase = createSupabaseServiceClient();
-    const asRow = await loadOwnedAssignmentStudent(
-      supabase,
-      input.assignmentStudentId,
-      input.studentId,
-    );
+    const ownedProof1 = await requireOwnedAssignmentStudent({
+      studentId: input.studentId,
+      assignmentStudentId: input.assignmentStudentId,
+    });
+    const asRow = ownedProof1.ok ? ownedProof1.owned : null;
     if (!asRow || asRow.status !== "started") {
       return { ok: false, error: "not_found" };
     }
@@ -210,25 +175,23 @@ export async function startOrResumeAttempt(input: {
     const supabase = createSupabaseServiceClient();
 
     // 1. Load owned assignment_students row
-    const asRow = await loadOwnedAssignmentStudent(
-      supabase,
-      input.assignmentStudentId,
-      input.studentId,
-    );
+    const ownedProof2 = await requireOwnedAssignmentStudent({
+      studentId: input.studentId,
+      assignmentStudentId: input.assignmentStudentId,
+    });
+    const asRow = ownedProof2.ok ? ownedProof2.owned : null;
     if (!asRow) return { ok: false, error: "not_found" };
 
-    const snapshot = await loadCompleteMissionSnapshot(
-      supabase,
-      asRow.assignment_id,
-    );
+    // The seam already interpreted the owned snapshot.
+    const snapshot = asRow.snapshot;
     if (!snapshot) return { ok: false, error: "not_found" };
 
     // 2. If already started, try to resume the existing in_progress attempt
-    if (asRow.status === "started" && asRow.latest_attempt_id) {
+    if (asRow.status === "started" && asRow.latestAttemptId) {
       const { data: attempt } = await supabase
         .from("attempts")
         .select("id, status")
-        .eq("id", asRow.latest_attempt_id)
+        .eq("id", asRow.latestAttemptId)
         .eq("status", "in_progress")
         .maybeSingle();
 
@@ -305,7 +268,7 @@ export async function startOrResumeAttempt(input: {
       .update({
         status: "started" as const,
         latest_attempt_id: newAttempt.id,
-        attempt_count: asRow.attempt_count + 1,
+        attempt_count: (asRow.attemptCount ?? 0) + 1,
       })
       .eq("id", input.assignmentStudentId)
       .eq("status", asRow.status)
@@ -320,15 +283,15 @@ export async function startOrResumeAttempt(input: {
         .update({ status: "abandoned" as const })
         .eq("id", newAttempt.id);
 
-      const resumed = await loadOwnedAssignmentStudent(
-        supabase,
-        input.assignmentStudentId,
-        input.studentId,
-      );
-      if (resumed?.latest_attempt_id) {
+      const ownedProof3 = await requireOwnedAssignmentStudent({
+        studentId: input.studentId,
+        assignmentStudentId: input.assignmentStudentId,
+      });
+      const resumed = ownedProof3.ok ? ownedProof3.owned : null;
+      if (resumed?.latestAttemptId) {
         return {
           ok: true,
-          attemptId: resumed.latest_attempt_id,
+          attemptId: resumed.latestAttemptId,
           isResume: true,
           resumeTurnOrder: 1,
         };
@@ -385,11 +348,11 @@ export async function recordAnswer(input: {
     const supabase = createSupabaseServiceClient();
 
     // Verify ownership
-    const asRow = await loadOwnedAssignmentStudent(
-      supabase,
-      input.assignmentStudentId,
-      input.studentId,
-    );
+    const ownedProof4 = await requireOwnedAssignmentStudent({
+      studentId: input.studentId,
+      assignmentStudentId: input.assignmentStudentId,
+    });
+    const asRow = ownedProof4.ok ? ownedProof4.owned : null;
     if (!asRow) return { ok: false, error: "not_found" };
 
     const attempt = await loadOwnedAttempt(
@@ -429,7 +392,7 @@ export async function recordAnswer(input: {
  *
  * Upserts on (attempt_id, turn_order) — same idempotency shape as
  * recordAnswer, so a second call for the same turn_order overwrites rather
- * than duplicates. Enforces ownership via loadOwnedAssignmentStudent +
+ * than duplicates. Enforces ownership via requireOwnedAssignmentStudent +
  * loadOwnedAttempt before writing (V4) — never trusts a client-supplied
  * turn number. Generation/moderation calls themselves live in the
  * orchestration layer (audio-upload.ts); this function is persistence-only,
@@ -448,11 +411,11 @@ export async function recordCocoLine(input: {
     const supabase = createSupabaseServiceClient();
 
     // Verify ownership
-    const asRow = await loadOwnedAssignmentStudent(
-      supabase,
-      input.assignmentStudentId,
-      input.studentId,
-    );
+    const ownedProof5 = await requireOwnedAssignmentStudent({
+      studentId: input.studentId,
+      assignmentStudentId: input.assignmentStudentId,
+    });
+    const asRow = ownedProof5.ok ? ownedProof5.owned : null;
     if (!asRow) return { ok: false, error: "not_found" };
 
     const attempt = await loadOwnedAttempt(
@@ -509,11 +472,11 @@ export async function recordRepeat(input: {
     const supabase = createSupabaseServiceClient();
 
     // Verify ownership
-    const asRow = await loadOwnedAssignmentStudent(
-      supabase,
-      input.assignmentStudentId,
-      input.studentId,
-    );
+    const ownedProof6 = await requireOwnedAssignmentStudent({
+      studentId: input.studentId,
+      assignmentStudentId: input.assignmentStudentId,
+    });
+    const asRow = ownedProof6.ok ? ownedProof6.owned : null;
     if (!asRow) return { ok: false, error: "not_found" };
 
     const attempt = await loadOwnedAttempt(
@@ -572,11 +535,11 @@ export async function recordHintReveal(input: {
     const supabase = createSupabaseServiceClient();
 
     // Verify ownership
-    const asRow = await loadOwnedAssignmentStudent(
-      supabase,
-      input.assignmentStudentId,
-      input.studentId,
-    );
+    const ownedProof7 = await requireOwnedAssignmentStudent({
+      studentId: input.studentId,
+      assignmentStudentId: input.assignmentStudentId,
+    });
+    const asRow = ownedProof7.ok ? ownedProof7.owned : null;
     if (!asRow) return { ok: false, error: "not_found" };
 
     const attempt = await loadOwnedAttempt(
@@ -612,7 +575,7 @@ export async function recordHintReveal(input: {
     if (updateErr) return { ok: false, error: "db_error" };
 
     // Roll up assignment_students.highest_hint_level = GREATEST(highest_hint_level, hintLevel)
-    const newHighest = Math.max(asRow.highest_hint_level ?? 0, input.hintLevel);
+    const newHighest = Math.max(asRow.highestHintLevel ?? 0, input.hintLevel);
     await supabase
       .from("assignment_students")
       .update({ highest_hint_level: newHighest })
@@ -638,17 +601,15 @@ export async function completeAttempt(input: {
   try {
     const supabase = createSupabaseServiceClient();
 
-    const asRow = await loadOwnedAssignmentStudent(
-      supabase,
-      input.assignmentStudentId,
-      input.studentId,
-    );
+    const ownedProof8 = await requireOwnedAssignmentStudent({
+      studentId: input.studentId,
+      assignmentStudentId: input.assignmentStudentId,
+    });
+    const asRow = ownedProof8.ok ? ownedProof8.owned : null;
     if (!asRow) return { ok: false, error: "not_found" };
 
-    const snapshot = await loadCompleteMissionSnapshot(
-      supabase,
-      asRow.assignment_id,
-    );
+    // The seam already interpreted the owned snapshot.
+    const snapshot = asRow.snapshot;
     if (!snapshot) return { ok: false, error: "not_found" };
 
     const { data, error } = await supabase.rpc("complete_student_attempt", {

@@ -17,14 +17,19 @@ const shellSource = readFileSync(
 
 describe("student mission resume state", () => {
   it("requires a complete interpreted snapshot before live work", () => {
-    expect(pageSource).toContain("interpretMissionSnapshot");
-    expect(pageSource).toContain('snapshotResult.kind !== "complete"');
-    expect(pageSource).toContain("snapshotResult.snapshot");
+    // Snapshot interpretation happens inside the owned-assignment seam;
+    // the page redirects when the seam returns no complete snapshot.
+    expect(pageSource).toContain(
+      'import { requireOwnedAssignmentStudent } from "@/server/student-access/owned-assignment";',
+    );
+    expect(pageSource).toContain("const snapshot = asRow.snapshot;");
+    expect(pageSource).toContain("if (!snapshot) {");
     expect(pageSource).not.toContain("missionSnapshotSchema");
-    expect(pageSource.indexOf('snapshotResult.kind !== "complete"')).toBeLessThan(
+    expect(pageSource).not.toContain('from("assignment_students")');
+    expect(pageSource.indexOf("requireOwnedAssignmentStudent")).toBeLessThan(
       pageSource.indexOf("after(() => warmEvaluators"),
     );
-    expect(pageSource.indexOf('snapshotResult.kind !== "complete"')).toBeLessThan(
+    expect(pageSource.indexOf("if (!snapshot) {")).toBeLessThan(
       pageSource.indexOf("<MissionFlowShell"),
     );
   });

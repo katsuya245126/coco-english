@@ -486,8 +486,10 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     // reuse the same turn_order values. Filtering only on the assignment-level
     // join makes .maybeSingle() error on the duplicate rows, resolving the line
     // to null → 404 → "Voice unavailable". The lookups must pin to the current
-    // attempt via assignment_students.latest_attempt_id.
-    expect(routeSource).toContain("latest_attempt_id");
+    // attempt via assignment_students.latest_attempt_id, surfaced by the
+    // owned-assignment seam as latestAttemptId.
+    expect(routeSource).toContain("owned.owned.latestAttemptId");
+    expect(routeSource).toContain("requireOwnedAssignmentStudent");
     expect(routeSource).toMatch(/\.eq\("attempt_id", latestAttemptId\)/);
   });
 

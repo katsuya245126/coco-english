@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { readStudentUnlock } from "@/app/join/actions";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
-import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
+import { requireOwnedAssignmentStudent } from "@/server/student-access/owned-assignment";
 import { getCharacterProfile } from "@/domain/character/profile";
 import {
   DEFAULT_COCO_TTS_VOICE,
@@ -127,52 +127,25 @@ export async function POST(request: Request, context: RouteContext) {
 
   const supabase = createSupabaseServiceClient();
 
-  // Load owned assignment + snapshot for line resolution and ownership.
-  const { data: assignmentStudent, error: ownershipError } = await supabase
-    .from("assignment_students")
-    .select("id, student_id, latest_attempt_id, assignments(mission_snapshot, canceled_at)")
-    .eq("id", assignmentStudentId)
-    .eq("student_id", unlock.studentId)
-    .maybeSingle();
-
-  if (ownershipError || !assignmentStudent) {
+  // Prove ownership + load the frozen snapshot through the one auditable seam.
+  const owned = await requireOwnedAssignmentStudent({
+    studentId: unlock.studentId,
+    assignmentStudentId,
+  });
+  if (!owned.ok || !owned.owned.snapshot) {
     return NextResponse.json(
       { ok: false, error: "not_found" },
       { status: 404 },
     );
   }
-
-  const rawSnapshot = (
-    assignmentStudent as {
-      assignments?: {
-        mission_snapshot?: unknown;
-        canceled_at?: string | null;
-      } | null;
-    }
-  ).assignments;
-  if (rawSnapshot?.canceled_at) {
-    return NextResponse.json(
-      { ok: false, error: "not_found" },
-      { status: 404 },
-    );
-  }
-  const snapshotResult = interpretMissionSnapshot(rawSnapshot?.mission_snapshot);
-  if (snapshotResult.kind !== "complete") {
-    return NextResponse.json(
-      { ok: false, error: "not_found" },
-      { status: 404 },
-    );
-  }
-  const snapshot = snapshotResult.snapshot;
+  const snapshot = owned.owned.snapshot;
 
   const characterId = parsed.data.characterId ?? snapshot.characterId;
   // A restarted/retried mission produces additional attempts whose
   // attempt_turns reuse the same turn_order values, so the per-turn lookups
   // below must pin to the current attempt — an assignment-wide join returns
   // duplicate rows and .maybeSingle() errors, surfacing as "Voice unavailable".
-  const latestAttemptId =
-    (assignmentStudent as { latest_attempt_id?: string | null })
-      .latest_attempt_id ?? null;
+  const latestAttemptId = owned.owned.latestAttemptId;
 
   let resolvedTurn: ResolvedSnapshotTurn | null = null;
   if (parsed.data.turnOrder) {

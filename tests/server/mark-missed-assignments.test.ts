@@ -236,9 +236,15 @@ function createMockSupabase() {
             );
             return {
               ...row,
-              assignments: this.columns?.includes("assignments(canceled_at)")
-                ? { canceled_at: null }
-                : { due_at: row.due_at },
+              assignments: this.columns?.includes("mission_snapshot")
+                ? {
+                    canceled_at: null,
+                    title: "Mock assignment",
+                    mission_snapshot: completeMissionSnapshot,
+                  }
+                : this.columns?.includes("assignments(canceled_at)")
+                  ? { canceled_at: null }
+                  : { due_at: row.due_at },
               latest_attempt:
                 row.id === "late-opened"
                   ? latestAttempt

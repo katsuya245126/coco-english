@@ -1,7 +1,7 @@
 import type { TranslatableCocoLine } from "@/domain/ai/translation-hint";
-import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
 import type { MissionLevel } from "@/domain/mission/schemas";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
+import { requireOwnedAssignmentStudent } from "@/server/student-access/owned-assignment";
 
 export type ResolveOwnedTranslationSourceResult =
   | {
@@ -19,37 +19,20 @@ export async function resolveOwnedTranslationSource(input: {
   line: TranslatableCocoLine;
 }): Promise<ResolveOwnedTranslationSourceResult> {
   const supabase = createSupabaseServiceClient();
-  const { data: assignmentStudent, error: ownershipError } = await supabase
-    .from("assignment_students")
-    .select(
-      "id, student_id, latest_attempt_id, assignments(mission_snapshot, canceled_at)",
-    )
-    .eq("id", input.assignmentStudentId)
-    .eq("student_id", input.studentId)
-    .maybeSingle();
-
-  if (ownershipError) return { ok: false, error: "db_error" };
-  if (!assignmentStudent) return { ok: false, error: "not_found" };
-
-  const owned = assignmentStudent as typeof assignmentStudent & {
-    latest_attempt_id?: string | null;
-    assignments?: {
-      mission_snapshot?: unknown;
-      canceled_at?: string | null;
-    } | null;
-  };
-  if (owned.assignments?.canceled_at) {
-    return { ok: false, error: "not_found" };
+  const owned = await requireOwnedAssignmentStudent({
+    studentId: input.studentId,
+    assignmentStudentId: input.assignmentStudentId,
+  });
+  if (!owned.ok) {
+    return {
+      ok: false,
+      error: owned.error === "db_error" ? "db_error" : "not_found",
+    };
   }
 
-  const snapshotResult = interpretMissionSnapshot(
-    owned.assignments?.mission_snapshot,
-  );
-  if (snapshotResult.kind !== "complete") {
-    return { ok: false, error: "not_found" };
-  }
+  const snapshot = owned.owned.snapshot;
+  if (!snapshot) return { ok: false, error: "not_found" };
 
-  const snapshot = snapshotResult.snapshot;
   if (input.line.lineKind === "mission_prompt") {
     const turn = snapshot.turns.find(
       (candidate) => candidate.turnOrder === input.line.turnOrder,
@@ -61,7 +44,7 @@ export async function resolveOwnedTranslationSource(input: {
     };
   }
 
-  const latestAttemptId = owned.latest_attempt_id;
+  const latestAttemptId = owned.owned.latestAttemptId;
   if (!latestAttemptId) return { ok: false, error: "not_found" };
 
   const { data: turn, error: turnError } = await supabase
