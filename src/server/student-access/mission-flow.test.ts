@@ -140,7 +140,14 @@ function createMockSupabase(options: {
                         : "attempt-1",
                     attempt_count: 1,
                     highest_hint_level: 0,
-                    assignments: { canceled_at: null },
+                    assignments: {
+                      canceled_at: null,
+                      title: "Mock mission",
+                      mission_snapshot:
+                        "missionSnapshot" in options
+                          ? options.missionSnapshot
+                          : makeCompleteSnapshot(),
+                    },
                   },
             error: null,
           };

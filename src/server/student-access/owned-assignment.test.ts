@@ -99,7 +99,6 @@ describe("requireOwnedAssignmentStudent", () => {
     expect(owned).toMatchObject({
       id: "as-1",
       assignmentId: "assignment-1",
-      studentId: "student-1",
       status: "started",
       latestAttemptId: "attempt-latest",
       attemptCount: 2,
@@ -166,6 +165,47 @@ describe("requireOwnedAssignmentStudent", () => {
         assignments: {
           title: "Soccer homework",
           mission_snapshot: { broken: true },
+          canceled_at: null,
+        },
+      }),
+    };
+
+    const result = await requireOwnedAssignmentStudent({
+      studentId: "student-1",
+      assignmentStudentId: "as-1",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.owned.snapshot).toBeNull();
+    expect(result.owned.status).toBe("started");
+  });
+});
+
+describe("requireOwnedAssignmentStudent snapshot kinds", () => {
+  beforeEach(() => {
+    options = {};
+    operations = [];
+  });
+
+  it("returns null snapshot for a legacy snapshot while keeping the owned row", async () => {
+    options = {
+      row: ownedRow({
+        assignments: {
+          title: "Foundation homework",
+          mission_snapshot: {
+            missionId: "11111111-1111-4111-8111-111111111111",
+            title: "Foundation Smoke Assignment",
+            characterId: "default-buddy",
+            requiredTurns: 1,
+            turns: [
+              {
+                order: 1,
+                prompt: "Say hello.",
+                targetExample: "Hello!",
+              },
+            ],
+          },
           canceled_at: null,
         },
       }),

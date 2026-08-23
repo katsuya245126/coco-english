@@ -84,7 +84,6 @@ function toOwned(
   return {
     id: row.id,
     assignmentId: row.assignment_id,
-    studentId: row.student_id,
     status: row.status,
     latestAttemptId: row.latest_attempt_id,
     attemptCount: row.attempt_count,
