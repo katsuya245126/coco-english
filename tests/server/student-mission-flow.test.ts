@@ -86,7 +86,9 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
 
     expect(uploadSource).toContain("evaluateOriginalTurn");
     expect(uploadSource).toContain("evaluateRepeatTurn");
-    expect(uploadSource).toContain("teacher_review");
+    // Review routing vocabulary is single-sourced in the stored-evaluation
+    // contract (issue #74); the shell must not spell the literal itself.
+    expect(uploadSource).toContain("TEACHER_REVIEW_OUTCOME");
     expect(uploadSource).toContain("failed_schema");
     expect(uploadSource).toContain("low_confidence");
     expect(shellSource).not.toContain("teacher_review");

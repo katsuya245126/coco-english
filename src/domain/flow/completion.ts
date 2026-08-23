@@ -16,6 +16,13 @@ import {
   hangulInterpretationSchema,
   type HangulInterpretation,
 } from "@/domain/audio/transcript-interpretation";
+import {
+  AI_EVALUATION_VERSION,
+} from "@/domain/ai/turn-evaluation";
+import {
+  parseStoredEvaluation,
+  TEACHER_REVIEW_OUTCOME,
+} from "@/domain/ai/stored-evaluation";
 
 export type CompletionTurn = {
   turn_order: number;
@@ -158,25 +165,15 @@ function originalAnswerAccepted(turn: CompletionTurn): boolean {
     return false;
   }
 
-  if (
-    typeof turn.evaluation !== "object" ||
-    turn.evaluation === null ||
-    Array.isArray(turn.evaluation)
-  ) {
-    return false;
-  }
-
-  const evaluation = turn.evaluation as {
-    version?: unknown;
-    outcome?: unknown;
-    requireRepeat?: unknown;
-  };
-
+  // The version gate keeps pre-discriminant rows of unknown vintage excluded;
+  // discrimination itself lives in the shared stored-evaluation contract.
+  const parsed = parseStoredEvaluation(turn.evaluation);
   return (
-    evaluation.version === "ai-eval-v1" &&
-    evaluation.requireRepeat === false &&
-    (evaluation.outcome === "accepted_original" ||
-      evaluation.outcome === "teacher_review")
+    parsed.ok &&
+    parsed.evaluation.version === AI_EVALUATION_VERSION &&
+    parsed.evaluation.requireRepeat === false &&
+    (parsed.evaluation.outcome === "accepted_original" ||
+      parsed.evaluation.outcome === TEACHER_REVIEW_OUTCOME)
   );
 }
 
@@ -194,25 +191,13 @@ function repeatAnswerFinished(turn: CompletionTurn): boolean {
     return false;
   }
 
-  if (
-    typeof turn.evaluation !== "object" ||
-    turn.evaluation === null ||
-    Array.isArray(turn.evaluation)
-  ) {
-    return false;
-  }
-
-  const evaluation = turn.evaluation as {
-    version?: unknown;
-    outcome?: unknown;
-    requireRepeat?: unknown;
-  };
-
+  const parsed = parseStoredEvaluation(turn.evaluation);
   return (
-    evaluation.version === "ai-eval-v1" &&
-    (evaluation.outcome === "teacher_review" ||
-      evaluation.outcome === "repeat_limit_reached") &&
-    evaluation.requireRepeat === false
+    parsed.ok &&
+    parsed.evaluation.version === AI_EVALUATION_VERSION &&
+    (parsed.evaluation.outcome === TEACHER_REVIEW_OUTCOME ||
+      parsed.evaluation.outcome === "repeat_limit_reached") &&
+    parsed.evaluation.requireRepeat === false
   );
 }
 

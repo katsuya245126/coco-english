@@ -45,6 +45,7 @@ import {
 } from "@/server/ai/answer-evaluation";
 import {
   parseStoredEvaluation,
+  TEACHER_REVIEW_OUTCOME,
   type StudentFacingEvaluation,
 } from "@/domain/ai/stored-evaluation";
 
@@ -1154,7 +1155,7 @@ export async function uploadAttemptAudioClip(
               ),
             );
 
-            if (write.error || decision.evaluation.outcome !== "teacher_review") {
+            if (write.error || decision.evaluation.outcome !== TEACHER_REVIEW_OUTCOME) {
               return write;
             }
 
@@ -1231,7 +1232,7 @@ export async function uploadAttemptAudioClip(
                 .eq("id", turn.id),
             );
 
-            if (write.error || decision.outcome !== "teacher_review") {
+            if (write.error || decision.outcome !== TEACHER_REVIEW_OUTCOME) {
               return write;
             }
 
@@ -1332,7 +1333,7 @@ export async function uploadAttemptAudioClip(
           originalEvaluation.lowConfidenceAudioRetries > 0);
       const freeSameTurnRetry = recoveryAttempt !== null || lowConfidenceAudioRetry;
       const reviewPendingContinuation =
-        originalEvaluation?.outcome === "teacher_review";
+        originalEvaluation?.outcome === TEACHER_REVIEW_OUTCOME;
       const currentStudentResponse =
         freeSameTurnRetry || reviewPendingContinuation
           ? WITHHELD_STUDENT_RESPONSE
@@ -1519,7 +1520,7 @@ export async function uploadAttemptAudioClip(
 
         // Kick off TTS for Coco's new line via the existing warm-cache path
         // used for preset/improved lines — no forked audio pipeline.
-        if (originalEvaluation?.outcome !== "teacher_review") {
+        if (originalEvaluation?.outcome !== TEACHER_REVIEW_OUTCOME) {
           try {
             const warm = deps.warmTtsAudioCache ?? warmTtsAudioCache;
             await timeStage("ttsWarmupCocoLine", () =>
