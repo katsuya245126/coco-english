@@ -1,17 +1,21 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
+import type { Database } from "@/lib/db/types";
 import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
 import type { MissionSnapshot } from "@/domain/mission/schemas";
 
 // Owned-assignment proof seam (T-04-12 / V4 ownership).
 //
-// This module is THE single implementation of the student-access security
-// invariant: every service-role read of an assignment_students row proves
-// ownership by filtering on BOTH the row id and the server-verified
-// student_id, guards against canceled assignments, and interprets the frozen
-// mission snapshot in exactly one way. Routes derive `studentId` from the
-// signed unlock cookie; service-layer entry points pass through the value
-// their own caller proved. Caller-supplied IDs alone are never authorization —
-// a row only comes back when the database itself contains that student_id.
+// The single implementation of the assignment-read half of the student-access
+// security invariant: prove ownership by filtering on BOTH the row id and the
+// server-verified student_id, guard against canceled assignments, and
+// interpret the frozen mission snapshot in exactly one way. Routes derive
+// `studentId` from the signed unlock cookie; service-layer entry points pass
+// through the value their own caller proved. Caller-supplied IDs alone are
+// never authorization — a row only comes back when the database itself
+// contains that student_id.
+//
+// Known exception (documented in issue #67): audio-upload.ts keeps its
+// concurrent lookup until its planned restructure lands.
 //
 // A missing row and a canceled assignment collapse into ONE generic failure
 // so cancellation state can never leak to the client. Admission rules that
@@ -23,7 +27,7 @@ export type OwnedAssignmentStudent = {
   id: string;
   assignmentId: string;
   studentId: string;
-  status: string;
+  status: Database["public"]["Tables"]["assignment_students"]["Row"]["status"];
   latestAttemptId: string | null;
   attemptCount: number | null;
   highestHintLevel: number | null;
@@ -38,11 +42,14 @@ export type OwnedAssignmentStudentResult =
   | { ok: true; owned: OwnedAssignmentStudent }
   | { ok: false; error: "not_found_or_canceled" | "db_error" };
 
+type AssignmentStudentStatus =
+  Database["public"]["Tables"]["assignment_students"]["Row"]["status"];
+
 type OwnedRow = {
   id: string;
   assignment_id: string;
   student_id: string;
-  status: string;
+  status: AssignmentStudentStatus;
   latest_attempt_id: string | null;
   attempt_count: number | null;
   highest_hint_level: number | null;
@@ -93,7 +100,8 @@ function toOwned(
 /**
  * Prove that this assignment_students row exists, belongs to `studentId`,
  * and is not canceled — then hand back its owned state with the parsed
- * mission snapshot. The one place the ownership query lives.
+ * mission snapshot. The one place the ownership query lives. Returns a
+ * Result union; despite the `require` prefix it never throws.
  */
 export async function requireOwnedAssignmentStudent(input: {
   studentId: string;
