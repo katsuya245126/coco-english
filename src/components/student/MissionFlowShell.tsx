@@ -460,19 +460,21 @@ export function MissionFlowShell({
     starBand?: PronunciationStarBand | null,
     wordsToPractice?: WordHighlight[],
   ): RepeatFeedback {
-    if (evaluation?.outcome === "retry_repeat") {
-      return { kind: "repeatRetry", transcript, starBand, wordsToPractice };
-    }
-    if (evaluation?.outcome === TEACHER_REVIEW_OUTCOME) {
-      return { kind: "repeatReview", transcript, starBand, wordsToPractice };
-    }
-    if (evaluation?.outcome === "repeat_limit_reached") {
-      return {
-        kind: "repeatLimitReached",
-        transcript,
-        starBand,
-        wordsToPractice,
-      };
+    if (evaluation?.kind === "repeat") {
+      if (evaluation.outcome === "retry_repeat") {
+        return { kind: "repeatRetry", transcript, starBand, wordsToPractice };
+      }
+      if (evaluation.outcome === TEACHER_REVIEW_OUTCOME) {
+        return { kind: "repeatReview", transcript, starBand, wordsToPractice };
+      }
+      if (evaluation.outcome === "repeat_limit_reached") {
+        return {
+          kind: "repeatLimitReached",
+          transcript,
+          starBand,
+          wordsToPractice,
+        };
+      }
     }
     return { kind: "repeatAccepted", transcript, starBand, wordsToPractice };
   }
@@ -528,6 +530,8 @@ export function MissionFlowShell({
       }
       return { kind: "retryOriginal", transcript, starBand, wordsToPractice };
     }
+    // Intentionally cross-kind: both original and repeat evaluations can
+    // route to review, and either must render the teacher-review card.
     if (evaluation?.outcome === TEACHER_REVIEW_OUTCOME) {
       return { kind: "teacherReview", transcript, starBand, wordsToPractice };
     }

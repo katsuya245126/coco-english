@@ -865,8 +865,9 @@ export type RepeatAnswerEvaluationRequest = {
   /**
    * The stored original evaluation this repeat answers — carried from the
    * same upload when both clips arrive together, otherwise read from the
-   * durable row. Persisted verbatim under evaluation.originalEvaluation so
-   * correctionSeverity evidence survives the repeat write.
+   * durable row. Persisted under evaluation.originalEvaluation (stamped
+   * with the original discriminant when a pre-discriminant row supplies
+   * it) so correctionSeverity evidence survives the repeat write.
    */
   originalEvaluation?: StoredOriginalTurnEvaluation;
 };
@@ -932,7 +933,12 @@ export async function evaluateRepeatTurnAnswer(
     evaluation: {
       ...applyRepeatTurnEvaluation(evaluationResult, input.attemptNumber),
       ...(input.originalEvaluation
-        ? { originalEvaluation: input.originalEvaluation }
+        ? {
+            originalEvaluation: {
+              ...input.originalEvaluation,
+              kind: "original",
+            },
+          }
         : {}),
     },
     fastPathUsed,

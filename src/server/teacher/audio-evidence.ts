@@ -18,6 +18,7 @@ import {
 import {
   isStoredTeacherReview,
   parseStoredEvaluation,
+  storedOriginalOf,
   storedOriginalMetadataOf,
 } from "@/domain/ai/stored-evaluation";
 
@@ -337,12 +338,8 @@ function mapClip(
   };
 }
 
-function evaluationOf(row: AttemptTurnRow) {
-  return parseStoredEvaluation(row.evaluation);
-}
-
 function topLevelInterpretationsOf(row: AttemptTurnRow): unknown {
-  const parsed = evaluationOf(row);
+  const parsed = parseStoredEvaluation(row.evaluation);
   return parsed.ok ? parsed.evaluation.hangulInterpretations : undefined;
 }
 
@@ -354,27 +351,20 @@ function isTeacherReview(row: AttemptTurnRow) {
 }
 
 function mapMeaningResult(row: AttemptTurnRow): AttemptTurnEvidence["meaningResult"] {
-  const parsed = evaluationOf(row);
+  const original = storedOriginalOf(row.evaluation);
   if (isTeacherReview(row)) return "Needs teacher check";
-  if (parsed.ok && parsed.evaluation.outcome === "retry_original") {
-    return "Try again";
-  }
-  if (parsed.ok && parsed.kind === "original" && parsed.evaluation.meaningUnderstood === false) {
-    return "Try again";
-  }
+  if (original?.outcome === "retry_original") return "Try again";
+  if (original?.meaningUnderstood === false) return "Try again";
   return "Understood";
 }
 
 function mapTargetPatternResult(
   row: AttemptTurnRow,
 ): AttemptTurnEvidence["targetPatternResult"] {
-  const parsed = evaluationOf(row);
   if (isTeacherReview(row)) return "Needs teacher check";
+  const evaluated = storedOriginalOf(row.evaluation)?.targetPatternAttempted;
   const targetAttempted =
-    parsed.ok && parsed.kind === "original" &&
-    typeof parsed.evaluation.targetPatternAttempted === "boolean"
-      ? parsed.evaluation.targetPatternAttempted
-      : row.target_attempted;
+    typeof evaluated === "boolean" ? evaluated : row.target_attempted;
   return targetAttempted ? "Target pattern used" : "Target pattern missing";
 }
 
@@ -387,7 +377,7 @@ function mapRepeatResult(row: AttemptTurnRow): AttemptTurnEvidence["repeatResult
 }
 
 function mapReviewReason(row: AttemptTurnRow) {
-  const parsed = evaluationOf(row);
+  const parsed = parseStoredEvaluation(row.evaluation);
   return parsed.ok && typeof parsed.evaluation.reviewReason === "string"
     ? parsed.evaluation.reviewReason
     : null;

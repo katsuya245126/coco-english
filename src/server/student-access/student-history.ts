@@ -12,9 +12,9 @@ import {
   type HangulInterpretation,
 } from "@/domain/audio/transcript-interpretation";
 import {
+  originalMetadataOf,
   parseStoredEvaluation,
-  storedOriginalMetadataOf,
-  storedOriginalOf,
+  type ParsedStoredEvaluation,
 } from "@/domain/ai/stored-evaluation";
 
 const AUDIO_TTL_SECONDS = 300;
@@ -93,23 +93,25 @@ function playbackFor(clip: { object_key: string | null; processing_status: strin
   return "available" as const;
 }
 
-function reviewStateFor(turn: {
-  improved_sentence: string | null;
-  repeat_transcript: string | null;
-  repeat_accepted: boolean | null;
-  evaluation: unknown;
-}): StudentRecapReviewState {
+function reviewStateFor(
+  turn: {
+    improved_sentence: string | null;
+    repeat_transcript: string | null;
+    repeat_accepted: boolean | null;
+  },
+  parsedEvaluation: ParsedStoredEvaluation,
+  hadEvaluationObject: boolean,
+): StudentRecapReviewState {
   if (turn.repeat_accepted === true && turn.repeat_transcript?.trim()) {
     return "repeat_accepted";
   }
-  const parsed = parseStoredEvaluation(turn.evaluation);
-  // Legacy truthiness: any evaluation object at all (even the '{}' default)
-  // has always counted as "has evaluation data" in the accepted-state check.
-  const hadEvaluationObject =
-    typeof turn.evaluation === "object" && turn.evaluation !== null;
-  const outcome = parsed.ok ? parsed.evaluation.outcome : undefined;
-  const correctionSeverity = storedOriginalOf(turn.evaluation)
-    ?.correctionSeverity;
+  const outcome = parsedEvaluation.ok
+    ? parsedEvaluation.evaluation.outcome
+    : undefined;
+  const correctionSeverity =
+    parsedEvaluation.ok && parsedEvaluation.kind === "original"
+      ? parsedEvaluation.evaluation.correctionSeverity
+      : undefined;
   if (
     outcome === "accepted_original" &&
     correctionSeverity === "minor" &&
@@ -193,24 +195,35 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
   let finalCocoLine: string | null = null;
 
   const turns: StudentRecapTurn[] = turnRows.map((turn) => {
-    // Original metadata lives one level down under `originalEvaluation` once a
-    // repeat has overwritten the top level; the repeat display reads the
+    // One parse per turn; every consumer below reads the shared result.
+    // Original metadata lives one level down under `originalEvaluation` once
+    // a repeat has overwritten the top level; the repeat display reads the
     // repeat's own top-level record. Both selection rules live in the shared
     // stored-evaluation contract.
-    const storedEvaluationRecord = (() => {
-      const parsed = parseStoredEvaluation(turn.evaluation);
-      return parsed.ok ? parsed.evaluation : null;
-    })();
+    const parsedEvaluation = parseStoredEvaluation(turn.evaluation);
+    // Legacy truthiness: any evaluation object at all (even the '{}' default)
+    // has always counted as "has evaluation data" in the accepted-state check.
+    const hadEvaluationObject =
+      typeof turn.evaluation === "object" &&
+      turn.evaluation !== null &&
+      !Array.isArray(turn.evaluation);
     const original = attemptFor(
       turn.id,
       "original_answer",
       displayFor(
         turn.original_transcript ?? "",
-        storedOriginalMetadataOf(turn.evaluation),
+        originalMetadataOf(parsedEvaluation),
       ),
     );
     const repeat = turn.repeat_transcript?.trim()
-      ? attemptFor(turn.id, "repeat_attempt", displayFor(turn.repeat_transcript, storedEvaluationRecord))
+      ? attemptFor(
+          turn.id,
+          "repeat_attempt",
+          displayFor(
+            turn.repeat_transcript,
+            parsedEvaluation.ok ? parsedEvaluation.evaluation : null,
+          ),
+        )
       : null;
     // The attempt the recap shows: the accepted repeat when one exists,
     // otherwise the original answer.
@@ -244,7 +257,7 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
       original,
       improvedSentence: turn.improved_sentence?.trim() || null,
       repeat,
-      reviewState: reviewStateFor(turn),
+      reviewState: reviewStateFor(turn, parsedEvaluation, hadEvaluationObject),
     };
   });
 

@@ -1154,6 +1154,43 @@ describe("uploadAttemptAudioClip", () => {
     );
   });
 
+  it("feeds a bare pre-discriminant original row to the repeat evaluator as prior evidence", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    mockSupabase = createMockSupabase({
+      turnEvaluation: {
+        outcome: "teacher_review",
+        reviewReason: "low_confidence",
+      },
+    });
+
+    const evaluateRepeat = successfulRepeatEvaluator();
+    await uploadAttemptAudioClip(audioInput({ clipKind: "repeat_attempt" }), {
+      transcribeAudioFile: successfulTranscriber("I want pizza, please."),
+      evaluateRepeatTurn: evaluateRepeat,
+    });
+
+    // The bare-outcome legacy rule classifies the row as an original, so its
+    // metadata is nested into the repeat's persisted evidence (issue #74).
+    const transcriptWrite = mockSupabase.operations.find(
+      (operation) =>
+        operation.table === "attempt_turns" &&
+        operation.action === "update" &&
+        typeof operation.payload === "object" &&
+        operation.payload !== null &&
+        "repeat_transcript" in operation.payload,
+    );
+    expect(transcriptWrite?.payload).toMatchObject({
+      evaluation: {
+        originalEvaluation: expect.objectContaining({
+          kind: "original",
+          outcome: "teacher_review",
+        }),
+      },
+    });
+  });
+
   it("passes normalized repeat transcript Korean spans to repeat evaluation", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"

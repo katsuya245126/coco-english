@@ -20,7 +20,9 @@ import {
   AI_EVALUATION_VERSION,
 } from "@/domain/ai/turn-evaluation";
 import {
+  originalMetadataOf,
   parseStoredEvaluation,
+  storedOriginalOf,
   TEACHER_REVIEW_OUTCOME,
 } from "@/domain/ai/stored-evaluation";
 
@@ -70,12 +72,6 @@ function readInterpretations(value: unknown): HangulInterpretation[] {
   return parsed.success ? parsed.data : [];
 }
 
-function readEvaluationObject(value: unknown): Record<string, unknown> | null {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
 /**
  * Absent or malformed metadata yields an empty set, which is exactly right in
  * both directions: a legacy all-English row still displays verbatim, and any
@@ -92,60 +88,29 @@ function displayFor(
 }
 
 function evaluationOutcome(turn: CompletionTurn): string | null {
-  if (
-    typeof turn.evaluation !== "object" ||
-    turn.evaluation === null ||
-    Array.isArray(turn.evaluation)
-  ) {
-    return null;
-  }
-
-  const evaluation = turn.evaluation as { version?: unknown; outcome?: unknown };
-  return evaluation.version === "ai-eval-v1" &&
-    typeof evaluation.outcome === "string"
-    ? evaluation.outcome
+  // The version gate keeps pre-discriminant rows of unknown vintage excluded;
+  // discrimination itself lives in the shared stored-evaluation contract.
+  const parsed = parseStoredEvaluation(turn.evaluation);
+  return parsed.ok &&
+    parsed.evaluation.version === AI_EVALUATION_VERSION &&
+    typeof parsed.evaluation.outcome === "string"
+    ? parsed.evaluation.outcome
     : null;
 }
 
 function evaluationRetryReason(turn: CompletionTurn): string | null {
-  if (
-    typeof turn.evaluation !== "object" ||
-    turn.evaluation === null ||
-    Array.isArray(turn.evaluation)
-  ) {
-    return null;
-  }
-
-  const evaluation = turn.evaluation as { retryReason?: unknown };
-  return typeof evaluation.retryReason === "string"
-    ? evaluation.retryReason
-    : null;
+  const retryReason = storedOriginalOf(turn.evaluation)?.retryReason;
+  return typeof retryReason === "string" ? retryReason : null;
 }
 
 function evaluationMinimalEffortMetadata(turn: CompletionTurn) {
-  if (
-    typeof turn.evaluation !== "object" ||
-    turn.evaluation === null ||
-    Array.isArray(turn.evaluation)
-  ) {
-    return { minimalEffortKind: undefined, retryExample: null };
-  }
-
-  const evaluation = turn.evaluation as {
-    minimalEffortKind?: unknown;
-    retryExample?: unknown;
-  };
-  const minimalEffortKind =
-    evaluation.minimalEffortKind === "dont_know" ||
-    evaluation.minimalEffortKind === "short_answer"
-      ? evaluation.minimalEffortKind
-      : undefined;
+  const original = storedOriginalOf(turn.evaluation);
   return {
-    minimalEffortKind,
+    minimalEffortKind: original?.minimalEffortKind,
     retryExample:
-      typeof evaluation.retryExample === "string" &&
-      evaluation.retryExample.trim().length > 0
-        ? evaluation.retryExample.trim()
+      typeof original?.retryExample === "string" &&
+      original.retryExample.trim().length > 0
+        ? original.retryExample.trim()
         : null,
   };
 }
@@ -224,15 +189,18 @@ export function getPendingTurnReview(
             : null;
     if (!repeatOutcome) return null;
 
-    const storedEvaluation = readEvaluationObject(turn.evaluation);
+    const parsedEvaluation = parseStoredEvaluation(turn.evaluation);
 
     return {
       step: "repeatFeedback",
       outcome: repeatOutcome,
-      transcript: displayFor(repeatTranscript, storedEvaluation),
+      transcript: displayFor(
+        repeatTranscript,
+        parsedEvaluation.ok ? parsedEvaluation.evaluation : null,
+      ),
       originalTranscript: displayFor(
         originalTranscript,
-        readEvaluationObject(storedEvaluation?.originalEvaluation),
+        originalMetadataOf(parsedEvaluation),
       ),
       improvedSentence: turn.improved_sentence ?? null,
       clipKind: "repeat_attempt",
@@ -261,12 +229,16 @@ export function getPendingTurnReview(
       ? evaluationMinimalEffortMetadata(turn)
       : {};
 
+  // The pending original feedback reads the row's top-level record: the
+  // repeat-overwritten nesting only matters after a repeat write.
+  const parsedTurnEvaluation = parseStoredEvaluation(turn.evaluation);
+
   return {
     step: "aiFeedback",
     outcome: originalOutcome,
     transcript: displayFor(
       originalTranscript,
-      readEvaluationObject(turn.evaluation),
+      parsedTurnEvaluation.ok ? parsedTurnEvaluation.evaluation : null,
     ),
     improvedSentence: turn.improved_sentence ?? null,
     clipKind: "original_answer",

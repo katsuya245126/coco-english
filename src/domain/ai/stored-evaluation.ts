@@ -159,10 +159,11 @@ export function isStoredTeacherReview(value: unknown): boolean {
 }
 
 /**
- * Whether a prior turn's answer may ground later generation. Rows that look
- * like teacher-review evidence are withheld; unrecognized shapes default to
- * understood so the '{}'::jsonb column default and every pre-existing plain
- * row keeps behaving as it does today.
+ * Whether a prior turn's answer may ground later generation. Rows whose
+ * evidence looks reviewed are withheld — including unrecognized objects
+ * carrying only a review reason; every other unrecognized shape defaults to
+ * understood so the '{}'::jsonb column default and pre-existing plain rows
+ * keep behaving as they do today.
  */
 export function storedTurnWasUnderstood(value: unknown): boolean {
   return !isStoredTeacherReview(value);
@@ -185,10 +186,9 @@ export function storedOriginalOf(
  * untrusted, so callers schema-validate whichever field they consume
  * (e.g. Hangul interpretations) rather than trusting this cast.
  */
-export function storedOriginalMetadataOf(
-  value: unknown,
+export function originalMetadataOf(
+  parsed: ParsedStoredEvaluation,
 ): Record<string, unknown> | null {
-  const parsed = parseStoredEvaluation(value);
   if (!parsed.ok) return null;
   if (parsed.kind === "original") return parsed.evaluation;
   const nested = parsed.evaluation.originalEvaluation;
@@ -197,6 +197,13 @@ export function storedOriginalMetadataOf(
     !Array.isArray(nested)
     ? nested
     : parsed.evaluation;
+}
+
+/** Convenience wrapper for callers holding the raw row value. */
+export function storedOriginalMetadataOf(
+  value: unknown,
+): Record<string, unknown> | null {
+  return originalMetadataOf(parseStoredEvaluation(value));
 }
 
 /**

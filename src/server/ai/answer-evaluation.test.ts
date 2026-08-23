@@ -500,6 +500,7 @@ describe("evaluateRepeatTurnAnswer stored-evidence composition", () => {
       },
     }));
     const priorOriginal = {
+      kind: "original" as const,
       version: "ai-eval-v1" as const,
       outcome: "needs_correction" as const,
       confidence: "high" as const,
