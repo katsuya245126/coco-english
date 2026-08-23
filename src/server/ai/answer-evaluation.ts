@@ -155,7 +155,7 @@ type OriginalTurnWriteDecision = {
   improvedSentence: string | null;
 };
 
-export function deterministicOriginalEvaluation(
+function deterministicOriginalEvaluation(
   fields: Omit<StoredOriginalTurnEvaluation, keyof StoredEvaluationProvenance>,
   evidence: StoredEvaluationProvenance,
 ): StoredOriginalTurnEvaluation {
@@ -167,7 +167,7 @@ export function deterministicOriginalEvaluation(
 }
 
 /** Provenance attached to any evaluation produced without a provider call. */
-export function buildFallbackProvenance(
+function buildFallbackProvenance(
   transcriptionEvidence: TranscriptionEvidence,
 ): StoredEvaluationProvenance {
   return {
@@ -180,7 +180,7 @@ export function buildFallbackProvenance(
   };
 }
 
-export function priorMinimalEffortBlocks(evaluation: unknown): number {
+function priorMinimalEffortBlocks(evaluation: unknown): number {
   if (
     typeof evaluation !== "object" ||
     evaluation === null ||
@@ -204,7 +204,7 @@ export function priorMinimalEffortBlocks(evaluation: unknown): number {
  * answer recovery budget, and never escalate toward teacher review by
  * themselves.
  */
-export function priorLowConfidenceAudioRetries(evaluation: unknown): number {
+function priorLowConfidenceAudioRetries(evaluation: unknown): number {
   if (
     typeof evaluation !== "object" ||
     evaluation === null ||
@@ -221,7 +221,7 @@ export function priorLowConfidenceAudioRetries(evaluation: unknown): number {
     : 0;
 }
 
-export function priorAmbiguityState(evaluation: unknown): Pick<
+function priorAmbiguityState(evaluation: unknown): Pick<
   StoredOriginalTurnEvaluation,
   "ambiguityRetries" | "ambiguityHistory"
 > {
@@ -913,6 +913,13 @@ export type RepeatAnswerEvaluationRequest = {
   level: EvaluateRepeatTurnInput["level"];
   /** Prior transcribed repeat clips for this turn plus this one. */
   attemptNumber: number;
+  /**
+   * The stored original evaluation this repeat answers — carried from the
+   * same upload when both clips arrive together, otherwise read from the
+   * durable row. Persisted verbatim under evaluation.originalEvaluation so
+   * correctionSeverity evidence survives the repeat write.
+   */
+  originalEvaluation?: StoredOriginalTurnEvaluation;
 };
 
 export type RepeatAnswerEvaluationDeps = {
@@ -973,10 +980,12 @@ export async function evaluateRepeatTurnAnswer(
     }
   }
   return {
-    evaluation: applyRepeatTurnEvaluation(
-      evaluationResult,
-      input.attemptNumber,
-    ),
+    evaluation: {
+      ...applyRepeatTurnEvaluation(evaluationResult, input.attemptNumber),
+      ...(input.originalEvaluation
+        ? { originalEvaluation: input.originalEvaluation }
+        : {}),
+    },
     fastPathUsed,
     stageMs,
   };

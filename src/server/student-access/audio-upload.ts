@@ -1209,6 +1209,11 @@ export async function uploadAttemptAudioClip(
             );
             if (repeatCountError) return { error: repeatCountError };
 
+            // The original and the repeat arrive as separate uploads, so the
+            // in-memory value is normally undefined here; the row is the
+            // durable source. The module composes the complete persisted
+            // evidence — preserving correctionSeverity — and this service
+            // stores exactly what it returns.
             const repeatOutcome = await evaluateRepeatTurnAnswer(
               {
                 repeatTarget,
@@ -1218,6 +1223,11 @@ export async function uploadAttemptAudioClip(
                 targetPattern,
                 level: snapshot.level,
                 attemptNumber: (priorRepeatClipCount ?? 0) + 1,
+                originalEvaluation:
+                  originalEvaluation ??
+                  (isStoredOriginalEvaluation(turn.evaluation)
+                    ? turn.evaluation
+                    : undefined),
               },
               { evaluate: deps.evaluateRepeatTurn ?? evaluateRepeatTurn },
             );
@@ -1226,28 +1236,13 @@ export async function uploadAttemptAudioClip(
             const decision = repeatOutcome.evaluation;
             repeatEvaluation = decision;
 
-            // The original and the repeat arrive as separate uploads, so the
-            // in-memory value is normally undefined here; the row is the
-            // durable source. Preserving it keeps correctionSeverity — the
-            // reason the repeat was demanded — from being overwritten.
-            const priorOriginalEvaluation =
-              originalEvaluation ??
-              (isStoredOriginalEvaluation(turn.evaluation)
-                ? turn.evaluation
-                : undefined);
-
             const write = await timeStage("turnWrite", () =>
               supabase
                 .from("attempt_turns")
                 .update({
                   repeat_transcript: transcript,
                   repeat_accepted: decision.repeatAccepted,
-                  evaluation: toJson({
-                    ...decision,
-                    ...(priorOriginalEvaluation
-                      ? { originalEvaluation: priorOriginalEvaluation }
-                      : {}),
-                  }),
+                  evaluation: toJson(decision),
                 })
                 .eq("id", turn.id),
             );
