@@ -72,12 +72,6 @@ import type {
   StoredRepeatTurnEvaluation,
 } from "@/domain/ai/stored-evaluation";
 
-export type {
-  StoredEvaluationProvenance,
-  StoredOriginalTurnEvaluation,
-  StoredRepeatTurnEvaluation,
-} from "@/domain/ai/stored-evaluation";
-
 const FAILED_SCHEMA_REVIEW_REASON = "failed_schema";
 /**
  * Review reason for a well-formed provider verdict rejected by a

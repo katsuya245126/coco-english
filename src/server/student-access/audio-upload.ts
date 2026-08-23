@@ -40,12 +40,12 @@ import {
   evaluateOriginalTurnAnswer,
   evaluateRepeatTurnAnswer,
   LOW_CONFIDENCE_REVIEW_REASON,
-  type StoredOriginalTurnEvaluation,
-  type StoredRepeatTurnEvaluation,
 } from "@/server/ai/answer-evaluation";
 import {
-  parseStoredEvaluation,
+  storedOriginalOf,
   TEACHER_REVIEW_OUTCOME,
+  type StoredOriginalTurnEvaluation,
+  type StoredRepeatTurnEvaluation,
   type StudentFacingEvaluation,
 } from "@/domain/ai/stored-evaluation";
 
@@ -202,8 +202,6 @@ export type UploadAttemptAudioClipDeps = {
  * rather than serializes. The discriminated members are exactly what
  * `MissionFlowShell` consumes to pick a feedback card.
  */
-export type { StudentFacingEvaluation } from "@/domain/ai/stored-evaluation";
-
 /**
  * Allow-list projection. Written as explicit field reads, never a spread or a
  * delete-list, so a new stored field is invisible to students by default.
@@ -775,8 +773,6 @@ export async function uploadAttemptAudioClip(
       return { ok: false, error: "db_error", retryable: true };
     }
 
-    const priorStoredEvaluation = parseStoredEvaluation(turn.evaluation);
-
     const missionQuestion =
       persistedConversationRecoveryQuestion(
         turn.evaluation,
@@ -1209,10 +1205,8 @@ export async function uploadAttemptAudioClip(
                 attemptNumber: (priorRepeatClipCount ?? 0) + 1,
                 originalEvaluation:
                   originalEvaluation ??
-                  (priorStoredEvaluation.ok &&
-                  priorStoredEvaluation.kind === "original"
-                    ? priorStoredEvaluation.evaluation
-                    : undefined),
+                  storedOriginalOf(turn.evaluation) ??
+                  undefined,
               },
               { evaluate: deps.evaluateRepeatTurn ?? evaluateRepeatTurn },
             );

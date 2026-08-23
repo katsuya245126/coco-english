@@ -98,6 +98,14 @@ export type ParsedStoredEvaluation =
  * writer-stamped `kind`; older rows fall through the historical sniff rule
  * (`correctionSeverity` only on originals, `repeatCloseEnough` only on
  * repeats). Anything else is reported, never guessed.
+ *
+ * Trust boundary: a stamped match is believed without field validation
+ * because the answer-evaluation module is the only writer and its suites
+ * pin the exact persisted shape; downstream surfaces that interpret
+ * untrusted fields (Hangul spans, transcripts) still schema-validate at
+ * their own boundary. Placeholder rows ("placeholder-v1") carry no kind on
+ * purpose — they are not original or repeat evidence, so they report as
+ * unrecognized.
  */
 export function parseStoredEvaluation(value: unknown): ParsedStoredEvaluation {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -125,25 +133,57 @@ export function parseStoredEvaluation(value: unknown): ParsedStoredEvaluation {
   return { ok: false, reason: "unrecognized" };
 }
 
-/** Whether any recognized stored evaluation routed this turn to teacher review. */
+/**
+ * Whether this turn routed to teacher review.
+ *
+ * Recognized rows: the outcome literal, or any string review reason (every
+ * writer sets a non-null reviewReason only on review outcomes, so a lone
+ * reason still means review). Unrecognized objects keep the pre-contract
+ * evidence-reader rule — a string reviewReason flags review even when
+ * nothing else about the row parses — so detection fails closed for exotic
+ * legacy shapes instead of silently reading them as understood.
+ */
 export function isStoredTeacherReview(value: unknown): boolean {
   const parsed = parseStoredEvaluation(value);
-  return parsed.ok && parsed.evaluation.outcome === TEACHER_REVIEW_OUTCOME;
+  if (!parsed.ok) {
+    return (
+      typeof value === "object" &&
+      value !== null &&
+      typeof (value as Record<string, unknown>).reviewReason === "string"
+    );
+  }
+  return (
+    parsed.evaluation.outcome === TEACHER_REVIEW_OUTCOME ||
+    typeof parsed.evaluation.reviewReason === "string"
+  );
 }
 
 /**
- * Whether a prior turn's answer may ground later generation. Unrecognized
- * shapes default to understood: the column defaults to '{}'::jsonb and every
- * pre-existing row must keep behaving as it does today.
+ * Whether a prior turn's answer may ground later generation. Rows that look
+ * like teacher-review evidence are withheld; unrecognized shapes default to
+ * understood so the '{}'::jsonb column default and every pre-existing plain
+ * row keeps behaving as it does today.
  */
 export function storedTurnWasUnderstood(value: unknown): boolean {
   return !isStoredTeacherReview(value);
+}
+
+/** The original evaluation of a turn, or null for repeats/unrecognized/malformed. */
+export function storedOriginalOf(
+  value: unknown,
+): StoredOriginalTurnEvaluation | null {
+  const parsed = parseStoredEvaluation(value);
+  return parsed.ok && parsed.kind === "original" ? parsed.evaluation : null;
 }
 
 /**
  * The record holding a turn's original-attempt metadata: one level down under
  * `originalEvaluation` once a repeat overwrote the top level, otherwise the
  * record itself. Null for unrecognized or malformed rows so readers fail safe.
+ *
+ * Deliberately loose return type: pre-discriminant rows are structurally
+ * untrusted, so callers schema-validate whichever field they consume
+ * (e.g. Hangul interpretations) rather than trusting this cast.
  */
 export function storedOriginalMetadataOf(
   value: unknown,

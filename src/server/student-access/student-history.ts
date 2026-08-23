@@ -14,6 +14,7 @@ import {
 import {
   parseStoredEvaluation,
   storedOriginalMetadataOf,
+  storedOriginalOf,
 } from "@/domain/ai/stored-evaluation";
 
 const AUDIO_TTL_SECONDS = 300;
@@ -107,10 +108,8 @@ function reviewStateFor(turn: {
   const hadEvaluationObject =
     typeof turn.evaluation === "object" && turn.evaluation !== null;
   const outcome = parsed.ok ? parsed.evaluation.outcome : undefined;
-  const correctionSeverity =
-    parsed.ok && parsed.kind === "original"
-      ? parsed.evaluation.correctionSeverity
-      : undefined;
+  const correctionSeverity = storedOriginalOf(turn.evaluation)
+    ?.correctionSeverity;
   if (
     outcome === "accepted_original" &&
     correctionSeverity === "minor" &&

@@ -347,9 +347,10 @@ function topLevelInterpretationsOf(row: AttemptTurnRow): unknown {
 }
 
 function isTeacherReview(row: AttemptTurnRow) {
-  if (isStoredTeacherReview(row.evaluation)) return true;
-  const parsed = evaluationOf(row);
-  return parsed.ok && typeof parsed.evaluation.reviewReason === "string";
+  // Shared predicate covers the outcome literal and both review-reason
+  // signals (recognized rows and unrecognized legacy objects), so evidence
+  // detection cannot fail open where other readers fail closed.
+  return isStoredTeacherReview(row.evaluation);
 }
 
 function mapMeaningResult(row: AttemptTurnRow): AttemptTurnEvidence["meaningResult"] {

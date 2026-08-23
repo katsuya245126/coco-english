@@ -75,6 +75,17 @@ describe("parseStoredEvaluation", () => {
     });
   });
 
+  it("reports Phase-4 placeholder evaluations as unrecognized — they are neither original nor repeat evidence", () => {
+    expect(
+      parseStoredEvaluation({
+        version: "placeholder-v1",
+        meaningUnderstood: true,
+        targetPatternAttempted: true,
+        evaluatedAt: "2026-08-23T00:00:00Z",
+      }),
+    ).toEqual({ ok: false, reason: "unrecognized" });
+  });
+
   it.each([null, ["original"], "original", 42])(
     "reports %p as malformed",
     (value) => {
@@ -109,6 +120,15 @@ describe("isStoredTeacherReview", () => {
     expect(isStoredTeacherReview({})).toBe(false);
     expect(isStoredTeacherReview(null)).toBe(false);
     expect(isStoredTeacherReview(["teacher_review"])).toBe(false);
+  });
+
+  it("fails closed for an unrecognized row that carries a review reason", () => {
+    expect(isStoredTeacherReview({ reviewReason: "low_confidence" })).toBe(
+      true,
+    );
+    expect(storedTurnWasUnderstood({ reviewReason: "low_confidence" })).toBe(
+      false,
+    );
   });
 });
 
