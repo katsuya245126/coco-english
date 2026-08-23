@@ -24,7 +24,7 @@ import { DEFAULT_COCO_TTS_VOICE } from "@/domain/audio/tts";
 import { warmTtsAudioCache } from "@/server/audio/tts-cache";
 import { scorePronunciation } from "@/server/audio/pronunciation-scorer";
 import { buildLearnerTranscript } from "@/domain/audio/transcript-interpretation";
-import type { MinimalEffortKind } from "@/domain/ai/minimal-effort-feedback";
+
 import {
   wordsToPractice,
   type PronunciationStarBand,
@@ -43,6 +43,11 @@ import {
   type StoredOriginalTurnEvaluation,
   type StoredRepeatTurnEvaluation,
 } from "@/server/ai/answer-evaluation";
+import {
+  parseStoredEvaluation,
+  type StudentFacingEvaluation,
+} from "@/domain/ai/stored-evaluation";
+
 import {
   canGenerateNextDynamicTurn,
   flagAttemptForTeacherReview,
@@ -193,16 +198,10 @@ export type UploadAttemptAudioClipDeps = {
  * (`hangulInterpretations`), complete raw transcripts (`ambiguityHistory`), a
  * nested `originalEvaluation` with both, provenance, and contract violations.
  * None of that may cross the network to a learner, so the route projects
- * rather than serializes. These five fields are exactly what `MissionFlowShell`
- * consumes to pick a feedback card.
+ * rather than serializes. The discriminated members are exactly what
+ * `MissionFlowShell` consumes to pick a feedback card.
  */
-export type StudentFacingEvaluation = {
-  outcome: string;
-  improvedSentence: string | null;
-  retryReason?: "minimal_effort" | "incomplete_recording" | "unclear_meaning";
-  minimalEffortKind?: MinimalEffortKind;
-  retryExample?: string | null;
-};
+export type { StudentFacingEvaluation } from "@/domain/ai/stored-evaluation";
 
 /**
  * Allow-list projection. Written as explicit field reads, never a spread or a
@@ -216,24 +215,24 @@ export function toStudentEvaluation(
 ): StudentFacingEvaluation | undefined {
   if (!evaluation) return undefined;
 
-  const original =
-    "improvedSentence" in evaluation
-      ? (evaluation as StoredOriginalTurnEvaluation)
-      : null;
+  if (evaluation.kind === "repeat") {
+    return { kind: "repeat", outcome: evaluation.outcome };
+  }
 
   const projected: StudentFacingEvaluation = {
+    kind: "original",
     outcome: evaluation.outcome,
-    improvedSentence: original?.improvedSentence ?? null,
+    improvedSentence: evaluation.improvedSentence,
   };
 
-  if (original?.retryReason !== undefined) {
-    projected.retryReason = original.retryReason;
+  if (evaluation.retryReason !== undefined) {
+    projected.retryReason = evaluation.retryReason;
   }
-  if (original?.minimalEffortKind !== undefined) {
-    projected.minimalEffortKind = original.minimalEffortKind;
+  if (evaluation.minimalEffortKind !== undefined) {
+    projected.minimalEffortKind = evaluation.minimalEffortKind;
   }
-  if (original?.retryExample !== undefined) {
-    projected.retryExample = original.retryExample;
+  if (evaluation.retryExample !== undefined) {
+    projected.retryExample = evaluation.retryExample;
   }
 
   return projected;
@@ -304,24 +303,6 @@ function toJson(
   value: StoredOriginalTurnEvaluation | StoredRepeatTurnEvaluation,
 ): Json {
   return value satisfies Json;
-}
-
-/**
- * `attempt_turns.evaluation` holds either an original or a repeat evaluation.
- * `repeatCloseEnough` appears only on repeat evaluations and
- * `correctionSeverity` only on originals, so the pair distinguishes them
- * without a version bump. Guards against re-nesting an already-nested repeat
- * evaluation if a turn is written twice.
- */
-function isStoredOriginalEvaluation(
-  value: unknown,
-): value is StoredOriginalTurnEvaluation {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "correctionSeverity" in value &&
-    !("repeatCloseEnough" in value)
-  );
 }
 
 function persistedConversationRecoveryQuestion(
@@ -793,6 +774,8 @@ export async function uploadAttemptAudioClip(
       return { ok: false, error: "db_error", retryable: true };
     }
 
+    const priorStoredEvaluation = parseStoredEvaluation(turn.evaluation);
+
     const missionQuestion =
       persistedConversationRecoveryQuestion(
         turn.evaluation,
@@ -1225,8 +1208,9 @@ export async function uploadAttemptAudioClip(
                 attemptNumber: (priorRepeatClipCount ?? 0) + 1,
                 originalEvaluation:
                   originalEvaluation ??
-                  (isStoredOriginalEvaluation(turn.evaluation)
-                    ? turn.evaluation
+                  (priorStoredEvaluation.ok &&
+                  priorStoredEvaluation.kind === "original"
+                    ? priorStoredEvaluation.evaluation
                     : undefined),
               },
               { evaluate: deps.evaluateRepeatTurn ?? evaluateRepeatTurn },

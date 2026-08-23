@@ -11,6 +11,10 @@ import {
   hangulInterpretationSchema,
   type HangulInterpretation,
 } from "@/domain/audio/transcript-interpretation";
+import {
+  parseStoredEvaluation,
+  storedOriginalMetadataOf,
+} from "@/domain/ai/stored-evaluation";
 
 const AUDIO_TTL_SECONDS = 300;
 const AUDIO_BUCKET = "student-audio";
@@ -67,12 +71,6 @@ function readInterpretations(value: unknown): HangulInterpretation[] {
   return parsed.success ? parsed.data : [];
 }
 
-function readEvaluationObject(value: unknown): Record<string, unknown> | null {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
 /**
  * Absent or malformed metadata yields an empty set, which is right in both
  * directions: a legacy all-English row still displays verbatim, and any row
@@ -103,23 +101,26 @@ function reviewStateFor(turn: {
   if (turn.repeat_accepted === true && turn.repeat_transcript?.trim()) {
     return "repeat_accepted";
   }
-  const evaluation =
-    turn.evaluation && typeof turn.evaluation === "object"
-      ? (turn.evaluation as {
-          outcome?: unknown;
-          correctionSeverity?: unknown;
-        })
-      : null;
+  const parsed = parseStoredEvaluation(turn.evaluation);
+  // Legacy truthiness: any evaluation object at all (even the '{}' default)
+  // has always counted as "has evaluation data" in the accepted-state check.
+  const hadEvaluationObject =
+    typeof turn.evaluation === "object" && turn.evaluation !== null;
+  const outcome = parsed.ok ? parsed.evaluation.outcome : undefined;
+  const correctionSeverity =
+    parsed.ok && parsed.kind === "original"
+      ? parsed.evaluation.correctionSeverity
+      : undefined;
   if (
-    evaluation?.outcome === "accepted_original" &&
-    evaluation.correctionSeverity === "minor" &&
+    outcome === "accepted_original" &&
+    correctionSeverity === "minor" &&
     turn.improved_sentence?.trim()
   ) {
     return "accepted_minor";
   }
   if (
-    evaluation?.outcome === "accepted_original" ||
-    (!turn.improved_sentence && !turn.repeat_transcript && !evaluation)
+    outcome === "accepted_original" ||
+    (!turn.improved_sentence && !turn.repeat_transcript && !hadEvaluationObject)
   ) {
     return "accepted";
   }
@@ -193,17 +194,24 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
   let finalCocoLine: string | null = null;
 
   const turns: StudentRecapTurn[] = turnRows.map((turn) => {
-    const storedEvaluation = readEvaluationObject(turn.evaluation);
+    // Original metadata lives one level down under `originalEvaluation` once a
+    // repeat has overwritten the top level; the repeat display reads the
+    // repeat's own top-level record. Both selection rules live in the shared
+    // stored-evaluation contract.
+    const storedEvaluationRecord = (() => {
+      const parsed = parseStoredEvaluation(turn.evaluation);
+      return parsed.ok ? parsed.evaluation : null;
+    })();
     const original = attemptFor(
       turn.id,
       "original_answer",
       displayFor(
         turn.original_transcript ?? "",
-        readEvaluationObject(storedEvaluation?.originalEvaluation) ?? storedEvaluation,
+        storedOriginalMetadataOf(turn.evaluation),
       ),
     );
     const repeat = turn.repeat_transcript?.trim()
-      ? attemptFor(turn.id, "repeat_attempt", displayFor(turn.repeat_transcript, storedEvaluation))
+      ? attemptFor(turn.id, "repeat_attempt", displayFor(turn.repeat_transcript, storedEvaluationRecord))
       : null;
     // The attempt the recap shows: the accepted repeat when one exists,
     // otherwise the original answer.

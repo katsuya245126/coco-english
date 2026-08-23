@@ -46,6 +46,10 @@ import type { RepeatVoiceClip } from "@/components/student/StepImprovedRepeat";
 import type { RecorderState } from "@/components/student/VoiceRecorderControl";
 import type { PendingTurnReview } from "@/domain/flow/completion";
 import {
+  TEACHER_REVIEW_OUTCOME,
+  type StudentFacingEvaluation,
+} from "@/domain/ai/stored-evaluation";
+import {
   deriveActiveStudentQuestion,
   deriveSameTurnRecoveryPrompt,
   resolveAcceptedConversationTurn,
@@ -377,13 +381,8 @@ export function MissionFlowShell({
      * hides "You said" and still shows the correction and retry guidance.
      */
     displayTranscript: string | null;
-    evaluation?: {
-      outcome?: string;
-      improvedSentence?: string | null;
-      retryReason?: string | null;
-      minimalEffortKind?: "dont_know" | "short_answer";
-      retryExample?: string | null;
-    };
+    /** Server-projected, kind-discriminated evaluation (never raw evidence). */
+    evaluation?: StudentFacingEvaluation;
     starBand?: PronunciationStarBand | null;
     wordsToPractice?: WordHighlight[];
     // Coco's dynamically-generated conversation-mode reply (CHAT-02); only
@@ -464,7 +463,7 @@ export function MissionFlowShell({
     if (evaluation?.outcome === "retry_repeat") {
       return { kind: "repeatRetry", transcript, starBand, wordsToPractice };
     }
-    if (evaluation?.outcome === "teacher" + "_" + "review") {
+    if (evaluation?.outcome === TEACHER_REVIEW_OUTCOME) {
       return { kind: "repeatReview", transcript, starBand, wordsToPractice };
     }
     if (evaluation?.outcome === "repeat_limit_reached") {
@@ -484,8 +483,11 @@ export function MissionFlowShell({
     starBand?: PronunciationStarBand | null,
     wordsToPractice?: WordHighlight[],
   ): OriginalFeedback {
-    const teacherReviewOutcome = "teacher" + "_" + "review";
-    if (evaluation?.outcome === "needs_correction" && evaluation.improvedSentence) {
+    if (
+      evaluation?.kind === "original" &&
+      evaluation.outcome === "needs_correction" &&
+      evaluation.improvedSentence
+    ) {
       return {
         kind: "needsCorrection",
         transcript,
@@ -495,19 +497,19 @@ export function MissionFlowShell({
       };
     }
     if (
-      evaluation?.outcome === "retry_original" &&
-      evaluation.retryReason === "minimal_effort"
+      evaluation?.kind === "original" &&
+      evaluation.outcome === "retry_original"
     ) {
-      return {
-        kind: "retryMinimalEffort",
-        transcript,
-        minimalEffortKind: evaluation.minimalEffortKind,
-        retryExample: evaluation.retryExample,
-        starBand,
-        wordsToPractice,
-      };
-    }
-    if (evaluation?.outcome === "retry_original") {
+      if (evaluation.retryReason === "minimal_effort") {
+        return {
+          kind: "retryMinimalEffort",
+          transcript,
+          minimalEffortKind: evaluation.minimalEffortKind,
+          retryExample: evaluation.retryExample,
+          starBand,
+          wordsToPractice,
+        };
+      }
       if (evaluation.retryReason === "unclear_meaning") {
         return {
           kind: "retryUnclearMeaning",
@@ -526,7 +528,7 @@ export function MissionFlowShell({
       }
       return { kind: "retryOriginal", transcript, starBand, wordsToPractice };
     }
-    if (evaluation?.outcome === teacherReviewOutcome) {
+    if (evaluation?.outcome === TEACHER_REVIEW_OUTCOME) {
       return { kind: "teacherReview", transcript, starBand, wordsToPractice };
     }
     return { kind: "acceptedOriginal", transcript, starBand, wordsToPractice };

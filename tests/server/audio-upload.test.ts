@@ -2507,8 +2507,9 @@ describe("learner-safe display transcript at the upload boundary", () => {
       canary as unknown as Parameters<typeof toStudentEvaluation>[0],
     );
 
-    // The five permitted workflow fields survive.
+    // The five permitted workflow fields survive, plus the discriminant.
     expect(projected).toEqual({
+      kind: "original",
       outcome: "retry_original",
       improvedSentence: "I like vanilla ice cream.",
       retryReason: "minimal_effort",

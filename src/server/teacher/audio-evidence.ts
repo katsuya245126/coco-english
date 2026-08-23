@@ -15,6 +15,11 @@ import {
   interpretMissionSnapshot,
   resolveMissionSnapshotTargetPattern,
 } from "@/domain/mission/mission-snapshot";
+import {
+  isStoredTeacherReview,
+  parseStoredEvaluation,
+  storedOriginalMetadataOf,
+} from "@/domain/ai/stored-evaluation";
 
 const DEFAULT_AUDIO_BUCKET = "student-audio";
 const SIGNED_AUDIO_URL_TTL_SECONDS = 300;
@@ -332,50 +337,42 @@ function mapClip(
   };
 }
 
-function readEvaluation(row: AttemptTurnRow) {
-  if (
-    typeof row.evaluation !== "object" ||
-    row.evaluation === null ||
-    Array.isArray(row.evaluation)
-  ) {
-    return null;
-  }
+function evaluationOf(row: AttemptTurnRow) {
+  return parseStoredEvaluation(row.evaluation);
+}
 
-  return row.evaluation as {
-    outcome?: unknown;
-    hangulInterpretations?: unknown;
-    originalEvaluation?: unknown;
-    meaningUnderstood?: unknown;
-    targetPatternAttempted?: unknown;
-    reviewReason?: unknown;
-    repeatAccepted?: unknown;
-  };
+function topLevelInterpretationsOf(row: AttemptTurnRow): unknown {
+  const parsed = evaluationOf(row);
+  return parsed.ok ? parsed.evaluation.hangulInterpretations : undefined;
 }
 
 function isTeacherReview(row: AttemptTurnRow) {
-  const evaluation = readEvaluation(row);
-  return (
-    evaluation?.outcome === "teacher_review" ||
-    typeof evaluation?.reviewReason === "string"
-  );
+  if (isStoredTeacherReview(row.evaluation)) return true;
+  const parsed = evaluationOf(row);
+  return parsed.ok && typeof parsed.evaluation.reviewReason === "string";
 }
 
 function mapMeaningResult(row: AttemptTurnRow): AttemptTurnEvidence["meaningResult"] {
-  const evaluation = readEvaluation(row);
+  const parsed = evaluationOf(row);
   if (isTeacherReview(row)) return "Needs teacher check";
-  if (evaluation?.outcome === "retry_original") return "Try again";
-  if (evaluation?.meaningUnderstood === false) return "Try again";
+  if (parsed.ok && parsed.evaluation.outcome === "retry_original") {
+    return "Try again";
+  }
+  if (parsed.ok && parsed.kind === "original" && parsed.evaluation.meaningUnderstood === false) {
+    return "Try again";
+  }
   return "Understood";
 }
 
 function mapTargetPatternResult(
   row: AttemptTurnRow,
 ): AttemptTurnEvidence["targetPatternResult"] {
-  const evaluation = readEvaluation(row);
+  const parsed = evaluationOf(row);
   if (isTeacherReview(row)) return "Needs teacher check";
   const targetAttempted =
-    typeof evaluation?.targetPatternAttempted === "boolean"
-      ? evaluation.targetPatternAttempted
+    parsed.ok && parsed.kind === "original" &&
+    typeof parsed.evaluation.targetPatternAttempted === "boolean"
+      ? parsed.evaluation.targetPatternAttempted
       : row.target_attempted;
   return targetAttempted ? "Target pattern used" : "Target pattern missing";
 }
@@ -389,31 +386,15 @@ function mapRepeatResult(row: AttemptTurnRow): AttemptTurnEvidence["repeatResult
 }
 
 function mapReviewReason(row: AttemptTurnRow) {
-  const evaluation = readEvaluation(row);
-  return typeof evaluation?.reviewReason === "string"
-    ? evaluation.reviewReason
+  const parsed = evaluationOf(row);
+  return parsed.ok && typeof parsed.evaluation.reviewReason === "string"
+    ? parsed.evaluation.reviewReason
     : null;
 }
 
 function readInterpretations(value: unknown): HangulInterpretation[] {
   const parsed = hangulInterpretationSchema.array().safeParse(value);
   return parsed.success ? parsed.data : [];
-}
-
-/**
- * Original metadata lives one level down under `originalEvaluation` once a
- * repeat has overwritten the top-level evaluation; before that the top level
- * is the original. Same selection rule as the student surfaces.
- */
-function originalInterpretationsFor(row: AttemptTurnRow) {
-  const evaluation = readEvaluation(row);
-  const nested = evaluation?.originalEvaluation;
-  if (typeof nested === "object" && nested !== null && !Array.isArray(nested)) {
-    return readInterpretations(
-      (nested as { hangulInterpretations?: unknown }).hangulInterpretations,
-    );
-  }
-  return readInterpretations(evaluation?.hangulInterpretations);
 }
 
 function mapTurn(
@@ -430,7 +411,9 @@ function mapTurn(
     originalDisplayTranscript: row.original_transcript
       ? buildLearnerTranscript(
           row.original_transcript,
-          originalInterpretationsFor(row),
+          readInterpretations(
+            storedOriginalMetadataOf(row.evaluation)?.hangulInterpretations,
+          ),
         )
       : null,
     improvedSentence: row.improved_sentence,
@@ -438,8 +421,8 @@ function mapTurn(
     repeatDisplayTranscript: row.repeat_transcript
       ? buildLearnerTranscript(
           row.repeat_transcript,
-          readInterpretations(readEvaluation(row)?.hangulInterpretations),
-      )
+          readInterpretations(topLevelInterpretationsOf(row)),
+        )
       : null,
     targetPattern: targetPatternsByOrder.get(row.turn_order) ?? null,
     meaningResult: mapMeaningResult(row),

@@ -3,6 +3,7 @@ import {
   conversationHistorySchema,
   type ConversationExchange,
 } from "@/domain/ai/conversation-generation";
+import { storedTurnWasUnderstood } from "@/domain/ai/stored-evaluation";
 
 export type PersistedConversationTurn = {
   turn_order: number;
@@ -22,23 +23,9 @@ export type PersistedConversationTurn = {
  * games inside" when the turn naming a game had failed evaluation and was never
  * understood.
  *
- * Keyed on outcome === "teacher_review", the identical expression that derives
- * responseHandling in audio-upload, so turn N and turn N+1 cannot disagree
- * about the same turn.
- *
- * Defaults to understood on any unrecognized shape: the column defaults to
- * '{}'::jsonb and every pre-existing row must keep behaving as it does today.
+ * Discrimination lives in the shared stored-evaluation contract, so this
+ * check and every other reader of the same column cannot disagree.
  */
-function turnWasUnderstood(evaluation: unknown): boolean {
-  if (
-    typeof evaluation !== "object" ||
-    evaluation === null ||
-    Array.isArray(evaluation)
-  ) {
-    return true;
-  }
-  return (evaluation as { outcome?: unknown }).outcome !== "teacher_review";
-}
 
 export type BuildConversationHistoryResult =
   | { ok: true; history: ConversationExchange[] }
@@ -100,7 +87,7 @@ export function buildConversationHistory(input: {
     history.push({
       turnOrder: row.turn_order,
       cocoLine: question,
-      studentResponse: turnWasUnderstood(row.evaluation)
+      studentResponse: storedTurnWasUnderstood(row.evaluation)
         ? response
         : WITHHELD_STUDENT_RESPONSE,
     });
