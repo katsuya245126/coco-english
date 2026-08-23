@@ -12,8 +12,13 @@
  * calls the paid OpenAI API.
  */
 
-import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
+import {
+  hasApiKey,
+  structuredOutputCall,
+  type StructuredOutputClient,
+  type StructuredOutputDeps,
+} from "@/server/ai/structured-output";
 import { log } from "@/server/logging/logger";
 import {
   conversationReplyMode,
@@ -54,31 +59,10 @@ export type GenerateCocoReplyResult =
       rejectedAttempt: "first" | "corrected";
     };
 
-export type ConversationResponsesClient = {
-  responses: {
-    parse(input: {
-      model: string;
-      input: Array<{
-        role: "system" | "user";
-        content: string;
-      }>;
-      text: {
-        format: unknown;
-      };
-    }): Promise<{ output_parsed?: unknown }>;
-  };
-};
+/** Shared wire shape since the structured-output seam (issue #69). */
+export type ConversationResponsesClient = StructuredOutputClient;
 
-export type GenerateCocoReplyDeps = {
-  apiKey?: string;
-  model?: string;
-  client?: ConversationResponsesClient;
-};
-
-function resolveApiKey(deps?: GenerateCocoReplyDeps) {
-  if (deps && "apiKey" in deps) return deps.apiKey?.trim() ?? "";
-  return process.env.OPENAI_API_KEY?.trim() ?? "";
-}
+export type GenerateCocoReplyDeps = StructuredOutputDeps;
 
 function resolveModel(deps?: GenerateCocoReplyDeps) {
   return (
@@ -86,10 +70,6 @@ function resolveModel(deps?: GenerateCocoReplyDeps) {
     process.env.OPENAI_CONVERSATION_MODEL?.trim() ||
     DEFAULT_CONVERSATION_MODEL
   );
-}
-
-function createClient(apiKey: string): ConversationResponsesClient {
-  return new OpenAI({ apiKey }) as ConversationResponsesClient;
 }
 
 const CONVERSATION_SYSTEM_MESSAGE = [
@@ -156,17 +136,17 @@ const VIOLATION_CORRECTION_HINTS: Record<
   string
 > = {
   question_format:
-    "The previous candidate had the wrong punctuation: a line that expects a question must end in exactly one \"?\", and a closing line must have no \"?\" and end in \".\" or \"!\".",
+    'The previous candidate had the wrong punctuation: a line that expects a question must end in exactly one "?", and a closing line must have no "?" and end in "." or "!".',
   run_on_question:
-    "The previous candidate ran a reaction straight into the question without sentence-ending punctuation between them. Put \".\", \"!\", or \"?\" between the reaction and the question.",
+    'The previous candidate ran a reaction straight into the question without sentence-ending punctuation between them. Put ".", "!", or "?" between the reaction and the question.',
   either_or_question:
-    "The previous candidate closed a meaningful answer with an either/or or yes/no question, which a child can answer with one word. Ask the simplest open WH question that gets one new detail instead — for example \"Where do you play Valorant?\" rather than \"Do you and your friend play Valorant at each other's homes or online?\".",
+    'The previous candidate closed a meaningful answer with an either/or or yes/no question, which a child can answer with one word. Ask the simplest open WH question that gets one new detail instead — for example "Where do you play Valorant?" rather than "Do you and your friend play Valorant at each other\'s homes or online?".',
   restatement_reaction:
-    "The reaction restated the student's own answer back to them in the second person (\"You like to play Valorant with your friend.\"), which adds nothing. React to it instead — \"That sounds fun!\" — then ask the question.",
+    'The reaction restated the student\'s own answer back to them in the second person ("You like to play Valorant with your friend."), which adds nothing. React to it instead — "That sounds fun!" — then ask the question.',
   topic_drift:
     "The previous candidate drifted away from the active topic (the student's latest answer and Coco's last question). Ask about a detail directly connected to what the student just said.",
   vague_echo:
-    "The previous candidate echoed the student's vague word (such as \"anything\" or \"something\") back as if it were a real detail. Acknowledge without repeating that word — say something like \"Lots of things!\" — then ask one short question offering two concrete child-friendly choices.",
+    'The previous candidate echoed the student\'s vague word (such as "anything" or "something") back as if it were a real detail. Acknowledge without repeating that word — say something like "Lots of things!" — then ask one short question offering two concrete child-friendly choices.',
   multi_detail_echo:
     "The reaction repeated two or more details from the student's latest answer. React briefly without replaying the list, then explore only the declared focus.",
   response_summary:
@@ -176,7 +156,7 @@ const VIOLATION_CORRECTION_HINTS: Record<
   focus_mismatch:
     "The question did not explore the declared focus. Keep one learner-owned focus from the latest response and ask about that detail, or make a gentle nearby transition.",
   unresolved_korean_noun:
-    "The previous candidate spoke aloud a letter-by-letter transliteration of a Korean word the student said, which is not a real English word. Do not name that word at all. Refer to it instead using what the conversation already shows it is — \"that game\", \"it\", \"that place\" — as in \"That sounds fun! What do you do in that game?\".",
+    'The previous candidate spoke aloud a letter-by-letter transliteration of a Korean word the student said, which is not a real English word. Do not name that word at all. Refer to it instead using what the conversation already shows it is — "that game", "it", "that place" — as in "That sounds fun! What do you do in that game?".',
   closing_ungrounded:
     "The closing ignored the student's latest answer. Mention one specific learner-owned detail from that answer before the short goodbye.",
 };
@@ -240,8 +220,7 @@ export async function generateCocoReply(
     return { ok: false, error: "invalid_input" };
   }
 
-  const apiKey = resolveApiKey(deps);
-  if (!deps?.client && !apiKey) {
+  if (!deps?.client && !hasApiKey(deps)) {
     return { ok: false, error: "missing_api_key" };
   }
 
@@ -269,26 +248,28 @@ export async function generateCocoReply(
   const replyMode = conversationReplyMode(validInput.data);
   const expectsQuestion = replyMode === "follow_up";
 
-  try {
-    const client = deps?.client ?? createClient(apiKey);
-    const response = await client.responses.parse({
-      model: resolveModel(deps),
-      input: [
-        {
-          role: "system",
-          content: systemMessage,
-        },
-        {
-          role: "user",
-          content: JSON.stringify(conversationPrompt),
-        },
-      ],
-      text: {
-        format: zodTextFormat(generatedCocoReplyPartsSchema, "coco_reply"),
-      },
+  const first = await structuredOutputCall({
+    deps,
+    model: resolveModel(deps),
+    systemMessage,
+    userContent: JSON.stringify(conversationPrompt),
+    format: zodTextFormat(generatedCocoReplyPartsSchema, "coco_reply"),
+  });
+  if (!first.ok) {
+    log("error", "ai.conversation_generation_failed", {
+      error: "provider_failed",
     });
+    return {
+      ok: false,
+      error:
+        first.error === "missing_api_key"
+          ? "missing_api_key"
+          : "provider_failed",
+    };
+  }
 
-    const parsed = parseGeneratedCocoReply(response.output_parsed);
+  {
+    const parsed = parseGeneratedCocoReply(first.outputParsed);
     if (!parsed.ok) {
       return { ok: false, error: "schema_failed" };
     }
@@ -308,45 +289,51 @@ export async function generateCocoReply(
         reasons: linePolicy.reasons,
         attempt: "first",
       });
-      try {
-        const correctedResponse = await client.responses.parse({
-          model: resolveModel(deps),
-          input: [
-            {
-              role: "system",
-              content: `${systemMessage} ${replyPolicyCorrection(expectsQuestion, linePolicy.reasons, recovery !== null)}`,
-            },
-            {
-              role: "user",
-              content: JSON.stringify({
-                ...conversationPrompt,
-                rejectedCandidate: {
-                  reaction: parsed.reply.reaction,
-                  focus: parsed.reply.focus,
-                  question: parsed.reply.question,
-                },
-                violations: linePolicy.reasons,
-              }),
-            },
-          ],
-          text: {
-            format: zodTextFormat(generatedCocoReplyPartsSchema, "coco_reply"),
+      const correctedCall = await structuredOutputCall({
+        deps,
+        model: resolveModel(deps),
+        systemMessage: `${systemMessage} ${replyPolicyCorrection(expectsQuestion, linePolicy.reasons, recovery !== null)}`,
+        userContent: JSON.stringify({
+          ...conversationPrompt,
+          rejectedCandidate: {
+            reaction: parsed.reply.reaction,
+            focus: parsed.reply.focus,
+            question: parsed.reply.question,
           },
+          violations: linePolicy.reasons,
+        }),
+        format: zodTextFormat(generatedCocoReplyPartsSchema, "coco_reply"),
+      });
+      if (!correctedCall.ok) {
+        log("error", "ai.conversation_generation_failed", {
+          error: "provider_failed",
         });
-        const corrected = parseGeneratedCocoReply(correctedResponse.output_parsed);
+        return {
+          ok: false,
+          error:
+            correctedCall.error === "missing_api_key"
+              ? "missing_api_key"
+              : "provider_failed",
+        };
+      }
+      {
+        const corrected = parseGeneratedCocoReply(correctedCall.outputParsed);
         if (!corrected.ok) {
           return { ok: false, error: "schema_failed" };
         }
-        const correctedPolicy = validateGeneratedCocoReplyParts(corrected.reply, {
-          expectsQuestion,
-          activeQuestion,
-          latestStudentResponse: latestResponse,
-          topicGroundingText,
-          allowClosedQuestion: recovery !== null,
-          questionOnly: recovery !== null,
-          requireClosingGrounding:
-            !expectsQuestion && validInput.data.responseHandling === "normal",
-        });
+        const correctedPolicy = validateGeneratedCocoReplyParts(
+          corrected.reply,
+          {
+            expectsQuestion,
+            activeQuestion,
+            latestStudentResponse: latestResponse,
+            topicGroundingText,
+            allowClosedQuestion: recovery !== null,
+            questionOnly: recovery !== null,
+            requireClosingGrounding:
+              !expectsQuestion && validInput.data.responseHandling === "normal",
+          },
+        );
         if (!correctedPolicy.ok) {
           log("warn", "ai.conversation_line_policy_rejected", {
             reasons: correctedPolicy.reasons,
@@ -366,11 +353,10 @@ export async function generateCocoReply(
         }
         return {
           ok: true,
-          reply: expectsQuestion ? corrected.reply : withClosingSignOff(corrected.reply),
+          reply: expectsQuestion
+            ? corrected.reply
+            : withClosingSignOff(corrected.reply),
         };
-      } catch {
-        log("error", "ai.conversation_generation_failed", { error: "provider_failed" });
-        return { ok: false, error: "provider_failed" };
       }
     }
 
@@ -378,8 +364,5 @@ export async function generateCocoReply(
       ok: true,
       reply: expectsQuestion ? parsed.reply : withClosingSignOff(parsed.reply),
     };
-  } catch {
-    log("error", "ai.conversation_generation_failed", { error: "provider_failed" });
-    return { ok: false, error: "provider_failed" };
   }
 }
