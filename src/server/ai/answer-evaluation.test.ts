@@ -484,3 +484,94 @@ describe("evaluateOriginalTurnAnswer deterministic pre-guards", () => {
     });
   });
 });
+
+describe("evaluateRepeatTurnAnswer stored-evidence composition", () => {
+  it("returns the complete persisted evidence, nesting the prior original evaluation", async () => {
+    const evaluate = vi.fn(async () => ({
+      ok: true as const,
+      evaluation: {
+        version: "ai-eval-v1" as const,
+        outcome: "repeat_accepted" as const,
+        repeatCloseEnough: true,
+        englishLanguage: "english" as const,
+        confidence: "high" as const,
+        reviewReason: null,
+        hangulInterpretations: [],
+      },
+    }));
+    const priorOriginal = {
+      version: "ai-eval-v1" as const,
+      outcome: "needs_correction" as const,
+      confidence: "high" as const,
+      reviewReason: null,
+      meaningUnderstood: true,
+      targetPatternAttempted: true,
+      englishLanguage: "english" as const,
+      correctionNeeded: true,
+      correctionSeverity: "material" as const,
+      correctionReason: "grammar",
+      improvedSentence: "I like playing soccer.",
+      requireRepeat: true,
+      hangulInterpretations: [],
+    } as never;
+
+    const outcome = await evaluateRepeatTurnAnswer(
+      {
+        repeatTarget: "I like playing soccer.",
+        originalTranscript: "I like soccer.",
+        transcript: "I like playing soccer very much.",
+        koreanSpans: [],
+        targetPattern: "I like __ing ___.",
+        level: "elementary",
+        attemptNumber: 1,
+        originalEvaluation: priorOriginal,
+      },
+      { evaluate },
+    );
+
+    expect(evaluate).toHaveBeenCalledTimes(1);
+    // The module returns the exact persisted shape — no caller-side spread.
+    expect(outcome.evaluation).toEqual({
+      version: "ai-eval-v1",
+      outcome: "accepted_repeat",
+      confidence: "high",
+      reviewReason: null,
+      englishLanguage: "english",
+      repeatCloseEnough: true,
+      repeatAccepted: true,
+      requireRepeat: false,
+      hangulInterpretations: [],
+      originalEvaluation: priorOriginal,
+    });
+  });
+
+  it("omits originalEvaluation when no prior original evidence exists", async () => {
+    const evaluate = vi.fn(async () => ({
+      ok: true as const,
+      evaluation: {
+        version: "ai-eval-v1" as const,
+        outcome: "repeat_retry" as const,
+        repeatCloseEnough: false,
+        englishLanguage: "english" as const,
+        confidence: "high" as const,
+        reviewReason: null,
+        hangulInterpretations: [],
+      },
+    }));
+
+    const outcome = await evaluateRepeatTurnAnswer(
+      {
+        repeatTarget: "I like playing soccer.",
+        originalTranscript: "I like soccer.",
+        transcript: "I like play soccer.",
+        koreanSpans: [],
+        targetPattern: "I like __ing ___.",
+        level: "elementary",
+        attemptNumber: 1,
+      },
+      { evaluate },
+    );
+
+    expect("originalEvaluation" in outcome.evaluation).toBe(false);
+  });
+});
