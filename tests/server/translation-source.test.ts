@@ -100,16 +100,17 @@ describe("resolveOwnedTranslationSource", () => {
     operations = [];
   });
 
-  it("reads translation mission data through the shared interpreter", () => {
+  it("proves ownership through the shared owned-assignment seam", () => {
     const source = readFileSync(
       join(process.cwd(), "src/server/student-access/translation-source.ts"),
       "utf8",
     );
 
     expect(source).toContain(
-      'import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";',
+      'import { requireOwnedAssignmentStudent } from "@/server/student-access/owned-assignment";',
     );
-    expect(source).not.toContain("missionSnapshotSchema");
+    expect(source).not.toContain('from("assignment_students")');
+    expect(source).not.toContain("interpretMissionSnapshot");
   });
 
   it.each([

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { readStudentUnlock } from "@/app/join/actions";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
-import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
+import { requireOwnedAssignmentStudent } from "@/server/student-access/owned-assignment";
 import { getCharacterProfile } from "@/domain/character/profile";
 import {
   getPendingTurnReview,
@@ -49,17 +49,16 @@ export default async function MissionPage({ params }: MissionPageProps) {
 
   const supabase = createSupabaseServiceClient();
 
-  // 1. Load the assignment_students row scoped to both id AND student_id (V4 ownership, T-04-12).
-  const { data: asRow, error: asError } = await supabase
-    .from("assignment_students")
-    .select("id, assignment_id, student_id, status, latest_attempt_id")
-    .eq("id", assignmentStudentId)
-    .eq("student_id", unlock.studentId)
-    .maybeSingle();
-
-  if (asError || !asRow) {
+  // 1. Prove ownership through the one auditable seam (V4 ownership,
+  // T-04-12): row + canceled guard + parsed snapshot in a single call.
+  const owned = await requireOwnedAssignmentStudent({
+    studentId: unlock.studentId,
+    assignmentStudentId,
+  });
+  if (!owned.ok) {
     redirect("/student/home");
   }
+  const asRow = owned.owned;
 
   // 2. Guard: only recordable statuses may enter the mission flow. A student
   // who already submitted (teacher_review) or finished (completed) should never
@@ -75,27 +74,11 @@ export default async function MissionPage({ params }: MissionPageProps) {
     redirect("/student/home");
   }
 
-  // 3. Load the assignment row + mission_snapshot.
-  const { data: assignment, error: assignmentError } = await supabase
-    .from("assignments")
-    .select("id, mission_snapshot, canceled_at")
-    .eq("id", asRow.assignment_id)
-    .single();
-
-  if (assignmentError || !assignment) {
+  // Pitfall 5: any snapshot other than complete -> redirect home.
+  const snapshot = asRow.snapshot;
+  if (!snapshot) {
     redirect("/student/home");
   }
-
-  if (assignment.canceled_at) {
-    redirect("/student/home");
-  }
-
-  // 4. Interpret the snapshot (Pitfall 5: any result other than complete -> redirect home).
-  const snapshotResult = interpretMissionSnapshot(assignment.mission_snapshot);
-  if (snapshotResult.kind !== "complete") {
-    redirect("/student/home");
-  }
-  const snapshot = snapshotResult.snapshot;
 
   // 5. Resolve the character profile (Coco default buddy).
   const characterProfile = getCharacterProfile(snapshot.characterId);
@@ -107,11 +90,11 @@ export default async function MissionPage({ params }: MissionPageProps) {
   let attemptTurns: Array<{ turnOrder: number; cocoLine: string | null }> = [];
   let pendingConversationRecovery = false;
 
-  if (asRow.latest_attempt_id) {
+  if (asRow.latestAttemptId) {
     const { data: attempt } = await supabase
       .from("attempts")
       .select("id, status")
-      .eq("id", asRow.latest_attempt_id)
+      .eq("id", asRow.latestAttemptId)
       .eq("status", "in_progress")
       .maybeSingle();
 

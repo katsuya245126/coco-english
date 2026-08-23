@@ -228,9 +228,9 @@ describe("student helper budget routes", () => {
     );
 
     expect(source).toContain(
-      'import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";',
+      'import { requireOwnedAssignmentStudent } from "@/server/student-access/owned-assignment";',
     );
-    expect(source).not.toContain("missionSnapshotSchema");
+    expect(source).not.toContain("interpretMissionSnapshot");
   });
 
   it.each(unsupportedVoiceCases)(

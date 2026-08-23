@@ -261,7 +261,7 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     // Claim guard now uses dynamic asRow.status (not hardcoded "assigned") to support needs_retry
     expect(missionFlowSource).toContain(".eq(\"status\", asRow.status)");
     expect(missionFlowSource).toContain("status: \"abandoned\" as const");
-    expect(missionFlowSource).toContain("resumed.latest_attempt_id");
+    expect(missionFlowSource).toContain("resumed.latestAttemptId");
   });
 
   it("needs_retry gate is accepted and uses reopened_by_teacher reason code (D-10)", () => {
@@ -289,11 +289,26 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(missionFlowSource).toContain('asRow.status !== "missed"');
     expect(missionFlowSource).toContain('asRow.status === "missed"');
     expect(missionFlowSource).toContain('"late_mission_started"');
-    expect(missionFlowSource).toContain('.eq("student_id", studentId)');
-    expect(missionFlowSource).toContain("assignments(canceled_at)");
-    expect(missionFlowSource).toContain("if (assignment?.canceled_at) return null");
+    // Ownership proof lives in the shared seam since issue #67; the flow
+    // consumes it instead of hand-rolling the query.
+    const ownedAssignmentSource = readFileSync(
+      "src/server/student-access/owned-assignment.ts",
+      "utf8",
+    );
+    expect(ownedAssignmentSource).toContain(
+      '.eq("student_id", input.studentId)',
+    );
+    expect(ownedAssignmentSource).toContain("canceledAt");
+    expect(missionFlowSource).toContain("requireOwnedAssignmentStudent");
+    // Reads of the table go through the seam; remaining direct uses are the
+    // auditable conditional-write transitions, never an ownership SELECT.
+    expect(missionFlowSource).not.toMatch(
+      /from\("assignment_students"\)\s*\n\s*\.select/,
+    );
     expect(missionFlowSource).toContain('.eq("status", asRow.status)');
-    expect(missionFlowSource).toContain("attempt_count: asRow.attempt_count + 1");
+    expect(missionFlowSource).toContain(
+      "attempt_count: (asRow.attemptCount ?? 0) + 1",
+    );
     expect(missionFlowSource).toContain("latest_attempt_id: newAttempt.id");
     expect(missionFlowSource).toContain('actor_type: "student_session"');
     expect(missionFlowSource).toContain("reason_code: reasonCode");
