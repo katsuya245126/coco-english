@@ -46,6 +46,15 @@ import {
   type RepeatTurnEvaluation,
 } from "@/domain/ai/turn-evaluation";
 import {
+  isMinimalEffortAnswer,
+  MAX_MINIMAL_EFFORT_BLOCKS,
+} from "@/domain/ai/minimal-effort-detection";
+import {
+  classifyMinimalEffortFeedback,
+  resolveMinimalEffortRetryExample,
+} from "@/domain/ai/minimal-effort-feedback";
+import { isIncompleteUtterance } from "@/domain/ai/incomplete-utterance";
+import {
   isLowConfidenceTranscript,
   isTranscriptConfidenceBelowGate,
 } from "@/domain/audio/transcript-confidence";
@@ -361,6 +370,40 @@ function applyRepeatTurnEvaluation(
   };
 }
 
+export type PreGuardClassification =
+  | { stage: "incomplete_recording_guard" | "minimal_effort_guard" }
+  | { stage: "evaluate" };
+
+/**
+ * Synchronously predict whether this original answer will short-circuit into
+ * a deterministic guard without any provider call. Callers that own audio
+ * side effects (pronunciation scoring) use it to avoid starting work the
+ * pipeline would discard; evaluateOriginalTurnAnswer uses the same logic as
+ * its first pipeline step.
+ */
+export function classifyPreGuardStage(input: {
+  transcript: string;
+  targetExample: string | null;
+  priorTurnEvaluation: unknown;
+}): PreGuardClassification {
+  const exactTargetMatched =
+    input.targetExample !== null &&
+    isExactTargetMatch(input.transcript, input.targetExample);
+
+  if (!exactTargetMatched && isIncompleteUtterance(input.transcript)) {
+    return { stage: "incomplete_recording_guard" };
+  }
+  if (
+    isMinimalEffortAnswer(input.transcript) &&
+    !exactTargetMatched &&
+    priorMinimalEffortBlocks(input.priorTurnEvaluation) <
+      MAX_MINIMAL_EFFORT_BLOCKS
+  ) {
+    return { stage: "minimal_effort_guard" };
+  }
+  return { stage: "evaluate" };
+}
+
 export type OriginalAnswerEvaluationRequest = {
   /** Everything the provider evaluator needs, including the transcript. */
   evaluationInput: EvaluateOriginalTurnInput;
@@ -381,6 +424,17 @@ export type OriginalAnswerEvaluationDeps = {
 };
 
 export type OriginalAnswerEvaluationOutcome = {
+  /**
+   * Which deterministic decision produced the result:
+   * - incomplete_recording_guard / minimal_effort_guard: fabricated without
+   *   any provider call; callers persist and return early exactly as the
+   *   inline guards they replace.
+   * - evaluated: the full gate → fast-path → provider → repair → guards path.
+   */
+  stage:
+    | "evaluated"
+    | "incomplete_recording_guard"
+    | "minimal_effort_guard";
   decision: OriginalTurnWriteDecision;
   fastPathUsed: boolean;
   lowConfidenceGateRetryApplied: boolean;
@@ -419,6 +473,104 @@ export async function evaluateOriginalTurnAnswer(
 
   const evaluate = deps.evaluate ?? evaluateOriginalTurn;
   const stageMs: OriginalAnswerEvaluationOutcome["stageMs"] = {};
+
+  // Deterministic pre-evaluation guards. An exact authored-target match
+  // always wins over both (phone-UAT item 6): the frame regex proves shape
+  // only, but an authored example is known-good English.
+  const classification = classifyPreGuardStage({
+    transcript,
+    targetExample: evaluationInput.targetExample,
+    priorTurnEvaluation: input.priorTurnEvaluation,
+  });
+  const exactTargetMatched =
+    evaluationInput.targetExample !== null &&
+    isExactTargetMatch(transcript, evaluationInput.targetExample);
+
+  if (classification.stage === "incomplete_recording_guard") {
+    return {
+      stage: "incomplete_recording_guard",
+      decision: {
+        evaluation: deterministicOriginalEvaluation(
+          {
+            version: AI_EVALUATION_VERSION,
+            outcome: "retry_original",
+            confidence: "high",
+            reviewReason: null,
+            meaningUnderstood: false,
+            targetPatternAttempted: false,
+            englishLanguage: "english",
+            correctionNeeded: false,
+            correctionSeverity: null,
+            correctionReason: "none",
+            improvedSentence: null,
+            requireRepeat: false,
+            hangulInterpretations: [],
+            retryReason: "incomplete_recording",
+            ...((ambiguityState.ambiguityRetries ?? 0) > 0
+              ? {
+                  ambiguityRetries: ambiguityState.ambiguityRetries,
+                  ambiguityHistory: ambiguityState.ambiguityHistory,
+                }
+              : {}),
+          },
+          fallbackProvenance,
+        ),
+        targetAttempted: false,
+        improvedSentence: null,
+      },
+      fastPathUsed: false,
+      lowConfidenceGateRetryApplied: false,
+      gateRetryDetail: null,
+      stageMs: {},
+    };
+  }
+
+  if (classification.stage === "minimal_effort_guard") {
+    return {
+      stage: "minimal_effort_guard",
+      decision: {
+        evaluation: deterministicOriginalEvaluation(
+          {
+            version: AI_EVALUATION_VERSION,
+            outcome: "retry_original",
+            confidence: "high",
+            reviewReason: null,
+            meaningUnderstood: false,
+            targetPatternAttempted: false,
+            englishLanguage: "english",
+            correctionNeeded: false,
+            correctionSeverity: null,
+            correctionReason: "none",
+            improvedSentence: null,
+            requireRepeat: false,
+            hangulInterpretations: [],
+            retryReason: "minimal_effort",
+            minimalEffortBlocks: minimalEffortBlocks + 1,
+            minimalEffortKind:
+              classifyMinimalEffortFeedback(transcript) ?? "short_answer",
+            retryExample: resolveMinimalEffortRetryExample({
+              evaluationMode: evaluationInput.evaluationMode,
+              missionQuestion: evaluationInput.missionQuestion ?? "",
+              targetExample: evaluationInput.targetExample,
+            }),
+            ...((ambiguityState.ambiguityRetries ?? 0) > 0
+              ? {
+                  ambiguityRetries: ambiguityState.ambiguityRetries,
+                  ambiguityHistory: ambiguityState.ambiguityHistory,
+                }
+              : {}),
+          },
+          fallbackProvenance,
+        ),
+        targetAttempted: false,
+        improvedSentence: null,
+      },
+      fastPathUsed: false,
+      lowConfidenceGateRetryApplied: false,
+      gateRetryDetail: null,
+      stageMs: {},
+    };
+  }
 
   let evaluationResult: OriginalTurnEvaluationResult;
   let fastPathUsed = false;
@@ -468,9 +620,6 @@ export async function evaluateOriginalTurnAnswer(
     // ungrammatical, so it still needs the model — the frame regex proves
     // shape, not grammar. The model prompt already keeps the child's own
     // choice while correcting genuinely-wrong English.
-    const exactTargetMatched =
-      evaluationInput.targetExample !== null &&
-      isExactTargetMatch(transcript, evaluationInput.targetExample);
     if (exactTargetMatched) {
       fastPathUsed = true;
       evaluationResult = {
@@ -739,6 +888,7 @@ export async function evaluateOriginalTurnAnswer(
   }
 
   return {
+    stage: "evaluated",
     decision,
     fastPathUsed,
     lowConfidenceGateRetryApplied: lowConfidenceGateRetry,

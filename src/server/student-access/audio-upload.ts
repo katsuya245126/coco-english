@@ -12,19 +12,7 @@ import type { Database, Json } from "@/lib/db/types";
 import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
 import { resolveMissionSnapshotTargetPattern } from "@/domain/mission/mission-snapshot";
 import { isPendingConversationRecovery } from "@/domain/mission/student-question-state";
-import { isExactTargetMatch } from "@/domain/ai/fast-path";
-import { isIncompleteUtterance } from "@/domain/ai/incomplete-utterance";
 import { buildReplyHintFrame } from "@/domain/ai/reply-hint-frame";
-import {
-  isMinimalEffortAnswer,
-  MAX_MINIMAL_EFFORT_BLOCKS,
-} from "@/domain/ai/minimal-effort-detection";
-import {
-  classifyMinimalEffortFeedback,
-  resolveMinimalEffortRetryExample,
-  type MinimalEffortKind,
-} from "@/domain/ai/minimal-effort-feedback";
-import { AI_EVALUATION_VERSION } from "@/domain/ai/turn-evaluation";
 import {
   hasEnglishTranscript,
   normalizeEnglishTranscript,
@@ -36,6 +24,7 @@ import { DEFAULT_COCO_TTS_VOICE } from "@/domain/audio/tts";
 import { warmTtsAudioCache } from "@/server/audio/tts-cache";
 import { scorePronunciation } from "@/server/audio/pronunciation-scorer";
 import { buildLearnerTranscript } from "@/domain/audio/transcript-interpretation";
+import type { MinimalEffortKind } from "@/domain/ai/minimal-effort-feedback";
 import {
   wordsToPractice,
   type PronunciationStarBand,
@@ -47,13 +36,10 @@ import {
   resolveEvaluationRuntimeVersion,
 } from "@/server/ai/turn-evaluator";
 import {
-  buildFallbackProvenance,
-  deterministicOriginalEvaluation,
+  classifyPreGuardStage,
   evaluateOriginalTurnAnswer,
   evaluateRepeatTurnAnswer,
   LOW_CONFIDENCE_REVIEW_REASON,
-  priorAmbiguityState,
-  priorMinimalEffortBlocks,
   type StoredOriginalTurnEvaluation,
   type StoredRepeatTurnEvaluation,
 } from "@/server/ai/answer-evaluation";
@@ -987,45 +973,106 @@ export async function uploadAttemptAudioClip(
       model: transcription.model,
       confidence: transcription.confidence,
     };
-    const fallbackProvenance = buildFallbackProvenance(transcriptionEvidence);
-    const ambiguityState = priorAmbiguityState(
-      (turn as { evaluation?: unknown }).evaluation,
-    );
-    const exactTargetMatched =
-      input.clipKind === "original_answer" &&
-      targetExample !== null &&
-      isExactTargetMatch(transcript, targetExample);
+    // Deterministic pre-evaluation guards (incomplete recording,
+    // minimal effort) now live inside the answer-evaluation module and
+    // surface as non-"evaluated" stages in the outcome below.
+    let originalEvaluation: StoredOriginalTurnEvaluation | undefined;
+    let repeatEvaluation: StoredRepeatTurnEvaluation | undefined;
 
-    if (
-      input.clipKind === "original_answer" &&
-      !exactTargetMatched &&
-      isIncompleteUtterance(transcript)
-    ) {
-      const evaluation = deterministicOriginalEvaluation(
-        {
-          version: AI_EVALUATION_VERSION,
-          outcome: "retry_original",
-          confidence: "high",
-          reviewReason: null,
-          meaningUnderstood: false,
-          targetPatternAttempted: false,
-          englishLanguage: "english",
-          correctionNeeded: false,
-          correctionSeverity: null,
-          correctionReason: "none",
-          improvedSentence: null,
-          requireRepeat: false,
-          hangulInterpretations: [],
-          retryReason: "incomplete_recording",
-          ...((ambiguityState.ambiguityRetries ?? 0) > 0
-            ? {
-                ambiguityRetries: ambiguityState.ambiguityRetries,
-                ambiguityHistory: ambiguityState.ambiguityHistory,
-              }
-            : {}),
-        },
-        fallbackProvenance,
-      );
+    const score = deps.scorePronunciation ?? scorePronunciation;
+
+    function beginPronunciationScoring(referenceText: string) {
+      const scoringStartedAt = Date.now();
+      return score({
+        file: createAudioBlob(),
+        referenceText,
+        durationMs: input.durationMs,
+      }).finally(() => {
+        timings.pronunciationTotalMs = elapsedMs(scoringStartedAt);
+      });
+    }
+
+    let recoveryPersistencePending = false;
+    let lowConfidenceGateRetryApplied = false;
+
+    const evaluationInput = {
+      evaluationMode:
+        snapshot.conversationMode === true ? "conversation" : "preset",
+      missionQuestion: missionQuestion ?? undefined,
+      targetPattern,
+      targetExample,
+      level: snapshot.level,
+      turnOrder: input.turnOrder,
+      transcript,
+      requireCompleteSentenceAnswers:
+        snapshot.requireCompleteSentenceAnswers,
+      koreanSpans,
+      answerShape,
+      transcriptionEvidence,
+      runtimeVersion: resolveEvaluationRuntimeVersion(),
+    } as const;
+
+    // Pronunciation scoring overlaps provider work on every path that will
+    // do real work, and never starts on deterministic guard stages (the
+    // classifier is the module's own first pipeline step).
+    const preGuard =
+      input.clipKind === "original_answer"
+        ? classifyPreGuardStage({
+            transcript,
+            targetExample,
+            priorTurnEvaluation: (
+              turn as { evaluation?: unknown }
+            ).evaluation,
+          })
+        : ({ stage: "evaluate" } as const);
+    let scoringPromise: ReturnType<typeof beginPronunciationScoring> | null =
+      input.clipKind === "repeat_attempt"
+        ? beginPronunciationScoring(repeatTarget)
+        : koreanSpans.length === 0 && preGuard.stage === "evaluate"
+          ? beginPronunciationScoring(transcript)
+          : null;
+
+    // Original answers run the deep pipeline before any write so a
+    // deterministic guard can persist and return without conversation
+    // generation, TTS warmup, or an ambiguity-ladder side effect.
+    const evaluationOutcome =
+      input.clipKind === "original_answer"
+        ? await evaluateOriginalTurnAnswer(
+            {
+              evaluationInput,
+              priorTurnEvaluation: (
+                turn as { evaluation?: unknown }
+              ).evaluation,
+              audioClipId: audioClip.id,
+              ...(snapshot.turns[0]?.prompt
+                ? { openingPrompt: snapshot.turns[0].prompt }
+                : {}),
+            },
+            { evaluate: deps.evaluateOriginalTurn ?? evaluateOriginalTurn },
+          )
+        : null;
+    if (evaluationOutcome) {
+      timings.evaluationFastPath = evaluationOutcome.fastPathUsed ? 1 : 0;
+      if (evaluationOutcome.lowConfidenceGateRetryApplied) {
+        timings.evaluationSkippedLowConfidence = 1;
+        log("warn", "audio.low_confidence_gate_retry", {
+          assignmentStudentId: input.assignmentStudentId,
+          attemptId: input.attemptId,
+          turnOrder: input.turnOrder,
+          minLogprob: evaluationOutcome.gateRetryDetail?.minLogprob,
+          tokenCount: evaluationOutcome.gateRetryDetail?.tokenCount,
+          retriesAfter: evaluationOutcome.gateRetryDetail?.retriesAfter,
+        });
+      } else if (!evaluationOutcome.fastPathUsed) {
+        timings.evaluationSkippedLowConfidence = 0;
+      }
+      Object.assign(timings, evaluationOutcome.stageMs);
+      lowConfidenceGateRetryApplied =
+        evaluationOutcome.lowConfidenceGateRetryApplied;
+    }
+
+    if (evaluationOutcome && evaluationOutcome.stage !== "evaluated") {
+      const decision = evaluationOutcome.decision;
       const write = await timeStage("turnWrite", () =>
         supabase.from("attempt_turns").upsert(
           {
@@ -1034,7 +1081,7 @@ export async function uploadAttemptAudioClip(
             original_transcript: transcript,
             target_attempted: false,
             improved_sentence: null,
-            evaluation: toJson(evaluation),
+            evaluation: toJson(decision.evaluation),
             reply_hint_frame: replyHintFrame,
           },
           { onConflict: "attempt_id,turn_order" },
@@ -1062,13 +1109,23 @@ export async function uploadAttemptAudioClip(
         logTiming("failed", { error: "db_error", step: "final_clip_update" });
         return { ok: false, error: "db_error", retryable: true };
       }
-      logTiming("success", { step: "incomplete_recording_guard" });
+
+      if (evaluationOutcome.stage === "minimal_effort_guard") {
+        log("info", "audio.minimal_effort_blocked", {
+          audioClipId: audioClip.id,
+          assignmentStudentId: input.assignmentStudentId,
+          attemptId: input.attemptId,
+          turnOrder: input.turnOrder,
+          blocks: decision.evaluation.minimalEffortBlocks,
+        });
+      }
+      logTiming("success", { step: evaluationOutcome.stage });
       return {
         ok: true,
         audioClipId: audioClip.id,
         processingStatus: "transcribed",
         displayTranscript: buildLearnerTranscript(transcript, []),
-        evaluation,
+        evaluation: decision.evaluation,
         starBand: null,
         wordsToPractice: [],
         cocoLine: null,
@@ -1076,207 +1133,12 @@ export async function uploadAttemptAudioClip(
       };
     }
 
-    // Minimal-effort answer guard (phone-UAT item 6, design approved
-    // 2026-07-20). Deterministic blocklist only; an exact target-example
-    // match ("Yes, I do." as an authored target) always wins; after
-    // MAX_MINIMAL_EFFORT_BLOCKS blocks the answer evaluates normally so a
-    // stuck student is never trapped (D-04). Runs before pronunciation
-    // scoring / evaluation / conversation generation — a blocked try incurs
-    // no paid provider call and never consumes the turn.
-    const minimalEffortBlocks = priorMinimalEffortBlocks(
-      (turn as { evaluation?: unknown }).evaluation,
-    );
-    if (
-      input.clipKind === "original_answer" &&
-      isMinimalEffortAnswer(transcript)
-    ) {
-      if (
-        !exactTargetMatched &&
-        minimalEffortBlocks < MAX_MINIMAL_EFFORT_BLOCKS
-      ) {
-        const minimalEffortKind =
-          classifyMinimalEffortFeedback(transcript) ?? "short_answer";
-        const retryExample = resolveMinimalEffortRetryExample({
-          evaluationMode:
-            snapshot.conversationMode === true ? "conversation" : "preset",
-          missionQuestion: missionQuestion ?? "",
-          targetExample,
-        });
-        const evaluation = deterministicOriginalEvaluation(
-          {
-            version: AI_EVALUATION_VERSION,
-            outcome: "retry_original",
-            confidence: "high",
-            reviewReason: null,
-            meaningUnderstood: false,
-            targetPatternAttempted: false,
-            englishLanguage: "english",
-            correctionNeeded: false,
-            correctionSeverity: null,
-            correctionReason: "none",
-            improvedSentence: null,
-            requireRepeat: false,
-            hangulInterpretations: [],
-            retryReason: "minimal_effort",
-            minimalEffortBlocks: minimalEffortBlocks + 1,
-            minimalEffortKind,
-            retryExample,
-            ...((ambiguityState.ambiguityRetries ?? 0) > 0
-              ? {
-                  ambiguityRetries: ambiguityState.ambiguityRetries,
-                  ambiguityHistory: ambiguityState.ambiguityHistory,
-                }
-              : {}),
-          },
-          fallbackProvenance,
-        );
-
-        const write = await timeStage("turnWrite", () =>
-          supabase.from("attempt_turns").upsert(
-            {
-              attempt_id: input.attemptId,
-              turn_order: input.turnOrder,
-              original_transcript: transcript,
-              target_attempted: false,
-              improved_sentence: null,
-              evaluation: toJson(evaluation),
-              reply_hint_frame: replyHintFrame,
-            },
-            { onConflict: "attempt_id,turn_order" },
-          ),
-        );
-        if (write.error) {
-          logTiming("failed", { error: "db_error", step: "turn_write" });
-          return { ok: false, error: "db_error", retryable: true };
-        }
-
-        const { error: clipUpdateError } = await timeStage(
-          "finalClipUpdate",
-          () =>
-            supabase
-              .from("audio_clips")
-              .update({
-                object_key: objectKey,
-                mime_type: input.mimeType,
-                duration_ms: input.durationMs,
-                byte_size: input.byteSize,
-                processing_status: "transcribed",
-              })
-              .eq("id", audioClip.id),
-        );
-        if (clipUpdateError) {
-          logTiming("failed", { error: "db_error", step: "final_clip_update" });
-          return { ok: false, error: "db_error", retryable: true };
-        }
-
-        log("info", "audio.minimal_effort_blocked", {
-          audioClipId: audioClip.id,
-          assignmentStudentId: input.assignmentStudentId,
-          attemptId: input.attemptId,
-          turnOrder: input.turnOrder,
-          blocks: minimalEffortBlocks + 1,
-        });
-        logTiming("success", { step: "minimal_effort_guard" });
-        return {
-          ok: true,
-          audioClipId: audioClip.id,
-          processingStatus: "transcribed",
-          displayTranscript: buildLearnerTranscript(transcript, []),
-          evaluation,
-          starBand: null,
-          wordsToPractice: [],
-          cocoLine: null,
-          cocoLineModerationEvent: null,
-        };
-      }
-    }
-
-    let originalEvaluation: StoredOriginalTurnEvaluation | undefined;
-    let repeatEvaluation: StoredRepeatTurnEvaluation | undefined;
-
-    const score = deps.scorePronunciation ?? scorePronunciation;
-
-    function beginPronunciationScoring(referenceText: string) {
-      const scoringStartedAt = Date.now();
-      return score({
-        file: createAudioBlob(),
-        referenceText,
-        durationMs: input.durationMs,
-      }).finally(() => {
-        timings.pronunciationTotalMs = elapsedMs(scoringStartedAt);
-      });
-    }
-
-    /*
-     * All-English traffic keeps the existing fast path: scoring starts here and
-     * runs concurrently with evaluation. Only a Hangul original answer waits,
-     * because Azure is pinned to English and the reference text has to be the
-     * interpreted reading, which does not exist until the evaluator classifies
-     * the spans. Repeat clips score against the English sentence the learner
-     * was asked to repeat, so they never need to wait.
-     */
-    let scoringPromise =
-      input.clipKind === "repeat_attempt"
-        ? beginPronunciationScoring(repeatTarget)
-        : koreanSpans.length === 0
-          ? beginPronunciationScoring(transcript)
-          : null;
-
-    let recoveryPersistencePending = false;
-    let lowConfidenceGateRetryApplied = false;
-
-    const evaluationInput = {
-      evaluationMode:
-        snapshot.conversationMode === true ? "conversation" : "preset",
-      missionQuestion: missionQuestion ?? undefined,
-      targetPattern,
-      targetExample,
-      level: snapshot.level,
-      turnOrder: input.turnOrder,
-      transcript,
-      requireCompleteSentenceAnswers:
-        snapshot.requireCompleteSentenceAnswers,
-      koreanSpans,
-      answerShape,
-      transcriptionEvidence,
-      runtimeVersion: resolveEvaluationRuntimeVersion(),
-    } as const;
     const turnWrite =
       input.clipKind === "original_answer"
         ? await (async () => {
-            const evaluationOutcome = await evaluateOriginalTurnAnswer(
-              {
-                evaluationInput,
-                priorTurnEvaluation: (
-                  turn as { evaluation?: unknown }
-                ).evaluation,
-                audioClipId: audioClip.id,
-                ...(snapshot.turns[0]?.prompt
-                  ? { openingPrompt: snapshot.turns[0].prompt }
-                  : {}),
-              },
-              { evaluate: deps.evaluateOriginalTurn ?? evaluateOriginalTurn },
-            );
-            timings.evaluationFastPath = evaluationOutcome.fastPathUsed
-              ? 1
-              : 0;
-            if (evaluationOutcome.lowConfidenceGateRetryApplied) {
-              timings.evaluationSkippedLowConfidence = 1;
-              log("warn", "audio.low_confidence_gate_retry", {
-                assignmentStudentId: input.assignmentStudentId,
-                attemptId: input.attemptId,
-                turnOrder: input.turnOrder,
-                minLogprob: evaluationOutcome.gateRetryDetail?.minLogprob,
-                tokenCount: evaluationOutcome.gateRetryDetail?.tokenCount,
-                retriesAfter: evaluationOutcome.gateRetryDetail?.retriesAfter,
-              });
-            } else if (!evaluationOutcome.fastPathUsed) {
-              timings.evaluationSkippedLowConfidence = 0;
+            if (!evaluationOutcome || evaluationOutcome.stage !== "evaluated") {
+              throw new Error("unreachable: guard stages return earlier");
             }
-            Object.assign(timings, evaluationOutcome.stageMs);
-            lowConfidenceGateRetryApplied =
-              evaluationOutcome.lowConfidenceGateRetryApplied;
-
             const decision = evaluationOutcome.decision;
             originalEvaluation = decision.evaluation;
             recoveryPersistencePending =

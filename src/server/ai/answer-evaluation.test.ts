@@ -291,3 +291,196 @@ describe("evaluateRepeatTurnAnswer", () => {
     });
   });
 });
+
+describe("evaluateOriginalTurnAnswer deterministic pre-guards", () => {
+  it("fabricates an incomplete-recording retry without any evaluation call", async () => {
+    const evaluate = vi.fn();
+
+    const outcome = await evaluateOriginalTurnAnswer(
+      {
+        evaluationInput: evaluationInput({ transcript: "I" }),
+        priorTurnEvaluation: {},
+        audioClipId: "clip-1",
+      },
+      { evaluate },
+    );
+
+    expect(evaluate).not.toHaveBeenCalled();
+    expect(outcome.stage).toBe("incomplete_recording_guard");
+    expect(outcome.decision.evaluation).toMatchObject({
+      outcome: "retry_original",
+      retryReason: "incomplete_recording",
+      requireRepeat: false,
+    });
+  });
+
+  it("blocks a minimal-effort answer with a bounded counter and retry example", async () => {
+    const evaluate = vi.fn();
+
+    const outcome = await evaluateOriginalTurnAnswer(
+      {
+        evaluationInput: evaluationInput({ transcript: "yes" }),
+        priorTurnEvaluation: {},
+        audioClipId: "clip-1",
+      },
+      { evaluate },
+    );
+
+    expect(evaluate).not.toHaveBeenCalled();
+    expect(outcome.stage).toBe("minimal_effort_guard");
+    expect(outcome.decision.evaluation).toMatchObject({
+      outcome: "retry_original",
+      retryReason: "minimal_effort",
+      minimalEffortBlocks: 1,
+    });
+  });
+
+  it("evaluates normally once the minimal-effort budget is spent", async () => {
+    const evaluate = vi.fn(async () => okResult(providerEvaluation()));
+
+    const outcome = await evaluateOriginalTurnAnswer(
+      {
+        evaluationInput: evaluationInput({ transcript: "yes" }),
+        priorTurnEvaluation: { minimalEffortBlocks: 2 },
+        audioClipId: "clip-1",
+      },
+      { evaluate },
+    );
+
+    expect(evaluate).toHaveBeenCalledTimes(1);
+    expect(outcome.stage).toBe("evaluated");
+    // The spent budget is preserved on the stored evidence.
+    expect(outcome.decision.evaluation.minimalEffortBlocks).toBe(2);
+  });
+
+  it("rejects an unrepairable parroted correction instead of echoing the mission question", async () => {
+    // The provider disobeys the "never use the missionQuestion as
+    // improvedSentence" instruction and repeats itself on repair: the
+    // contract must reject it deterministically rather than let the parroted
+    // sentence become the sentence the child is asked to repeat. Guard
+    // precedence over the raw provider verdict is pinned by the UAT no-op
+    // case above plus the service wiring suite.
+    const evaluate = vi.fn(async () =>
+      okResult(
+        providerEvaluation({
+          outcome: "needs_correction",
+          correctionNeeded: true,
+          correctionSeverity: "material",
+          correctionReason: "grammar",
+          improvedSentence: "What do you like to do after school?",
+        }),
+      ),
+    );
+
+    const outcome = await evaluateOriginalTurnAnswer(
+      {
+        evaluationInput: evaluationInput({
+          transcript: "I play twice a week.",
+        }),
+        priorTurnEvaluation: {},
+        audioClipId: "clip-1",
+      },
+      { evaluate },
+    );
+
+    expect(evaluate).toHaveBeenCalledTimes(2);
+    expect(outcome.decision.evaluation).toMatchObject({
+      outcome: "teacher_review",
+      reviewReason: "contract_rejected",
+      improvedSentence: null,
+      requireRepeat: false,
+      contractViolations: expect.arrayContaining(["parroted_question"]),
+    });
+  });
+
+  it("carries prompt_echo evidence through a successful repair", async () => {
+    // Transcript IS the mission question echoed back; first verdict tries to
+    // correct it anyway, repair returns a well-formed teacher_review. The
+    // echo must survive as contract evidence even though the repaired verdict
+    // itself validates cleanly.
+    const question = "What do you like to do after school?";
+    const evaluate = vi
+      .fn()
+      .mockResolvedValueOnce(
+        okResult(
+          providerEvaluation({
+            outcome: "needs_correction",
+            meaningUnderstood: true,
+            targetPatternAttempted: true,
+            correctionNeeded: true,
+            correctionSeverity: "material",
+            correctionReason: "grammar",
+            improvedSentence: "I play soccer twice a week.",
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(
+        okResult(
+          providerEvaluation({
+            outcome: "teacher_review",
+            meaningUnderstood: false,
+            targetPatternAttempted: false,
+            correctionNeeded: false,
+            correctionSeverity: "none",
+            correctionReason: "none",
+            improvedSentence: null,
+            englishLanguage: "uncertain",
+            confidence: "low",
+            reviewReason: "ambiguous",
+          }),
+        ),
+      );
+
+    const outcome = await evaluateOriginalTurnAnswer(
+      {
+        evaluationInput: evaluationInput({ transcript: question }),
+        priorTurnEvaluation: {},
+        audioClipId: "clip-1",
+      },
+      { evaluate },
+    );
+
+    expect(evaluate).toHaveBeenCalledTimes(2);
+    // The repaired review converts into the first free unclear-meaning retry
+    // of the ladder, and the echo evidence rides along for auditability.
+    expect(outcome.decision.evaluation).toMatchObject({
+      outcome: "retry_original",
+      retryReason: "unclear_meaning",
+      ambiguityRetries: 1,
+      contractViolations: ["prompt_echo"],
+    });
+  });
+
+  it("routes a low-confidence conversation schema failure to review without a repair call", async () => {
+    const evaluate = vi.fn(async () => ({
+      ok: false as const,
+      error: "schema_failed" as const,
+    }));
+
+    const outcome = await evaluateOriginalTurnAnswer(
+      {
+        evaluationInput: evaluationInput({
+          transcriptionEvidence: {
+            model: "test-transcriber",
+            confidence: LOW_CONFIDENCE,
+          },
+        }),
+        priorTurnEvaluation: {
+          lowConfidenceAudioRetries: MAX_LOW_CONFIDENCE_AUDIO_RETRIES,
+        },
+        audioClipId: "clip-1",
+      },
+      { evaluate },
+    );
+
+    expect(evaluate).toHaveBeenCalledTimes(1);
+    // The provider never saw trusted text worth repairing; the routed review
+    // converts into the first free unclear-meaning retry of the ladder.
+    expect(outcome.decision.evaluation).toMatchObject({
+      outcome: "retry_original",
+      retryReason: "unclear_meaning",
+      ambiguityRetries: 1,
+      reviewReason: null,
+    });
+  });
+});
