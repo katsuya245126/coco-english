@@ -26,7 +26,6 @@ import type { MissionSnapshot } from "@/domain/mission/schemas";
 export type OwnedAssignmentStudent = {
   id: string;
   assignmentId: string;
-  studentId: string;
   status: Database["public"]["Tables"]["assignment_students"]["Row"]["status"];
   latestAttemptId: string | null;
   attemptCount: number | null;
