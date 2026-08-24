@@ -21,6 +21,7 @@ strix_runs/
 
 # Local task state for the active checkout/thread
 TASK.md
+HANDOFF.md
 
 # Local understand-anything artifacts
 .ua/
@@ -37,6 +38,7 @@ supabase/.temp/
 .DS_Store
 .vercel
 .env*
+!.env.example
 .scratch
 .worktrees/
 
@@ -49,10 +51,15 @@ docs/local/
 
 # Local implementation plans and completed-task notes; use GitHub issues/PRs for durable tracking
 docs/superpowers/
-docs/tasks/archive/
+docs/tasks/
 
 # Local-only scripts (dev launchers, local seeders); not for the repo
 scripts/local/
+scripts/normalize-coco-sprites.mjs
+scripts/seed-answer-shape-uat.mjs
+scripts/inspect-attempts.mjs
+scripts/lib/attempt-report.mjs
+scripts/lib/attempt-report.test.mjs
 
 # One-off production DB management scripts — not for public repo
 scripts/list-recent-assignments.mjs
