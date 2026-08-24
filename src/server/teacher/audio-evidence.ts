@@ -16,6 +16,20 @@ import {
   resolveMissionSnapshotTargetPattern,
 } from "@/domain/mission/mission-snapshot";
 import {
+  getOwnedAttemptForTeacher,
+  getOwnedAudioClipForTeacher,
+  listOwnedAttemptClipsForTeacher,
+  listOwnedAttemptTurnsForTeacher,
+  listOwnedPronunciationScoresForTeacher,
+} from "@/server/teacher/teacher-owned-queries";
+import type {
+  TeacherOwnedAttemptEvidenceRow,
+  TeacherOwnedAttemptTurnRow,
+  TeacherOwnedAudioClipEvidenceRow,
+  TeacherOwnedAudioClipSignerRow,
+  TeacherOwnedPronunciationScoreRow,
+} from "@/server/teacher/teacher-owned-queries";
+import {
   isStoredTeacherReview,
   parseStoredEvaluation,
   storedReviewReasonOf,
@@ -33,69 +47,11 @@ type AudioProcessingStatus =
 
 type NestedRelation<T> = T | T[] | null | undefined;
 
-type AttemptOwnershipRow = {
-  id: string;
-  status: AttemptStatus;
-  started_at: string;
-  completed_at: string | null;
-  needs_review_reason: string | null;
-  assignment_students: NestedRelation<{
-    id: string;
-    status: string;
-    dismissed_at: string | null;
-    submitted_at: string | null;
-    attempt_count: number;
-    highest_hint_level: number;
-    students: NestedRelation<{
-      display_name: string;
-    }>;
-    assignments: NestedRelation<{
-      id: string;
-      title: string;
-      mission_snapshot: unknown;
-      classes: NestedRelation<{
-        id: string;
-        name: string;
-        teacher_id: string;
-      }>;
-    }>;
-  }>;
-};
-
-type AttemptTurnRow = {
-  id: string;
-  turn_order: number;
-  original_transcript: string | null;
-  improved_sentence: string | null;
-  repeat_transcript: string | null;
-  target_attempted: boolean | null;
-  repeat_accepted: boolean | null;
-  evaluation: unknown;
-  coco_line: string | null;
-  reply_hint_frame: string | null;
-  hint_level_used: number | null;
-};
-
-type AudioClipEvidenceRow = {
-  id: string;
-  attempt_turn_id: string;
-  clip_kind: AudioClipKind;
-  processing_status: AudioProcessingStatus;
-};
-
-type PronunciationScoreRow = {
-  audio_clip_id: string;
-  star_band: number;
-  reference_text: string | null;
-  word_scores: unknown;
-};
-
-type AudioClipSignerRow = {
-  id: string;
-  object_key: string | null;
-  processing_status: AudioProcessingStatus;
-  deleted_at: string | null;
-};
+type AttemptOwnershipRow = TeacherOwnedAttemptEvidenceRow;
+type AttemptTurnRow = TeacherOwnedAttemptTurnRow;
+type AudioClipEvidenceRow = TeacherOwnedAudioClipEvidenceRow;
+type PronunciationScoreRow = TeacherOwnedPronunciationScoreRow;
+type AudioClipSignerRow = TeacherOwnedAudioClipSignerRow;
 
 export type AttemptPronunciationScoreEvidence = {
   starBand: PronunciationStarBand;
@@ -428,37 +384,7 @@ export async function getAttemptEvidenceForTeacher(input: {
   teacherId: string;
   attemptId: string;
 }): Promise<AttemptEvidence | null> {
-  const supabase = createSupabaseServiceClient();
-
-  const attempt = await supabase
-    .from("attempts")
-    .select(
-      `
-        id,
-        status,
-        started_at,
-        completed_at,
-        needs_review_reason,
-        assignment_students!attempts_assignment_student_id_fkey!inner(
-          id,
-          status,
-          dismissed_at,
-          submitted_at,
-          attempt_count,
-          highest_hint_level,
-          students!inner(display_name),
-          assignments!inner(
-            id,
-            title,
-            mission_snapshot,
-            classes!inner(id, name, teacher_id)
-          )
-        )
-      `,
-    )
-    .eq("id", input.attemptId)
-    .eq("assignment_students.assignments.classes.teacher_id", input.teacherId)
-    .maybeSingle();
+  const attempt = await getOwnedAttemptForTeacher(input);
 
   if (attempt.error) {
     throw new Error(`Unable to load attempt evidence: ${attempt.error.message}`);
@@ -468,34 +394,27 @@ export async function getAttemptEvidenceForTeacher(input: {
     return null;
   }
 
-  const turns = await supabase
-    .from("attempt_turns")
-    .select(
-      "id, turn_order, original_transcript, improved_sentence, repeat_transcript, target_attempted, repeat_accepted, evaluation, coco_line, reply_hint_frame, hint_level_used",
-    )
-    .eq("attempt_id", input.attemptId)
-    .order("turn_order", { ascending: true });
+  const turns = await listOwnedAttemptTurnsForTeacher(input);
 
   if (turns.error) {
     throw new Error(`Unable to load attempt turns: ${turns.error.message}`);
   }
 
-  const turnRows = (turns.data ?? []) as AttemptTurnRow[];
+  const turnRows = turns.data;
   const turnIds = turnRows.map((turn) => turn.id);
   const clipsByTurnId = new Map<string, AttemptAudioClipEvidence[]>();
 
   if (turnIds.length > 0) {
-    const clips = await supabase
-      .from("audio_clips")
-      .select("id, attempt_turn_id, clip_kind, processing_status")
-      .in("attempt_turn_id", turnIds)
-      .order("created_at", { ascending: true });
+    const clips = await listOwnedAttemptClipsForTeacher({
+      ...input,
+      turnIds,
+    });
 
     if (clips.error) {
       throw new Error(`Unable to load audio clips: ${clips.error.message}`);
     }
 
-    const clipRows = (clips.data ?? []) as AudioClipEvidenceRow[];
+    const clipRows = clips.data;
     const audioClipIds = clipRows.map((clip) => clip.id);
     const scoresByAudioClipId = new Map<
       string,
@@ -503,10 +422,10 @@ export async function getAttemptEvidenceForTeacher(input: {
     >();
 
     if (audioClipIds.length > 0) {
-      const scores = await supabase
-        .from("pronunciation_scores")
-        .select("audio_clip_id, star_band, reference_text, word_scores")
-        .in("audio_clip_id", audioClipIds);
+      const scores = await listOwnedPronunciationScoresForTeacher({
+        ...input,
+        audioClipIds,
+      });
 
       if (scores.error) {
         throw new Error(
@@ -514,8 +433,7 @@ export async function getAttemptEvidenceForTeacher(input: {
         );
       }
 
-      for (const scoreRow of (scores.data ??
-        []) as PronunciationScoreRow[]) {
+      for (const scoreRow of scores.data) {
         scoresByAudioClipId.set(
           scoreRow.audio_clip_id,
           mapPronunciationScore(scoreRow),
@@ -571,31 +489,7 @@ export async function createSignedAudioUrlForTeacher(input: {
 }): Promise<{ signedUrl: string } | null> {
   const supabase = createSupabaseServiceClient();
 
-  const clip = await supabase
-    .from("audio_clips")
-    .select(
-      `
-        id,
-        object_key,
-        processing_status,
-        deleted_at,
-        attempt_turns!inner(
-          attempts!inner(
-            assignment_students!attempts_assignment_student_id_fkey!inner(
-              assignments!inner(
-                classes!inner(teacher_id)
-              )
-            )
-          )
-        )
-      `,
-    )
-    .eq("id", input.audioClipId)
-    .eq(
-      "attempt_turns.attempts.assignment_students.assignments.classes.teacher_id",
-      input.teacherId,
-    )
-    .maybeSingle();
+  const clip = await getOwnedAudioClipForTeacher(input, supabase);
 
   if (clip.error) {
     throw new Error(`Unable to load audio clip: ${clip.error.message}`);

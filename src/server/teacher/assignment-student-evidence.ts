@@ -5,8 +5,12 @@ import {
 } from "@/domain/mission/mission-snapshot";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { oneOrMany } from "@/lib/supabase/one-or-many";
+import {
+  getOwnedAssignmentStudentForTeacher,
+  type TeacherOwnedQueryClient,
+} from "@/server/teacher/teacher-owned-queries";
 
-type Client = ReturnType<typeof createSupabaseServiceClient>;
+type Client = TeacherOwnedQueryClient;
 
 const rawRowSchema = z.object({
   id: z.string(),
@@ -55,16 +59,7 @@ export async function getAssignmentStudentEvidenceForTeacher(
   input: { teacherId: string; assignmentStudentId: string },
   client: Client = createSupabaseServiceClient(),
 ): Promise<AssignmentStudentEvidence | null> {
-  const result = await client
-    .from("assignment_students")
-    .select(`
-      id, status, submitted_at, latest_attempt_id, dismissed_at,
-      students!inner(display_name),
-      assignments!inner(id, title, mission_snapshot, classes!inner(id, name, teacher_id))
-    `)
-    .eq("id", input.assignmentStudentId)
-    .eq("assignments.classes.teacher_id", input.teacherId)
-    .maybeSingle();
+  const result = await getOwnedAssignmentStudentForTeacher(input, client);
 
   if (result.error) throw new Error(`Unable to load assignment student evidence: ${result.error.message}`);
   if (!result.data) return null;
