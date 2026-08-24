@@ -101,8 +101,11 @@ async function flush() {
 }
 
 async function renderMission(responses: Record<string, UploadResponse>) {
+  const uploadBodies: FormData[] = [];
   const fetchMock = vi.fn(async (_url: string, init?: { body?: FormData }) => {
-    const clipKind = init?.body?.get("clipKind");
+    if (!init?.body) throw new Error("Expected upload FormData");
+    uploadBodies.push(init.body);
+    const clipKind = init.body.get("clipKind");
     const response = responses[String(clipKind)];
     if (!response) throw new Error(`Unexpected clip kind: ${String(clipKind)}`);
     return {
@@ -117,7 +120,7 @@ async function renderMission(responses: Record<string, UploadResponse>) {
     await flush();
   });
 
-  return fetchMock;
+  return uploadBodies;
 }
 
 function buttonLabels() {
@@ -150,7 +153,7 @@ afterEach(async () => {
 
 describe("MissionFlowShell teacher-review feedback", () => {
   it("shows Continue mission without Record again after an original review", async () => {
-    await renderMission({
+    const uploadBodies = await renderMission({
       original_answer: {
         displayTranscript: "Maybe.",
         evaluation: {
@@ -174,10 +177,12 @@ describe("MissionFlowShell teacher-review feedback", () => {
     expect(container.textContent).toContain("Your teacher will check this answer.");
     expect(buttonLabels()).toContain("Continue mission");
     expect(buttonLabels()).not.toContain("Record again");
+    expect(uploadBodies).toHaveLength(1);
+    expect(uploadBodies[0]?.has("status")).toBe(false);
   });
 
   it("shows Continue mission without Record again after a repeat review", async () => {
-    await renderMission({
+    const uploadBodies = await renderMission({
       original_answer: {
         displayTranscript: "I like soccer.",
         evaluation: {
@@ -228,5 +233,9 @@ describe("MissionFlowShell teacher-review feedback", () => {
     expect(container.textContent).toContain("Your teacher will check this answer.");
     expect(buttonLabels()).toContain("Continue mission");
     expect(buttonLabels()).not.toContain("Record again");
+    expect(uploadBodies).toHaveLength(2);
+    for (const uploadBody of uploadBodies) {
+      expect(uploadBody.has("status")).toBe(false);
+    }
   });
 });
