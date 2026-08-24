@@ -1,13 +1,11 @@
 /**
  * Student audio upload service (T-05-04..T-05-07).
  *
- * Server-only module. Uses the service-role client, so every write is preceded
- * by app-level ownership checks against assignment_students.student_id and the
- * attempt's assignment_student_id. Storage object keys are internal evidence
- * pointers, never authorization.
+ * Server-only module. Admission and each speaking-try operation are owned by
+ * the short-lived context, which keeps service-role access behind one seam.
+ * Storage object keys are internal evidence pointers, never authorization.
  */
 
-import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/lib/db/types";
 import { resolveMissionSnapshotTargetPattern } from "@/domain/mission/mission-snapshot";
 import { isPendingConversationRecovery } from "@/domain/mission/student-question-state";
@@ -49,46 +47,21 @@ import {
 } from "@/domain/ai/stored-evaluation";
 import {
   canGenerateNextDynamicTurn,
-  flagAttemptForTeacherReview,
-  recordCocoLine,
   type TeacherReviewReason,
 } from "@/server/student-access/mission-flow";
 import {
-  generateCocoReply,
-  type GenerateCocoReplyError,
-  type GenerateCocoReplyResult,
-} from "@/server/ai/conversation-generator";
-import { isContentSafe } from "@/server/ai/content-moderation";
+  orchestrateConversationTurn,
+  type CocoLineModerationEvent,
+} from "@/server/student-access/conversation-orchestrator";
 import { consumeRequestBudget } from "@/server/security/request-budget";
+import type { PersistedConversationTurn } from "@/server/student-access/conversation-history";
 import {
-  classifyFollowUpFallbackKind,
-  selectClosingFallbackLine,
-  selectFollowUpFallbackLine,
-  SAY_IT_AGAIN_FALLBACK_LINE,
-  withReviewPendingAcknowledgment,
-} from "@/domain/conversation/fallback-lines";
-import {
-  buildDeterministicPivotQuestion,
-  leadingQuestionWord,
-  pickRecoveryPivotWord,
-  topicAnchorWords,
-  validateRecoveryPivotQuestion,
-  type RecoveryPivotViolation,
-} from "@/domain/conversation/recovery-pivot";
-import {
-  WITHHELD_STUDENT_RESPONSE,
-  conversationReplyMode,
-  type ConversationExchange,
-  type GenerateCocoReplyInput,
-  type GeneratedCocoReplyParts,
-  type GeneratedCocoReplyLineViolation,
-} from "@/domain/ai/conversation-generation";
-import {
-  buildConversationHistory,
-  collectPreviouslyAskedQuestions,
-  type PersistedConversationTurn,
-} from "@/server/student-access/conversation-history";
+  createOwnedSpeakingTryContext,
+  type OwnedSpeakingTryContext,
+} from "@/server/student-access/speaking-try-context";
 import { withOwnedInProgressAttempt } from "@/server/student-access/owned-assignment";
+import { generateCocoReply } from "@/server/ai/conversation-generator";
+import { isContentSafe } from "@/server/ai/content-moderation";
 import { log } from "@/server/logging/logger";
 
 const DEFAULT_AUDIO_BUCKET = "student-audio";
@@ -118,35 +91,10 @@ export type UploadAttemptAudioClipInput = {
   byteSize: number;
 };
 
-export type CannedFallbackCause =
-  | GenerateCocoReplyError
-  | "unsafe_output"
-  | "output_moderation_unavailable";
-
-export type CocoLineModerationEvent =
-  | { kind: "flagged_student_input" }
-  | { kind: "input_moderation_unavailable" }
-  | { kind: "retried" }
-  | {
-      kind: "canned_fallback";
-      cause: Exclude<CannedFallbackCause, "reply_policy_failed">;
-    }
-  | {
-      kind: "canned_fallback";
-      cause: "reply_policy_failed";
-      violations: GeneratedCocoReplyLineViolation[];
-      rejectedCandidate: GeneratedCocoReplyParts;
-      rejectedAttempt: "first" | "corrected";
-    }
-  | {
-      /** W-pivot candidate broke a recovery rule; deterministic pivot used. */
-      kind: "canned_fallback";
-      cause: "recovery_pivot_rejected";
-      violations: RecoveryPivotViolation[];
-    };
-
-export type CocoLineModerationEventKind =
-  CocoLineModerationEvent["kind"];
+export type {
+  CannedFallbackCause,
+  CocoLineModerationEventKind,
+} from "@/server/student-access/conversation-orchestrator";
 
 export type UploadAttemptAudioClipResult =
   | {
@@ -337,194 +285,8 @@ function errorMessage(error: unknown) {
   return String(error);
 }
 
-function mapOwnedAttemptError(
-  error: "not_found_or_canceled" | "db_error",
-): "not_found" | "db_error" {
-  return error === "db_error" ? "db_error" : "not_found";
-}
-
 function elapsedMs(startedAt: number) {
   return Math.max(0, Date.now() - startedAt);
-}
-
-type ConversationTurnContext = {
-  studentId: string;
-  assignmentStudentId: string;
-  attemptId: string;
-  turnOrder: number;
-  targetPattern: string;
-  requiredTurns: number;
-  studentTranscript: string;
-  conversationHistory: ConversationExchange[];
-  responseHandling: "normal" | "review_pending";
-  generationPurpose?: GenerateCocoReplyInput["generationPurpose"];
-};
-
-type ConversationTurnOutcome = {
-  cocoLine: string | null;
-  moderationEvent: CocoLineModerationEvent | null;
-};
-
-type GenerateCocoReplyFailure = Extract<
-  GenerateCocoReplyResult,
-  { ok: false }
->;
-
-function generationFallbackEvent(
-  failure: GenerateCocoReplyFailure,
-): CocoLineModerationEvent {
-  if (failure.error === "reply_policy_failed") {
-    return {
-      kind: "canned_fallback",
-      cause: failure.error,
-      violations: failure.violations,
-      rejectedCandidate: failure.rejectedCandidate,
-      rejectedAttempt: failure.rejectedAttempt,
-    };
-  }
-
-  return { kind: "canned_fallback", cause: failure.error };
-}
-
-function fallbackLineForContext(
-  context: ConversationTurnContext,
-  inputUsable: boolean,
-): string {
-  if (context.generationPurpose?.kind === "unclear_recovery") {
-    return context.generationPurpose.fallbackQuestion;
-  }
-  if (conversationReplyMode(context) === "closing") {
-    return selectClosingFallbackLine();
-  }
-  return selectFollowUpFallbackLine(
-    classifyFollowUpFallbackKind({
-      latestResponse: context.studentTranscript,
-      responseHandling: context.responseHandling,
-      inputUsable,
-    }),
-  );
-}
-
-/**
- * Conversation-mode orchestration (CHAT-01/03/05/06, D-10/D-11/D-13,
- * RESEARCH.md step a-f pipeline). Runs ONLY for conversationMode missions,
- * after the student's original-answer turn write has already succeeded.
- * All generation/moderation calls live HERE (never in mission-flow.ts),
- * preserving the AI-06 boundary.
- *
- * Order (never reordered):
- *  a. hard-cap check (canGenerateNextDynamicTurn)
- *  b. moderate student input FIRST — flagged input never reaches the generator;
- *     moderation being merely unavailable (failedOpen) is recorded distinctly
- *     from an explicit unsafe verdict, but both fail closed (canned fallback)
- *  c. generate Coco's next line
- *  d. moderate the generated line; only an explicit unsafe verdict regenerates
- *     (via safetyMode: "retry") — an unavailable check fails closed immediately,
- *     never spending a useless generation retry
- *  e. provider/schema/policy failures persist their attributable cause
- *  f. persist (recordCocoLine) — coco_line + moderation_event
- */
-async function runConversationTurn(
-  context: ConversationTurnContext,
-  deps: {
-    generateCocoReply: typeof generateCocoReply;
-    isContentSafe: typeof isContentSafe;
-  },
-): Promise<ConversationTurnOutcome> {
-  // (a) HARD-CAP: refuse to generate past the fixed ceiling of 8, regardless
-  // of the mission's own required_turns (Pitfall 4).
-  if (!canGenerateNextDynamicTurn(context.turnOrder)) {
-    return { cocoLine: null, moderationEvent: null };
-  }
-
-  // (b) MODERATE STUDENT INPUT FIRST (D-11) — a flagged transcript never
-  // reaches the generator; the extra moderation call per turn is accepted.
-  // Fails closed either way, but an explicit unsafe verdict is recorded
-  // distinctly from moderation merely being unavailable.
-  const studentInputCheck = await deps.isContentSafe(context.studentTranscript);
-  if (!studentInputCheck.safe) {
-    return {
-      cocoLine: fallbackLineForContext(context, false),
-      moderationEvent: studentInputCheck.failedOpen
-        ? { kind: "input_moderation_unavailable" }
-        : { kind: "flagged_student_input" },
-    };
-  }
-
-  const generationInput: GenerateCocoReplyInput = {
-    targetPattern: context.targetPattern,
-    turnOrder: context.turnOrder,
-    requiredTurns: context.requiredTurns,
-    hardCap: 8,
-    safetyMode: "standard",
-    responseHandling: context.responseHandling,
-    conversationHistory: context.conversationHistory,
-    ...(context.generationPurpose
-      ? { generationPurpose: context.generationPurpose }
-      : {}),
-  };
-
-  // (c) GENERATE
-  const firstAttempt = await deps.generateCocoReply(generationInput);
-
-  // (e) PROVIDER/SCHEMA/POLICY FAILURE persists its attributable cause.
-  if (!firstAttempt.ok) {
-    return {
-      cocoLine: fallbackLineForContext(context, true),
-      moderationEvent: generationFallbackEvent(firstAttempt),
-    };
-  }
-
-  // (d) MODERATE OUTPUT
-  const firstLineCheck = await deps.isContentSafe(firstAttempt.reply.line);
-  if (firstLineCheck.safe) {
-    return { cocoLine: firstAttempt.reply.line, moderationEvent: null };
-  }
-
-  // Output moderation merely being unavailable fails closed immediately —
-  // no generation retry, since there is nothing to retry against (the first
-  // line was never confirmed unsafe).
-  if (firstLineCheck.failedOpen) {
-    return {
-      cocoLine: fallbackLineForContext(context, true),
-      moderationEvent: {
-        kind: "canned_fallback",
-        cause: "output_moderation_unavailable",
-      },
-    };
-  }
-
-  // Only an explicit unsafe verdict reaches regeneration, sent through the
-  // dedicated safety-retry steering. Every regenerated line is re-moderated
-  // — never assumed clean (RESEARCH.md anti-pattern warning).
-  const retryAttempt = await deps.generateCocoReply({
-    ...generationInput,
-    safetyMode: "retry",
-  });
-  if (!retryAttempt.ok) {
-    return {
-      cocoLine: fallbackLineForContext(context, true),
-      moderationEvent: generationFallbackEvent(retryAttempt),
-    };
-  }
-
-  const retryLineCheck = await deps.isContentSafe(retryAttempt.reply.line);
-  if (retryLineCheck.safe) {
-    return {
-      cocoLine: retryAttempt.reply.line,
-      moderationEvent: { kind: "retried" },
-    };
-  }
-
-  return {
-    cocoLine: fallbackLineForContext(context, true),
-    moderationEvent: retryLineCheck.failedOpen
-      ? {
-          kind: "canned_fallback",
-          cause: "output_moderation_unavailable",
-        }
-      : { kind: "canned_fallback", cause: "unsafe_output" },
-  };
 }
 
 export async function recordSpeakingTry(
@@ -584,30 +346,6 @@ export async function recordSpeakingTry(
   }
 
   try {
-    const supabase = createSupabaseServiceClient();
-
-    async function markClipFailed(
-      audioClipId: string,
-      objectKey?: string,
-    ): Promise<void> {
-      await timeStage("failedClipGuard", () =>
-        withOwnedInProgressAttempt(input, async () =>
-          timeStage("failedClipUpdate", () =>
-            supabase
-              .from("audio_clips")
-              .update({
-                ...(objectKey ? { object_key: objectKey } : {}),
-                mime_type: input.mimeType,
-                duration_ms: input.durationMs,
-                byte_size: input.byteSize,
-                processing_status: "failed",
-              })
-              .eq("id", audioClipId),
-          ),
-        ),
-      );
-    }
-
     const ownedAssignment = await timeStage("assignmentAndAttemptLookup", () =>
       withOwnedInProgressAttempt(input, async (owned) => owned),
     );
@@ -678,6 +416,30 @@ export async function recordSpeakingTry(
       };
     }
 
+    const context: OwnedSpeakingTryContext = createOwnedSpeakingTryContext({
+      studentId: input.studentId,
+      assignmentStudentId: input.assignmentStudentId,
+      attemptId: input.attemptId,
+      snapshot,
+    });
+
+    async function markClipFailed(
+      audioClipId: string,
+      attemptTurnId: string,
+      objectKey?: string,
+    ): Promise<void> {
+      await timeStage("failedClipGuard", () =>
+        context.markClipFailed({
+          audioClipId,
+          attemptTurnId,
+          ...(objectKey ? { objectKey } : {}),
+          mimeType: input.mimeType,
+          durationMs: input.durationMs,
+          byteSize: input.byteSize,
+        }),
+      );
+    }
+
     let priorConversationTurns: PersistedConversationTurn[] = [];
     let previousCocoLine: string | null = null;
 
@@ -687,34 +449,22 @@ export async function recordSpeakingTry(
       input.turnOrder > 1
     ) {
       const historyResult = await timeStage("conversationHistoryGuard", () =>
-        withOwnedInProgressAttempt(input, async () =>
-          timeStage("conversationHistoryLookup", () =>
-            supabase
-              .from("attempt_turns")
-              .select(
-                "turn_order, original_transcript, improved_sentence, coco_line, evaluation",
-              )
-              .eq("attempt_id", input.attemptId)
-              .lt("turn_order", input.turnOrder)
-              .order("turn_order", { ascending: true }),
-          ),
+        timeStage("conversationHistoryLookup", () =>
+          context.loadConversationTurns(input.turnOrder),
         ),
       );
       if (!historyResult.ok) {
-        const error = mapOwnedAttemptError(historyResult.error);
-        logTiming("failed", { error, step: "conversation_history_guard" });
+        logTiming("failed", {
+          error: historyResult.error,
+          step: "conversation_history_guard",
+        });
         return {
           ok: false,
-          error,
-          retryable: error === "db_error",
+          error: historyResult.error,
+          retryable: historyResult.error === "db_error",
         };
       }
-      const { data, error } = historyResult.value;
-      if (error) {
-        logTiming("failed", { error: "db_error", step: "conversation_history" });
-        return { ok: false, error: "db_error", retryable: true };
-      }
-      priorConversationTurns = data ?? [];
+      priorConversationTurns = historyResult.value;
       previousCocoLine = priorConversationTurns.at(-1)?.coco_line ?? null;
     }
 
@@ -739,23 +489,7 @@ export async function recordSpeakingTry(
     const createAudioBlob = () => new Blob([audioBytes], { type: input.mimeType });
 
     const turnInit = await timeStage("turnGuard", () =>
-      withOwnedInProgressAttempt(input, async () =>
-        timeStage("turnInit", () =>
-          supabase
-            .from("attempt_turns")
-            .upsert(
-              {
-                attempt_id: input.attemptId,
-                turn_order: input.turnOrder,
-              },
-              { onConflict: "attempt_id,turn_order" },
-            )
-            .select(
-              "id, original_transcript, improved_sentence, evaluation, coco_line",
-            )
-            .single(),
-        ),
-      ),
+      timeStage("turnInit", () => context.initializeTurn(input.turnOrder)),
     );
 
     if (!turnInit.ok) {
@@ -768,12 +502,7 @@ export async function recordSpeakingTry(
       };
     }
 
-    const { data: turn, error: turnError } = turnInit.value;
-
-    if (turnError || !turn) {
-      logTiming("failed", { error: "db_error", step: "turn_init" });
-      return { ok: false, error: "db_error", retryable: true };
-    }
+    const turn = turnInit.value;
 
     const missionQuestion =
       persistedConversationRecoveryQuestion(
@@ -799,38 +528,30 @@ export async function recordSpeakingTry(
       logTiming("failed", { error: "invalid_audio", step: "repeat_target" });
       return { ok: false, error: "invalid_audio", retryable: false };
     }
+    const repeatTargetValue = repeatTarget ?? "";
 
     const audioClipInsert = await timeStage("audioClipGuard", () =>
-      withOwnedInProgressAttempt(input, async () =>
-        timeStage("audioClipInsert", () =>
-          supabase
-            .from("audio_clips")
-            .insert({
-              attempt_turn_id: turn.id,
-              clip_kind: input.clipKind,
-              processing_status: "pending_upload",
-            })
-            .select("id")
-            .single(),
-        ),
+      timeStage("audioClipInsert", () =>
+        context.insertAudioClip({
+          attemptTurnId: turn.id,
+          clipKind: input.clipKind,
+        }),
       ),
     );
 
     if (!audioClipInsert.ok) {
-      const error = mapOwnedAttemptError(audioClipInsert.error);
-      logTiming("failed", { error, step: "audio_clip_guard" });
+      logTiming("failed", {
+        error: audioClipInsert.error,
+        step: "audio_clip_guard",
+      });
       return {
         ok: false,
-        error,
-        retryable: error === "db_error",
+        error: audioClipInsert.error,
+        retryable: audioClipInsert.error === "db_error",
       };
     }
 
-    const { data: audioClip, error: clipError } = audioClipInsert.value;
-    if (clipError || !audioClip) {
-      logTiming("failed", { error: "db_error", step: "audio_clip_insert" });
-      return { ok: false, error: "db_error", retryable: true };
-    }
+    const audioClip = audioClipInsert.value;
     audioClipId = audioClip.id;
 
     const objectKey = buildObjectKey({
@@ -851,23 +572,28 @@ export async function recordSpeakingTry(
     const storageUploadAdmission = await timeStage(
       "storageUploadGuard",
       () =>
-        withOwnedInProgressAttempt(input, async () => ({
-          promise: timeStage("storageUpload", () =>
-            supabase.storage
-              .from(getStudentAudioBucketId())
-              .upload(objectKey, createAudioBlob(), {
-                contentType: input.mimeType,
-                upsert: false,
-              }),
-          ),
-        })),
+        context.uploadAudio({
+          bucket: getStudentAudioBucketId(),
+          objectKey,
+          blob: createAudioBlob(),
+          mimeType: input.mimeType,
+        }),
     );
     if (!storageUploadAdmission.ok) {
-      const error = mapOwnedAttemptError(storageUploadAdmission.error);
-      logTiming("failed", { error, step: "storage_upload_guard" });
-      return { ok: false, error, retryable: error === "db_error" };
+      logTiming("failed", {
+        error: storageUploadAdmission.error,
+        step: "storage_upload_guard",
+      });
+      return {
+        ok: false,
+        error: storageUploadAdmission.error,
+        retryable: storageUploadAdmission.error === "db_error",
+      };
     }
-    const storageUploadPromise = storageUploadAdmission.value.promise;
+    const storageUploadPromise = timeStage(
+      "storageUpload",
+      () => storageUploadAdmission.value.promise,
+    );
 
     const transcribe = deps.transcribeAudioFile ?? transcribeAudioFile;
     // Teacher-authored mission vocabulary biases the decode toward lesson
@@ -894,7 +620,7 @@ export async function recordSpeakingTry(
     ]);
 
     if (uploadError) {
-      await markClipFailed(audioClip.id);
+      await markClipFailed(audioClip.id, turn.id);
 
       log("warn", "audio.upload_failed", {
         audioClipId: audioClip.id,
@@ -916,7 +642,7 @@ export async function recordSpeakingTry(
     }
 
     if (!transcription.ok) {
-      await markClipFailed(audioClip.id, objectKey);
+      await markClipFailed(audioClip.id, turn.id, objectKey);
 
       logTiming("failed", {
         error: "transcription_failed_retryable",
@@ -933,7 +659,7 @@ export async function recordSpeakingTry(
       transcription.text,
     );
     if (!transcript || !hasEnglishTranscript(transcript)) {
-      await markClipFailed(audioClip.id, objectKey);
+      await markClipFailed(audioClip.id, turn.id, objectKey);
 
       logTiming("failed", {
         error: "transcription_failed_retryable",
@@ -1004,7 +730,7 @@ export async function recordSpeakingTry(
         : ({ stage: "evaluate" } as const);
     let scoringPromise: ReturnType<typeof beginPronunciationScoring> | null =
       input.clipKind === "repeat_attempt"
-        ? beginPronunciationScoring(repeatTarget)
+        ? beginPronunciationScoring(repeatTargetValue)
         : koreanSpans.length === 0 && preGuard.stage === "evaluate"
           ? beginPronunciationScoring(transcript)
           : null;
@@ -1051,21 +777,15 @@ export async function recordSpeakingTry(
     if (evaluationOutcome && evaluationOutcome.stage !== "evaluated") {
       const decision = evaluationOutcome.decision;
       const writeResult = await timeStage("turnWriteGuard", () =>
-        withOwnedInProgressAttempt(input, async () =>
-          timeStage("turnWrite", () =>
-            supabase.from("attempt_turns").upsert(
-              {
-                attempt_id: input.attemptId,
-                turn_order: input.turnOrder,
-                original_transcript: transcript,
-                target_attempted: false,
-                improved_sentence: null,
-                evaluation: toJson(decision.evaluation),
-                reply_hint_frame: replyHintFrame,
-              },
-              { onConflict: "attempt_id,turn_order" },
-            ),
-          ),
+        timeStage("turnWrite", () =>
+          context.writeGuardEvaluation({
+            transcript,
+            turnOrder: input.turnOrder,
+            targetAttempted: false,
+            improvedSentence: null,
+            evaluation: toJson(decision.evaluation),
+            replyHintFrame,
+          }),
         ),
       );
       if (!writeResult.ok) {
@@ -1083,25 +803,27 @@ export async function recordSpeakingTry(
         return { ok: false, error: "db_error", retryable: true };
       }
       const clipUpdateResult = await timeStage("finalClipGuard", () =>
-        withOwnedInProgressAttempt(input, async () =>
-          timeStage("finalClipUpdate", () =>
-            supabase
-              .from("audio_clips")
-              .update({
-                object_key: objectKey,
-                mime_type: input.mimeType,
-                duration_ms: input.durationMs,
-                byte_size: input.byteSize,
-                processing_status: "transcribed",
-              })
-              .eq("id", audioClip.id),
-          ),
+        timeStage("finalClipUpdate", () =>
+          context.finalizeClip({
+            audioClipId: audioClip.id,
+            attemptTurnId: turn.id,
+            objectKey,
+            mimeType: input.mimeType,
+            durationMs: input.durationMs,
+            byteSize: input.byteSize,
+          }),
         ),
       );
       if (!clipUpdateResult.ok) {
-        const error = mapOwnedAttemptError(clipUpdateResult.error);
-        logTiming("failed", { error, step: "final_clip_guard" });
-        return { ok: false, error, retryable: error === "db_error" };
+        logTiming("failed", {
+          error: clipUpdateResult.error,
+          step: "final_clip_guard",
+        });
+        return {
+          ok: false,
+          error: clipUpdateResult.error,
+          retryable: clipUpdateResult.error === "db_error",
+        };
       }
       const { error: clipUpdateError } = clipUpdateResult.value;
       if (clipUpdateError) {
@@ -1149,23 +871,17 @@ export async function recordSpeakingTry(
               recoveryState.kind !== "prompt_echo";
 
             const writeResult = await timeStage("turnWriteGuard", () =>
-              withOwnedInProgressAttempt(input, async () =>
-                timeStage("turnWrite", () =>
-                  supabase.from("attempt_turns").upsert(
-                    {
-                      attempt_id: input.attemptId,
-                      turn_order: input.turnOrder,
-                      original_transcript: transcript,
-                      target_attempted: decision.targetAttempted,
-                      improved_sentence: decision.improvedSentence,
-                      ...(recoveryPersistencePending
-                        ? {}
-                        : { evaluation: toJson(decision.evaluation) }),
-                      reply_hint_frame: replyHintFrame,
-                    },
-                    { onConflict: "attempt_id,turn_order" },
-                  ),
-                ),
+              timeStage("turnWrite", () =>
+                context.writeOriginalTurn({
+                  transcript,
+                  turnOrder: input.turnOrder,
+                  targetAttempted: decision.targetAttempted,
+                  improvedSentence: decision.improvedSentence,
+                  ...(recoveryPersistencePending
+                    ? {}
+                    : { evaluation: toJson(decision.evaluation) }),
+                  replyHintFrame,
+                }),
               ),
             );
 
@@ -1182,17 +898,15 @@ export async function recordSpeakingTry(
               return write;
             }
 
-            const routeResult = await flagAttemptForTeacherReview({
-              studentId: input.studentId,
-              assignmentStudentId: input.assignmentStudentId,
-              attemptId: input.attemptId,
-              reviewReason: reviewReasonOrDefault(
-                decision.evaluation.reviewReason,
-              ),
-            });
+            const routeResult = await context.routeTeacherReview(
+              reviewReasonOrDefault(decision.evaluation.reviewReason),
+            );
 
             if (!routeResult.ok) {
               return { error: new Error(routeResult.error) };
+            }
+            if (routeResult.value.error) {
+              return { error: new Error(routeResult.value.error.message) };
             }
 
             return write;
@@ -1204,22 +918,13 @@ export async function recordSpeakingTry(
             const repeatCountResult = await timeStage(
               "repeatAttemptCountGuard",
               () =>
-                withOwnedInProgressAttempt(input, async () =>
-                  timeStage(
-                    "repeatAttemptCount",
-                    () =>
-                      supabase
-                        .from("audio_clips")
-                        .select("id", { count: "exact", head: true })
-                        .eq("attempt_turn_id", turn.id)
-                        .eq("clip_kind", "repeat_attempt")
-                        .eq("processing_status", "transcribed"),
-                  ),
+                timeStage(
+                  "repeatAttemptCount",
+                  () => context.countTranscribedRepeatClips(turn.id),
                 ),
             );
             if (!repeatCountResult.ok) {
-              const error = mapOwnedAttemptError(repeatCountResult.error);
-              return { guardError: error };
+              return { guardError: repeatCountResult.error };
             }
             const {
               count: priorRepeatClipCount,
@@ -1234,7 +939,7 @@ export async function recordSpeakingTry(
             // stores exactly what it returns.
             const repeatOutcome = await evaluateRepeatTurnAnswer(
               {
-                repeatTarget,
+                repeatTarget: repeatTargetValue,
                 originalTranscript: turn.original_transcript ?? "",
                 transcript,
                 koreanSpans,
@@ -1254,17 +959,15 @@ export async function recordSpeakingTry(
             repeatEvaluation = decision;
 
             const writeResult = await timeStage("turnWriteGuard", () =>
-              withOwnedInProgressAttempt(input, async () =>
-                timeStage("turnWrite", () =>
-                  supabase
-                    .from("attempt_turns")
-                    .update({
-                      repeat_transcript: transcript,
-                      repeat_accepted: decision.repeatAccepted,
-                      evaluation: toJson(decision),
-                    })
-                    .eq("id", turn.id),
-                ),
+              timeStage(
+                "turnWrite",
+                () =>
+                  context.writeRepeatTurn({
+                    turnId: turn.id,
+                    transcript,
+                    repeatAccepted: decision.repeatAccepted,
+                    evaluation: toJson(decision),
+                  }),
               ),
             );
 
@@ -1281,15 +984,15 @@ export async function recordSpeakingTry(
               return write;
             }
 
-            const routeResult = await flagAttemptForTeacherReview({
-              studentId: input.studentId,
-              assignmentStudentId: input.assignmentStudentId,
-              attemptId: input.attemptId,
-              reviewReason: reviewReasonOrDefault(decision.reviewReason),
-            });
+            const routeResult = await context.routeTeacherReview(
+              reviewReasonOrDefault(decision.reviewReason),
+            );
 
             if (!routeResult.ok) {
               return { error: new Error(routeResult.error) };
+            }
+            if (routeResult.value.error) {
+              return { error: new Error(routeResult.value.error.message) };
             }
 
             return write;
@@ -1310,7 +1013,7 @@ export async function recordSpeakingTry(
     }
 
     if (turnWrite.error) {
-      await markClipFailed(audioClip.id, objectKey);
+      await markClipFailed(audioClip.id, turn.id, objectKey);
 
       log("warn", "audio.processing_failed", {
         audioClipId: audioClip.id,
@@ -1352,217 +1055,82 @@ export async function recordSpeakingTry(
     // only for chat-mode missions, only on the original-answer turn (the
     // student's utterance Coco is replying to), after the turn write above
     // has already succeeded. Preset missions (conversationMode !== true)
-    // behave exactly as before — no generateCocoReply/isContentSafe call.
+    // never enter this seam.
     let cocoLine: string | null = null;
     let cocoLineModerationEvent: CocoLineModerationEvent | null = null;
     const recoveryState = classifyStoredConversationRecovery(originalEvaluation);
 
     if (
       snapshot.conversationMode === true &&
-      input.clipKind === "original_answer" &&
-      recoveryState.kind !== "prompt_echo"
+      input.clipKind === "original_answer"
     ) {
-      const recoveryAttempt: 1 | 2 | null =
-        !lowConfidenceGateRetryApplied && recoveryState.kind === "ambiguity"
-          ? recoveryState.attempt
-          : null;
-      // Issue #64: a low-confidence-gated retry is also a free same-turn
-      // retry, but its counter is separate — it must never consume or advance
-      // the ambiguity ladder.
-      const lowConfidenceAudioRetry =
-        lowConfidenceGateRetryApplied ||
-        (recoveryAttempt === null &&
-          recoveryState.kind === "low_confidence_audio_retry");
-      const freeSameTurnRetry = recoveryAttempt !== null || lowConfidenceAudioRetry;
-      const reviewPendingContinuation = isStoredTeacherReview(originalEvaluation);
-      const currentStudentResponse =
-        freeSameTurnRetry || reviewPendingContinuation
-          ? WITHHELD_STUDENT_RESPONSE
-          : originalEvaluation?.improvedSentence?.trim() || transcript;
+      const conversationOutcome = await timeStage("conversationTurn", () =>
+        orchestrateConversationTurn(
+          {
+            conversationMode: true,
+            turnOrder: input.turnOrder,
+            requiredTurns: snapshot.requiredTurns,
+            targetPattern,
+            title: snapshot.title,
+            characterId: snapshot.characterId,
+            openerLine: snapshot.turns[0]?.prompt ?? "",
+            missionQuestion: missionQuestion ?? null,
+            transcript,
+            priorTurns: priorConversationTurns,
+            evaluation: originalEvaluation,
+            recoveryState,
+            lowConfidenceGateRetryApplied,
+          },
+          {
+            generateCocoReply: deps.generateCocoReply ?? generateCocoReply,
+            isContentSafe: deps.isContentSafe ?? isContentSafe,
+          },
+        ),
+      );
 
-      // Recovery ladder (2026-08-22): the first unclear answer gets the
-      // static say-it-again line — no generation call, nothing derived from
-      // the withheld transcript reaches the student, so history and
-      // moderation round-trips are skipped entirely. A low-confidence-gated
-      // retry is likewise always the free static line.
-      if (recoveryAttempt === 1 || lowConfidenceAudioRetry) {
-        cocoLine = SAY_IT_AGAIN_FALLBACK_LINE;
-      } else {
-        const historyResult = buildConversationHistory({
-          openerLine: snapshot.turns[0]?.prompt ?? "",
-          currentTurnOrder: input.turnOrder,
-          currentStudentResponse,
-          priorTurns: priorConversationTurns,
-        });
-        if (!historyResult.ok) {
+      if (conversationOutcome.kind === "error") {
+        if (conversationOutcome.error === "recovery_line_missing") {
+          await markClipFailed(audioClip.id, turn.id, objectKey);
           logTiming("failed", {
-            error: "invalid_audio",
-            step: "conversation_history",
+            error: "db_error",
+            step: "recovery_line_missing",
           });
-          return { ok: false, error: "invalid_audio", retryable: false };
+          return { ok: false, error: "db_error", retryable: true };
         }
-
-        const failedRecoveryQuestion =
-          missionQuestion ?? snapshot.turns[0]?.prompt ?? "";
-        const previouslyAsked = collectPreviouslyAskedQuestions({
-          conversationHistory: historyResult.history,
-          ambiguityHistory: originalEvaluation?.ambiguityHistory,
+        logTiming("failed", {
+          error: "invalid_audio",
+          step: "conversation_history",
         });
-        const recoveryTopicSeed = [
-          /_{2,}/u.test(targetPattern) ? "" : targetPattern,
-          snapshot.title,
-          failedRecoveryQuestion,
-        ]
-          .map((value) => value.trim())
-          .find((value) => topicAnchorWords(value).length > 0) ?? "";
-        const deterministicPivot = buildDeterministicPivotQuestion({
-          failedQuestion: failedRecoveryQuestion,
-          topicSeed: recoveryTopicSeed,
-          previouslyAsked,
-        });
+        return { ok: false, error: "invalid_audio", retryable: false };
+      }
 
-        const generationPurpose =
-          recoveryAttempt === null
-            ? { kind: "next_turn" as const }
-            : {
-                kind: "unclear_recovery" as const,
-                attempt: recoveryAttempt,
-                fallbackQuestion: deterministicPivot,
-                ...((() => {
-                  const failedWord = leadingQuestionWord(failedRecoveryQuestion);
-                  const pivotWord = pickRecoveryPivotWord(failedWord);
-                  return pivotWord ? { pivotWord } : {};
-                })()),
-                ...(topicAnchorWords(recoveryTopicSeed).length > 0
-                  ? { topicSeed: recoveryTopicSeed }
-                  : {}),
-              };
-
-        const conversationOutcome = await timeStage("conversationTurn", () =>
-          runConversationTurn(
-            {
-              studentId: input.studentId,
-              assignmentStudentId: input.assignmentStudentId,
-              attemptId: input.attemptId,
-              turnOrder: input.turnOrder,
-              targetPattern,
-              requiredTurns: snapshot.requiredTurns,
-              studentTranscript: transcript,
-              conversationHistory: historyResult.history,
-              responseHandling:
-                recoveryAttempt !== null || reviewPendingContinuation
-                  ? "review_pending"
-                  : "normal",
-              generationPurpose,
-            },
-            {
-              generateCocoReply: deps.generateCocoReply ?? generateCocoReply,
-              isContentSafe: deps.isContentSafe ?? isContentSafe,
-            },
-          ),
-        );
-
+      if (conversationOutcome.kind === "reply") {
         cocoLine = conversationOutcome.cocoLine;
         cocoLineModerationEvent = conversationOutcome.moderationEvent;
-
-        if (recoveryAttempt === 2 && cocoLine !== null) {
-          const pivotCheck = validateRecoveryPivotQuestion(cocoLine, {
-            failedQuestion: failedRecoveryQuestion,
-            topicSeed: recoveryTopicSeed,
-            previouslyAsked,
-          });
-          if (!pivotCheck.ok) {
-            log("warn", "ai.recovery_pivot_rejected", {
-              assignmentStudentId: input.assignmentStudentId,
-              attemptId: input.attemptId,
-              turnOrder: input.turnOrder,
-              reasons: pivotCheck.reasons,
-            });
-            cocoLine = deterministicPivot;
-            cocoLineModerationEvent = {
-              kind: "canned_fallback",
-              cause: "recovery_pivot_rejected",
-              violations: pivotCheck.reasons,
-            };
-          }
-        }
-      }
-
-      // After a third-strike turn is flagged for teacher review in the
-      // background, the continuation question opens with a short spoken
-      // acknowledgment so the handoff does not read as a silent topic jump.
-      if (
-        cocoLine !== null &&
-        recoveryAttempt === null &&
-        reviewPendingContinuation
-      ) {
-        cocoLine = withReviewPendingAcknowledgment(cocoLine);
-      }
-
-      const resolvedCocoLine = cocoLine;
-      const resolvedModerationEvent = cocoLineModerationEvent;
-
-      if (
-        recoveryPersistencePending &&
-        (!resolvedCocoLine || !resolvedCocoLine.trim())
-      ) {
-        await timeStage("failedClipGuard", () =>
-          withOwnedInProgressAttempt(input, async () =>
-            timeStage("failedClipUpdate", () =>
-              supabase
-                .from("audio_clips")
-                .update({ processing_status: "failed" })
-                .eq("id", audioClip.id),
-            ),
-          ),
-        );
-        logTiming("failed", {
-          error: "db_error",
-          step: "recovery_line_missing",
-        });
-        return { ok: false, error: "db_error", retryable: true };
-      }
-
-      if (resolvedCocoLine !== null) {
-        if (
-          recoveryAttempt !== null &&
-          originalEvaluation?.ambiguityHistory?.length
-        ) {
-          const latestAmbiguity = originalEvaluation.ambiguityHistory.at(-1);
-          if (latestAmbiguity) {
-            latestAmbiguity.recoveryQuestion = resolvedCocoLine;
-          }
-        }
         const recordResult = await timeStage("cocoLineWrite", () =>
-          recordCocoLine({
-            studentId: input.studentId,
-            assignmentStudentId: input.assignmentStudentId,
-            attemptId: input.attemptId,
-            turnOrder: input.turnOrder,
-            cocoLine: resolvedCocoLine,
-            moderationEvent: resolvedModerationEvent,
-            ...(freeSameTurnRetry && originalEvaluation
-              ? { evaluation: toJson(originalEvaluation) }
+          context.recordCocoLine({
+            turnOrder: conversationOutcome.persistence.turnOrder,
+            cocoLine: conversationOutcome.persistence.cocoLine,
+            moderationEvent: conversationOutcome.persistence.moderationEvent,
+            ...(conversationOutcome.persistence.evaluation
+              ? {
+                  evaluation: toJson(
+                    conversationOutcome.persistence.evaluation,
+                  ),
+                }
               : {}),
           }),
         );
 
-        if (!recordResult.ok) {
-          await timeStage("failedClipGuard", () =>
-            withOwnedInProgressAttempt(input, async () =>
-              timeStage("failedClipUpdate", () =>
-                supabase
-                  .from("audio_clips")
-                  .update({ processing_status: "failed" })
-                  .eq("id", audioClip.id),
-              ),
-            ),
-          );
+        if (!recordResult.ok || recordResult.value.error) {
+          await markClipFailed(audioClip.id, turn.id, objectKey);
           log("warn", "audio.coco_line_persist_failed", {
             assignmentStudentId: input.assignmentStudentId,
             attemptId: input.attemptId,
             turnOrder: input.turnOrder,
-            error: recordResult.error,
+            error: recordResult.ok
+              ? recordResult.value.error?.message
+              : recordResult.error,
           });
           logTiming("failed", {
             error: "db_error",
@@ -1571,16 +1139,15 @@ export async function recordSpeakingTry(
           return { ok: false, error: "db_error", retryable: true };
         }
 
-        // Kick off TTS for Coco's new line via the existing warm-cache path
-        // used for preset/improved lines — no forked audio pipeline.
-        if (!isStoredTeacherReview(originalEvaluation)) {
+        if (conversationOutcome.tts) {
           try {
             const warm = deps.warmTtsAudioCache ?? warmTtsAudioCache;
+            const ttsIntent = conversationOutcome.tts;
             await timeStage("ttsWarmupCocoLine", () =>
               warm({
-                characterId: snapshot.characterId,
+                characterId: ttsIntent.characterId,
                 voice: DEFAULT_COCO_TTS_VOICE,
-                texts: [resolvedCocoLine],
+                texts: [ttsIntent.text],
               }),
             );
           } catch (error) {
@@ -1612,23 +1179,17 @@ export async function recordSpeakingTry(
           const scoreWriteResult = await timeStage(
             "pronunciationScoreGuard",
             () =>
-              withOwnedInProgressAttempt(input, async () =>
-                timeStage("pronunciationScoreWrite", () =>
-                  supabase.from("pronunciation_scores").upsert(
-                    {
-                      audio_clip_id: audioClip.id,
-                      provider: "azure_speech",
-                      reference_text: scoring.score.referenceText,
-                      accuracy_score: scoring.score.accuracyScore,
-                      fluency_score: scoring.score.fluencyScore,
-                      completeness_score: scoring.score.completenessScore,
-                      pronunciation_score: scoring.score.pronunciationScore,
-                      star_band: scoring.score.starBand,
-                      word_scores: scoring.score.wordScores satisfies Json,
-                    },
-                    { onConflict: "audio_clip_id" },
-                  ),
-                ),
+              timeStage("pronunciationScoreWrite", () =>
+                context.writePronunciationScore({
+                  audioClipId: audioClip.id,
+                  referenceText: scoring.score.referenceText,
+                  accuracyScore: scoring.score.accuracyScore,
+                  fluencyScore: scoring.score.fluencyScore,
+                  completenessScore: scoring.score.completenessScore,
+                  pronunciationScore: scoring.score.pronunciationScore,
+                  starBand: scoring.score.starBand,
+                  wordScores: scoring.score.wordScores satisfies Json,
+                }),
               ),
           );
 
@@ -1704,19 +1265,17 @@ export async function recordSpeakingTry(
       : Promise.resolve();
 
     const finalClipUpdatePromise = timeStage("finalClipGuard", () =>
-      withOwnedInProgressAttempt(input, async () =>
-        timeStage("finalClipUpdate", () =>
-          supabase
-            .from("audio_clips")
-            .update({
-              object_key: objectKey,
-              mime_type: input.mimeType,
-              duration_ms: input.durationMs,
-              byte_size: input.byteSize,
-              processing_status: "transcribed",
-            })
-            .eq("id", audioClip.id),
-        ),
+      timeStage(
+        "finalClipUpdate",
+        () =>
+          context.finalizeClip({
+            audioClipId: audioClip.id,
+            attemptTurnId: turn.id,
+            objectKey,
+            mimeType: input.mimeType,
+            durationMs: input.durationMs,
+            byteSize: input.byteSize,
+          }),
       ),
     );
 
@@ -1726,9 +1285,15 @@ export async function recordSpeakingTry(
     ]);
 
     if (!finalClipUpdateResult.ok) {
-      const error = mapOwnedAttemptError(finalClipUpdateResult.error);
-      logTiming("failed", { error, step: "final_clip_guard" });
-      return { ok: false, error, retryable: error === "db_error" };
+      logTiming("failed", {
+        error: finalClipUpdateResult.error,
+        step: "final_clip_guard",
+      });
+      return {
+        ok: false,
+        error: finalClipUpdateResult.error,
+        retryable: finalClipUpdateResult.error === "db_error",
+      };
     }
 
     if (finalClipUpdateResult.value.error) {
