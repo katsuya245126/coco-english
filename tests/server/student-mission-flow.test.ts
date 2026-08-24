@@ -31,6 +31,7 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
       repeat_transcript: null,
       repeat_accepted: null,
       evaluation: {
+        kind: "original",
         version: "ai-eval-v1",
         outcome: "accepted_original",
         requireRepeat: false,
@@ -43,6 +44,7 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
       repeat_transcript: "I like playing soccer.",
       repeat_accepted: true,
       evaluation: {
+        kind: "original",
         version: "ai-eval-v1",
         outcome: "needs_correction",
         requireRepeat: true,
@@ -65,6 +67,7 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
           repeat_transcript: null,
           repeat_accepted: null,
           evaluation: {
+            kind: "original",
             version: "ai-eval-v1",
             outcome: "retry_original",
             reason: "non_english",
