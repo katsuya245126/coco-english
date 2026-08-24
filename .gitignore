@@ -49,12 +49,20 @@ docs/PROBLEMS-SOLVED.md
 # Temporary local agent/session documentation
 docs/local/
 
+# Personal planning and product notes
+docs/improve-codebase-architecture.md
+docs/ai/model-routing.md
+docs/testing/test-suite-inventory.md
+docs/english-speaking-practice-app-spec.md
+
 # Local implementation plans and completed-task notes; use GitHub issues/PRs for durable tracking
 docs/superpowers/
 docs/tasks/
 
 # Local-only scripts (dev launchers, local seeders); not for the repo
 scripts/local/
+scripts/uat-worktree.mjs
+scripts/uat-worktree-lib.mjs
 scripts/normalize-coco-sprites.mjs
 scripts/seed-answer-shape-uat.mjs
 scripts/inspect-attempts.mjs
