@@ -24,7 +24,6 @@ import { DEFAULT_COCO_TTS_VOICE } from "@/domain/audio/tts";
 import { warmTtsAudioCache } from "@/server/audio/tts-cache";
 import { scorePronunciation } from "@/server/audio/pronunciation-scorer";
 import { buildLearnerTranscript } from "@/domain/audio/transcript-interpretation";
-import type { MinimalEffortKind } from "@/domain/ai/minimal-effort-feedback";
 import {
   wordsToPractice,
   type PronunciationStarBand,
@@ -40,9 +39,14 @@ import {
   evaluateOriginalTurnAnswer,
   evaluateRepeatTurnAnswer,
   LOW_CONFIDENCE_REVIEW_REASON,
+} from "@/server/ai/answer-evaluation";
+import {
+  storedOriginalOf,
+  TEACHER_REVIEW_OUTCOME,
   type StoredOriginalTurnEvaluation,
   type StoredRepeatTurnEvaluation,
-} from "@/server/ai/answer-evaluation";
+  type StudentFacingEvaluation,
+} from "@/domain/ai/stored-evaluation";
 import {
   canGenerateNextDynamicTurn,
   flagAttemptForTeacherReview,
@@ -193,17 +197,9 @@ export type UploadAttemptAudioClipDeps = {
  * (`hangulInterpretations`), complete raw transcripts (`ambiguityHistory`), a
  * nested `originalEvaluation` with both, provenance, and contract violations.
  * None of that may cross the network to a learner, so the route projects
- * rather than serializes. These five fields are exactly what `MissionFlowShell`
- * consumes to pick a feedback card.
+ * rather than serializes. The discriminated members are exactly what
+ * `MissionFlowShell` consumes to pick a feedback card.
  */
-export type StudentFacingEvaluation = {
-  outcome: string;
-  improvedSentence: string | null;
-  retryReason?: "minimal_effort" | "incomplete_recording" | "unclear_meaning";
-  minimalEffortKind?: MinimalEffortKind;
-  retryExample?: string | null;
-};
-
 /**
  * Allow-list projection. Written as explicit field reads, never a spread or a
  * delete-list, so a new stored field is invisible to students by default.
@@ -216,24 +212,24 @@ export function toStudentEvaluation(
 ): StudentFacingEvaluation | undefined {
   if (!evaluation) return undefined;
 
-  const original =
-    "improvedSentence" in evaluation
-      ? (evaluation as StoredOriginalTurnEvaluation)
-      : null;
+  if (evaluation.kind === "repeat") {
+    return { kind: "repeat", outcome: evaluation.outcome };
+  }
 
   const projected: StudentFacingEvaluation = {
+    kind: "original",
     outcome: evaluation.outcome,
-    improvedSentence: original?.improvedSentence ?? null,
+    improvedSentence: evaluation.improvedSentence,
   };
 
-  if (original?.retryReason !== undefined) {
-    projected.retryReason = original.retryReason;
+  if (evaluation.retryReason !== undefined) {
+    projected.retryReason = evaluation.retryReason;
   }
-  if (original?.minimalEffortKind !== undefined) {
-    projected.minimalEffortKind = original.minimalEffortKind;
+  if (evaluation.minimalEffortKind !== undefined) {
+    projected.minimalEffortKind = evaluation.minimalEffortKind;
   }
-  if (original?.retryExample !== undefined) {
-    projected.retryExample = original.retryExample;
+  if (evaluation.retryExample !== undefined) {
+    projected.retryExample = evaluation.retryExample;
   }
 
   return projected;
@@ -304,24 +300,6 @@ function toJson(
   value: StoredOriginalTurnEvaluation | StoredRepeatTurnEvaluation,
 ): Json {
   return value satisfies Json;
-}
-
-/**
- * `attempt_turns.evaluation` holds either an original or a repeat evaluation.
- * `repeatCloseEnough` appears only on repeat evaluations and
- * `correctionSeverity` only on originals, so the pair distinguishes them
- * without a version bump. Guards against re-nesting an already-nested repeat
- * evaluation if a turn is written twice.
- */
-function isStoredOriginalEvaluation(
-  value: unknown,
-): value is StoredOriginalTurnEvaluation {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "correctionSeverity" in value &&
-    !("repeatCloseEnough" in value)
-  );
 }
 
 function persistedConversationRecoveryQuestion(
@@ -1171,7 +1149,7 @@ export async function uploadAttemptAudioClip(
               ),
             );
 
-            if (write.error || decision.evaluation.outcome !== "teacher_review") {
+            if (write.error || decision.evaluation.outcome !== TEACHER_REVIEW_OUTCOME) {
               return write;
             }
 
@@ -1225,9 +1203,8 @@ export async function uploadAttemptAudioClip(
                 attemptNumber: (priorRepeatClipCount ?? 0) + 1,
                 originalEvaluation:
                   originalEvaluation ??
-                  (isStoredOriginalEvaluation(turn.evaluation)
-                    ? turn.evaluation
-                    : undefined),
+                  storedOriginalOf(turn.evaluation) ??
+                  undefined,
               },
               { evaluate: deps.evaluateRepeatTurn ?? evaluateRepeatTurn },
             );
@@ -1247,7 +1224,7 @@ export async function uploadAttemptAudioClip(
                 .eq("id", turn.id),
             );
 
-            if (write.error || decision.outcome !== "teacher_review") {
+            if (write.error || decision.outcome !== TEACHER_REVIEW_OUTCOME) {
               return write;
             }
 
@@ -1348,7 +1325,7 @@ export async function uploadAttemptAudioClip(
           originalEvaluation.lowConfidenceAudioRetries > 0);
       const freeSameTurnRetry = recoveryAttempt !== null || lowConfidenceAudioRetry;
       const reviewPendingContinuation =
-        originalEvaluation?.outcome === "teacher_review";
+        originalEvaluation?.outcome === TEACHER_REVIEW_OUTCOME;
       const currentStudentResponse =
         freeSameTurnRetry || reviewPendingContinuation
           ? WITHHELD_STUDENT_RESPONSE
@@ -1535,7 +1512,7 @@ export async function uploadAttemptAudioClip(
 
         // Kick off TTS for Coco's new line via the existing warm-cache path
         // used for preset/improved lines — no forked audio pipeline.
-        if (originalEvaluation?.outcome !== "teacher_review") {
+        if (originalEvaluation?.outcome !== TEACHER_REVIEW_OUTCOME) {
           try {
             const warm = deps.warmTtsAudioCache ?? warmTtsAudioCache;
             await timeStage("ttsWarmupCocoLine", () =>

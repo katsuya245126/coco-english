@@ -23,7 +23,12 @@ type Turn = {
   original_transcript: string;
   repeat_transcript: string | null;
   repeat_accepted: boolean | null;
-  evaluation: { version: string; outcome: string; requireRepeat?: boolean };
+  evaluation: {
+    kind: "original" | "repeat";
+    version: string;
+    outcome: string;
+    requireRepeat?: boolean;
+  };
 };
 
 const completeMissionSnapshot = {
@@ -111,6 +116,7 @@ function createMockSupabase() {
       repeat_transcript: null,
       repeat_accepted: null,
       evaluation: {
+        kind: "original",
         version: "ai-eval-v1",
         outcome: "accepted_original",
         requireRepeat: false,

@@ -156,6 +156,7 @@ describe("completion helpers: nextUnfinishedTurnOrder (D-06)", () => {
       repeat_transcript: null,
       repeat_accepted: null,
       evaluation: {
+        kind: "original",
         version: "ai-eval-v1",
         outcome: "teacher_review",
         requireRepeat: false,
@@ -173,6 +174,7 @@ describe("completion helpers: nextUnfinishedTurnOrder (D-06)", () => {
       repeat_transcript: "I no play soccer again.",
       repeat_accepted: null,
       evaluation: {
+        kind: "repeat",
         version: "ai-eval-v1",
         outcome: "teacher_review",
         confidence: "low",
@@ -198,6 +200,7 @@ describe("completion helpers: nextUnfinishedTurnOrder (D-06)", () => {
       repeat_transcript: "I no play soccer again.",
       repeat_accepted: false,
       evaluation: {
+        kind: "repeat",
         version: "ai-eval-v1",
         outcome: "repeat_limit_reached",
         repeatCloseEnough: false,
@@ -218,6 +221,7 @@ describe("completion helpers: persisted feedback resume", () => {
         ...makeCompleteTurn(1),
         repeat_accepted: false,
         evaluation: {
+          kind: "repeat",
           version: "ai-eval-v1",
           outcome: "repeat_limit_reached",
           repeatCloseEnough: false,
@@ -237,6 +241,7 @@ describe("completion helpers: persisted feedback resume", () => {
       getPendingTurnReview({
         ...makeTurn(3, { original_transcript: "I am going to play games." }),
         evaluation: {
+          kind: "original",
           version: "ai-eval-v1",
           outcome: "accepted_original",
           requireRepeat: false,
@@ -258,6 +263,7 @@ describe("completion helpers: persisted feedback resume", () => {
         ...makeCompleteTurn(3),
         improved_sentence: "I like apples very much.",
         evaluation: {
+          kind: "repeat",
           version: "ai-eval-v1",
           outcome: "accepted_repeat",
           repeatAccepted: true,
@@ -284,6 +290,7 @@ describe("completion helpers: persisted feedback resume", () => {
       improved_sentence: "I don't play soccer.",
       coco_line: "Oh, what do you like to do instead?",
       evaluation: {
+        kind: "original",
         version: "ai-eval-v1",
         outcome: "needs_correction",
         requireRepeat: true,
@@ -306,6 +313,7 @@ describe("completion helpers: persisted feedback resume", () => {
       }),
       improved_sentence: null,
       evaluation: {
+        kind: "original",
         version: "ai-eval-v1",
         outcome: "retry_original",
         retryReason: "minimal_effort",
@@ -333,6 +341,7 @@ describe("completion helpers: persisted feedback resume", () => {
         repeat_accepted: null,
       }),
       evaluation: {
+        kind: "original",
         version: "ai-eval-v1",
         outcome: "retry_original",
         retryReason: "incomplete_recording",
@@ -355,6 +364,7 @@ describe("completion helpers: persisted feedback resume", () => {
           repeat_accepted: null,
         }),
         evaluation: {
+          kind: "original",
           version: "ai-eval-v1",
           outcome: "retry_original",
           retryReason: "unclear_meaning",
@@ -378,6 +388,7 @@ describe("completion helpers: persisted feedback resume", () => {
       }),
       improved_sentence: null,
       evaluation: {
+        kind: "original",
         version: "ai-eval-v1",
         outcome: "retry_original",
         retryReason: "minimal_effort",
@@ -404,6 +415,7 @@ describe("completion helpers: persisted feedback resume", () => {
       }),
       improved_sentence: null,
       evaluation: {
+        kind: "original",
         version: "ai-eval-v1",
         outcome: "retry_original",
         requireRepeat: false,
@@ -423,6 +435,7 @@ describe("completion helpers: persisted feedback resume", () => {
         }),
         improved_sentence: "I like apples very much.",
         evaluation: {
+          kind: "repeat",
           version: "ai-eval-v1",
           outcome: "retry_repeat",
           repeatAccepted: false,
@@ -452,6 +465,7 @@ describe("resume feedback derives learner-safe transcripts", () => {
     const review = getPendingTurnReview({
       ...makeTurn(1, { original_transcript: "I like 바닐라." }),
       evaluation: {
+        kind: "original",
         version: "ai-eval-v1",
         outcome: "accepted_original",
         requireRepeat: false,
@@ -475,6 +489,7 @@ describe("resume feedback derives learner-safe transcripts", () => {
     const review = getPendingTurnReview({
       ...makeTurn(1, { original_transcript: "I like 축구." }),
       evaluation: {
+        kind: "original",
         version: "ai-eval-v1",
         outcome: "needs_correction",
         requireRepeat: true,
@@ -498,6 +513,7 @@ describe("resume feedback derives learner-safe transcripts", () => {
       evaluation: {
         version: "ai-eval-v1",
         outcome: "accepted_original",
+        correctionSeverity: "none",
         requireRepeat: false,
       },
     });
@@ -511,6 +527,7 @@ describe("resume feedback derives learner-safe transcripts", () => {
       evaluation: {
         version: "ai-eval-v1",
         outcome: "accepted_original",
+        correctionSeverity: "none",
         requireRepeat: false,
       },
     });
@@ -522,6 +539,7 @@ describe("resume feedback derives learner-safe transcripts", () => {
     const review = getPendingTurnReview({
       ...makeTurn(1, { original_transcript: "I like 바닐라." }),
       evaluation: {
+        kind: "original",
         version: "ai-eval-v1",
         outcome: "accepted_original",
         requireRepeat: false,
@@ -540,6 +558,7 @@ describe("resume feedback derives learner-safe transcripts", () => {
       repeat_accepted: true,
       improved_sentence: "I like vanilla.",
       evaluation: {
+        kind: "repeat",
         version: "ai-eval-v1",
         outcome: "accepted_repeat",
         repeatAccepted: true,
@@ -551,6 +570,7 @@ describe("resume feedback derives learner-safe transcripts", () => {
           },
         ],
         originalEvaluation: {
+          kind: "original",
           version: "ai-eval-v1",
           outcome: "needs_correction",
           hangulInterpretations: [
@@ -578,6 +598,7 @@ describe("resume feedback derives learner-safe transcripts", () => {
       repeat_transcript: "I like soccer.",
       repeat_accepted: true,
       evaluation: {
+        kind: "repeat",
         version: "ai-eval-v1",
         outcome: "accepted_repeat",
         repeatAccepted: true,

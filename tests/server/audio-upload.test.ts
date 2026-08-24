@@ -1154,6 +1154,42 @@ describe("uploadAttemptAudioClip", () => {
     );
   });
 
+  it("does not treat a bare outcome-and-reason row as prior original evidence", async () => {
+    const { uploadAttemptAudioClip } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    mockSupabase = createMockSupabase({
+      turnEvaluation: {
+        outcome: "teacher_review",
+        reviewReason: "low_confidence",
+      },
+    });
+
+    const evaluateRepeat = successfulRepeatEvaluator();
+    await uploadAttemptAudioClip(audioInput({ clipKind: "repeat_attempt" }), {
+      transcribeAudioFile: successfulTranscriber("I want pizza, please."),
+      evaluateRepeatTurn: evaluateRepeat,
+    });
+
+    const transcriptWrite = mockSupabase.operations.find(
+      (operation) =>
+        operation.table === "attempt_turns" &&
+        operation.action === "update" &&
+        typeof operation.payload === "object" &&
+        operation.payload !== null &&
+        "repeat_transcript" in operation.payload,
+    );
+    expect(transcriptWrite?.payload).toMatchObject({
+      evaluation: {
+        kind: "repeat",
+        outcome: "accepted_repeat",
+      },
+    });
+    expect(transcriptWrite?.payload).not.toHaveProperty(
+      "evaluation.originalEvaluation",
+    );
+  });
+
   it("passes normalized repeat transcript Korean spans to repeat evaluation", async () => {
     const { uploadAttemptAudioClip } = await import(
       "@/server/student-access/audio-upload"
@@ -2507,8 +2543,9 @@ describe("learner-safe display transcript at the upload boundary", () => {
       canary as unknown as Parameters<typeof toStudentEvaluation>[0],
     );
 
-    // The five permitted workflow fields survive.
+    // The five permitted workflow fields survive, plus the discriminant.
     expect(projected).toEqual({
+      kind: "original",
       outcome: "retry_original",
       improvedSentence: "I like vanilla ice cream.",
       retryReason: "minimal_effort",

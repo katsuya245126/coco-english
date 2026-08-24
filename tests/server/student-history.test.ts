@@ -233,7 +233,7 @@ describe("student legacy mission recap", () => {
         improved_sentence: "I am going to play soccer.",
         repeat_transcript: "I am going to play soccer.",
         repeat_accepted: true,
-        evaluation: { outcome: "accepted_repeat" },
+        evaluation: { outcome: "accepted_repeat", repeatCloseEnough: true },
         coco_line: "Stored line is not a legacy prompt.",
       }],
       legacySnapshot,
@@ -352,7 +352,7 @@ function createDynamicMockSupabase(
             improved_sentence: "I want to read cartoons.",
             repeat_transcript: "I want to read cartoons.",
             repeat_accepted: true,
-            evaluation: { outcome: "accepted_repeat" },
+            evaluation: { outcome: "accepted_repeat", repeatCloseEnough: true },
             coco_line:
               "That was fun! Thanks for talking with me. See you next time!",
           },
@@ -457,6 +457,7 @@ describe("student completed mission recap dynamic homework review", () => {
         repeat_transcript: null,
         repeat_accepted: false,
         evaluation: {
+          kind: "original",
           outcome: "teacher_review",
           reviewReason: "ambiguous",
         },
@@ -510,6 +511,7 @@ describe("completed homework review derives learner-safe transcripts", () => {
         original_transcript: "I like 축구.",
         evaluation: {
           outcome: "accepted_original",
+          correctionSeverity: "none",
           hangulInterpretations: [
             { hangul: "축구", kind: "korean_vocabulary", englishReading: null },
           ],
@@ -531,6 +533,7 @@ describe("completed homework review derives learner-safe transcripts", () => {
         original_transcript: "I ate 삼겹살 with my family.",
         evaluation: {
           outcome: "accepted_original",
+          correctionSeverity: "none",
           hangulInterpretations: [
             { hangul: "삼겹살", kind: "name", englishReading: null },
           ],
@@ -551,10 +554,12 @@ describe("completed homework review derives learner-safe transcripts", () => {
         repeat_accepted: true,
         evaluation: {
           outcome: "accepted_repeat",
+          repeatCloseEnough: true,
           hangulInterpretations: [
             { hangul: "사커", kind: "accented_english", englishReading: "soccer" },
           ],
           originalEvaluation: {
+            correctionSeverity: "none",
             hangulInterpretations: [
               { hangul: "축구", kind: "korean_vocabulary", englishReading: null },
             ],
@@ -573,7 +578,7 @@ describe("completed homework review derives learner-safe transcripts", () => {
   it("fails closed for a legacy Hangul record with no interpretation metadata", async () => {
     mockSupabase = createDynamicMockSupabase([
       hangulTurn({
-        evaluation: { outcome: "accepted_original" },
+        evaluation: { outcome: "accepted_original", correctionSeverity: "none" },
       }),
     ]);
 
@@ -587,6 +592,7 @@ describe("completed homework review derives learner-safe transcripts", () => {
       hangulTurn({
         evaluation: {
           outcome: "accepted_original",
+          correctionSeverity: "none",
           hangulInterpretations: "바닐라 = vanilla",
         },
       }),
@@ -601,7 +607,7 @@ describe("completed homework review derives learner-safe transcripts", () => {
     mockSupabase = createDynamicMockSupabase([
       hangulTurn({
         original_transcript: "I like vanilla ice cream.",
-        evaluation: { outcome: "accepted_original" },
+        evaluation: { outcome: "accepted_original", correctionSeverity: "none" },
       }),
     ]);
 

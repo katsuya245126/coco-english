@@ -191,6 +191,7 @@ describe("student question state", () => {
       const pendingRecovery = isPendingConversationRecovery({
         conversationMode: true,
         evaluation: {
+          kind: "original",
           outcome: "retry_original",
           retryReason,
           ambiguityRetries: 1,
@@ -220,7 +221,7 @@ describe("student question state", () => {
       expect(
         isPendingConversationRecovery({
           conversationMode: true,
-          evaluation: { outcome, ambiguityRetries: 1 },
+          evaluation: { kind: "original", outcome, ambiguityRetries: 1 },
           cocoLine: "A stale recovery question.",
         }),
       ).toBe(false);

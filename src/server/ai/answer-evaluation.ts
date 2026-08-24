@@ -39,11 +39,7 @@ import {
   originalTurnSchemaFailureResult,
   repeatTurnProviderFailureResult,
   repeatTurnSchemaFailureResult,
-  type OriginalTurnDecision,
-  type OriginalTurnEvaluation,
   type OriginalTurnGuardContext,
-  type RepeatTurnDecision,
-  type RepeatTurnEvaluation,
 } from "@/domain/ai/turn-evaluation";
 import {
   isMinimalEffortAnswer,
@@ -58,8 +54,6 @@ import {
   isLowConfidenceTranscript,
   isTranscriptConfidenceBelowGate,
 } from "@/domain/audio/transcript-confidence";
-import type { HangulInterpretation } from "@/domain/audio/transcript-interpretation";
-import type { MinimalEffortKind } from "@/domain/ai/minimal-effort-feedback";
 import type { TranscriptionEvidence } from "@/server/audio/transcription";
 import {
   evaluateOriginalTurn,
@@ -72,6 +66,11 @@ import {
   type RepeatTurnEvaluationResult,
 } from "@/server/ai/turn-evaluator";
 import { log } from "@/server/logging/logger";
+import type {
+  StoredEvaluationProvenance,
+  StoredOriginalTurnEvaluation,
+  StoredRepeatTurnEvaluation,
+} from "@/domain/ai/stored-evaluation";
 
 const FAILED_SCHEMA_REVIEW_REASON = "failed_schema";
 /**
@@ -90,65 +89,6 @@ export const LOW_CONFIDENCE_REVIEW_REASON = "low_confidence";
  */
 export const MAX_LOW_CONFIDENCE_AUDIO_RETRIES = 2;
 
-export type StoredEvaluationProvenance = Pick<
-  OriginalTurnEvaluation,
-  | "policyVersion"
-  | "evaluationModel"
-  | "evaluationSource"
-  | "transcriptionModel"
-  | "transcriptionConfidence"
-  | "runtimeVersion"
->;
-
-export type StoredOriginalTurnEvaluation = StoredEvaluationProvenance & {
-  version: typeof AI_EVALUATION_VERSION;
-  outcome: OriginalTurnDecision["kind"];
-  confidence: OriginalTurnEvaluation["confidence"];
-  reviewReason: OriginalTurnEvaluation["reviewReason"];
-  meaningUnderstood: OriginalTurnEvaluation["meaningUnderstood"];
-  targetPatternAttempted: OriginalTurnEvaluation["targetPatternAttempted"];
-  englishLanguage: OriginalTurnEvaluation["englishLanguage"];
-  correctionNeeded: OriginalTurnEvaluation["correctionNeeded"];
-  correctionSeverity: OriginalTurnEvaluation["correctionSeverity"] | null;
-  correctionReason: OriginalTurnEvaluation["correctionReason"];
-  improvedSentence: string | null;
-  requireRepeat: boolean;
-  retryReason?: "minimal_effort" | "incomplete_recording" | "unclear_meaning";
-  minimalEffortBlocks?: number;
-  minimalEffortKind?: MinimalEffortKind;
-  retryExample?: string | null;
-  ambiguityRetries?: number;
-  /**
-   * Free say-it-again retries granted because the transcript itself decoded
-   * with low confidence (issue #64). Deliberately separate from
-   * `ambiguityRetries`: audio problems must not consume the meaningful-
-   * answer recovery budget nor escalate toward review on their own.
-   */
-  lowConfidenceAudioRetries?: number;
-  ambiguityHistory?: Array<{
-    transcript: string;
-    audioClipId: string;
-    evaluation: OriginalTurnEvaluation;
-    question?: string;
-    recoveryQuestion?: string;
-  }>;
-  contractViolations?: OriginalEvaluationViolation[];
-  hangulInterpretations: HangulInterpretation[];
-};
-
-export type StoredRepeatTurnEvaluation = {
-  version: typeof AI_EVALUATION_VERSION;
-  outcome: RepeatTurnDecision["kind"];
-  confidence: RepeatTurnEvaluation["confidence"];
-  reviewReason: RepeatTurnEvaluation["reviewReason"];
-  englishLanguage: RepeatTurnEvaluation["englishLanguage"];
-  repeatCloseEnough: RepeatTurnEvaluation["repeatCloseEnough"];
-  repeatAccepted: RepeatTurnDecision["repeatAccepted"];
-  requireRepeat: boolean;
-  originalEvaluation?: StoredOriginalTurnEvaluation;
-  hangulInterpretations: HangulInterpretation[];
-};
-
 type OriginalTurnWriteDecision = {
   evaluation: StoredOriginalTurnEvaluation;
   targetAttempted: boolean | null;
@@ -156,10 +96,14 @@ type OriginalTurnWriteDecision = {
 };
 
 function deterministicOriginalEvaluation(
-  fields: Omit<StoredOriginalTurnEvaluation, keyof StoredEvaluationProvenance>,
+  fields: Omit<
+    StoredOriginalTurnEvaluation,
+    keyof StoredEvaluationProvenance | "kind"
+  >,
   evidence: StoredEvaluationProvenance,
 ): StoredOriginalTurnEvaluation {
   return {
+    kind: "original",
     ...fields,
     ...evidence,
     evaluationSource: "deterministic",
@@ -263,6 +207,7 @@ function applyOriginalTurnEvaluation(
 
     return {
       evaluation: {
+        kind: "original",
         ...fallbackProvenance,
         version: AI_EVALUATION_VERSION,
         outcome: decision.kind,
@@ -305,6 +250,7 @@ function applyOriginalTurnEvaluation(
 
   return {
     evaluation: {
+      kind: "original",
       ...result.evaluation,
       version: AI_EVALUATION_VERSION,
       outcome: decision.kind,
@@ -343,6 +289,7 @@ function applyRepeatTurnEvaluation(
         : "provider_failed";
 
     return {
+      kind: "repeat",
       version: AI_EVALUATION_VERSION,
       outcome: decision.kind,
       confidence: "low",
@@ -357,6 +304,7 @@ function applyRepeatTurnEvaluation(
 
   const decision = decideRepeatTurnOutcome(result.evaluation, attemptNumber);
   return {
+    kind: "repeat",
     version: AI_EVALUATION_VERSION,
     outcome: decision.kind,
     confidence: result.evaluation.confidence,
@@ -764,6 +712,7 @@ export async function evaluateOriginalTurnAnswer(
   const decision: OriginalTurnWriteDecision = lowConfidenceGateRetry
     ? {
         evaluation: {
+          kind: "original",
           ...fallbackProvenance,
           version: AI_EVALUATION_VERSION,
           outcome: "retry_original",
@@ -916,8 +865,9 @@ export type RepeatAnswerEvaluationRequest = {
   /**
    * The stored original evaluation this repeat answers — carried from the
    * same upload when both clips arrive together, otherwise read from the
-   * durable row. Persisted verbatim under evaluation.originalEvaluation so
-   * correctionSeverity evidence survives the repeat write.
+   * durable row. Persisted under evaluation.originalEvaluation (stamped
+   * with the original discriminant when a pre-discriminant row supplies
+   * it) so correctionSeverity evidence survives the repeat write.
    */
   originalEvaluation?: StoredOriginalTurnEvaluation;
 };
@@ -983,7 +933,12 @@ export async function evaluateRepeatTurnAnswer(
     evaluation: {
       ...applyRepeatTurnEvaluation(evaluationResult, input.attemptNumber),
       ...(input.originalEvaluation
-        ? { originalEvaluation: input.originalEvaluation }
+        ? {
+            originalEvaluation: {
+              ...input.originalEvaluation,
+              kind: "original",
+            },
+          }
         : {}),
     },
     fastPathUsed,

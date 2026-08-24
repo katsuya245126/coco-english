@@ -378,6 +378,40 @@ describe("teacher audio evidence service", () => {
     expect(JSON.stringify(evidence)).not.toContain("pronunciation_score");
   });
 
+  it("preserves the review reason from an unrecognized legacy row", async () => {
+    mockSupabase = createMockSupabase({
+      attemptTurns: [
+        {
+          id: "turn-1",
+          turn_order: 1,
+          original_transcript: "I wake up at seven.",
+          improved_sentence: null,
+          repeat_transcript: null,
+          target_attempted: null,
+          repeat_accepted: null,
+          evaluation: { reviewReason: "low_confidence" },
+          coco_line: null,
+          reply_hint_frame: null,
+          hint_level_used: 0,
+        },
+      ],
+    });
+    const { getAttemptEvidenceForTeacher } = await import(
+      "@/server/teacher/audio-evidence"
+    );
+
+    const evidence = await getAttemptEvidenceForTeacher({
+      teacherId: "teacher-1",
+      attemptId: "attempt-1",
+    });
+
+    expect(evidence?.turns[0]).toMatchObject({
+      meaningResult: "Needs teacher check",
+      targetPatternResult: "Needs teacher check",
+      reviewReason: "low_confidence",
+    });
+  });
+
   it("maps each current preset turn's expected pattern beside its result", async () => {
     mockSupabase = createMockSupabase({ missionSnapshot: completePresetSnapshot });
     const { getAttemptEvidenceForTeacher } = await import(

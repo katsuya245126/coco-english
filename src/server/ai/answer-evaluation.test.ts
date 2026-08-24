@@ -500,6 +500,7 @@ describe("evaluateRepeatTurnAnswer stored-evidence composition", () => {
       },
     }));
     const priorOriginal = {
+      kind: "original" as const,
       version: "ai-eval-v1" as const,
       outcome: "needs_correction" as const,
       confidence: "high" as const,
@@ -532,6 +533,7 @@ describe("evaluateRepeatTurnAnswer stored-evidence composition", () => {
     expect(evaluate).toHaveBeenCalledTimes(1);
     // The module returns the exact persisted shape — no caller-side spread.
     expect(outcome.evaluation).toEqual({
+      kind: "repeat",
       version: "ai-eval-v1",
       outcome: "accepted_repeat",
       confidence: "high",
