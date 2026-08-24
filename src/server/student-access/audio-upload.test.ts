@@ -7,6 +7,10 @@ import type {
   GeneratedCocoReply,
   GenerateCocoReplyInput,
 } from "@/domain/ai/conversation-generation";
+import type {
+  StoredOriginalTurnEvaluation,
+  StoredRepeatTurnEvaluation,
+} from "@/domain/ai/stored-evaluation";
 import { SAY_IT_AGAIN_FALLBACK_LINE } from "@/domain/conversation/fallback-lines";
 
 // Conversation-mode orchestration in audio-upload.ts (CHAT-01/03/05/06,
@@ -4877,5 +4881,72 @@ describe("Hangul-original pronunciation scoring start order", () => {
     releaseCocoReply!();
     const result = await uploadPromise;
     expect(result.ok).toBe(true);
+  });
+});
+
+describe("student evaluation projection", () => {
+  it("returns only the learner-safe fields from teacher-review evaluations", async () => {
+    const { toStudentEvaluation } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const original = {
+      kind: "original",
+      version: "ai-eval-v1",
+      outcome: "teacher_review",
+      confidence: "medium",
+      reviewReason: "ambiguous",
+      meaningUnderstood: false,
+      targetPatternAttempted: false,
+      englishLanguage: "english",
+      correctionNeeded: false,
+      correctionSeverity: "none",
+      correctionReason: "none",
+      improvedSentence: null,
+      requireRepeat: false,
+      policyVersion: "natural-conversation-v1",
+      evaluationModel: "test-evaluator",
+      evaluationSource: "model",
+      transcriptionModel: "test-transcriber",
+      transcriptionConfidence: null,
+      runtimeVersion: "test-runtime",
+      hangulInterpretations: [
+        { hangul: "바닐라", kind: "korean_vocabulary", englishReading: null },
+      ],
+      ambiguityHistory: [
+        {
+          transcript: "바닐라",
+          audioClipId: "clip-1",
+          evaluation: {},
+        },
+      ],
+      contractViolations: ["unsupported_detail"],
+      status: "teacher_review",
+      auditEvidence: { rawTranscript: "바닐라" },
+    } as unknown as StoredOriginalTurnEvaluation;
+    const repeat = {
+      kind: "repeat",
+      version: "ai-eval-v1",
+      outcome: "teacher_review",
+      confidence: "low",
+      reviewReason: "low_confidence",
+      englishLanguage: "uncertain",
+      repeatCloseEnough: false,
+      repeatAccepted: null,
+      requireRepeat: false,
+      originalEvaluation: original,
+      hangulInterpretations: [],
+      status: "teacher_review",
+      auditEvidence: { rawTranscript: "바닐라" },
+    } as unknown as StoredRepeatTurnEvaluation;
+
+    expect(toStudentEvaluation(original)).toEqual({
+      kind: "original",
+      outcome: "teacher_review",
+      improvedSentence: null,
+    });
+    expect(toStudentEvaluation(repeat)).toEqual({
+      kind: "repeat",
+      outcome: "teacher_review",
+    });
   });
 });
