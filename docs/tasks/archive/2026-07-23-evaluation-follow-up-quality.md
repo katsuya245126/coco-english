@@ -155,12 +155,11 @@ naturalized wording used to ground later Coco replies.
 
 ## Current position
 
-The dedicated design specification is approved at
-`docs/superpowers/specs/2026-07-23-evaluation-follow-up-quality-design.md`.
-The test-first implementation plan is approved at
-`docs/superpowers/plans/2026-07-23-evaluation-follow-up-homework-review.md`
-(planning commit `bf4d38fa`). Runtime implementation is underway on `main`,
-task-by-task with TDD, per that plan.
+The dedicated evaluation-follow-up quality design specification was approved
+before implementation. The
+test-first implementation plan was approved in planning commit `bf4d38fa`.
+Runtime implementation is underway on `main`, task-by-task with TDD, per that
+plan.
 
 Completed:
 

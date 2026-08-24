@@ -9,7 +9,8 @@ Install and validate the approved lightweight workflow for Codex and Claude Code
 
 ## Context
 
-The approved design is `docs/superpowers/specs/2026-07-17-lightweight-agent-workflow-design.md`. The executable plan is `docs/superpowers/plans/2026-07-17-lightweight-agent-workflow.md`.
+The approved design and executable plan were recorded as local planning
+artifacts.
 
 The original rollout plan retained GSD during the verification gate. The current operator decision supersedes that fallback; the historical design and plan remain unchanged for auditability.
 

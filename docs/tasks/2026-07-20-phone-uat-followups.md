@@ -164,9 +164,9 @@ unvoiced text through the persistent mascot dialogue path with a polite atomic
 live region; the duplicate standalone thinking card was removed.
 
 - **Evidence:** user request during UAT.
-- **Context:** a thinking/loading treatment exists from the fluid-mission-hints
-  work (see `docs/superpowers/plans/2026-07-16-fluid-mission-hints-thinking-replies.md`)
-  but the thinking line does not appear in the chatbox itself.
+- **Context:** a thinking/loading treatment exists from the earlier
+  fluid-mission-hints work, but the thinking line does not appear in the
+  chatbox itself.
 - **Recommended solution:** while awaiting the dynamic reply, render a
   "Coco is thinking…" line (or animated ellipsis) inside `CocoDialogueBox`
   instead of/in addition to wherever it shows today. Small UI task; respect the

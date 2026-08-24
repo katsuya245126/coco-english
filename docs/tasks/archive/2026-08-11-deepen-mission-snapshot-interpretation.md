@@ -28,9 +28,9 @@
 **Issue #26 base:** `1761493d`
 **Issue #26 closure:** Closed on 2026-08-11 after exact owner authorization
 **Issue #27:** `#27` Remove duplicate readers and verify the full change
-**Issue #27 design:** `docs/superpowers/specs/2026-08-11-remove-duplicate-mission-snapshot-readers-design.md`
+**Issue #27 design:** approved duplicate-mission-snapshot-reader removal design
 **Issue #27 design approval:** Approved by the owner on 2026-08-11
-**Issue #27 plan:** `docs/superpowers/plans/2026-08-11-remove-duplicate-mission-snapshot-readers.md`
+**Issue #27 plan:** approved duplicate-mission-snapshot-reader removal implementation plan
 **Issue #27 plan commit:** `e697e525`
 **Issue #27 written-spec approval:** Approved by the owner on 2026-08-11
 **Issue #27 plan approval:** Approved by the owner on 2026-08-11 by selecting inline execution for plan commit `e697e525`
@@ -273,8 +273,8 @@ and approves its exact plan.
   the shared interpreter and the old/new parsers reject the boundary fixtures
   identically at runtime.
 - The owner approved the complete design summary and the proposed test seams.
-- The design spec is
-  `docs/superpowers/specs/2026-08-10-deepen-mission-snapshot-interpretation-design.md`.
+- The design spec is the approved mission-snapshot interpretation design
+  summarized in the issue record.
 - The spec self-review found no placeholder, contradiction, ambiguous scope, or
   unapproved file-specific implementation instruction.
 - GitHub issue `#20` contains the approved specification and has the

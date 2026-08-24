@@ -9,8 +9,7 @@ rather than a frequent response to recoverable quality issues. Preserved
 conversation mode's server-owned generation, moderation, persistence, hard
 cap, and TTS flow.
 
-Implementation plan:
-`docs/superpowers/plans/2026-07-22-canned-fallback-policy.md`.
+Implementation plan approved before execution: canned-fallback policy repair.
 
 ## Evidence
 

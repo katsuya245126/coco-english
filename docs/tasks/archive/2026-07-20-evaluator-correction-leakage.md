@@ -17,9 +17,9 @@ Evidence record: `docs/tasks/2026-07-20-phone-uat-followups.md#2-try-this-sugges
 
 ## Outcome
 
-Spec (with post-review amendment):
-`docs/superpowers/specs/2026-07-20-evaluator-correction-leakage-design.md`
-Plan: `docs/superpowers/plans/2026-07-20-evaluator-correction-leakage.md`
+Spec (with post-review amendment): approved evaluator correction-leakage
+design.
+Plan: approved evaluator correction-leakage implementation plan.
 
 Commits (all on main):
 

@@ -39,8 +39,7 @@ student session; individual revocation is out of scope.
 
 ## Result
 
-Implemented from the approved plan
-`docs/superpowers/plans/2026-07-31-provider-request-budgets.md`, test-first, in
+Implemented from the approved provider-request-budgets plan, test-first, in
 task-sized local commits.
 
 - Migration `supabase/migrations/202607310002_provider_request_budgets.sql` adds

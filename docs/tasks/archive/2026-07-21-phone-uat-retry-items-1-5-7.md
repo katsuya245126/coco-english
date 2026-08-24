@@ -9,8 +9,7 @@ Finish the minimal-effort retry UX redesign, then phone-UAT items 1, 5, and
 state, exact-target bypass, and preset/conversation split. Item 4 remained
 explicitly excluded.
 
-Implementation plan:
-`docs/superpowers/plans/2026-07-21-phone-uat-retry-items-1-5-7.md`.
+Implementation plan approved before execution: phone-UAT retry plan.
 
 ## Completed
 

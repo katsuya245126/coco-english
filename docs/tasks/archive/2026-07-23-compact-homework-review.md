@@ -38,12 +38,9 @@ each left-aligned message.
 
 ## Approved visual contract
 
-- Written design:
-  `docs/superpowers/specs/2026-07-23-homework-review-compact-chat-design.md`
-- Tracked preview:
-  `docs/superpowers/specs/previews/2026-07-23-homework-review-compact-chat.html`
-- The preview is synthetic planning evidence, not an application screenshot.
-- The preview is the visual source of truth for hierarchy, alignment, relative
+- Written design: approved compact homework-review visual contract.
+- Planning preview: synthetic planning evidence, not an application screenshot.
+- The planning preview was the visual source of truth for hierarchy, alignment, relative
   spacing, bubble/avatar treatment, collapsed and expanded audio placement,
   and correction emphasis.
 - Intentional visual deviations require updating the preview and obtaining

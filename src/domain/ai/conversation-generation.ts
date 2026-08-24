@@ -714,9 +714,9 @@ export function withClosingSignOff(reply: GeneratedCocoReply): GeneratedCocoRepl
 export type ConversationReplyMode = "follow_up" | "closing";
 
 /**
- * The mission snapshot's requiredTurns owns conversational ending
- * semantics; HARD_TURN_CAP remains only the absolute safety ceiling
- * (see docs/superpowers/specs/2026-07-23-final-coco-closing-design.md).
+ * Conversation endings follow requiredTurns from the assigned mission
+ * snapshot; HARD_TURN_CAP only bounds generated turn history as a safety
+ * ceiling.
  */
 export function conversationReplyMode(input: {
   turnOrder: number;
