@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  requireOwnedInProgressAttempt,
   requireOwnedAssignmentStudent,
   type OwnedAssignmentStudent,
 } from "@/server/student-access/owned-assignment";
@@ -32,6 +33,7 @@ const completeSnapshot = {
 
 type Options = {
   row?: Record<string, unknown> | null;
+  attempt?: Record<string, unknown> | null;
   error?: Error | null;
 };
 
@@ -50,7 +52,10 @@ vi.mock("@/lib/supabase/server", () => ({
           return query;
         }),
         maybeSingle: vi.fn(async () => ({
-          data: options.row ?? null,
+          data:
+            operation.table === "attempts"
+              ? options.attempt ?? null
+              : options.row ?? null,
           error: options.error ?? null,
         })),
         single: vi.fn(),
@@ -220,5 +225,39 @@ describe("requireOwnedAssignmentStudent snapshot kinds", () => {
     if (!result.ok) throw new Error("expected ok");
     expect(result.owned.snapshot).toBeNull();
     expect(result.owned.status).toBe("started");
+  });
+});
+
+describe("requireOwnedInProgressAttempt", () => {
+  beforeEach(() => {
+    options = {};
+    operations = [];
+  });
+
+  it("rejects an attempt that is no longer in progress before a turn mutation", async () => {
+    options = {
+      row: ownedRow(),
+      attempt: {
+        id: "attempt-1",
+        assignment_student_id: "as-1",
+        status: "completed",
+      },
+    };
+
+    const result = await requireOwnedInProgressAttempt({
+      studentId: "student-1",
+      assignmentStudentId: "as-1",
+      attemptId: "attempt-1",
+    });
+
+    expect(result).toEqual({ ok: false, error: "not_found_or_canceled" });
+    expect(operations).toHaveLength(2);
+    expect(operations[1]?.filters).toEqual(
+      expect.arrayContaining([
+        ["id", "attempt-1"],
+        ["assignment_student_id", "as-1"],
+        ["status", "in_progress"],
+      ]),
+    );
   });
 });

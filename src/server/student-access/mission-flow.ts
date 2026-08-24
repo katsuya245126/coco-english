@@ -11,7 +11,10 @@
  */
 
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
-import { requireOwnedAssignmentStudent } from "@/server/student-access/owned-assignment";
+import {
+  requireOwnedAssignmentStudent,
+  requireOwnedInProgressAttempt,
+} from "@/server/student-access/owned-assignment";
 import type { Json } from "@/lib/db/types";
 import { assertTransitionRequest } from "@/domain/foundation/status";
 import { buildPlaceholderEvaluation } from "@/domain/flow/evaluation";
@@ -66,21 +69,10 @@ export type RecordCocoLineResult =
 
 // ─── Helpers ───
 
-async function loadOwnedAttempt(
-  supabase: ReturnType<typeof createSupabaseServiceClient>,
-  assignmentStudentId: string,
-  attemptId: string,
-) {
-  const { data, error } = await supabase
-    .from("attempts")
-    .select("id, assignment_student_id, status")
-    .eq("id", attemptId)
-    .eq("assignment_student_id", assignmentStudentId)
-    .maybeSingle();
-
-  if (error) return { ok: false as const, error: "db_error" as const };
-  if (!data) return { ok: false as const, error: "not_found" as const };
-  return { ok: true as const, attempt: data };
+function mapAttemptGuardError(
+  error: "not_found_or_canceled" | "db_error",
+): "not_found" | "db_error" {
+  return error === "db_error" ? "db_error" : "not_found";
 }
 
 // ─── Service functions ───
@@ -126,22 +118,16 @@ export async function flagAttemptForTeacherReview(input: {
 }): Promise<RouteTeacherReviewResult> {
   try {
     const supabase = createSupabaseServiceClient();
-    const ownedProof1 = await requireOwnedAssignmentStudent({
+    const activeAttempt = await requireOwnedInProgressAttempt({
       studentId: input.studentId,
       assignmentStudentId: input.assignmentStudentId,
+      attemptId: input.attemptId,
     });
-    const asRow = ownedProof1.ok ? ownedProof1.owned : null;
-    if (!asRow || asRow.status !== "started") {
-      return { ok: false, error: "not_found" };
+    if (!activeAttempt.ok) {
+      return { ok: false, error: mapAttemptGuardError(activeAttempt.error) };
     }
-
-    const attempt = await loadOwnedAttempt(
-      supabase,
-      input.assignmentStudentId,
-      input.attemptId,
-    );
-    if (!attempt.ok) return attempt;
-    if (attempt.attempt.status !== "in_progress") {
+    const asRow = activeAttempt.owned;
+    if (asRow.status !== "started") {
       return { ok: false, error: "not_found" };
     }
 
@@ -348,21 +334,13 @@ export async function recordAnswer(input: {
     const supabase = createSupabaseServiceClient();
 
     // Verify ownership
-    const ownedProof4 = await requireOwnedAssignmentStudent({
+    const activeAttempt = await requireOwnedInProgressAttempt({
       studentId: input.studentId,
       assignmentStudentId: input.assignmentStudentId,
+      attemptId: input.attemptId,
     });
-    const asRow = ownedProof4.ok ? ownedProof4.owned : null;
-    if (!asRow) return { ok: false, error: "not_found" };
-
-    const attempt = await loadOwnedAttempt(
-      supabase,
-      input.assignmentStudentId,
-      input.attemptId,
-    );
-    if (!attempt.ok) return attempt;
-    if (attempt.attempt.status !== "in_progress") {
-      return { ok: false, error: "not_found" };
+    if (!activeAttempt.ok) {
+      return { ok: false, error: mapAttemptGuardError(activeAttempt.error) };
     }
 
     // Upsert on (attempt_id, turn_order) — Pitfall 2 idempotency
@@ -392,8 +370,8 @@ export async function recordAnswer(input: {
  *
  * Upserts on (attempt_id, turn_order) — same idempotency shape as
  * recordAnswer, so a second call for the same turn_order overwrites rather
- * than duplicates. Enforces ownership via requireOwnedAssignmentStudent +
- * loadOwnedAttempt before writing (V4) — never trusts a client-supplied
+ * than duplicates. Enforces ownership via requireOwnedInProgressAttempt before
+ * writing (V4) — never trusts a client-supplied
  * turn number. Generation/moderation calls themselves live in the
  * orchestration layer (audio-upload.ts); this function is persistence-only,
  * preserving the "imports NO AI client" boundary above.
@@ -411,21 +389,13 @@ export async function recordCocoLine(input: {
     const supabase = createSupabaseServiceClient();
 
     // Verify ownership
-    const ownedProof5 = await requireOwnedAssignmentStudent({
+    const activeAttempt = await requireOwnedInProgressAttempt({
       studentId: input.studentId,
       assignmentStudentId: input.assignmentStudentId,
+      attemptId: input.attemptId,
     });
-    const asRow = ownedProof5.ok ? ownedProof5.owned : null;
-    if (!asRow) return { ok: false, error: "not_found" };
-
-    const attempt = await loadOwnedAttempt(
-      supabase,
-      input.assignmentStudentId,
-      input.attemptId,
-    );
-    if (!attempt.ok) return attempt;
-    if (attempt.attempt.status !== "in_progress") {
-      return { ok: false, error: "not_found" };
+    if (!activeAttempt.ok) {
+      return { ok: false, error: mapAttemptGuardError(activeAttempt.error) };
     }
 
     // Upsert on (attempt_id, turn_order) — idempotent, mirrors recordAnswer
@@ -472,21 +442,13 @@ export async function recordRepeat(input: {
     const supabase = createSupabaseServiceClient();
 
     // Verify ownership
-    const ownedProof6 = await requireOwnedAssignmentStudent({
+    const activeAttempt = await requireOwnedInProgressAttempt({
       studentId: input.studentId,
       assignmentStudentId: input.assignmentStudentId,
+      attemptId: input.attemptId,
     });
-    const asRow = ownedProof6.ok ? ownedProof6.owned : null;
-    if (!asRow) return { ok: false, error: "not_found" };
-
-    const attempt = await loadOwnedAttempt(
-      supabase,
-      input.assignmentStudentId,
-      input.attemptId,
-    );
-    if (!attempt.ok) return attempt;
-    if (attempt.attempt.status !== "in_progress") {
-      return { ok: false, error: "not_found" };
+    if (!activeAttempt.ok) {
+      return { ok: false, error: mapAttemptGuardError(activeAttempt.error) };
     }
 
     // UPDATE existing turn row (never insert a new one)
@@ -535,22 +497,15 @@ export async function recordHintReveal(input: {
     const supabase = createSupabaseServiceClient();
 
     // Verify ownership
-    const ownedProof7 = await requireOwnedAssignmentStudent({
+    const activeAttempt = await requireOwnedInProgressAttempt({
       studentId: input.studentId,
       assignmentStudentId: input.assignmentStudentId,
+      attemptId: input.attemptId,
     });
-    const asRow = ownedProof7.ok ? ownedProof7.owned : null;
-    if (!asRow) return { ok: false, error: "not_found" };
-
-    const attempt = await loadOwnedAttempt(
-      supabase,
-      input.assignmentStudentId,
-      input.attemptId,
-    );
-    if (!attempt.ok) return attempt;
-    if (attempt.attempt.status !== "in_progress") {
-      return { ok: false, error: "not_found" };
+    if (!activeAttempt.ok) {
+      return { ok: false, error: mapAttemptGuardError(activeAttempt.error) };
     }
+    const asRow = activeAttempt.owned;
 
     // UPDATE turn: hint_level_used = GREATEST(hint_level_used, hintLevel)
     // Supabase JS client doesn't support SQL GREATEST in update, so we
@@ -566,6 +521,15 @@ export async function recordHintReveal(input: {
     if (!turn) return { ok: false, error: "no_turn_row" };
 
     const newHintLevel = Math.max(turn.hint_level_used ?? 0, input.hintLevel);
+
+    const updateGuard = await requireOwnedInProgressAttempt({
+      studentId: input.studentId,
+      assignmentStudentId: input.assignmentStudentId,
+      attemptId: input.attemptId,
+    });
+    if (!updateGuard.ok) {
+      return { ok: false, error: mapAttemptGuardError(updateGuard.error) };
+    }
 
     const { error: updateErr } = await supabase
       .from("attempt_turns")

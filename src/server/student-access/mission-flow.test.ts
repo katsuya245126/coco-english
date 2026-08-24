@@ -384,6 +384,28 @@ describe("Coco line persistence (recordCocoLine, CHAT-06, T-11-11)", () => {
     expect(result).toEqual({ ok: false, error: "not_found" });
   });
 
+  it("returns not_found when the owned attempt is no longer in progress", async () => {
+    mockSupabase = createMockSupabase({ attemptStatus: "completed" });
+    const { recordCocoLine } = await import(
+      "@/server/student-access/mission-flow"
+    );
+
+    const result = await recordCocoLine({
+      studentId: "student-1",
+      assignmentStudentId: "as-1",
+      attemptId: "attempt-1",
+      turnOrder: 1,
+      cocoLine: "Hello!",
+    });
+
+    expect(result).toEqual({ ok: false, error: "not_found" });
+    expect(
+      mockSupabase.operations.some(
+        (operation) => operation.table === "attempt_turns" && operation.action === "upsert",
+      ),
+    ).toBe(false);
+  });
+
   it("returns db_error when the upsert fails", async () => {
     mockSupabase = createMockSupabase({
       upsertError: { message: "constraint violation" },

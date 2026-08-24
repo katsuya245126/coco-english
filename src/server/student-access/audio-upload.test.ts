@@ -443,7 +443,7 @@ describe("student audio rate-limit presentation", () => {
   });
 });
 
-describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
+describe("recordSpeakingTry conversation-mode orchestration", () => {
   beforeEach(() => {
     vi.resetModules();
     mockLog.mockClear();
@@ -454,7 +454,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   });
 
   it("does not score, evaluate, generate, or warm TTS for an incomplete recording", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginalTurn = vi.fn();
@@ -465,7 +465,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     }));
     const warmTtsAudioCache = vi.fn();
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I"),
       evaluateOriginalTurn,
       scorePronunciation,
@@ -514,10 +514,10 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         ],
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I"),
     });
 
@@ -549,7 +549,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         ],
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginalTurn = vi
@@ -575,7 +575,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     }));
     const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I like to play Jenga."),
       evaluateOriginalTurn,
       generateCocoReply: generate,
@@ -607,7 +607,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         ],
       } as unknown as typeof conversationMissionSnapshotFixture,
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const firstEvaluation = successfulOriginalEvaluator({
@@ -628,7 +628,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         error: "schema_failed" as const,
       });
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I like to play Jenga."),
       evaluateOriginalTurn,
     });
@@ -655,7 +655,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         ],
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginalTurn = vi
@@ -683,7 +683,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         }),
       });
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber(
         "I will swimming and my family eat 삼겹살.",
       ),
@@ -712,7 +712,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   });
 
   it("persists the static say-it-again recovery line without a generation call", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generate = fakeGenerateCocoReply(async () => ({
@@ -720,7 +720,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: "Do you want juice or water?" },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("At my family maybe."),
       evaluateOriginalTurn: successfulOriginalEvaluator({
         outcome: "teacher_review",
@@ -780,11 +780,11 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     mockSupabase = createMockSupabase({
       cocoLineUpsertError: { message: "recovery line write down" },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("At my family maybe."),
       evaluateOriginalTurn: successfulOriginalEvaluator({
         outcome: "teacher_review",
@@ -823,7 +823,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         ],
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginalTurn = vi
@@ -846,7 +846,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: "This should not be generated." },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber(
         "It's almost summer vacation.",
       ),
@@ -919,7 +919,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         ],
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginalTurn = vi
@@ -942,7 +942,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: "Thanks for trying! What else do you want to tell me?" },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber(
         "It's almost summer vacation.",
       ),
@@ -968,7 +968,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   });
 
   it("uses the one unclear retry for a low-confidence schema failure", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generate = fakeGenerateCocoReply(async () => ({
@@ -980,7 +980,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     // thresholds: the evaluator runs, fails the schema, and the
     // conversation-mode low-confidence fallback consumes the ambiguity
     // ladder — the gate must not intercept this band.
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: vi.fn(async () => ({
         ok: true as const,
         text: "All right, I want how we are.",
@@ -1019,7 +1019,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   });
 
   it("gates a garbled low-confidence transcript behind a free say-it-again retry before any evaluation call", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluate = successfulOriginalEvaluator({
@@ -1034,7 +1034,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: "should never be generated" },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: lowConfidenceTranscriber("I'm letter Busan because beach is beautiful."),
       evaluateOriginalTurn: evaluate,
       generateCocoReply: generate,
@@ -1085,12 +1085,12 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         lowConfidenceAudioRetries: 1,
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluate = successfulOriginalEvaluator();
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: lowConfidenceTranscriber("Still garbled audio.", -1.2),
       evaluateOriginalTurn: evaluate,
       generateCocoReply: fakeGenerateCocoReply(async () => ({
@@ -1159,7 +1159,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       },
       turnCocoLine: "Where would you say that?",
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluate = successfulOriginalEvaluator();
@@ -1168,7 +1168,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: "must not generate" },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: lowConfidenceTranscriber("Still garbled audio."),
       evaluateOriginalTurn: evaluate,
       generateCocoReply: generate,
@@ -1207,7 +1207,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         lowConfidenceAudioRetries: 2,
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluate = successfulOriginalEvaluator({
@@ -1218,7 +1218,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reviewReason: "ambiguous",
     });
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: lowConfidenceTranscriber("Still garbled audio.", -1.2),
       evaluateOriginalTurn: evaluate,
       generateCocoReply: fakeGenerateCocoReply(async () => ({
@@ -1246,7 +1246,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   });
 
   it("does not gate a confident transcript even when it decodes oddly", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluate = successfulOriginalEvaluator();
@@ -1258,7 +1258,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       confidence: { minLogprob: -0.3, tokenCount: 8 },
     }));
 
-    await uploadAttemptAudioClip(audioInput(), {
+    await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: transcribe,
       evaluateOriginalTurn: evaluate,
       generateCocoReply: fakeGenerateCocoReply(async () => ({
@@ -1309,7 +1309,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         ],
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generate = fakeGenerateCocoReply(async () => ({
@@ -1317,7 +1317,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: "Thanks for trying! What else do you want to tell me?" },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("Maybe family there."),
       evaluateOriginalTurn: successfulOriginalEvaluator({
         outcome: "teacher_review",
@@ -1396,7 +1396,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         ],
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generate = fakeGenerateCocoReply(async () => ({
@@ -1404,7 +1404,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: "What would you like to order today?" },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("Maybe family there."),
       evaluateOriginalTurn: successfulOriginalEvaluator({
         outcome: "teacher_review",
@@ -1461,7 +1461,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         ],
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generate = fakeGenerateCocoReply(async () => ({
@@ -1469,7 +1469,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: "Where in the coffee shop would you sit?" },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("Something unclear."),
       evaluateOriginalTurn: successfulOriginalEvaluator({
         outcome: "teacher_review",
@@ -1505,7 +1505,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         ],
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginalTurn = vi
@@ -1532,7 +1532,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         }),
       });
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("On the side."),
       evaluateOriginalTurn,
       generateCocoReply: fakeGenerateCocoReply(async () => ({
@@ -1608,7 +1608,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       turnCocoLine: "Do you want juice or water?",
     });
 
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginalTurn = successfulOriginalEvaluator({
@@ -1623,7 +1623,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: "What do you like to do after school?" },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 2 }), {
       transcribeAudioFile: successfulTranscriber("Something unclear."),
       evaluateOriginalTurn,
       generateCocoReply: generate,
@@ -1743,7 +1743,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         ],
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generate = fakeGenerateCocoReply(async () => ({
@@ -1751,7 +1751,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: "This should not be a recovery." },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("A third unclear answer."),
       evaluateOriginalTurn: successfulOriginalEvaluator({
         outcome: "teacher_review",
@@ -1827,7 +1827,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         ],
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generate = fakeGenerateCocoReply(async () => ({
@@ -1835,7 +1835,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       error: "provider_failed",
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("Something unclear."),
       evaluateOriginalTurn: successfulOriginalEvaluator({
         outcome: "teacher_review",
@@ -1916,7 +1916,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       },
       turnCocoLine: "What do you like to do after school?",
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generatedPivot = "Where is your homework?";
@@ -1925,7 +1925,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: generatedPivot },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("Something unclear."),
       evaluateOriginalTurn: successfulOriginalEvaluator({
         outcome: "teacher_review",
@@ -2005,7 +2005,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       },
       turnCocoLine: "Would you rather live in a big city or a small town?",
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generatedPivot =
@@ -2015,7 +2015,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: generatedPivot },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("Something unclear."),
       evaluateOriginalTurn: successfulOriginalEvaluator({
         outcome: "teacher_review",
@@ -2079,7 +2079,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       },
       turnCocoLine: "Do you want juice or water?",
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginalTurn = successfulOriginalEvaluator({
@@ -2094,7 +2094,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: "What do you like to do after school?" },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("Something unclear."),
       evaluateOriginalTurn,
       generateCocoReply: generate,
@@ -2135,7 +2135,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         },
         turnCocoLine: "Do you want juice or water?",
       });
-      const { uploadAttemptAudioClip } = await import(
+      const { recordSpeakingTry } = await import(
         "@/server/student-access/audio-upload"
       );
       const evaluateOriginalTurn = successfulOriginalEvaluator({
@@ -2146,7 +2146,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         reviewReason: "ambiguous",
       });
 
-      await uploadAttemptAudioClip(audioInput(), {
+      await recordSpeakingTry(audioInput(), {
         transcribeAudioFile: successfulTranscriber("I like juice."),
         evaluateOriginalTurn,
         generateCocoReply: fakeGenerateCocoReply(async () => ({
@@ -2180,7 +2180,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         ],
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const unsafe = originalEvaluation({
@@ -2207,7 +2207,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     }));
     const warmTtsAudioCache = vi.fn();
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I like to play Jenga."),
       evaluateOriginalTurn,
       generateCocoReply: generate,
@@ -2245,12 +2245,12 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         ],
       } as unknown as typeof conversationMissionSnapshotFixture,
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginalTurn = successfulOriginalEvaluator();
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("My family."),
       evaluateOriginalTurn,
     });
@@ -2279,7 +2279,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         ],
       } as unknown as typeof conversationMissionSnapshotFixture,
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginalTurn = successfulOriginalEvaluator({
@@ -2290,7 +2290,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       improvedSentence: "I will swim with my family.",
     });
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("My family."),
       evaluateOriginalTurn,
     });
@@ -2322,7 +2322,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       } as unknown as typeof conversationMissionSnapshotFixture,
     });
 
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -2332,7 +2332,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     }));
     const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("Can I have a juice, please?"),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: generate,
@@ -2352,7 +2352,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       missionSnapshot: soccerConversationSnapshot as unknown as typeof conversationMissionSnapshotFixture,
     });
 
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -2363,7 +2363,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     }));
     const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 1 }), {
       transcribeAudioFile: successfulTranscriber("I don't play soccer."),
       evaluateOriginalTurn: evaluateOriginal,
       generateCocoReply: generate,
@@ -2391,7 +2391,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       missionSnapshot: soccerConversationSnapshot as unknown as typeof conversationMissionSnapshotFixture,
     });
 
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -2408,7 +2408,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     }));
     const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 1 }), {
       transcribeAudioFile: successfulTranscriber("I no play soccer."),
       evaluateOriginalTurn: evaluateOriginal,
       generateCocoReply: generate,
@@ -2439,7 +2439,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       missionSnapshot: soccerConversationSnapshot as unknown as typeof conversationMissionSnapshotFixture,
     });
 
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -2468,7 +2468,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     }));
     const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 1 }), {
       transcribeAudioFile: successfulTranscriber("I don't"),
       evaluateOriginalTurn: evaluateOriginal,
       generateCocoReply: generate,
@@ -2500,7 +2500,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       missionSnapshot: soccerConversationSnapshot as unknown as typeof conversationMissionSnapshotFixture,
     });
 
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -2525,7 +2525,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       failed: 0,
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 1 }), {
       transcribeAudioFile: successfulTranscriber("I want to read many cartoons."),
       evaluateOriginalTurn: evaluateOriginal,
       generateCocoReply: generate,
@@ -2580,7 +2580,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       },
     });
 
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginalTurn = successfulOriginalEvaluator({
@@ -2591,7 +2591,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       improvedSentence: "I make sandcastles at the beach.",
     });
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I make sandcastles."),
       evaluateOriginalTurn,
       generateCocoReply: fakeGenerateCocoReply(async () => ({
@@ -2620,7 +2620,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       missionSnapshot: soccerConversationSnapshot as unknown as typeof conversationMissionSnapshotFixture,
     });
 
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -2643,7 +2643,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       failed: 0,
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 1 }), {
       transcribeAudioFile: successfulTranscriber("I no play soccer much."),
       evaluateOriginalTurn: evaluateOriginal,
       generateCocoReply: generate,
@@ -2695,7 +2695,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       } as unknown as typeof conversationMissionSnapshotFixture,
     });
 
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginal = successfulOriginalEvaluator({
@@ -2716,7 +2716,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       failed: 0,
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I watch cartoon."),
       evaluateOriginalTurn: evaluateOriginal,
       generateCocoReply: generate,
@@ -2765,7 +2765,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       missionSnapshot: soccerConversationSnapshot as unknown as typeof conversationMissionSnapshotFixture,
     });
 
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -2788,7 +2788,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       failed: 0,
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 1 }), {
       transcribeAudioFile: successfulTranscriber("I no play soccer."),
       evaluateOriginalTurn: evaluateOriginal,
       generateCocoReply: generate,
@@ -2817,7 +2817,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         requireCompleteSentenceAnswers: false,
       } as unknown as typeof conversationMissionSnapshotFixture,
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluate = successfulOriginalEvaluator({
@@ -2832,7 +2832,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: "Soccer is fun! Who do you usually play with?" },
     }));
 
-    await uploadAttemptAudioClip(audioInput(), {
+    await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("School."),
       evaluateOriginalTurn: evaluate,
       generateCocoReply: generate,
@@ -2851,7 +2851,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   });
 
   it("flagged student input: no generateCocoReply call; canned redirect persisted with flagged_student_input event", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -2861,7 +2861,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     }));
     const moderate = fakeIsContentSafe(async () => ({ safe: false, failedOpen: false }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 1 }), {
       transcribeAudioFile: successfulTranscriber("something inappropriate"),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: generate,
@@ -2889,7 +2889,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   });
 
   it("turnOrder > HARD_TURN_CAP is rejected before upload or generation", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -2899,7 +2899,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     }));
     const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 9 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 9 }), {
       transcribeAudioFile: successfulTranscriber("I would like more coffee."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: generate,
@@ -2922,7 +2922,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         },
       ],
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -2933,7 +2933,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     }));
     const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 2 }), {
       transcribeAudioFile: successfulTranscriber("I will play soccer."),
       evaluateOriginalTurn: evaluateOriginal,
       generateCocoReply: generate,
@@ -2991,11 +2991,11 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         },
       ],
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 2 }), {
       transcribeAudioFile: successfulTranscriber("I will play soccer."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: fakeGenerateCocoReply(async () => ({
@@ -3037,11 +3037,11 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         ],
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I like to play soccer."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: fakeGenerateCocoReply(async () => ({
@@ -3085,11 +3085,11 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         ],
       } as unknown as typeof conversationMissionSnapshotFixture,
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("Can I have a juice, please?"),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
     });
@@ -3128,7 +3128,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         },
       ],
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginal = successfulOriginalEvaluator();
@@ -3137,7 +3137,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: "Great! Tell me one more thing." },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 2 }), {
       transcribeAudioFile: successfulTranscriber("I will play soccer."),
       evaluateOriginalTurn: evaluateOriginal,
       generateCocoReply: generate,
@@ -3187,12 +3187,12 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         ],
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginal = successfulOriginalEvaluator();
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 2 }), {
       transcribeAudioFile: successfulTranscriber("I will play soccer."),
       evaluateOriginalTurn: evaluateOriginal,
       generateCocoReply: fakeGenerateCocoReply(async () => ({
@@ -3234,7 +3234,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         },
       ],
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generate = fakeGenerateCocoReply(async () => ({
@@ -3242,7 +3242,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: "Oh, in the classroom! What do you talk about?" },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 2 }), {
       transcribeAudioFile: successfulTranscriber("In the classroom."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: generate,
@@ -3307,7 +3307,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         },
       ],
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generate = fakeGenerateCocoReply(async () => ({
@@ -3315,7 +3315,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: "Thanks for telling me! What do you like about that?" },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 2 }), {
       transcribeAudioFile: successfulTranscriber("Inside."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: generate,
@@ -3346,7 +3346,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     mockSupabase = createMockSupabase({
       historyLookupError: { message: "history unavailable" },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generate = fakeGenerateCocoReply(async () => ({
@@ -3354,7 +3354,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: "should never be called" },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 2 }), {
       transcribeAudioFile: successfulTranscriber("In the classroom."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: generate,
@@ -3370,7 +3370,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   });
 
   it("rejects a dynamic turn with no persisted Coco line before upload or evaluation", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginal = successfulOriginalEvaluator();
@@ -3379,7 +3379,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: "should never be called" },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 2 }), {
       transcribeAudioFile: successfulTranscriber("I will play soccer."),
       evaluateOriginalTurn: evaluateOriginal,
       generateCocoReply: generate,
@@ -3393,7 +3393,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   });
 
   it("generated line passes moderation: coco_line persisted with no moderation_event; TTS warmed", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -3404,7 +3404,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
     const warm = vi.fn(async () => ({ ok: true as const, warmed: 1, skipped: 0, failed: 0 }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 1 }), {
       transcribeAudioFile: successfulTranscriber("Can I have a juice, please?"),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: generate,
@@ -3446,11 +3446,11 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     mockSupabase = createMockSupabase({
       cocoLineUpsertError: { message: "write failed" },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I like juice."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: fakeGenerateCocoReply(async () => ({
@@ -3475,7 +3475,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   });
 
   it("fails moderation once then passes on regenerate: retried event persisted", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -3498,7 +3498,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       failedOpen: false,
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 1 }), {
       transcribeAudioFile: successfulTranscriber("Can I have a juice, please?"),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: generate,
@@ -3516,7 +3516,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   });
 
   it("fails moderation twice: canned fallback persisted with canned_fallback event", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -3533,7 +3533,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       failedOpen: false,
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 1 }), {
       transcribeAudioFile: successfulTranscriber("Can I have a juice, please?"),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: generate,
@@ -3552,7 +3552,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   });
 
   it("provider failure: shares the same canned-fallback path as moderation failure", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -3562,7 +3562,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
     }));
     const moderate = fakeIsContentSafe(async () => ({ safe: true, failedOpen: false }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 1 }), {
       transcribeAudioFile: successfulTranscriber("Can I have a juice, please?"),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: generate,
@@ -3588,11 +3588,11 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   ] as const)(
     "persists the %s generation fallback cause",
     async (error, expectedEvent) => {
-      const { uploadAttemptAudioClip } = await import(
+      const { recordSpeakingTry } = await import(
         "@/server/student-access/audio-upload"
       );
       const generate = fakeGenerateCocoReply(async () => ({ ok: false, error }));
-      const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+      const result = await recordSpeakingTry(audioInput({ turnOrder: 1 }), {
         transcribeAudioFile: successfulTranscriber("I like soccer."),
         evaluateOriginalTurn: successfulOriginalEvaluator(),
         generateCocoReply: generate,
@@ -3610,7 +3610,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   );
 
   it("persists every policy reason when correction is exhausted", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generate = fakeGenerateCocoReply(async () => ({
@@ -3624,7 +3624,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       },
       rejectedAttempt: "corrected",
     }));
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 1 }), {
       transcribeAudioFile: successfulTranscriber("I like soccer."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: generate,
@@ -3651,7 +3651,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   });
 
   it("selects the meaningful follow-up fallback when generation fails after a substantive answer", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generate = fakeGenerateCocoReply(async () => ({
@@ -3659,7 +3659,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       error: "provider_failed",
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 1 }), {
       transcribeAudioFile: successfulTranscriber("I will eat sushi."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: generate,
@@ -3677,7 +3677,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   });
 
   it("selects the vague_or_stuck follow-up fallback when generation fails after a vague answer", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generate = fakeGenerateCocoReply(async () => ({
@@ -3685,7 +3685,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       error: "schema_failed",
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 1 }), {
       transcribeAudioFile: successfulTranscriber("Anything."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: generate,
@@ -3703,7 +3703,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   });
 
   it("answers the first unclear retry with the static line even when generation would fail", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluate = successfulOriginalEvaluator({
@@ -3718,7 +3718,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       error: "provider_failed",
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 1 }), {
       transcribeAudioFile: successfulTranscriber("I will eat sushi."),
       evaluateOriginalTurn: evaluate,
       generateCocoReply: generate,
@@ -3740,7 +3740,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   });
 
   it("selects the uncertain follow-up fallback for unsafe student input regardless of transcript content", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generate = fakeGenerateCocoReply(async () => ({
@@ -3748,7 +3748,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: "This must not be generated." },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 1 }), {
       transcribeAudioFile: successfulTranscriber("I will eat sushi."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: generate,
@@ -3775,7 +3775,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         coco_line: `Question ${index + 2}?`,
       })),
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generate = fakeGenerateCocoReply(async () => ({
@@ -3783,7 +3783,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       error: "provider_failed",
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 4 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 4 }), {
       transcribeAudioFile: successfulTranscriber("I will eat sushi."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: generate,
@@ -3801,14 +3801,14 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   });
 
   it("distinguishes unavailable input moderation from flagged input", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generate = fakeGenerateCocoReply(async () => ({
       ok: true,
       reply: { line: "This must not be generated." },
     }));
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 1 }), {
       transcribeAudioFile: successfulTranscriber("I like soccer."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: generate,
@@ -3826,7 +3826,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   });
 
   it("falls back immediately when output moderation is unavailable", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generate = fakeGenerateCocoReply(async () => ({
@@ -3840,7 +3840,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         ? { safe: true as const, failedOpen: false as const }
         : { safe: false as const, failedOpen: true as const };
     });
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 1 }), {
       transcribeAudioFile: successfulTranscriber("I like soccer."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: generate,
@@ -3866,7 +3866,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         coco_line: `Question ${index + 2}?`,
       })),
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const closing =
@@ -3876,7 +3876,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: closing },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 4 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 4 }), {
       transcribeAudioFile: successfulTranscriber("I will eat sushi."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: generate,
@@ -3900,7 +3900,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
   });
 
   it("uses the static closing fallback for provider, schema, and policy failures", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const failures: Array<{
@@ -3951,7 +3951,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         })),
       });
 
-      const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 4 }), {
+      const result = await recordSpeakingTry(audioInput({ turnOrder: 4 }), {
         transcribeAudioFile: successfulTranscriber("I will eat sushi."),
         evaluateOriginalTurn: successfulOriginalEvaluator(),
         generateCocoReply: fakeGenerateCocoReply(async () => generation),
@@ -3978,12 +3978,12 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         coco_line: `Question ${index + 2}?`,
       })),
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     let moderationCall = 0;
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 4 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 4 }), {
       transcribeAudioFile: successfulTranscriber("I will eat sushi."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: fakeGenerateCocoReply(async () => ({
@@ -4021,7 +4021,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
         coco_line: `Question ${index + 2}?`,
       })),
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generate = fakeGenerateCocoReply(async () => ({
@@ -4029,7 +4029,7 @@ describe("uploadAttemptAudioClip conversation-mode orchestration", () => {
       reply: { line: "That was fun! See you next time!" },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 8 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 8 }), {
       transcribeAudioFile: successfulTranscriber("I enjoyed swimming."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       generateCocoReply: generate,
@@ -4062,7 +4062,7 @@ describe("minimal-effort answer guard (conversation mode)", () => {
       missionSnapshot:
         soccerConversationSnapshot as unknown as typeof conversationMissionSnapshotFixture,
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const generate = fakeGenerateCocoReply(async () => ({
@@ -4075,7 +4075,7 @@ describe("minimal-effort answer guard (conversation mode)", () => {
     }));
     const evaluate = successfulOriginalEvaluator();
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("no"),
       evaluateOriginalTurn: evaluate,
       generateCocoReply: generate,
@@ -4124,11 +4124,11 @@ describe("minimal-effort answer guard (conversation mode)", () => {
         ],
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("No."),
     });
 
@@ -4158,7 +4158,7 @@ describe("minimal-effort answer guard (conversation mode)", () => {
         minimalEffortBlocks: 2,
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluate = successfulOriginalEvaluator({
@@ -4171,7 +4171,7 @@ describe("minimal-effort answer guard (conversation mode)", () => {
       improvedSentence: "Yes, I do.",
     });
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("Yes."),
       evaluateOriginalTurn: evaluate,
     });
@@ -4205,7 +4205,7 @@ describe("multi-pattern preset evaluation", () => {
       missionSnapshot:
         multiPatternPresetSnapshot as unknown as typeof conversationMissionSnapshotFixture,
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginal = successfulOriginalEvaluator({
@@ -4217,7 +4217,7 @@ describe("multi-pattern preset evaluation", () => {
       improvedSentence: "I will play soccer.",
     });
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 2 }), {
       transcribeAudioFile: successfulTranscriber("I like soccer."),
       evaluateOriginalTurn: evaluateOriginal,
     });
@@ -4255,7 +4255,7 @@ describe("multi-pattern preset evaluation", () => {
       missionSnapshot:
         multiPatternPresetSnapshot as unknown as typeof conversationMissionSnapshotFixture,
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginal = vi
@@ -4276,7 +4276,7 @@ describe("multi-pattern preset evaluation", () => {
         error: "schema_failed" as const,
       });
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 2 }), {
       transcribeAudioFile: successfulTranscriber("I like soccer."),
       evaluateOriginalTurn: evaluateOriginal,
     });
@@ -4307,7 +4307,7 @@ describe("multi-pattern preset evaluation", () => {
         ambiguityHistory: [],
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginal = successfulOriginalEvaluator({
@@ -4319,7 +4319,7 @@ describe("multi-pattern preset evaluation", () => {
       improvedSentence: "I will play soccer.",
     });
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 2 }), {
       transcribeAudioFile: successfulTranscriber("I like soccer."),
       evaluateOriginalTurn: evaluateOriginal,
     });
@@ -4341,12 +4341,12 @@ describe("multi-pattern preset evaluation", () => {
       missionSnapshot:
         multiPatternPresetSnapshot as unknown as typeof conversationMissionSnapshotFixture,
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginal = successfulOriginalEvaluator();
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 2 }), {
       transcribeAudioFile: successfulTranscriber("I will read."),
       evaluateOriginalTurn: evaluateOriginal,
     });
@@ -4377,7 +4377,7 @@ describe("multi-pattern preset evaluation", () => {
       missionSnapshot:
         patternSensitiveSnapshot as unknown as typeof conversationMissionSnapshotFixture,
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const soccerInterpretation = [
@@ -4408,7 +4408,7 @@ describe("multi-pattern preset evaluation", () => {
         }),
       });
 
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 1 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 1 }), {
       transcribeAudioFile: successfulTranscriber("soccer 축구", [
         { hangul: "축구", romanized: "Chukgu" },
       ]),
@@ -4433,12 +4433,12 @@ describe("multi-pattern preset evaluation", () => {
         multiPatternPresetSnapshot as unknown as typeof conversationMissionSnapshotFixture,
       turnImprovedSentence: "I will play soccer.",
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateRepeat = repeatEvaluator();
 
-    const result = await uploadAttemptAudioClip(
+    const result = await recordSpeakingTry(
       {
         ...audioInput({ turnOrder: 2 }),
         clipKind: "repeat_attempt" as const,
@@ -4465,12 +4465,12 @@ describe("multi-pattern preset evaluation", () => {
         multiPatternPresetSnapshot as unknown as typeof conversationMissionSnapshotFixture,
       turnImprovedSentence: null,
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateRepeat = repeatEvaluator();
 
-    await uploadAttemptAudioClip(
+    await recordSpeakingTry(
       {
         ...audioInput({ turnOrder: 2 }),
         clipKind: "repeat_attempt" as const,
@@ -4501,12 +4501,12 @@ describe("multi-pattern preset evaluation", () => {
       missionSnapshot:
         historicalSnapshot as unknown as typeof conversationMissionSnapshotFixture,
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginal = successfulOriginalEvaluator();
 
-    await uploadAttemptAudioClip(audioInput({ turnOrder: 2 }), {
+    await recordSpeakingTry(audioInput({ turnOrder: 2 }), {
       transcribeAudioFile: successfulTranscriber("I like reading."),
       evaluateOriginalTurn: evaluateOriginal,
     });
@@ -4557,11 +4557,11 @@ describe("repeat write preserves the original evaluation (2026-07-25)", () => {
       turnEvaluation: storedOriginalEvaluation,
       turnImprovedSentence: "I like adventure cartoons.",
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    const result = await uploadAttemptAudioClip(
+    const result = await recordSpeakingTry(
       { ...audioInput({ turnOrder: 1 }), clipKind: "repeat_attempt" as const },
       {
         transcribeAudioFile: successfulTranscriber("I like adventure cartoons."),
@@ -4586,11 +4586,11 @@ describe("repeat write preserves the original evaluation (2026-07-25)", () => {
     mockSupabase = createMockSupabase({
       turnImprovedSentence: "I like adventure cartoons.",
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    await uploadAttemptAudioClip(
+    await recordSpeakingTry(
       { ...audioInput({ turnOrder: 1 }), clipKind: "repeat_attempt" as const },
       {
         transcribeAudioFile: successfulTranscriber("I like adventure cartoons."),
@@ -4621,7 +4621,7 @@ describe("repeat cap accounting (issue #51)", () => {
         "transcribed",
       ],
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateRepeatTurn = vi.fn(async () => ({
@@ -4637,7 +4637,7 @@ describe("repeat cap accounting (issue #51)", () => {
       },
     }));
 
-    const result = await uploadAttemptAudioClip(
+    const result = await recordSpeakingTry(
       { ...audioInput({ turnOrder: 1 }), clipKind: "repeat_attempt" as const },
       {
         transcribeAudioFile: successfulTranscriber("I like adventure books."),
@@ -4687,7 +4687,7 @@ describe("repeat cap accounting (issue #51)", () => {
       priorRepeatClipStatuses: ["transcribed"],
       repeatCountError: { message: "count unavailable" },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateRepeatTurn = vi.fn(async () => ({
@@ -4703,7 +4703,7 @@ describe("repeat cap accounting (issue #51)", () => {
       },
     }));
 
-    const result = await uploadAttemptAudioClip(
+    const result = await recordSpeakingTry(
       { ...audioInput({ turnOrder: 1 }), clipKind: "repeat_attempt" as const },
       {
         transcribeAudioFile: successfulTranscriber("I like adventure books."),
@@ -4752,7 +4752,7 @@ describe("Hangul-original pronunciation scoring start order", () => {
       } as unknown as typeof conversationMissionSnapshotFixture,
     });
 
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -4787,7 +4787,7 @@ describe("Hangul-original pronunciation scoring start order", () => {
       };
     });
 
-    const uploadPromise = uploadAttemptAudioClip(audioInput(), {
+    const uploadPromise = recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I like 바닐라.", [
         { hangul: "바닐라", romanized: "Banilla" },
       ]),
@@ -4806,7 +4806,7 @@ describe("Hangul-original pronunciation scoring start order", () => {
         failedOpen: false,
       })),
       scorePronunciation,
-    } as unknown as Parameters<typeof uploadAttemptAudioClip>[1]);
+    } as unknown as Parameters<typeof recordSpeakingTry>[1]);
 
     // Scoring must be under way while Coco's reply is still pending.
     await scoringStarted;

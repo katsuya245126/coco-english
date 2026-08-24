@@ -41,6 +41,16 @@ export type OwnedAssignmentStudentResult =
   | { ok: true; owned: OwnedAssignmentStudent }
   | { ok: false; error: "not_found_or_canceled" | "db_error" };
 
+type OwnedAttempt = {
+  id: string;
+  assignment_student_id: string;
+  status: "in_progress";
+};
+
+export type OwnedInProgressAttemptResult =
+  | { ok: true; owned: OwnedAssignmentStudent; attempt: OwnedAttempt }
+  | { ok: false; error: "not_found_or_canceled" | "db_error" };
+
 type AssignmentStudentStatus =
   Database["public"]["Tables"]["assignment_students"]["Row"]["status"];
 
@@ -120,4 +130,38 @@ export async function requireOwnedAssignmentStudent(input: {
   if (owned.canceledAt) return { ok: false, error: "not_found_or_canceled" };
 
   return { ok: true, owned };
+}
+
+/**
+ * Prove assignment ownership and that the requested attempt belongs to it and
+ * is still active before an attempt-turn mutation. Missing, foreign, canceled,
+ * and stale attempts intentionally share the generic not-found result.
+ */
+export async function requireOwnedInProgressAttempt(input: {
+  studentId: string;
+  assignmentStudentId: string;
+  attemptId: string;
+}): Promise<OwnedInProgressAttemptResult> {
+  const ownedResult = await requireOwnedAssignmentStudent(input);
+  if (!ownedResult.ok) return ownedResult;
+
+  const supabase = createSupabaseServiceClient();
+  const { data, error } = await supabase
+    .from("attempts")
+    .select("id, assignment_student_id, status")
+    .eq("id", input.attemptId)
+    .eq("assignment_student_id", input.assignmentStudentId)
+    .eq("status", "in_progress")
+    .maybeSingle();
+
+  if (error) return { ok: false, error: "db_error" };
+  if (!data || data.status !== "in_progress") {
+    return { ok: false, error: "not_found_or_canceled" };
+  }
+
+  return {
+    ok: true,
+    owned: ownedResult.owned,
+    attempt: data as OwnedAttempt,
+  };
 }

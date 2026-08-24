@@ -9,7 +9,7 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
 
     // The upload service remains the app-owned workflow boundary: writes,
     // ownership checks, and attempt-state transitions never move into AI.
-    expect(mod.uploadAttemptAudioClip).toBeDefined();
+    expect(mod.recordSpeakingTry).toBeDefined();
 
     // The extracted evaluation pipeline exposes its seam to the service and
     // tests, but owns no persistence or workflow state of its own.
@@ -264,9 +264,8 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
       "utf8",
     );
 
-    expect(missionFlowSource).toContain("loadOwnedAttempt");
-    expect(missionFlowSource).toContain(".eq(\"assignment_student_id\", assignmentStudentId)");
-    expect(missionFlowSource).toContain("attempt.attempt.status !== \"in_progress\"");
+    expect(missionFlowSource).toContain("requireOwnedInProgressAttempt");
+    expect(missionFlowSource).not.toContain("loadOwnedAttempt");
   });
 
   it("start attempts conditionally claim the assignment before returning the new attempt", () => {

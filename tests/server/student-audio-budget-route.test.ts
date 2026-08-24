@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockReadStudentUnlock, mockUpload } = vi.hoisted(() => ({
+const { mockReadStudentUnlock, mockRecordSpeakingTry } = vi.hoisted(() => ({
   mockReadStudentUnlock: vi.fn(),
-  mockUpload: vi.fn(),
+  mockRecordSpeakingTry: vi.fn(),
 }));
 
 vi.mock("@/app/join/actions", () => ({
@@ -13,7 +13,7 @@ vi.mock("@/server/student-access/audio-upload", async (importOriginal) => {
   const actual = await importOriginal<
     typeof import("@/server/student-access/audio-upload")
   >();
-  return { ...actual, uploadAttemptAudioClip: mockUpload };
+  return { ...actual, recordSpeakingTry: mockRecordSpeakingTry };
 });
 
 const ASSIGNMENT_STUDENT_ID = "22222222-2222-4222-8222-222222222222";
@@ -46,12 +46,12 @@ describe("student audio route budget mapping", () => {
   beforeEach(() => {
     vi.resetModules();
     mockReadStudentUnlock.mockReset();
-    mockUpload.mockReset();
+    mockRecordSpeakingTry.mockReset();
     mockReadStudentUnlock.mockResolvedValue({ studentId: "student-1" });
   });
 
   it("maps audio budget denial to 429 without exposing budget details", async () => {
-    mockUpload.mockResolvedValue({
+    mockRecordSpeakingTry.mockResolvedValue({
       ok: false,
       error: "rate_limited",
       retryable: true,
@@ -69,7 +69,7 @@ describe("student audio route budget mapping", () => {
   });
 
   it("falls back to the full window when no retry delay is present", async () => {
-    mockUpload.mockResolvedValue({
+    mockRecordSpeakingTry.mockResolvedValue({
       ok: false,
       error: "rate_limited",
       retryable: true,

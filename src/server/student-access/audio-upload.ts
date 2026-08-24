@@ -9,7 +9,6 @@
 
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/lib/db/types";
-import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
 import { resolveMissionSnapshotTargetPattern } from "@/domain/mission/mission-snapshot";
 import { isPendingConversationRecovery } from "@/domain/mission/student-question-state";
 import { buildReplyHintFrame } from "@/domain/ai/reply-hint-frame";
@@ -88,6 +87,7 @@ import {
   collectPreviouslyAskedQuestions,
   type PersistedConversationTurn,
 } from "@/server/student-access/conversation-history";
+import { requireOwnedInProgressAttempt } from "@/server/student-access/owned-assignment";
 import { log } from "@/server/logging/logger";
 
 const DEFAULT_AUDIO_BUCKET = "student-audio";
@@ -281,19 +281,6 @@ function isValidInput(input: UploadAttemptAudioClipInput) {
     ALLOWED_AUDIO_MIME_TYPES.has(normalizedMimeType) &&
     (!fileMimeType || fileMimeType === normalizedMimeType)
   );
-}
-
-function readMissionSnapshot(assignmentStudent: unknown) {
-  const rawSnapshot = (assignmentStudent as {
-    assignments?:
-      | { mission_snapshot?: unknown }
-      | Array<{ mission_snapshot?: unknown }>;
-  }).assignments;
-  const missionSnapshot = Array.isArray(rawSnapshot)
-    ? rawSnapshot[0]?.mission_snapshot
-    : rawSnapshot?.mission_snapshot;
-  const result = interpretMissionSnapshot(missionSnapshot);
-  return result.kind === "complete" ? result.snapshot : null;
 }
 
 function toJson(
@@ -533,7 +520,7 @@ async function runConversationTurn(
   };
 }
 
-export async function uploadAttemptAudioClip(
+export async function recordSpeakingTry(
   input: UploadAttemptAudioClipInput,
   deps: UploadAttemptAudioClipDeps = {},
 ): Promise<UploadAttemptAudioClipResult> {
@@ -592,68 +579,30 @@ export async function uploadAttemptAudioClip(
   try {
     const supabase = createSupabaseServiceClient();
 
-    // assignmentLookup and attemptLookup are independent reads (each filters
-    // only on raw request input; neither consumes the other's result), so
-    // they run concurrently to avoid paying two sequential round trips.
-    // Failure precedence is preserved below: assignment-related failures are
-    // still checked and returned before attempt-related failures, exactly as
-    // when these ran serially.
-    const [
-      { data: assignmentStudent, error: assignmentError },
-      { data: attempt, error: attemptError },
-    ] = await timeStage("assignmentAndAttemptLookup", () =>
-      Promise.all([
-        supabase
-          .from("assignment_students")
-          .select("id, student_id, status, assignments(mission_snapshot, canceled_at)")
-          .eq("id", input.assignmentStudentId)
-          .eq("student_id", input.studentId)
-          .maybeSingle(),
-        supabase
-          .from("attempts")
-          .select("id, assignment_student_id, status")
-          .eq("id", input.attemptId)
-          .eq("assignment_student_id", input.assignmentStudentId)
-          .maybeSingle(),
-      ]),
+    const ownedAttempt = await timeStage("assignmentAndAttemptLookup", () =>
+      requireOwnedInProgressAttempt({
+        studentId: input.studentId,
+        assignmentStudentId: input.assignmentStudentId,
+        attemptId: input.attemptId,
+      }),
     );
 
-    if (assignmentError) {
-      logTiming("failed", { error: "db_error", step: "assignment_lookup" });
-      return { ok: false, error: "db_error", retryable: true };
+    if (!ownedAttempt.ok) {
+      const error = ownedAttempt.error === "db_error" ? "db_error" : "not_found";
+      logTiming("failed", { error, step: "assignment_and_attempt_lookup" });
+      return {
+        ok: false,
+        error,
+        retryable: error === "db_error",
+      };
     }
-    if (!assignmentStudent) {
-      logTiming("failed", { error: "not_found", step: "assignment_lookup" });
-      return { ok: false, error: "not_found", retryable: false };
-    }
-    if (assignmentStudent.status !== "started") {
+
+    if (ownedAttempt.owned.status !== "started") {
       logTiming("failed", { error: "not_found", step: "assignment_status" });
       return { ok: false, error: "not_found", retryable: false };
     }
-    const assignment = (
-      assignmentStudent as {
-        assignments?: { canceled_at?: string | null } | null;
-      }
-    ).assignments;
-    if (assignment?.canceled_at) {
-      logTiming("failed", { error: "not_found", step: "assignment_canceled" });
-      return { ok: false, error: "not_found", retryable: false };
-    }
 
-    if (attemptError) {
-      logTiming("failed", { error: "db_error", step: "attempt_lookup" });
-      return { ok: false, error: "db_error", retryable: true };
-    }
-    if (!attempt) {
-      logTiming("failed", { error: "not_found", step: "attempt_lookup" });
-      return { ok: false, error: "not_found", retryable: false };
-    }
-    if (attempt.status !== "in_progress") {
-      logTiming("failed", { error: "not_found", step: "attempt_status" });
-      return { ok: false, error: "not_found", retryable: false };
-    }
-
-    const snapshot = readMissionSnapshot(assignmentStudent);
+    const snapshot = ownedAttempt.owned.snapshot;
     const authoredSnapshotTurn = snapshot?.turns.find(
       (missionTurn) => missionTurn.turnOrder === input.turnOrder,
     );
@@ -750,6 +699,23 @@ export async function uploadAttemptAudioClip(
     const audioBytes = await timeStage("readAudio", () => input.file.arrayBuffer());
     const createAudioBlob = () => new Blob([audioBytes], { type: input.mimeType });
 
+    const turnGuard = await timeStage("turnGuard", () =>
+      requireOwnedInProgressAttempt({
+        studentId: input.studentId,
+        assignmentStudentId: input.assignmentStudentId,
+        attemptId: input.attemptId,
+      }),
+    );
+    if (!turnGuard.ok) {
+      const error = turnGuard.error === "db_error" ? "db_error" : "not_found";
+      logTiming("failed", { error, step: "turn_guard" });
+      return {
+        ok: false,
+        error,
+        retryable: error === "db_error",
+      };
+    }
+
     const { data: turn, error: turnError } = await timeStage("turnInit", () =>
       supabase
         .from("attempt_turns")
@@ -815,6 +781,7 @@ export async function uploadAttemptAudioClip(
       return { ok: false, error: "db_error", retryable: true };
     }
     audioClipId = audioClip.id;
+    const persistedAudioClip = audioClip;
 
     const objectKey = buildObjectKey({
       assignmentStudentId: input.assignmentStudentId,
@@ -824,6 +791,37 @@ export async function uploadAttemptAudioClip(
       audioClipId: audioClip.id,
       mimeType: input.mimeType,
     });
+
+    async function guardTurnWrite(): Promise<UploadAttemptAudioClipResult | null> {
+      const guard = await timeStage("turnWriteGuard", () =>
+        requireOwnedInProgressAttempt({
+          studentId: input.studentId,
+          assignmentStudentId: input.assignmentStudentId,
+          attemptId: input.attemptId,
+        }),
+      );
+      if (guard.ok) return null;
+
+      await timeStage("failedClipUpdate", () =>
+        supabase
+          .from("audio_clips")
+          .update({
+            object_key: objectKey,
+            mime_type: input.mimeType,
+            duration_ms: input.durationMs,
+            byte_size: input.byteSize,
+            processing_status: "failed",
+          })
+          .eq("id", persistedAudioClip.id),
+      );
+      const error = guard.error === "db_error" ? "db_error" : "not_found";
+      logTiming("failed", { error, step: "turn_write_guard" });
+      return {
+        ok: false,
+        error,
+        retryable: error === "db_error",
+      };
+    }
 
     // storageUpload and transcription both only depend on the in-memory audio
     // bytes (transcription never reads the uploaded object back), so they run
@@ -1049,6 +1047,9 @@ export async function uploadAttemptAudioClip(
         evaluationOutcome.lowConfidenceGateRetryApplied;
     }
 
+    const deterministicTurnWriteError = await guardTurnWrite();
+    if (deterministicTurnWriteError) return deterministicTurnWriteError;
+
     if (evaluationOutcome && evaluationOutcome.stage !== "evaluated") {
       const decision = evaluationOutcome.decision;
       const write = await timeStage("turnWrite", () =>
@@ -1110,6 +1111,9 @@ export async function uploadAttemptAudioClip(
         cocoLineModerationEvent: null,
       };
     }
+
+    const evaluatedTurnWriteError = await guardTurnWrite();
+    if (evaluatedTurnWriteError) return evaluatedTurnWriteError;
 
     const turnWrite =
       input.clipKind === "original_answer"
