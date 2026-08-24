@@ -54,6 +54,17 @@ Run the narrowest relevant tests first, then typecheck, lint, and build in propo
 
 For deterministic student feedback screenshots, start the app on `http://localhost:3000`, provide `FEEDBACK_STATE_CLASS_CODE`, `FEEDBACK_STATE_STUDENT_NAME`, and `FEEDBACK_STATE_PIN`, and run `npm run test:student-feedback-states`. See `docs/testing/student-feedback-states.md`.
 
+## Usage efficiency
+
+- Give subagents compact, task-specific prompts and the minimum history they need. Inherit full conversation history only when the task cannot be summarized safely.
+- Reuse an existing subagent for follow-up work instead of spawning a replacement for the same scope.
+- Run the narrowest relevant checks during implementation. Run the full unit suite once for the final commit state; rerun it only after the commit, working tree, environment, or relevant dependencies change.
+- Verification evidence is identified by the checked commit and clean working tree. Do not rerun an unchanged verified commit solely to create a PR or repeat a status report unless an invoked skill explicitly requires it.
+- Before formal review, check the final diff against the issue acceptance criteria and repository standards. Start formal parallel reviewers after that preflight so they normally review one final diff.
+- Use `npm run test:agent` for full unit verification unless diagnosing a failure. Prefer non-interactive compact reporters and bounded tool output.
+- Prefer targeted `rg`, file lists, and line ranges over dumping entire large files, diffs, or test logs.
+- Usage efficiency never reduces security, authorization, privacy, data-loss prevention, accessibility, or explicitly requested verification.
+
 ## Legacy planning records
 
 The former GSD workflow has been retired in favor of the lightweight `task-workflow` and `progress` skills (see "Workflow" above). Its `.planning/` history is not an active source of truth. Do not recreate GSD state, hooks, or `.planning/`; use the issue tracker or local notes for any historical context.
