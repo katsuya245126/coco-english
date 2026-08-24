@@ -336,6 +336,12 @@ function errorMessage(error: unknown) {
   return String(error);
 }
 
+function mapOwnedAttemptError(
+  error: "not_found_or_canceled" | "db_error",
+): "not_found" | "db_error" {
+  return error === "db_error" ? "db_error" : "not_found";
+}
+
 function elapsedMs(startedAt: number) {
   return Math.max(0, Date.now() - startedAt);
 }
@@ -657,16 +663,30 @@ export async function recordSpeakingTry(
       input.clipKind === "original_answer" &&
       input.turnOrder > 1
     ) {
-      const { data, error } = await timeStage("conversationHistoryLookup", () =>
-        supabase
-          .from("attempt_turns")
-          .select(
-            "turn_order, original_transcript, improved_sentence, coco_line, evaluation",
-          )
-          .eq("attempt_id", input.attemptId)
-          .lt("turn_order", input.turnOrder)
-          .order("turn_order", { ascending: true }),
+      const historyResult = await timeStage("conversationHistoryGuard", () =>
+        withOwnedInProgressAttempt(input, async () =>
+          timeStage("conversationHistoryLookup", () =>
+            supabase
+              .from("attempt_turns")
+              .select(
+                "turn_order, original_transcript, improved_sentence, coco_line, evaluation",
+              )
+              .eq("attempt_id", input.attemptId)
+              .lt("turn_order", input.turnOrder)
+              .order("turn_order", { ascending: true }),
+          ),
+        ),
       );
+      if (!historyResult.ok) {
+        const error = mapOwnedAttemptError(historyResult.error);
+        logTiming("failed", { error, step: "conversation_history_guard" });
+        return {
+          ok: false,
+          error,
+          retryable: error === "db_error",
+        };
+      }
+      const { data, error } = historyResult.value;
       if (error) {
         logTiming("failed", { error: "db_error", step: "conversation_history" });
         return { ok: false, error: "db_error", retryable: true };
@@ -757,20 +777,33 @@ export async function recordSpeakingTry(
       return { ok: false, error: "invalid_audio", retryable: false };
     }
 
-    const { data: audioClip, error: clipError } = await timeStage(
-      "audioClipInsert",
-      () =>
-        supabase
-          .from("audio_clips")
-          .insert({
-            attempt_turn_id: turn.id,
-            clip_kind: input.clipKind,
-            processing_status: "pending_upload",
-          })
-          .select("id")
-          .single(),
+    const audioClipInsert = await timeStage("audioClipGuard", () =>
+      withOwnedInProgressAttempt(input, async () =>
+        timeStage("audioClipInsert", () =>
+          supabase
+            .from("audio_clips")
+            .insert({
+              attempt_turn_id: turn.id,
+              clip_kind: input.clipKind,
+              processing_status: "pending_upload",
+            })
+            .select("id")
+            .single(),
+        ),
+      ),
     );
 
+    if (!audioClipInsert.ok) {
+      const error = mapOwnedAttemptError(audioClipInsert.error);
+      logTiming("failed", { error, step: "audio_clip_guard" });
+      return {
+        ok: false,
+        error,
+        retryable: error === "db_error",
+      };
+    }
+
+    const { data: audioClip, error: clipError } = audioClipInsert.value;
     if (clipError || !audioClip) {
       logTiming("failed", { error: "db_error", step: "audio_clip_insert" });
       return { ok: false, error: "db_error", retryable: true };
@@ -824,16 +857,20 @@ export async function recordSpeakingTry(
     ]);
 
     if (uploadError) {
-      await timeStage("failedClipUpdate", () =>
-        supabase
-          .from("audio_clips")
-          .update({
-            processing_status: "failed",
-            mime_type: input.mimeType,
-            duration_ms: input.durationMs,
-            byte_size: input.byteSize,
-          })
-          .eq("id", audioClip.id),
+      await timeStage("failedClipGuard", () =>
+        withOwnedInProgressAttempt(input, async () =>
+          timeStage("failedClipUpdate", () =>
+            supabase
+              .from("audio_clips")
+              .update({
+                processing_status: "failed",
+                mime_type: input.mimeType,
+                duration_ms: input.durationMs,
+                byte_size: input.byteSize,
+              })
+              .eq("id", audioClip.id),
+          ),
+        ),
       );
 
       log("warn", "audio.upload_failed", {
@@ -856,17 +893,21 @@ export async function recordSpeakingTry(
     }
 
     if (!transcription.ok) {
-      await timeStage("failedClipUpdate", () =>
-        supabase
-          .from("audio_clips")
-          .update({
-            object_key: objectKey,
-            mime_type: input.mimeType,
-            duration_ms: input.durationMs,
-            byte_size: input.byteSize,
-            processing_status: "failed",
-          })
-          .eq("id", audioClip.id),
+      await timeStage("failedClipGuard", () =>
+        withOwnedInProgressAttempt(input, async () =>
+          timeStage("failedClipUpdate", () =>
+            supabase
+              .from("audio_clips")
+              .update({
+                object_key: objectKey,
+                mime_type: input.mimeType,
+                duration_ms: input.durationMs,
+                byte_size: input.byteSize,
+                processing_status: "failed",
+              })
+              .eq("id", audioClip.id),
+          ),
+        ),
       );
 
       logTiming("failed", {
@@ -884,17 +925,21 @@ export async function recordSpeakingTry(
       transcription.text,
     );
     if (!transcript || !hasEnglishTranscript(transcript)) {
-      await timeStage("failedClipUpdate", () =>
-        supabase
-          .from("audio_clips")
-          .update({
-            object_key: objectKey,
-            mime_type: input.mimeType,
-            duration_ms: input.durationMs,
-            byte_size: input.byteSize,
-            processing_status: "failed",
-          })
-          .eq("id", audioClip.id),
+      await timeStage("failedClipGuard", () =>
+        withOwnedInProgressAttempt(input, async () =>
+          timeStage("failedClipUpdate", () =>
+            supabase
+              .from("audio_clips")
+              .update({
+                object_key: objectKey,
+                mime_type: input.mimeType,
+                duration_ms: input.durationMs,
+                byte_size: input.byteSize,
+                processing_status: "failed",
+              })
+              .eq("id", audioClip.id),
+          ),
+        ),
       );
 
       logTiming("failed", {
@@ -1032,18 +1077,6 @@ export async function recordSpeakingTry(
       );
       if (!writeResult.ok) {
         const error = writeResult.error === "db_error" ? "db_error" : "not_found";
-        await timeStage("failedClipUpdate", () =>
-          supabase
-            .from("audio_clips")
-            .update({
-              object_key: objectKey,
-              mime_type: input.mimeType,
-              duration_ms: input.durationMs,
-              byte_size: input.byteSize,
-              processing_status: "failed",
-            })
-            .eq("id", audioClip.id),
-        );
         logTiming("failed", { error, step: "turn_write_guard" });
         return {
           ok: false,
@@ -1056,20 +1089,28 @@ export async function recordSpeakingTry(
         logTiming("failed", { error: "db_error", step: "turn_write" });
         return { ok: false, error: "db_error", retryable: true };
       }
-      const { error: clipUpdateError } = await timeStage(
-        "finalClipUpdate",
-        () =>
-          supabase
-            .from("audio_clips")
-            .update({
-              object_key: objectKey,
-              mime_type: input.mimeType,
-              duration_ms: input.durationMs,
-              byte_size: input.byteSize,
-              processing_status: "transcribed",
-            })
-            .eq("id", audioClip.id),
+      const clipUpdateResult = await timeStage("finalClipGuard", () =>
+        withOwnedInProgressAttempt(input, async () =>
+          timeStage("finalClipUpdate", () =>
+            supabase
+              .from("audio_clips")
+              .update({
+                object_key: objectKey,
+                mime_type: input.mimeType,
+                duration_ms: input.durationMs,
+                byte_size: input.byteSize,
+                processing_status: "transcribed",
+              })
+              .eq("id", audioClip.id),
+          ),
+        ),
       );
+      if (!clipUpdateResult.ok) {
+        const error = mapOwnedAttemptError(clipUpdateResult.error);
+        logTiming("failed", { error, step: "final_clip_guard" });
+        return { ok: false, error, retryable: error === "db_error" };
+      }
+      const { error: clipUpdateError } = clipUpdateResult.value;
       if (clipUpdateError) {
         logTiming("failed", { error: "db_error", step: "final_clip_update" });
         return { ok: false, error: "db_error", retryable: true };
@@ -1172,19 +1213,30 @@ export async function recordSpeakingTry(
             // Count only prior repeats that completed transcription. The
             // current row is still pending here, so it is counted by the
             // evaluation module as this clip's attempt number.
+            const repeatCountResult = await timeStage(
+              "repeatAttemptCountGuard",
+              () =>
+                withOwnedInProgressAttempt(input, async () =>
+                  timeStage(
+                    "repeatAttemptCount",
+                    () =>
+                      supabase
+                        .from("audio_clips")
+                        .select("id", { count: "exact", head: true })
+                        .eq("attempt_turn_id", turn.id)
+                        .eq("clip_kind", "repeat_attempt")
+                        .eq("processing_status", "transcribed"),
+                  ),
+                ),
+            );
+            if (!repeatCountResult.ok) {
+              const error = mapOwnedAttemptError(repeatCountResult.error);
+              return { guardError: error };
+            }
             const {
               count: priorRepeatClipCount,
               error: repeatCountError,
-            } = await timeStage(
-              "repeatAttemptCount",
-              () =>
-                supabase
-                  .from("audio_clips")
-                  .select("id", { count: "exact", head: true })
-                  .eq("attempt_turn_id", turn.id)
-                  .eq("clip_kind", "repeat_attempt")
-                  .eq("processing_status", "transcribed"),
-            );
+            } = repeatCountResult.value;
             if (repeatCountError) return { error: repeatCountError };
 
             // The original and the repeat arrive as separate uploads, so the
@@ -1258,18 +1310,6 @@ export async function recordSpeakingTry(
     if ("guardError" in turnWrite) {
       const guardError: "db_error" | "not_found" =
         turnWrite.guardError ?? "db_error";
-      await timeStage("failedClipUpdate", () =>
-        supabase
-          .from("audio_clips")
-          .update({
-            object_key: objectKey,
-            mime_type: input.mimeType,
-            duration_ms: input.durationMs,
-            byte_size: input.byteSize,
-            processing_status: "failed",
-          })
-          .eq("id", audioClip.id),
-      );
       logTiming("failed", {
         error: guardError,
         step: "turn_write_guard",
@@ -1282,17 +1322,21 @@ export async function recordSpeakingTry(
     }
 
     if (turnWrite.error) {
-      await timeStage("failedClipUpdate", () =>
-        supabase
-          .from("audio_clips")
-          .update({
-            object_key: objectKey,
-            mime_type: input.mimeType,
-            duration_ms: input.durationMs,
-            byte_size: input.byteSize,
-            processing_status: "failed",
-          })
-          .eq("id", audioClip.id),
+      await timeStage("failedClipGuard", () =>
+        withOwnedInProgressAttempt(input, async () =>
+          timeStage("failedClipUpdate", () =>
+            supabase
+              .from("audio_clips")
+              .update({
+                object_key: objectKey,
+                mime_type: input.mimeType,
+                duration_ms: input.durationMs,
+                byte_size: input.byteSize,
+                processing_status: "failed",
+              })
+              .eq("id", audioClip.id),
+          ),
+        ),
       );
 
       log("warn", "audio.processing_failed", {
@@ -1495,10 +1539,16 @@ export async function recordSpeakingTry(
         recoveryPersistencePending &&
         (!resolvedCocoLine || !resolvedCocoLine.trim())
       ) {
-        await supabase
-          .from("audio_clips")
-          .update({ processing_status: "failed" })
-          .eq("id", audioClip.id);
+        await timeStage("failedClipGuard", () =>
+          withOwnedInProgressAttempt(input, async () =>
+            timeStage("failedClipUpdate", () =>
+              supabase
+                .from("audio_clips")
+                .update({ processing_status: "failed" })
+                .eq("id", audioClip.id),
+            ),
+          ),
+        );
         logTiming("failed", {
           error: "db_error",
           step: "recovery_line_missing",
@@ -1531,10 +1581,16 @@ export async function recordSpeakingTry(
         );
 
         if (!recordResult.ok) {
-          await supabase
-            .from("audio_clips")
-            .update({ processing_status: "failed" })
-            .eq("id", audioClip.id);
+          await timeStage("failedClipGuard", () =>
+            withOwnedInProgressAttempt(input, async () =>
+              timeStage("failedClipUpdate", () =>
+                supabase
+                  .from("audio_clips")
+                  .update({ processing_status: "failed" })
+                  .eq("id", audioClip.id),
+              ),
+            ),
+          );
           log("warn", "audio.coco_line_persist_failed", {
             assignmentStudentId: input.assignmentStudentId,
             attemptId: input.attemptId,
@@ -1586,29 +1642,42 @@ export async function recordSpeakingTry(
         const scoring = await startedScoring;
         timings.pronunciationAwaitMs = elapsedMs(pronunciationAwaitStartedAt);
         if (scoring.ok) {
-          const scoreUpsert = await timeStage("pronunciationScoreWrite", () =>
-            supabase.from("pronunciation_scores").upsert(
-              {
-                audio_clip_id: audioClip.id,
-                provider: "azure_speech",
-                reference_text: scoring.score.referenceText,
-                accuracy_score: scoring.score.accuracyScore,
-                fluency_score: scoring.score.fluencyScore,
-                completeness_score: scoring.score.completenessScore,
-                pronunciation_score: scoring.score.pronunciationScore,
-                star_band: scoring.score.starBand,
-                word_scores: scoring.score.wordScores satisfies Json,
-              },
-              { onConflict: "audio_clip_id" },
-            ),
+          const scoreWriteResult = await timeStage(
+            "pronunciationScoreGuard",
+            () =>
+              withOwnedInProgressAttempt(input, async () =>
+                timeStage("pronunciationScoreWrite", () =>
+                  supabase.from("pronunciation_scores").upsert(
+                    {
+                      audio_clip_id: audioClip.id,
+                      provider: "azure_speech",
+                      reference_text: scoring.score.referenceText,
+                      accuracy_score: scoring.score.accuracyScore,
+                      fluency_score: scoring.score.fluencyScore,
+                      completeness_score: scoring.score.completenessScore,
+                      pronunciation_score: scoring.score.pronunciationScore,
+                      star_band: scoring.score.starBand,
+                      word_scores: scoring.score.wordScores satisfies Json,
+                    },
+                    { onConflict: "audio_clip_id" },
+                  ),
+                ),
+              ),
           );
 
-          if (scoreUpsert.error) {
+          if (!scoreWriteResult.ok) {
             log("warn", "audio.pronunciation_scoring_failed", {
               assignmentStudentId: input.assignmentStudentId,
               attemptId: input.attemptId,
               turnOrder: input.turnOrder,
-              error: scoreUpsert.error.message,
+              error: scoreWriteResult.error,
+            });
+          } else if (scoreWriteResult.value.error) {
+            log("warn", "audio.pronunciation_scoring_failed", {
+              assignmentStudentId: input.assignmentStudentId,
+              attemptId: input.attemptId,
+              turnOrder: input.turnOrder,
+              error: scoreWriteResult.value.error.message,
             });
           } else {
             starBand = scoring.score.starBand;
@@ -1667,25 +1736,35 @@ export async function recordSpeakingTry(
         })
       : Promise.resolve();
 
-    const finalClipUpdatePromise = timeStage("finalClipUpdate", () =>
-      supabase
-        .from("audio_clips")
-        .update({
-          object_key: objectKey,
-          mime_type: input.mimeType,
-          duration_ms: input.durationMs,
-          byte_size: input.byteSize,
-          processing_status: "transcribed",
-        })
-        .eq("id", audioClip.id),
+    const finalClipUpdatePromise = timeStage("finalClipGuard", () =>
+      withOwnedInProgressAttempt(input, async () =>
+        timeStage("finalClipUpdate", () =>
+          supabase
+            .from("audio_clips")
+            .update({
+              object_key: objectKey,
+              mime_type: input.mimeType,
+              duration_ms: input.durationMs,
+              byte_size: input.byteSize,
+              processing_status: "transcribed",
+            })
+            .eq("id", audioClip.id),
+        ),
+      ),
     );
 
-    const [, { error: updateError }] = await Promise.all([
+    const [, finalClipUpdateResult] = await Promise.all([
       ttsWarmupPromise,
       finalClipUpdatePromise,
     ]);
 
-    if (updateError) {
+    if (!finalClipUpdateResult.ok) {
+      const error = mapOwnedAttemptError(finalClipUpdateResult.error);
+      logTiming("failed", { error, step: "final_clip_guard" });
+      return { ok: false, error, retryable: error === "db_error" };
+    }
+
+    if (finalClipUpdateResult.value.error) {
       logTiming("failed", { error: "db_error", step: "final_clip_update" });
       return { ok: false, error: "db_error", retryable: true };
     }

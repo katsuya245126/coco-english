@@ -208,6 +208,7 @@ function createMockSupabase(options: {
   assignmentFound?: boolean;
   attemptFound?: boolean;
   attemptStatus?: Database["public"]["Enums"]["attempt_status"];
+  attemptStatuses?: Database["public"]["Enums"]["attempt_status"][];
   uploadError?: Error | null;
   missionSnapshot?: typeof conversationMissionSnapshotFixture;
   previousTurns?: Array<{
@@ -227,6 +228,7 @@ function createMockSupabase(options: {
 } = {}) {
   const operations: Operation[] = [];
   const upload = vi.fn(async () => ({ error: options.uploadError ?? null }));
+  let attemptLookupCount = 0;
 
   function createQuery(table: string) {
     const operation: Operation = { table, action: "select", filters: [] };
@@ -344,16 +346,19 @@ function createMockSupabase(options: {
           };
         }
         if (table === "attempts") {
+          const attemptStatus =
+            options.attemptStatuses?.[attemptLookupCount++] ??
+            options.attemptStatus ??
+            "in_progress";
           return {
             data:
               options.attemptFound === false ||
-              (options.attemptStatus !== undefined &&
-                options.attemptStatus !== "in_progress")
+              attemptStatus !== "in_progress"
                 ? null
                 : {
                     id: "attempt-1",
                     assignment_student_id: "as-1",
-                    status: options.attemptStatus ?? "in_progress",
+                    status: attemptStatus,
                   },
             error: null,
           };
@@ -3369,6 +3374,35 @@ describe("recordSpeakingTry conversation-mode orchestration", () => {
     expect(result).toEqual({ ok: false, error: "db_error", retryable: true });
     expect(mockSupabase.upload).not.toHaveBeenCalled();
     expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("rechecks the owned in-progress attempt before reading conversation history", async () => {
+    mockSupabase = createMockSupabase({
+      attemptStatuses: ["in_progress", "completed"],
+    });
+    const { recordSpeakingTry } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const transcribe = successfulTranscriber("In the classroom.");
+
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 2 }), {
+      transcribeAudioFile: transcribe,
+    });
+
+    expect(result).toEqual({ ok: false, error: "not_found", retryable: false });
+    expect(transcribe).not.toHaveBeenCalled();
+    expect(mockSupabase.upload).not.toHaveBeenCalled();
+    expect(
+      mockSupabase.operations.some(
+        (operation) =>
+          operation.table === "attempt_turns" &&
+          operation.action === "select" &&
+          operation.filters.some(([column]) => column === "turn_order<"),
+      ),
+    ).toBe(false);
+    expect(
+      mockSupabase.operations.some((operation) => operation.table === "audio_clips"),
+    ).toBe(false);
   });
 
   it("rejects a dynamic turn with no persisted Coco line before upload or evaluation", async () => {
