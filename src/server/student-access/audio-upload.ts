@@ -40,6 +40,7 @@ import {
   LOW_CONFIDENCE_REVIEW_REASON,
 } from "@/server/ai/answer-evaluation";
 import {
+  classifyStoredConversationRecovery,
   storedOriginalOf,
   isStoredTeacherReview,
   type StoredOriginalTurnEvaluation,
@@ -1139,18 +1140,13 @@ export async function recordSpeakingTry(
             }
             const decision = evaluationOutcome.decision;
             originalEvaluation = decision.evaluation;
+            const recoveryState = classifyStoredConversationRecovery(
+              decision.evaluation,
+            );
             recoveryPersistencePending =
               snapshot.conversationMode === true &&
-              decision.evaluation.outcome === "retry_original" &&
-              decision.evaluation.retryReason === "unclear_meaning" &&
-              !decision.evaluation.contractViolations?.includes(
-                "prompt_echo",
-              ) &&
-              (decision.evaluation.ambiguityRetries === 1 ||
-                decision.evaluation.ambiguityRetries === 2 ||
-                (typeof decision.evaluation.lowConfidenceAudioRetries ===
-                  "number" &&
-                  decision.evaluation.lowConfidenceAudioRetries > 0));
+              recoveryState.kind !== "none" &&
+              recoveryState.kind !== "prompt_echo";
 
             const writeResult = await timeStage("turnWriteGuard", () =>
               withOwnedInProgressAttempt(input, async () =>
@@ -1359,19 +1355,16 @@ export async function recordSpeakingTry(
     // behave exactly as before — no generateCocoReply/isContentSafe call.
     let cocoLine: string | null = null;
     let cocoLineModerationEvent: CocoLineModerationEvent | null = null;
+    const recoveryState = classifyStoredConversationRecovery(originalEvaluation);
 
     if (
       snapshot.conversationMode === true &&
       input.clipKind === "original_answer" &&
-      !originalEvaluation?.contractViolations?.includes("prompt_echo")
+      recoveryState.kind !== "prompt_echo"
     ) {
       const recoveryAttempt: 1 | 2 | null =
-        !lowConfidenceGateRetryApplied &&
-        originalEvaluation?.outcome === "retry_original" &&
-        originalEvaluation.retryReason === "unclear_meaning" &&
-        (originalEvaluation.ambiguityRetries === 1 ||
-          originalEvaluation.ambiguityRetries === 2)
-          ? originalEvaluation.ambiguityRetries
+        !lowConfidenceGateRetryApplied && recoveryState.kind === "ambiguity"
+          ? recoveryState.attempt
           : null;
       // Issue #64: a low-confidence-gated retry is also a free same-turn
       // retry, but its counter is separate — it must never consume or advance
@@ -1379,10 +1372,7 @@ export async function recordSpeakingTry(
       const lowConfidenceAudioRetry =
         lowConfidenceGateRetryApplied ||
         (recoveryAttempt === null &&
-          originalEvaluation?.outcome === "retry_original" &&
-          originalEvaluation.retryReason === "unclear_meaning" &&
-          typeof originalEvaluation.lowConfidenceAudioRetries === "number" &&
-          originalEvaluation.lowConfidenceAudioRetries > 0);
+          recoveryState.kind === "low_confidence_audio_retry");
       const freeSameTurnRetry = recoveryAttempt !== null || lowConfidenceAudioRetry;
       const reviewPendingContinuation = isStoredTeacherReview(originalEvaluation);
       const currentStudentResponse =

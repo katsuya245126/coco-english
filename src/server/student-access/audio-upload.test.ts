@@ -1078,6 +1078,60 @@ describe("recordSpeakingTry conversation-mode orchestration", () => {
     );
   });
 
+  it("does not persist malformed recovery counters as a pending retry", async () => {
+    const { recordSpeakingTry } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "What would you like to say next?" },
+    }));
+
+    const result = await recordSpeakingTry(audioInput(), {
+      transcribeAudioFile: successfulTranscriber("I like soccer."),
+      evaluateOriginalTurn: successfulOriginalEvaluator({
+        outcome: "non_english" as const,
+        meaningUnderstood: false,
+        targetPatternAttempted: false,
+        englishLanguage: "non_english" as const,
+        retryReason: "unclear_meaning" as const,
+        ambiguityRetries: 3,
+        lowConfidenceAudioRetries: 3,
+      }),
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      evaluation: {
+        outcome: "retry_original",
+        retryReason: "unclear_meaning",
+        ambiguityRetries: 3,
+        lowConfidenceAudioRetries: 3,
+      },
+      cocoLine: "What would you like to say next?",
+    });
+    expect(generate).toHaveBeenCalledWith(
+      expect.objectContaining({ generationPurpose: { kind: "next_turn" } }),
+    );
+    expect(mockSupabase.operations).toContainEqual(
+      expect.objectContaining({
+        table: "attempt_turns",
+        action: "upsert",
+        payload: expect.objectContaining({
+          evaluation: expect.objectContaining({
+            ambiguityRetries: 3,
+            lowConfidenceAudioRetries: 3,
+          }),
+        }),
+      }),
+    );
+  });
+
   it("spends the second free gate retry without calling the evaluator", async () => {
     mockSupabase = createMockSupabase({
       turnEvaluation: {

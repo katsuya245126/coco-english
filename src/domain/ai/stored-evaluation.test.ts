@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  classifyStoredConversationRecovery,
   isStoredTeacherReview,
   parseStoredEvaluation,
   storedOriginalMetadataOf,
@@ -167,5 +168,122 @@ describe("storedOriginalMetadataOf", () => {
   it("returns null for unrecognized and malformed rows so readers fail safe", () => {
     expect(storedOriginalMetadataOf({})).toBeNull();
     expect(storedOriginalMetadataOf("junk")).toBeNull();
+  });
+});
+
+describe("classifyStoredConversationRecovery", () => {
+  const original = {
+    ...legacyOriginal,
+    kind: "original" as const,
+    outcome: "retry_original" as const,
+    retryReason: "unclear_meaning" as const,
+  };
+
+  it.each([
+    [
+      "ambiguity attempt 1",
+      { ...original, ambiguityRetries: 1 },
+      { kind: "ambiguity", attempt: 1 },
+    ],
+    [
+      "ambiguity attempt 2",
+      { ...original, ambiguityRetries: 2 },
+      { kind: "ambiguity", attempt: 2 },
+    ],
+    [
+      "free low-confidence audio retry",
+      { ...original, lowConfidenceAudioRetries: 1 },
+      { kind: "low_confidence_audio_retry", attempt: 1 },
+    ],
+    [
+      "second free low-confidence audio retry",
+      { ...original, lowConfidenceAudioRetries: 2 },
+      { kind: "low_confidence_audio_retry", attempt: 2 },
+    ],
+    [
+      "carried ambiguity through incomplete recording",
+      {
+        ...original,
+        retryReason: "incomplete_recording",
+        ambiguityRetries: 1,
+      },
+      {
+        kind: "carried_ambiguity",
+        retryReason: "incomplete_recording",
+        attempt: 1,
+      },
+    ],
+    [
+      "carried ambiguity through minimal effort",
+      {
+        ...original,
+        retryReason: "minimal_effort",
+        ambiguityRetries: 2,
+      },
+      { kind: "carried_ambiguity", retryReason: "minimal_effort", attempt: 2 },
+    ],
+    [
+      "prompt echo wins over recovery counters",
+      {
+        ...original,
+        ambiguityRetries: 1,
+        lowConfidenceAudioRetries: 1,
+        contractViolations: ["prompt_echo"],
+      },
+      { kind: "prompt_echo" },
+    ],
+    [
+      "both valid counters keep the ambiguity interpretation",
+      { ...original, ambiguityRetries: 2, lowConfidenceAudioRetries: 1 },
+      { kind: "ambiguity", attempt: 2 },
+    ],
+  ] as const)("classifies %s", (_name, evaluation, expected) => {
+    expect(classifyStoredConversationRecovery(evaluation)).toEqual(expected);
+  });
+
+  it.each([
+    ["malformed", null],
+    ["unrecognized", {}],
+    ["repeat", { ...legacyRepeat, kind: "repeat" }],
+    [
+      "accepted stale counters",
+      { ...original, outcome: "accepted_original", ambiguityRetries: 1 },
+    ],
+    [
+      "review stale counters",
+      { ...original, outcome: "teacher_review", ambiguityRetries: 1 },
+    ],
+    ["zero ambiguity counter", { ...original, ambiguityRetries: 0 }],
+    ["fractional ambiguity counter", { ...original, ambiguityRetries: 1.5 }],
+    ["out-of-range ambiguity counter", { ...original, ambiguityRetries: 3 }],
+    ["non-finite ambiguity counter", { ...original, ambiguityRetries: Number.NaN }],
+    ["zero low-confidence counter", { ...original, lowConfidenceAudioRetries: 0 }],
+    [
+      "fractional low-confidence counter",
+      { ...original, lowConfidenceAudioRetries: 1.5 },
+    ],
+    [
+      "out-of-range low-confidence counter",
+      { ...original, lowConfidenceAudioRetries: 3 },
+    ],
+    [
+      "non-finite low-confidence counter",
+      { ...original, lowConfidenceAudioRetries: Number.POSITIVE_INFINITY },
+    ],
+    ["unsupported retry reason", { ...original, retryReason: "non_english" }],
+  ] as const)("returns no recovery for %s", (_name, evaluation) => {
+    expect(classifyStoredConversationRecovery(evaluation)).toEqual({
+      kind: "none",
+    });
+  });
+
+  it("returns prompt echo for a reviewed echo so callers can keep it unanswered", () => {
+    expect(
+      classifyStoredConversationRecovery({
+        ...original,
+        outcome: "teacher_review",
+        contractViolations: ["prompt_echo"],
+      }),
+    ).toEqual({ kind: "prompt_echo" });
   });
 });

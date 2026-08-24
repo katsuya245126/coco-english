@@ -182,6 +182,75 @@ export function storedOriginalOf(
   return parsed.ok && parsed.kind === "original" ? parsed.evaluation : null;
 }
 
+export type StoredConversationRecoveryState =
+  | { kind: "none" }
+  | { kind: "ambiguity"; attempt: 1 | 2 }
+  | { kind: "low_confidence_audio_retry"; attempt: 1 | 2 }
+  | {
+      kind: "carried_ambiguity";
+      retryReason: "incomplete_recording" | "minimal_effort";
+      attempt: 1 | 2;
+    }
+  | { kind: "prompt_echo" };
+
+function recoveryAttempt(value: unknown): 1 | 2 | null {
+  return value === 1 || value === 2 ? value : null;
+}
+
+/**
+ * Interpret persisted conversation recovery once, at the stored-evaluation
+ * boundary. Callers may add contextual checks, but must not inspect these raw
+ * recovery fields themselves.
+ */
+export function classifyStoredConversationRecovery(
+  value: unknown,
+): StoredConversationRecoveryState {
+  const stored = storedOriginalOf(value);
+  if (!stored) return { kind: "none" };
+
+  if (
+    Array.isArray(stored.contractViolations) &&
+    stored.contractViolations.includes("prompt_echo")
+  ) {
+    return { kind: "prompt_echo" };
+  }
+
+  if (stored.outcome !== "retry_original") {
+    return { kind: "none" };
+  }
+
+  const ambiguityAttempt = recoveryAttempt(stored.ambiguityRetries);
+  const lowConfidenceAttempt = recoveryAttempt(
+    stored.lowConfidenceAudioRetries,
+  );
+
+  if (stored.retryReason === "unclear_meaning") {
+    if (ambiguityAttempt !== null) {
+      return { kind: "ambiguity", attempt: ambiguityAttempt };
+    }
+    if (lowConfidenceAttempt !== null) {
+      return {
+        kind: "low_confidence_audio_retry",
+        attempt: lowConfidenceAttempt,
+      };
+    }
+  }
+
+  if (
+    (stored.retryReason === "incomplete_recording" ||
+      stored.retryReason === "minimal_effort") &&
+    ambiguityAttempt !== null
+  ) {
+    return {
+      kind: "carried_ambiguity",
+      retryReason: stored.retryReason,
+      attempt: ambiguityAttempt,
+    };
+  }
+
+  return { kind: "none" };
+}
+
 /**
  * The record holding a turn's original-attempt metadata: one level down under
  * `originalEvaluation` once a repeat overwrote the top level, otherwise the

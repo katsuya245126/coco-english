@@ -1,6 +1,6 @@
 import type { HintLadder, MissionSnapshotTurn } from "@/domain/mission/schemas";
 import { buildReplyHintFrame } from "@/domain/ai/reply-hint-frame";
-import { storedOriginalOf } from "@/domain/ai/stored-evaluation";
+import { classifyStoredConversationRecovery } from "@/domain/ai/stored-evaluation";
 
 type StudentQuestionSpeechLine = {
   lineKind: "mission_prompt" | "coco_dynamic_line";
@@ -23,15 +23,11 @@ export function isPendingConversationRecovery({
 }): boolean {
   if (!conversationMode || !cocoLine?.trim()) return false;
 
-  // Discrimination lives in the shared stored-evaluation contract; the
-  // ambiguity ladder only ever rides on original-attempt records.
-  const stored = storedOriginalOf(evaluation);
+  const recovery = classifyStoredConversationRecovery(evaluation);
   return (
-    stored !== null &&
-    stored.outcome === "retry_original" &&
-    typeof stored.ambiguityRetries === "number" &&
-    Number.isFinite(stored.ambiguityRetries) &&
-    stored.ambiguityRetries > 0
+    recovery.kind === "ambiguity" ||
+    recovery.kind === "low_confidence_audio_retry" ||
+    recovery.kind === "carried_ambiguity"
   );
 }
 
