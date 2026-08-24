@@ -585,6 +585,28 @@ export async function recordSpeakingTry(
   try {
     const supabase = createSupabaseServiceClient();
 
+    async function markClipFailed(
+      audioClipId: string,
+      objectKey?: string,
+    ): Promise<void> {
+      await timeStage("failedClipGuard", () =>
+        withOwnedInProgressAttempt(input, async () =>
+          timeStage("failedClipUpdate", () =>
+            supabase
+              .from("audio_clips")
+              .update({
+                ...(objectKey ? { object_key: objectKey } : {}),
+                mime_type: input.mimeType,
+                duration_ms: input.durationMs,
+                byte_size: input.byteSize,
+                processing_status: "failed",
+              })
+              .eq("id", audioClipId),
+          ),
+        ),
+      );
+    }
+
     const ownedAssignment = await timeStage("assignmentAndAttemptLookup", () =>
       withOwnedInProgressAttempt(input, async (owned) => owned),
     );
@@ -822,15 +844,29 @@ export async function recordSpeakingTry(
     // storageUpload and transcription both only depend on the in-memory audio
     // bytes (transcription never reads the uploaded object back), so they run
     // concurrently instead of paying for the upload before transcription can
-    // start. The upload result is still checked before returning success.
-    const storageUploadPromise = timeStage("storageUpload", () =>
-      supabase.storage
-        .from(getStudentAudioBucketId())
-        .upload(objectKey, createAudioBlob(), {
-          contentType: input.mimeType,
-          upsert: false,
-        }),
+    // start. The callback returns the in-flight upload promise as data so the
+    // guard admits first, then transcription can start while upload runs.
+    // The upload result is still checked before returning success.
+    const storageUploadAdmission = await timeStage(
+      "storageUploadGuard",
+      () =>
+        withOwnedInProgressAttempt(input, async () => ({
+          promise: timeStage("storageUpload", () =>
+            supabase.storage
+              .from(getStudentAudioBucketId())
+              .upload(objectKey, createAudioBlob(), {
+                contentType: input.mimeType,
+                upsert: false,
+              }),
+          ),
+        })),
     );
+    if (!storageUploadAdmission.ok) {
+      const error = mapOwnedAttemptError(storageUploadAdmission.error);
+      logTiming("failed", { error, step: "storage_upload_guard" });
+      return { ok: false, error, retryable: error === "db_error" };
+    }
+    const storageUploadPromise = storageUploadAdmission.value.promise;
 
     const transcribe = deps.transcribeAudioFile ?? transcribeAudioFile;
     // Teacher-authored mission vocabulary biases the decode toward lesson
@@ -857,21 +893,7 @@ export async function recordSpeakingTry(
     ]);
 
     if (uploadError) {
-      await timeStage("failedClipGuard", () =>
-        withOwnedInProgressAttempt(input, async () =>
-          timeStage("failedClipUpdate", () =>
-            supabase
-              .from("audio_clips")
-              .update({
-                processing_status: "failed",
-                mime_type: input.mimeType,
-                duration_ms: input.durationMs,
-                byte_size: input.byteSize,
-              })
-              .eq("id", audioClip.id),
-          ),
-        ),
-      );
+      await markClipFailed(audioClip.id);
 
       log("warn", "audio.upload_failed", {
         audioClipId: audioClip.id,
@@ -893,22 +915,7 @@ export async function recordSpeakingTry(
     }
 
     if (!transcription.ok) {
-      await timeStage("failedClipGuard", () =>
-        withOwnedInProgressAttempt(input, async () =>
-          timeStage("failedClipUpdate", () =>
-            supabase
-              .from("audio_clips")
-              .update({
-                object_key: objectKey,
-                mime_type: input.mimeType,
-                duration_ms: input.durationMs,
-                byte_size: input.byteSize,
-                processing_status: "failed",
-              })
-              .eq("id", audioClip.id),
-          ),
-        ),
-      );
+      await markClipFailed(audioClip.id, objectKey);
 
       logTiming("failed", {
         error: "transcription_failed_retryable",
@@ -925,22 +932,7 @@ export async function recordSpeakingTry(
       transcription.text,
     );
     if (!transcript || !hasEnglishTranscript(transcript)) {
-      await timeStage("failedClipGuard", () =>
-        withOwnedInProgressAttempt(input, async () =>
-          timeStage("failedClipUpdate", () =>
-            supabase
-              .from("audio_clips")
-              .update({
-                object_key: objectKey,
-                mime_type: input.mimeType,
-                duration_ms: input.durationMs,
-                byte_size: input.byteSize,
-                processing_status: "failed",
-              })
-              .eq("id", audioClip.id),
-          ),
-        ),
-      );
+      await markClipFailed(audioClip.id, objectKey);
 
       logTiming("failed", {
         error: "transcription_failed_retryable",
@@ -1322,22 +1314,7 @@ export async function recordSpeakingTry(
     }
 
     if (turnWrite.error) {
-      await timeStage("failedClipGuard", () =>
-        withOwnedInProgressAttempt(input, async () =>
-          timeStage("failedClipUpdate", () =>
-            supabase
-              .from("audio_clips")
-              .update({
-                object_key: objectKey,
-                mime_type: input.mimeType,
-                duration_ms: input.durationMs,
-                byte_size: input.byteSize,
-                processing_status: "failed",
-              })
-              .eq("id", audioClip.id),
-          ),
-        ),
-      );
+      await markClipFailed(audioClip.id, objectKey);
 
       log("warn", "audio.processing_failed", {
         audioClipId: audioClip.id,

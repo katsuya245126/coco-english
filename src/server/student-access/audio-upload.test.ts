@@ -3405,6 +3405,29 @@ describe("recordSpeakingTry conversation-mode orchestration", () => {
     ).toBe(false);
   });
 
+  it("does not upload or transcribe when the attempt ends before storage admission", async () => {
+    mockSupabase = createMockSupabase({
+      attemptStatuses: [
+        "in_progress",
+        "in_progress",
+        "in_progress",
+        "completed",
+      ],
+    });
+    const { recordSpeakingTry } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const transcribe = successfulTranscriber("Can I have a juice, please?");
+
+    const result = await recordSpeakingTry(audioInput(), {
+      transcribeAudioFile: transcribe,
+    });
+
+    expect(result).toEqual({ ok: false, error: "not_found", retryable: false });
+    expect(mockSupabase.upload).not.toHaveBeenCalled();
+    expect(transcribe).not.toHaveBeenCalled();
+  });
+
   it("rejects a dynamic turn with no persisted Coco line before upload or evaluation", async () => {
     const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
