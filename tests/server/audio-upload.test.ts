@@ -283,7 +283,9 @@ function createMockSupabase(options: {
         if (table === "attempts") {
           return {
             data:
-              options.attemptFound === false
+              options.attemptFound === false ||
+              (options.attemptStatus !== undefined &&
+                options.attemptStatus !== "in_progress")
                 ? null
                 : {
                     id: "attempt-1",
@@ -341,18 +343,6 @@ describe("recordSpeakingTry", () => {
     mockConsumeRequestBudget.mockResolvedValue({ allowed: true });
     mockSupabase = createMockSupabase();
     process.env.STUDENT_AUDIO_BUCKET = "student-audio";
-  });
-
-  it("reads stored mission data through the shared ownership seam", () => {
-    const source = readFileSync(
-      join(process.cwd(), "src/server/student-access/audio-upload.ts"),
-      "utf8",
-    );
-
-    expect(source).toContain(
-      'import { requireOwnedInProgressAttempt } from "@/server/student-access/owned-assignment";',
-    );
-    expect(source).not.toContain("missionSnapshotSchema");
   });
 
   it.each([

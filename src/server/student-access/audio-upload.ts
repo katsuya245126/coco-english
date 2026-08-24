@@ -41,7 +41,7 @@ import {
 } from "@/server/ai/answer-evaluation";
 import {
   storedOriginalOf,
-  TEACHER_REVIEW_OUTCOME,
+  isStoredTeacherReview,
   type StoredOriginalTurnEvaluation,
   type StoredRepeatTurnEvaluation,
   type StudentFacingEvaluation,
@@ -87,7 +87,7 @@ import {
   collectPreviouslyAskedQuestions,
   type PersistedConversationTurn,
 } from "@/server/student-access/conversation-history";
-import { requireOwnedInProgressAttempt } from "@/server/student-access/owned-assignment";
+import { withOwnedInProgressAttempt } from "@/server/student-access/owned-assignment";
 import { log } from "@/server/logging/logger";
 
 const DEFAULT_AUDIO_BUCKET = "student-audio";
@@ -579,16 +579,12 @@ export async function recordSpeakingTry(
   try {
     const supabase = createSupabaseServiceClient();
 
-    const ownedAttempt = await timeStage("assignmentAndAttemptLookup", () =>
-      requireOwnedInProgressAttempt({
-        studentId: input.studentId,
-        assignmentStudentId: input.assignmentStudentId,
-        attemptId: input.attemptId,
-      }),
+    const ownedAssignment = await timeStage("assignmentAndAttemptLookup", () =>
+      withOwnedInProgressAttempt(input, async (owned) => owned),
     );
 
-    if (!ownedAttempt.ok) {
-      const error = ownedAttempt.error === "db_error" ? "db_error" : "not_found";
+    if (!ownedAssignment.ok) {
+      const error = ownedAssignment.error === "db_error" ? "db_error" : "not_found";
       logTiming("failed", { error, step: "assignment_and_attempt_lookup" });
       return {
         ok: false,
@@ -597,12 +593,12 @@ export async function recordSpeakingTry(
       };
     }
 
-    if (ownedAttempt.owned.status !== "started") {
+    if (ownedAssignment.value.status !== "started") {
       logTiming("failed", { error: "not_found", step: "assignment_status" });
       return { ok: false, error: "not_found", retryable: false };
     }
 
-    const snapshot = ownedAttempt.owned.snapshot;
+    const snapshot = ownedAssignment.value.snapshot;
     const authoredSnapshotTurn = snapshot?.turns.find(
       (missionTurn) => missionTurn.turnOrder === input.turnOrder,
     );
@@ -699,15 +695,28 @@ export async function recordSpeakingTry(
     const audioBytes = await timeStage("readAudio", () => input.file.arrayBuffer());
     const createAudioBlob = () => new Blob([audioBytes], { type: input.mimeType });
 
-    const turnGuard = await timeStage("turnGuard", () =>
-      requireOwnedInProgressAttempt({
-        studentId: input.studentId,
-        assignmentStudentId: input.assignmentStudentId,
-        attemptId: input.attemptId,
-      }),
+    const turnInit = await timeStage("turnGuard", () =>
+      withOwnedInProgressAttempt(input, async () =>
+        timeStage("turnInit", () =>
+          supabase
+            .from("attempt_turns")
+            .upsert(
+              {
+                attempt_id: input.attemptId,
+                turn_order: input.turnOrder,
+              },
+              { onConflict: "attempt_id,turn_order" },
+            )
+            .select(
+              "id, original_transcript, improved_sentence, evaluation, coco_line",
+            )
+            .single(),
+        ),
+      ),
     );
-    if (!turnGuard.ok) {
-      const error = turnGuard.error === "db_error" ? "db_error" : "not_found";
+
+    if (!turnInit.ok) {
+      const error = turnInit.error === "db_error" ? "db_error" : "not_found";
       logTiming("failed", { error, step: "turn_guard" });
       return {
         ok: false,
@@ -716,21 +725,7 @@ export async function recordSpeakingTry(
       };
     }
 
-    const { data: turn, error: turnError } = await timeStage("turnInit", () =>
-      supabase
-        .from("attempt_turns")
-        .upsert(
-          {
-            attempt_id: input.attemptId,
-            turn_order: input.turnOrder,
-          },
-          { onConflict: "attempt_id,turn_order" },
-        )
-        .select(
-          "id, original_transcript, improved_sentence, evaluation, coco_line",
-        )
-        .single(),
-    );
+    const { data: turn, error: turnError } = turnInit.value;
 
     if (turnError || !turn) {
       logTiming("failed", { error: "db_error", step: "turn_init" });
@@ -781,7 +776,6 @@ export async function recordSpeakingTry(
       return { ok: false, error: "db_error", retryable: true };
     }
     audioClipId = audioClip.id;
-    const persistedAudioClip = audioClip;
 
     const objectKey = buildObjectKey({
       assignmentStudentId: input.assignmentStudentId,
@@ -791,37 +785,6 @@ export async function recordSpeakingTry(
       audioClipId: audioClip.id,
       mimeType: input.mimeType,
     });
-
-    async function guardTurnWrite(): Promise<UploadAttemptAudioClipResult | null> {
-      const guard = await timeStage("turnWriteGuard", () =>
-        requireOwnedInProgressAttempt({
-          studentId: input.studentId,
-          assignmentStudentId: input.assignmentStudentId,
-          attemptId: input.attemptId,
-        }),
-      );
-      if (guard.ok) return null;
-
-      await timeStage("failedClipUpdate", () =>
-        supabase
-          .from("audio_clips")
-          .update({
-            object_key: objectKey,
-            mime_type: input.mimeType,
-            duration_ms: input.durationMs,
-            byte_size: input.byteSize,
-            processing_status: "failed",
-          })
-          .eq("id", persistedAudioClip.id),
-      );
-      const error = guard.error === "db_error" ? "db_error" : "not_found";
-      logTiming("failed", { error, step: "turn_write_guard" });
-      return {
-        ok: false,
-        error,
-        retryable: error === "db_error",
-      };
-    }
 
     // storageUpload and transcription both only depend on the in-memory audio
     // bytes (transcription never reads the uploaded object back), so they run
@@ -1047,25 +1010,48 @@ export async function recordSpeakingTry(
         evaluationOutcome.lowConfidenceGateRetryApplied;
     }
 
-    const deterministicTurnWriteError = await guardTurnWrite();
-    if (deterministicTurnWriteError) return deterministicTurnWriteError;
-
     if (evaluationOutcome && evaluationOutcome.stage !== "evaluated") {
       const decision = evaluationOutcome.decision;
-      const write = await timeStage("turnWrite", () =>
-        supabase.from("attempt_turns").upsert(
-          {
-            attempt_id: input.attemptId,
-            turn_order: input.turnOrder,
-            original_transcript: transcript,
-            target_attempted: false,
-            improved_sentence: null,
-            evaluation: toJson(decision.evaluation),
-            reply_hint_frame: replyHintFrame,
-          },
-          { onConflict: "attempt_id,turn_order" },
+      const writeResult = await timeStage("turnWriteGuard", () =>
+        withOwnedInProgressAttempt(input, async () =>
+          timeStage("turnWrite", () =>
+            supabase.from("attempt_turns").upsert(
+              {
+                attempt_id: input.attemptId,
+                turn_order: input.turnOrder,
+                original_transcript: transcript,
+                target_attempted: false,
+                improved_sentence: null,
+                evaluation: toJson(decision.evaluation),
+                reply_hint_frame: replyHintFrame,
+              },
+              { onConflict: "attempt_id,turn_order" },
+            ),
+          ),
         ),
       );
+      if (!writeResult.ok) {
+        const error = writeResult.error === "db_error" ? "db_error" : "not_found";
+        await timeStage("failedClipUpdate", () =>
+          supabase
+            .from("audio_clips")
+            .update({
+              object_key: objectKey,
+              mime_type: input.mimeType,
+              duration_ms: input.durationMs,
+              byte_size: input.byteSize,
+              processing_status: "failed",
+            })
+            .eq("id", audioClip.id),
+        );
+        logTiming("failed", { error, step: "turn_write_guard" });
+        return {
+          ok: false,
+          error,
+          retryable: error === "db_error",
+        };
+      }
+      const write = writeResult.value;
       if (write.error) {
         logTiming("failed", { error: "db_error", step: "turn_write" });
         return { ok: false, error: "db_error", retryable: true };
@@ -1112,9 +1098,6 @@ export async function recordSpeakingTry(
       };
     }
 
-    const evaluatedTurnWriteError = await guardTurnWrite();
-    if (evaluatedTurnWriteError) return evaluatedTurnWriteError;
-
     const turnWrite =
       input.clipKind === "original_answer"
         ? await (async () => {
@@ -1136,24 +1119,37 @@ export async function recordSpeakingTry(
                   "number" &&
                   decision.evaluation.lowConfidenceAudioRetries > 0));
 
-            const write = await timeStage("turnWrite", () =>
-              supabase.from("attempt_turns").upsert(
-                {
-                  attempt_id: input.attemptId,
-                  turn_order: input.turnOrder,
-                  original_transcript: transcript,
-                  target_attempted: decision.targetAttempted,
-                  improved_sentence: decision.improvedSentence,
-                  ...(recoveryPersistencePending
-                    ? {}
-                    : { evaluation: toJson(decision.evaluation) }),
-                  reply_hint_frame: replyHintFrame,
-                },
-                { onConflict: "attempt_id,turn_order" },
+            const writeResult = await timeStage("turnWriteGuard", () =>
+              withOwnedInProgressAttempt(input, async () =>
+                timeStage("turnWrite", () =>
+                  supabase.from("attempt_turns").upsert(
+                    {
+                      attempt_id: input.attemptId,
+                      turn_order: input.turnOrder,
+                      original_transcript: transcript,
+                      target_attempted: decision.targetAttempted,
+                      improved_sentence: decision.improvedSentence,
+                      ...(recoveryPersistencePending
+                        ? {}
+                        : { evaluation: toJson(decision.evaluation) }),
+                      reply_hint_frame: replyHintFrame,
+                    },
+                    { onConflict: "attempt_id,turn_order" },
+                  ),
+                ),
               ),
             );
 
-            if (write.error || decision.evaluation.outcome !== TEACHER_REVIEW_OUTCOME) {
+            if (!writeResult.ok) {
+              const guardError: "db_error" | "not_found" =
+                writeResult.error === "db_error" ? "db_error" : "not_found";
+              return {
+                guardError,
+              };
+            }
+            const write = writeResult.value;
+
+            if (write.error || !isStoredTeacherReview(decision.evaluation)) {
               return write;
             }
 
@@ -1217,18 +1213,31 @@ export async function recordSpeakingTry(
             const decision = repeatOutcome.evaluation;
             repeatEvaluation = decision;
 
-            const write = await timeStage("turnWrite", () =>
-              supabase
-                .from("attempt_turns")
-                .update({
-                  repeat_transcript: transcript,
-                  repeat_accepted: decision.repeatAccepted,
-                  evaluation: toJson(decision),
-                })
-                .eq("id", turn.id),
+            const writeResult = await timeStage("turnWriteGuard", () =>
+              withOwnedInProgressAttempt(input, async () =>
+                timeStage("turnWrite", () =>
+                  supabase
+                    .from("attempt_turns")
+                    .update({
+                      repeat_transcript: transcript,
+                      repeat_accepted: decision.repeatAccepted,
+                      evaluation: toJson(decision),
+                    })
+                    .eq("id", turn.id),
+                ),
+              ),
             );
 
-            if (write.error || decision.outcome !== TEACHER_REVIEW_OUTCOME) {
+            if (!writeResult.ok) {
+              const guardError: "db_error" | "not_found" =
+                writeResult.error === "db_error" ? "db_error" : "not_found";
+              return {
+                guardError,
+              };
+            }
+            const write = writeResult.value;
+
+            if (write.error || !isStoredTeacherReview(decision)) {
               return write;
             }
 
@@ -1245,6 +1254,32 @@ export async function recordSpeakingTry(
 
             return write;
           })();
+
+    if ("guardError" in turnWrite) {
+      const guardError: "db_error" | "not_found" =
+        turnWrite.guardError ?? "db_error";
+      await timeStage("failedClipUpdate", () =>
+        supabase
+          .from("audio_clips")
+          .update({
+            object_key: objectKey,
+            mime_type: input.mimeType,
+            duration_ms: input.durationMs,
+            byte_size: input.byteSize,
+            processing_status: "failed",
+          })
+          .eq("id", audioClip.id),
+      );
+      logTiming("failed", {
+        error: guardError,
+        step: "turn_write_guard",
+      });
+      return {
+        ok: false,
+        error: guardError,
+        retryable: guardError === "db_error",
+      };
+    }
 
     if (turnWrite.error) {
       await timeStage("failedClipUpdate", () =>
@@ -1328,8 +1363,7 @@ export async function recordSpeakingTry(
           typeof originalEvaluation.lowConfidenceAudioRetries === "number" &&
           originalEvaluation.lowConfidenceAudioRetries > 0);
       const freeSameTurnRetry = recoveryAttempt !== null || lowConfidenceAudioRetry;
-      const reviewPendingContinuation =
-        originalEvaluation?.outcome === TEACHER_REVIEW_OUTCOME;
+      const reviewPendingContinuation = isStoredTeacherReview(originalEvaluation);
       const currentStudentResponse =
         freeSameTurnRetry || reviewPendingContinuation
           ? WITHHELD_STUDENT_RESPONSE
@@ -1516,7 +1550,7 @@ export async function recordSpeakingTry(
 
         // Kick off TTS for Coco's new line via the existing warm-cache path
         // used for preset/improved lines — no forked audio pipeline.
-        if (originalEvaluation?.outcome !== TEACHER_REVIEW_OUTCOME) {
+        if (!isStoredTeacherReview(originalEvaluation)) {
           try {
             const warm = deps.warmTtsAudioCache ?? warmTtsAudioCache;
             await timeStage("ttsWarmupCocoLine", () =>

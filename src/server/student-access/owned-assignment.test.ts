@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  requireOwnedInProgressAttempt,
   requireOwnedAssignmentStudent,
+  withOwnedInProgressAttempt,
   type OwnedAssignmentStudent,
 } from "@/server/student-access/owned-assignment";
 
@@ -228,29 +228,50 @@ describe("requireOwnedAssignmentStudent snapshot kinds", () => {
   });
 });
 
-describe("requireOwnedInProgressAttempt", () => {
+describe("withOwnedInProgressAttempt", () => {
   beforeEach(() => {
     options = {};
     operations = [];
   });
 
-  it("rejects an attempt that is no longer in progress before a turn mutation", async () => {
+  it("invokes the callback only after both ownership proofs pass", async () => {
     options = {
       row: ownedRow(),
-      attempt: {
-        id: "attempt-1",
-        assignment_student_id: "as-1",
-        status: "completed",
-      },
+      attempt: { id: "attempt-1" },
     };
 
-    const result = await requireOwnedInProgressAttempt({
-      studentId: "student-1",
-      assignmentStudentId: "as-1",
-      attemptId: "attempt-1",
-    });
+    const mutation = vi.fn(async (owned: OwnedAssignmentStudent) => owned.id);
+    const result = await withOwnedInProgressAttempt(
+      {
+        studentId: "student-1",
+        assignmentStudentId: "as-1",
+        attemptId: "attempt-1",
+      },
+      mutation,
+    );
+
+    expect(result).toEqual({ ok: true, value: "as-1" });
+    expect(mutation).toHaveBeenCalledOnce();
+  });
+
+  it("rejects an attempt without invoking the mutation callback", async () => {
+    options = {
+      row: ownedRow(),
+      attempt: null,
+    };
+
+    const mutation = vi.fn(async () => ({ ok: true as const }));
+    const result = await withOwnedInProgressAttempt(
+      {
+        studentId: "student-1",
+        assignmentStudentId: "as-1",
+        attemptId: "attempt-1",
+      },
+      mutation,
+    );
 
     expect(result).toEqual({ ok: false, error: "not_found_or_canceled" });
+    expect(mutation).not.toHaveBeenCalled();
     expect(operations).toHaveLength(2);
     expect(operations[1]?.filters).toEqual(
       expect.arrayContaining([

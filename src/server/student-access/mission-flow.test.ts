@@ -155,7 +155,9 @@ function createMockSupabase(options: {
         if (table === "attempts") {
           return {
             data:
-              options.attemptFound === false
+              options.attemptFound === false ||
+              (options.attemptStatus !== undefined &&
+                options.attemptStatus !== "in_progress")
                 ? null
                 : {
                     id: "attempt-1",
