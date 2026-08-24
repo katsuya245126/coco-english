@@ -77,40 +77,6 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     ).toBe(false);
   });
 
-  it("low-confidence, ambiguous, and malformed outputs route to teacher review without client-owned status writes", () => {
-    const uploadSource = readFileSync(
-      "src/server/student-access/audio-upload.ts",
-      "utf8",
-    );
-    const shellSource = readFileSync(
-      "src/components/student/MissionFlowShell.tsx",
-      "utf8",
-    );
-
-    expect(uploadSource).toContain("evaluateOriginalTurn");
-    expect(uploadSource).toContain("evaluateRepeatTurn");
-    // Review routing vocabulary is single-sourced in the stored-evaluation
-    // contract (issue #74); the shell must not spell the literal itself.
-    expect(uploadSource).toContain("isStoredTeacherReview");
-    expect(uploadSource).toContain("failed_schema");
-    expect(uploadSource).toContain("low_confidence");
-    expect(shellSource).not.toContain("teacher_review");
-  });
-
-  it("teacher-review feedback does not offer record-again actions after server status leaves the recorder flow", () => {
-    const shellSource = readFileSync(
-      "src/components/student/MissionFlowShell.tsx",
-      "utf8",
-    );
-
-    expect(shellSource).toMatch(
-      /onRetry=\{[\s\S]*flow\.originalFeedback\.kind === "teacherReview"[\s\S]*\?[\s\S]*undefined/,
-    );
-    expect(shellSource).toMatch(
-      /onRetry=\{[\s\S]*flow\.repeatFeedback\.kind === "repeatReview"[\s\S]*\?[\s\S]*undefined/,
-    );
-  });
-
   it("needs-correction feedback exposes only one forward action unless retry is required", () => {
     const feedbackSource = readFileSync(
       "src/components/student/StepAiEvaluationFeedback.tsx",
@@ -232,30 +198,6 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(limitBranch).toContain("Let’s continue.");
     expect(limitBranch).not.toContain("Good repeat.");
     expect(limitBranch).not.toContain("RecordAgainRequiredNotice");
-  });
-
-  it("review routing flags the owned attempt without terminalizing anything", () => {
-    const missionFlowSource = readFileSync(
-      "src/server/student-access/mission-flow.ts",
-      "utf8",
-    );
-
-    const flagStart = missionFlowSource.indexOf(
-      "export async function flagAttemptForTeacherReview",
-    );
-    const flagEnd = missionFlowSource.indexOf(
-      "export async function startOrResumeAttempt",
-      flagStart,
-    );
-    const flagSource = missionFlowSource.slice(flagStart, flagEnd);
-
-    expect(missionFlowSource).toContain("flagAttemptForTeacherReview");
-    expect(missionFlowSource).toContain("needs_review_reason");
-    expect(missionFlowSource).not.toContain(
-      "routeAssignmentStudentToTeacherReview",
-    );
-    expect(flagSource).not.toContain('status: "teacher_review"');
-    expect(flagSource).not.toContain("assignment_status_events");
   });
 
   it("service-role mission-flow writes verify attempt ownership before mutation", () => {

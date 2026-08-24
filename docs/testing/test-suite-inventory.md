@@ -75,6 +75,9 @@ when temporary localhost binding was permitted.
 | `student-coco-voice.spec.ts`: rejected autoplay source scan | Convert | `CocoSpeechAudio.test.tsx`: renders signed audio, rejects `play()`, and proves replay remains enabled without error copy. |
 | `student-coco-voice.spec.ts`: playback-error source scan | Convert | `CocoSpeechAudio.test.tsx`: dispatches an audio error and proves the visible unavailable status and disabled control. |
 | Four source-only cases in `teacher-assignment-operations.spec.ts` | Delete duplicate | UI/source owners remain in `teacher-workspace-ui.test.ts`; policy decisions remain in `assignment-operations.test.ts`; server filtering remains in `teacher-assignment-operations.test.ts`; mutation ownership remains in `teacher-review-actions.test.ts`. The live policy-switch Playwright case remains. |
+| `student-mission-flow.test.ts`: low-confidence/ambiguous/malformed review source scan | Convert | `tests/server/audio-upload.test.ts`: owns upload routing and the learner-safe evaluation projection. |
+| `student-mission-flow.test.ts`: teacher-review record-again source scan | Convert | `src/components/student/MissionFlowShell.test.tsx`: renders original/repeat review feedback with Continue mission and no Record again. |
+| `student-mission-flow.test.ts`: non-terminal review mutation source slice | Convert | `src/server/student-access/mission-flow.test.ts`: proves needs-review-reason-only mutation without assignment or attempt terminalization. |
 
 No source-reading test remains under `tests/e2e/`.
 

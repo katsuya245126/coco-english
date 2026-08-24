@@ -2572,6 +2572,28 @@ describe("learner-safe display transcript at the upload boundary", () => {
     }
   });
 
+  it("projects a repeat teacher-review evaluation without status or audit evidence", async () => {
+    const { toStudentEvaluation } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const repeat = {
+      kind: "repeat",
+      outcome: "teacher_review",
+      status: "teacher_review",
+      auditEvidence: { rawTranscript: "바닐라" },
+      originalEvaluation: {
+        hangulInterpretations: [
+          { hangul: "바닐라", kind: "korean_vocabulary", englishReading: null },
+        ],
+      },
+    } as unknown as Parameters<typeof toStudentEvaluation>[0];
+
+    expect(toStudentEvaluation(repeat)).toEqual({
+      kind: "repeat",
+      outcome: "teacher_review",
+    });
+  });
+
   it("returns undefined when there is no stored evaluation", async () => {
     const { toStudentEvaluation } = await import(
       "@/server/student-access/audio-upload"
