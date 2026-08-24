@@ -216,6 +216,60 @@ describe("student question state", () => {
     }
   });
 
+  it.each([
+    [
+      "a free low-confidence audio retry",
+      {
+        kind: "original",
+        outcome: "retry_original",
+        retryReason: "unclear_meaning",
+        lowConfidenceAudioRetries: 1,
+      },
+      true,
+    ],
+    [
+      "prompt echo",
+      {
+        kind: "original",
+        outcome: "retry_original",
+        retryReason: "unclear_meaning",
+        ambiguityRetries: 1,
+        contractViolations: ["prompt_echo"],
+      },
+      false,
+    ],
+    [
+      "an invalid ambiguity counter",
+      {
+        kind: "original",
+        outcome: "retry_original",
+        retryReason: "unclear_meaning",
+        ambiguityRetries: 3,
+      },
+      false,
+    ],
+    [
+      "a repeat row",
+      {
+        kind: "repeat",
+        outcome: "repeat_retry",
+        ambiguityRetries: 1,
+      },
+      false,
+    ],
+  ] as const)(
+    "does not rebuild recovery predicates for %s",
+    (_name, evaluation, expected) => {
+      expect(
+        isPendingConversationRecovery({
+          conversationMode: true,
+          evaluation,
+          cocoLine: "Do you play soccer with friends or family?",
+        }),
+      ).toBe(expected);
+    },
+  );
+
   it("does not keep accepted or teacher-review rows pending", () => {
     for (const outcome of ["accepted_original", "teacher_review"] as const) {
       expect(
