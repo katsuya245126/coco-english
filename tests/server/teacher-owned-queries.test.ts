@@ -187,6 +187,27 @@ describe("teacher-owned service-role queries", () => {
     expect(operations[1]?.isFilters).toEqual([]);
   });
 
+  it("keeps historical evidence roots visible while live class progress excludes canceled work", async () => {
+    const { client, operations } = ownedQueryClient();
+
+    await getOwnedAttemptForTeacher(
+      { teacherId: "teacher-1", attemptId: "attempt-1" },
+      client as never,
+    );
+    await getOwnedAssignmentStudentForTeacher(
+      { teacherId: "teacher-1", assignmentStudentId: "assigned-1" },
+      client as never,
+    );
+    await listOwnedAssignmentProgressForClass(
+      { teacherId: "teacher-1", classId: "class-1", excludeCanceled: true },
+      client as never,
+    );
+
+    expect(operations[0]?.isFilters).toEqual([]);
+    expect(operations[1]?.isFilters).toEqual([]);
+    expect(operations[2]?.isFilters).toEqual([["assignments.canceled_at", null]]);
+  });
+
   it("proves ownership again for turns, clips, and scores derived from an attempt", async () => {
     const { client, operations } = ownedQueryClient();
     const input = { teacherId: "teacher-1", attemptId: "attempt-1" };

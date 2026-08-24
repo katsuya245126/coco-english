@@ -1,5 +1,6 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/db/types";
+import type { ClassReviewPolicy } from "@/domain/teacher/assignment-operations";
 
 export type TeacherOwnedQueryClient = ReturnType<
   typeof createSupabaseServiceClient
@@ -263,7 +264,7 @@ export async function updateOwnedClassReviewPolicy(
   input: {
     teacherId: string;
     classId: string;
-    reviewPolicy: string;
+    reviewPolicy: ClassReviewPolicy;
   },
   client: TeacherOwnedQueryClient = createSupabaseServiceClient(),
 ): Promise<TeacherOwnedQueryResult<{ id: string } | null>> {
