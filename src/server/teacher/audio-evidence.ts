@@ -18,6 +18,7 @@ import {
 import {
   isStoredTeacherReview,
   parseStoredEvaluation,
+  storedReviewReasonOf,
   storedOriginalOf,
   storedOriginalMetadataOf,
 } from "@/domain/ai/stored-evaluation";
@@ -377,10 +378,7 @@ function mapRepeatResult(row: AttemptTurnRow): AttemptTurnEvidence["repeatResult
 }
 
 function mapReviewReason(row: AttemptTurnRow) {
-  const parsed = parseStoredEvaluation(row.evaluation);
-  return parsed.ok && typeof parsed.evaluation.reviewReason === "string"
-    ? parsed.evaluation.reviewReason
-    : null;
+  return storedReviewReasonOf(row.evaluation);
 }
 
 function readInterpretations(value: unknown): HangulInterpretation[] {

@@ -124,13 +124,21 @@ export function parseStoredEvaluation(value: unknown): ParsedStoredEvaluation {
   if ("repeatCloseEnough" in record || "originalEvaluation" in record) {
     return { ok: true, kind: "repeat", evaluation: record as StoredRepeatTurnEvaluation };
   }
-  // Last legacy signal: every writer-built repeat carries at least one of the
-  // repeat markers above, so a remaining object with an `outcome` field is a
-  // pre-discriminant original (including bare provider-failure review rows).
-  if ("outcome" in record) {
-    return { ok: true, kind: "original", evaluation: record as StoredOriginalTurnEvaluation };
-  }
   return { ok: false, reason: "unrecognized" };
+}
+
+function readReviewReason(value: unknown): string | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+  const reviewReason = (value as Record<string, unknown>).reviewReason;
+  return typeof reviewReason === "string" ? reviewReason : null;
+}
+
+/** The stored review reason, including from an unrecognized legacy row. */
+export function storedReviewReasonOf(value: unknown): string | null {
+  const parsed = parseStoredEvaluation(value);
+  return readReviewReason(parsed.ok ? parsed.evaluation : value);
 }
 
 /**
@@ -145,16 +153,13 @@ export function parseStoredEvaluation(value: unknown): ParsedStoredEvaluation {
  */
 export function isStoredTeacherReview(value: unknown): boolean {
   const parsed = parseStoredEvaluation(value);
+  const reviewReason = readReviewReason(parsed.ok ? parsed.evaluation : value);
   if (!parsed.ok) {
-    return (
-      typeof value === "object" &&
-      value !== null &&
-      typeof (value as Record<string, unknown>).reviewReason === "string"
-    );
+    return reviewReason !== null;
   }
   return (
     parsed.evaluation.outcome === TEACHER_REVIEW_OUTCOME ||
-    typeof parsed.evaluation.reviewReason === "string"
+    reviewReason !== null
   );
 }
 

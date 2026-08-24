@@ -54,10 +54,15 @@ describe("parseStoredEvaluation", () => {
     });
   });
 
-  it("treats a bare outcome-and-reason record as a legacy original review", () => {
-    expect(parseStoredEvaluation({ outcome: "teacher_review" })).toMatchObject({
-      ok: true,
-      kind: "original",
+  it("leaves a bare outcome-and-reason record unrecognized", () => {
+    expect(
+      parseStoredEvaluation({
+        outcome: "teacher_review",
+        reviewReason: "low_confidence",
+      }),
+    ).toEqual({
+      ok: false,
+      reason: "unrecognized",
     });
   });
 
