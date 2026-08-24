@@ -74,8 +74,7 @@ line, not a single Korean paragraph replacing the English text.
 - [x] Clarify desired behavior and settle on full coverage with phrase-by-phrase
       bubbles.
 - [x] Archive the unrelated active task as paused.
-- [x] Write the implementation plan in
-      `docs/superpowers/plans/2026-07-27-full-coverage-dynamic-translation-hints.md`.
+- [x] Write the approved full-coverage dynamic-translation-hints implementation plan.
 - [x] Get user approval for inline execution.
 - [x] Implement test-first changes.
 - [x] Run focused and proportionate verification.

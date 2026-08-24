@@ -3,7 +3,7 @@
 Status: Complete
 Branch: main
 Base SHA: 6235bb9857c1ff5abf9775fe4dfcec6d8222527e
-Plan: docs/superpowers/plans/2026-07-28-repeat-hangul-accented-english.md
+Plan: approved repeat-Hangul accented-English implementation plan
 
 ## Goal
 

@@ -3,7 +3,7 @@
 Status: Complete (review fixes applied)
 Branch: main
 Base SHA: ebd762516b1e35d4f063881d3babf7ea373841c8
-Plan: docs/superpowers/plans/2026-07-29-learner-safe-hangul-transcripts.md
+Plan: approved learner-safe Hangul transcripts implementation plan
 
 ## Goal
 

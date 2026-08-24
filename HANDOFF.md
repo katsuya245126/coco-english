@@ -18,9 +18,8 @@ Finish the sentence-aware dialogue pagination feature on branch
 - Run the final whole-branch code review (the only step left from the previous
   session), triage findings, log the ledger.
 - Report UAT readiness; the user then ran phone UAT and reported results.
-- Success criteria (from the approved spec
-  `docs/superpowers/specs/2026-07-20-sentence-aware-dialogue-pagination-design.md`,
-  in the worktree): pages are a pure function of the English source text; Hint
+- Success criteria (from the approved sentence-aware pagination design in the
+  worktree): pages are a pure function of the English source text; Hint
   never changes page boundaries; constants 16 (single-sentence word cap) / 10
   (packing budget); four-line chatbox (18px × 1.3) with 10px sprite overlap;
   offsets preserved, translation ranges clamped to the page; current message
@@ -178,7 +177,7 @@ Run in the worktree on `c6f6eced` (2026-07-20 ~11:04 KST):
 - Always `cd .claude/worktrees/dynamic-dialogue-pagination` (or `git -C`)
   before branch commands — background-task resumes reset the shell to the main
   root, and the main checkout has its own unrelated `.superpowers/sdd/progress.md`.
-- Key artifacts (worktree): spec + plan in `docs/superpowers/{specs,plans}/2026-07-20-*`,
+- Key artifacts (worktree): the sentence-aware pagination spec and plan,
   SDD ledger `.superpowers/sdd/progress.md`, `TASK.md` (one open done-check:
   phone UAT).
 - Follow-up tasks: start each from

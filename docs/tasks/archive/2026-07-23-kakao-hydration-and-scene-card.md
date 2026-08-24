@@ -79,6 +79,6 @@ generated; no route or type errors.
 
 ## References
 
-- `docs/superpowers/specs/2026-07-23-kakao-hydration-and-scene-card-design.md`
-- `docs/superpowers/plans/2026-07-23-kakao-hydration-and-scene-card.md`
+- Approved visual design and implementation plan for Kakao hydration and the
+  scene card.
 - Commits `08999a3a`, `f133042f`, and `5dc02e55`

@@ -29,10 +29,8 @@ canonical product term is **Assigned homework**: one student's obligation
 created by an assignment, containing zero or more homework attempts. The term
 is recorded in `CONTEXT.md`.
 
-The approved implementation plans are:
-
-- `docs/superpowers/plans/2026-08-12-atomic-teacher-attempt-review.md`
-- `docs/superpowers/plans/2026-08-12-unify-teacher-assigned-homework.md`
+The approved implementation plans covered teacher-owned attempt review and
+unified teacher-assigned homework:
 
 ## Implementation record
 

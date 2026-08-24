@@ -177,7 +177,7 @@ Open: None. The owner confirmed shared understanding.
 - [x] Pause and archive the previous active task.
 - [x] Select pronunciation reprocessing as the first candidate.
 - [x] Start and complete the grilling design tree when the owner requests it.
-- [x] Write the exact TDD implementation plan: `docs/superpowers/plans/2026-08-09-teacher-owned-pronunciation-reprocessing.md`.
+- [x] Write the exact TDD implementation plan.
 - [x] Obtain owner approval for the plan.
 - [x] Implement the smallest ownership-first deepening.
 - [x] Run focused and proportionate verification.

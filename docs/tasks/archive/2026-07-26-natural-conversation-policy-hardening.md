@@ -54,8 +54,7 @@ short answers, or mechanically restating everything the learner said.
 
 ## Approved decisions
 
-- Use the hybrid design in
-  `docs/superpowers/specs/2026-07-26-natural-conversation-policy-design.md`.
+- Use the approved hybrid natural-conversation policy design.
 - Do not rely on prompt instructions as the only protection against
   meaning-changing corrections.
 - When complete-sentence practice is enabled, `"My family."` receives the
@@ -126,9 +125,9 @@ short answers, or mechanically restating everything the learner said.
 ## Current position
 
 The behavior design and its written specification were approved in chat on
-2026-07-26. The detailed test-first implementation plan is at
-`docs/superpowers/plans/2026-07-26-natural-conversation-policy.md`. Tasks 1–7
-are implemented in commits `3b447286`, `ad7e643a`, `45461b96`, `45cdae82`,
+2026-07-26. The detailed test-first implementation plan was approved before
+execution. Tasks 1–7 are implemented in commits `3b447286`, `ad7e643a`,
+`45461b96`, `45cdae82`,
 `6edb614a`, `3150a25e`, and `ac8a4b5c`. Task 8 verification is complete:
 
 - Focused natural-conversation suite: 346 tests passed across 13 Vitest files;
