@@ -8,6 +8,13 @@ import {
   type ClassReviewPolicy,
 } from "@/domain/teacher/assignment-operations";
 import { assertTransitionRequest, type AssignmentStudentStatus } from "@/domain/foundation/status";
+import {
+  getOwnedAssignmentStudentForTeacher,
+  listOwnedAssignmentProgressForClass,
+  listOwnedAssignmentStudentsForTeacher,
+  listOwnedAttemptsForTeacher,
+  updateOwnedClassReviewPolicy,
+} from "@/server/teacher/teacher-owned-queries";
 
 type Client = ReturnType<typeof createSupabaseServiceClient>;
 
@@ -70,17 +77,9 @@ function mapRow(row: RawRow): OwnedAttemptRow {
 }
 
 async function loadOwnedAttempts(teacherId: string, client: Client = createSupabaseServiceClient()) {
-  const result = await client.from("attempts").select(`
-    id, status, completed_at, needs_review_reason,
-    assignment_students!attempts_assignment_student_id_fkey!inner(
-      id, status, submitted_at, latest_attempt_id,
-      students!inner(display_name),
-      assignments!inner(id, title, due_at, classes!inner(id, name, teacher_id, review_policy))
-    ),
-    submission_review_receipts(first_viewed_at, reviewed_at)
-  `).eq("assignment_students.assignments.classes.teacher_id", teacherId);
+  const result = await listOwnedAttemptsForTeacher({ teacherId }, client);
   if (result.error) throw new Error(`Unable to load teacher assignment operations: ${result.error.message}`);
-  return ((result.data ?? []) as RawRow[]).map(mapRow);
+  return (result.data as RawRow[]).map(mapRow);
 }
 
 export async function listNeedsReviewForTeacher(input: { teacherId: string }, client?: Client): Promise<TeacherReviewRow[]> {
@@ -94,19 +93,26 @@ export async function listActivityForTeacher(input: { teacherId: string; offset?
 }
 
 export async function listIncompleteForTeacher(input: { teacherId: string; now?: Date }, client: Client = createSupabaseServiceClient()) {
-  const result = await client.from("assignment_students").select(`id, status, students!inner(display_name), assignments!inner(id, title, due_at, classes!inner(id, name, teacher_id))`).eq("assignments.classes.teacher_id", input.teacherId).in("status", ["assigned", "started", "missed"]).is("dismissed_at", null);
+  const result = await listOwnedAssignmentStudentsForTeacher({
+    teacherId: input.teacherId,
+    statuses: ["assigned", "started", "missed"],
+    onlyUndismissed: true,
+  }, client);
   if (result.error) throw new Error(`Unable to load incomplete assignments: ${result.error.message}`);
-  const groups = groupIncompleteAssignments(((result.data ?? []) as RawRow[]).map((row) => { const assignment = one(row.assignments); const klass = one(assignment.classes); return { id: String(row.id), assignmentId: String(assignment.id), assignmentTitle: String(assignment.title), status: row.status as TeacherIncompleteRow["status"], dueAt: assignment.due_at ? String(assignment.due_at) : null, studentName: String(one(row.students).display_name), classId: String(klass.id), className: String(klass.name) }; }) as TeacherIncompleteRow[], input.now ?? new Date());
+  const groups = groupIncompleteAssignments((result.data as RawRow[]).map((row) => { const assignment = one(row.assignments); const klass = one(assignment.classes); return { id: String(row.id), assignmentId: String(assignment.id), assignmentTitle: String(assignment.title), status: row.status as TeacherIncompleteRow["status"], dueAt: assignment.due_at ? String(assignment.due_at) : null, studentName: String(one(row.students).display_name), classId: String(klass.id), className: String(klass.name) }; }) as TeacherIncompleteRow[], input.now ?? new Date());
   return { groups, itemCount: countIncompleteItems(groups) };
 }
 
 export type AssignmentProgress = { completed: number; teacherReview: number; started: number; needsRetry: number; assigned: number; missed: number; total: number };
 
 export async function listAssignmentProgressForClass(input: { teacherId: string; classId: string }, client: Client = createSupabaseServiceClient()): Promise<Map<string, AssignmentProgress>> {
-  const result = await client.from("assignment_students").select(`assignment_id, status, assignments!inner(class_id, canceled_at, classes!inner(teacher_id))`).eq("assignments.class_id", input.classId).eq("assignments.classes.teacher_id", input.teacherId).is("assignments.canceled_at", null);
+  const result = await listOwnedAssignmentProgressForClass({
+    ...input,
+    excludeCanceled: true,
+  }, client);
   if (result.error) throw new Error(`Unable to load assignment progress: ${result.error.message}`);
   const progress = new Map<string, AssignmentProgress>();
-  for (const raw of (result.data ?? []) as RawRow[]) {
+  for (const raw of result.data) {
     const assignmentId = String(raw.assignment_id);
     const entry = progress.get(assignmentId) ?? { completed: 0, teacherReview: 0, started: 0, needsRetry: 0, assigned: 0, missed: 0, total: 0 };
     entry.total += 1;
@@ -132,19 +138,14 @@ export async function updateClassReviewPolicy(
   input: { teacherId: string; classId: string; reviewPolicy: ClassReviewPolicy },
   client: Client = createSupabaseServiceClient(),
 ) {
-  const result = await client.from("classes")
-    .update({ review_policy: input.reviewPolicy })
-    .eq("id", input.classId)
-    .eq("teacher_id", input.teacherId)
-    .select("id")
-    .maybeSingle();
+  const result = await updateOwnedClassReviewPolicy(input, client);
   if (result.error) return { ok: false as const, error: "db_error" as const };
   if (!result.data) return { ok: false as const, error: "not_found" as const };
   return { ok: true as const };
 }
 
 async function loadOwnedAssignmentStudent(input: { teacherId: string; assignmentStudentId: string }, client: Client) {
-  const result = await client.from("assignment_students").select(`id, status, latest_attempt_id, dismissed_at, assignments!inner(classes!inner(teacher_id))`).eq("id", input.assignmentStudentId).eq("assignments.classes.teacher_id", input.teacherId).maybeSingle();
+  const result = await getOwnedAssignmentStudentForTeacher(input, client);
   if (result.error) throw new Error(`Unable to authorize teacher assignment student: ${result.error.message}`);
   return result.data as RawRow | null;
 }
