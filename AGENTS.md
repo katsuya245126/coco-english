@@ -65,6 +65,10 @@ For deterministic student feedback screenshots, start the app on `http://localho
 - Prefer targeted `rg`, file lists, and line ranges over dumping entire large files, diffs, or test logs.
 - Usage efficiency never reduces security, authorization, privacy, data-loss prevention, accessibility, or explicitly requested verification.
 
+## Local planning artifacts
+
+- `docs/superpowers/specs/` and `docs/superpowers/plans/` are local-only; never commit them.
+
 ## Legacy planning records
 
 The former GSD workflow has been retired in favor of the lightweight `task-workflow` and `progress` skills (see "Workflow" above). Its `.planning/` history is not an active source of truth. Do not recreate GSD state, hooks, or `.planning/`; use the issue tracker or local notes for any historical context.

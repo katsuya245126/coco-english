@@ -48,7 +48,7 @@ docs/PROBLEMS-SOLVED.md
 docs/local/
 
 # Local implementation plans and completed-task notes; use GitHub issues/PRs for durable tracking
-docs/superpowers/plans/
+docs/superpowers/
 docs/tasks/archive/
 
 # Local-only scripts (dev launchers, local seeders); not for the repo
