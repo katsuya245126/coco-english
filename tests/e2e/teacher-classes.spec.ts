@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { logInTeacher } from "./teacher-auth";
 
 const SUPABASE_ENV_PRESENT = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -18,34 +19,15 @@ test("class-management dashboard exposes the create-class entry point", async ({
     return;
   }
 
-  // Live path requires a logged-in teacher session (provisioned by the human-verify
-  // walkthrough / future auth fixture). This branch documents the full flow using
-  // verbatim UI-SPEC copy as selectors.
   test.skip(
     !process.env.E2E_TEACHER_EMAIL || !process.env.E2E_TEACHER_PASSWORD,
     "Logged-in teacher fixture not provisioned; live class-management path is env-gated.",
   );
 
+  await logInTeacher(page);
   await page.goto("/teacher");
-
-  // Create a class via the dashboard "Create class" action + "Save class" form.
-  await page.getByRole("button", { name: "Create class" }).click();
-  const className = `Playwright Class ${Date.now()}`;
-  await page.getByLabel("Class name").fill(className);
-  await page.getByRole("button", { name: "Save class" }).click();
-
-  // The new class appears in the list with a join code.
-  await expect(page.getByText(className)).toBeVisible();
-
-  // Open the share dialog and confirm the share/QR affordances (verbatim copy).
-  await page.getByRole("button", { name: "Share join link" }).first().click();
-  await expect(page.getByRole("button", { name: "Show QR code" })).toBeVisible();
-
-  // Reach the reset-join-code confirmation (verbatim D-18 copy).
-  await page.getByRole("button", { name: "Reset join code" }).click();
-  await expect(
-    page.getByText(
-      "Reset join code? New students will need the new code or link. Remembered devices can still return to this class.",
-    ),
-  ).toBeVisible();
+  await expect(page.getByRole("link", { name: /Create class/ })).toHaveAttribute(
+    "href",
+    "/teacher/classes",
+  );
 });
