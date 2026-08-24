@@ -13,6 +13,7 @@ import {
   listOwnedAssignmentProgressForClass,
   listOwnedAssignmentStudentsForTeacher,
   listOwnedAttemptsForTeacher,
+  updateOwnedClassReviewPolicy,
 } from "@/server/teacher/teacher-owned-queries";
 
 type Client = ReturnType<typeof createSupabaseServiceClient>;
@@ -137,12 +138,7 @@ export async function updateClassReviewPolicy(
   input: { teacherId: string; classId: string; reviewPolicy: ClassReviewPolicy },
   client: Client = createSupabaseServiceClient(),
 ) {
-  const result = await client.from("classes")
-    .update({ review_policy: input.reviewPolicy })
-    .eq("id", input.classId)
-    .eq("teacher_id", input.teacherId)
-    .select("id")
-    .maybeSingle();
+  const result = await updateOwnedClassReviewPolicy(input, client);
   if (result.error) return { ok: false as const, error: "db_error" as const };
   if (!result.data) return { ok: false as const, error: "not_found" as const };
   return { ok: true as const };

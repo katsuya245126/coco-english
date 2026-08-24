@@ -112,6 +112,20 @@ export type TeacherOwnedAssignmentStudentRow = OwnedAssignmentStudent & {
   >;
 };
 
+export type TeacherOwnedAssignmentStudentListRow = {
+  id: string;
+  status: string;
+  students: TeacherOwnedRelation<OwnedStudent>;
+  assignments: TeacherOwnedRelation<{
+    id: string;
+    title: string;
+    due_at: string | null;
+    classes: TeacherOwnedRelation<
+      OwnedClass & { id: string; name: string; teacher_id: string }
+    >;
+  }>;
+};
+
 export type TeacherOwnedAssignmentProgressRow = {
   assignment_id: string;
   status: string;
@@ -245,23 +259,43 @@ export async function getOwnedAssignmentStudentForTeacher(
   };
 }
 
+export async function updateOwnedClassReviewPolicy(
+  input: {
+    teacherId: string;
+    classId: string;
+    reviewPolicy: string;
+  },
+  client: TeacherOwnedQueryClient = createSupabaseServiceClient(),
+): Promise<TeacherOwnedQueryResult<{ id: string } | null>> {
+  const result = await client
+    .from("classes")
+    .update({ review_policy: input.reviewPolicy })
+    .eq("id", input.classId)
+    .eq("teacher_id", input.teacherId)
+    .select("id")
+    .maybeSingle();
+
+  return {
+    data: result.data as { id: string } | null,
+    error: result.error,
+  };
+}
+
 export async function listOwnedAssignmentStudentsForTeacher(
   input: {
     teacherId: string;
     statuses?: string[];
     onlyUndismissed?: boolean;
-    excludeCanceled?: boolean;
   },
   client: TeacherOwnedQueryClient = createSupabaseServiceClient(),
-): Promise<TeacherOwnedQueryResult<TeacherOwnedAssignmentStudentRow[]>> {
+): Promise<TeacherOwnedQueryResult<TeacherOwnedAssignmentStudentListRow[]>> {
   let query = client
     .from("assignment_students")
     .select(`
-      id, status, submitted_at, latest_attempt_id, dismissed_at,
-      attempt_count, highest_hint_level,
+      id, status,
       students!inner(display_name),
       assignments!inner(
-        id, title, due_at, canceled_at,
+        id, title, due_at,
         classes!inner(id, name, teacher_id)
       )
     `)
@@ -269,11 +303,10 @@ export async function listOwnedAssignmentStudentsForTeacher(
 
   if (input.statuses) query = query.in("status", input.statuses);
   if (input.onlyUndismissed) query = query.is("dismissed_at", null);
-  if (input.excludeCanceled) query = query.is("assignments.canceled_at", null);
 
   const result = await query;
   return {
-    data: (result.data ?? []) as TeacherOwnedAssignmentStudentRow[],
+    data: (result.data ?? []) as TeacherOwnedAssignmentStudentListRow[],
     error: result.error,
   };
 }

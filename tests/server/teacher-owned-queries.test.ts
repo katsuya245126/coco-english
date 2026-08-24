@@ -7,6 +7,7 @@ import {
   listOwnedAttemptClipsForTeacher,
   listOwnedAttemptTurnsForTeacher,
   listOwnedPronunciationScoresForTeacher,
+  updateOwnedClassReviewPolicy,
 } from "@/server/teacher/teacher-owned-queries";
 
 type Operation = {
@@ -72,6 +73,17 @@ function ownedQueryClient(options: {
   };
 }
 
+function classPolicyClient(result: { data: { id: string } | null; error: { message: string } | null }) {
+  const operations: Array<[string, ...unknown[]]> = [];
+  const chain: Record<string, unknown> = {
+    update: (payload: unknown) => { operations.push(["update", payload]); return chain; },
+    eq: (key: string, value: unknown) => { operations.push(["eq", key, value]); return chain; },
+    select: () => chain,
+    maybeSingle: () => Promise.resolve(result),
+  };
+  return { client: { from: () => chain }, operations };
+}
+
 describe("teacher-owned service-role queries", () => {
   it("proves attempt ownership for a supplied attempt id", async () => {
     const { client, operations } = ownedQueryClient({
@@ -80,7 +92,7 @@ describe("teacher-owned service-role queries", () => {
 
     await expect(
       getOwnedAttemptForTeacher(
-        { teacherId: "teacher-1", attemptId: "foreign-attempt" },
+        { teacherId: "teacher-1", attemptId: "attempt-1" },
         client as never,
       ),
     ).resolves.toMatchObject({ data: { id: "attempt-1" }, error: null });
@@ -88,8 +100,27 @@ describe("teacher-owned service-role queries", () => {
     expect(operations[0]).toMatchObject({
       table: "attempts",
       filters: expect.arrayContaining([
-        ["id", "foreign-attempt"],
+        ["id", "attempt-1"],
         ["assignment_students.assignments.classes.teacher_id", "teacher-1"],
+      ]),
+    });
+  });
+
+  it.each([
+    { attemptId: "foreign-attempt", teacherId: "teacher-1" },
+    { attemptId: "attempt-1", teacherId: "wrong-teacher" },
+  ])("returns null for an unowned attempt ($attemptId / $teacherId)", async ({ attemptId, teacherId }) => {
+    const { client, operations } = ownedQueryClient({ data: { attempts: null } });
+
+    await expect(
+      getOwnedAttemptForTeacher({ teacherId, attemptId }, client as never),
+    ).resolves.toEqual({ data: null, error: null });
+
+    expect(operations[0]).toMatchObject({
+      table: "attempts",
+      filters: expect.arrayContaining([
+        ["id", attemptId],
+        ["assignment_students.assignments.classes.teacher_id", teacherId],
       ]),
     });
   });
@@ -214,14 +245,12 @@ describe("teacher-owned service-role queries", () => {
   });
 
   it("proves clip ownership through the student's attempt before returning storage metadata", async () => {
-    const { client, operations } = ownedQueryClient({
-      data: { audio_clips: { id: "clip-1", object_key: "private/key" } },
-    });
+    const { client, operations } = ownedQueryClient({ data: { audio_clips: null } });
 
-    await getOwnedAudioClipForTeacher(
+    await expect(getOwnedAudioClipForTeacher(
       { teacherId: "teacher-1", audioClipId: "clip-from-another-student" },
       client as never,
-    );
+    )).resolves.toEqual({ data: null, error: null });
 
     expect(operations[0]).toMatchObject({
       table: "audio_clips",
@@ -233,5 +262,37 @@ describe("teacher-owned service-role queries", () => {
         ],
       ]),
     });
+  });
+
+  it("updates a teacher-owned class", async () => {
+    const { client, operations } = classPolicyClient({ data: { id: "class-1" }, error: null });
+
+    await expect(updateOwnedClassReviewPolicy(
+      { teacherId: "teacher-1", classId: "class-1", reviewPolicy: "flagged_only" },
+      client as never,
+    )).resolves.toEqual({ data: { id: "class-1" }, error: null });
+    expect(operations).toContainEqual(["update", { review_policy: "flagged_only" }]);
+    expect(operations).toContainEqual(["eq", "id", "class-1"]);
+    expect(operations).toContainEqual(["eq", "teacher_id", "teacher-1"]);
+  });
+
+  it("returns no row when the teacher does not own the class", async () => {
+    const { client, operations } = classPolicyClient({ data: null, error: null });
+
+    await expect(updateOwnedClassReviewPolicy(
+      { teacherId: "wrong-teacher", classId: "class-1", reviewPolicy: "every_submission" },
+      client as never,
+    )).resolves.toEqual({ data: null, error: null });
+    expect(operations).toContainEqual(["eq", "id", "class-1"]);
+    expect(operations).toContainEqual(["eq", "teacher_id", "wrong-teacher"]);
+  });
+
+  it("returns the database error for a class update", async () => {
+    const { client } = classPolicyClient({ data: null, error: { message: "database unavailable" } });
+
+    await expect(updateOwnedClassReviewPolicy(
+      { teacherId: "teacher-1", classId: "class-1", reviewPolicy: "every_submission" },
+      client as never,
+    )).resolves.toEqual({ data: null, error: { message: "database unavailable" } });
   });
 });
