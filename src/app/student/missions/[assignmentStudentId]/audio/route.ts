@@ -5,8 +5,8 @@ import {
   ALLOWED_AUDIO_MIME_TYPES,
   MAX_AUDIO_BYTES,
   MAX_AUDIO_DURATION_MS,
+  recordSpeakingTry,
   toStudentEvaluation,
-  uploadAttemptAudioClip,
 } from "@/server/student-access/audio-upload";
 
 const audioUploadSchema = z.object({
@@ -64,7 +64,7 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
   }
 
-  const result = await uploadAttemptAudioClip({
+  const result = await recordSpeakingTry({
     studentId: unlock.studentId,
     assignmentStudentId: parsed.data.assignmentStudentId,
     attemptId: parsed.data.attemptId,

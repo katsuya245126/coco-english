@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   requireOwnedAssignmentStudent,
+  withOwnedInProgressAttempt,
   type OwnedAssignmentStudent,
 } from "@/server/student-access/owned-assignment";
 
@@ -32,6 +33,7 @@ const completeSnapshot = {
 
 type Options = {
   row?: Record<string, unknown> | null;
+  attempt?: Record<string, unknown> | null;
   error?: Error | null;
 };
 
@@ -50,7 +52,10 @@ vi.mock("@/lib/supabase/server", () => ({
           return query;
         }),
         maybeSingle: vi.fn(async () => ({
-          data: options.row ?? null,
+          data:
+            operation.table === "attempts"
+              ? options.attempt ?? null
+              : options.row ?? null,
           error: options.error ?? null,
         })),
         single: vi.fn(),
@@ -220,5 +225,60 @@ describe("requireOwnedAssignmentStudent snapshot kinds", () => {
     if (!result.ok) throw new Error("expected ok");
     expect(result.owned.snapshot).toBeNull();
     expect(result.owned.status).toBe("started");
+  });
+});
+
+describe("withOwnedInProgressAttempt", () => {
+  beforeEach(() => {
+    options = {};
+    operations = [];
+  });
+
+  it("invokes the callback only after both ownership proofs pass", async () => {
+    options = {
+      row: ownedRow(),
+      attempt: { id: "attempt-1" },
+    };
+
+    const mutation = vi.fn(async (owned: OwnedAssignmentStudent) => owned.id);
+    const result = await withOwnedInProgressAttempt(
+      {
+        studentId: "student-1",
+        assignmentStudentId: "as-1",
+        attemptId: "attempt-1",
+      },
+      mutation,
+    );
+
+    expect(result).toEqual({ ok: true, value: "as-1" });
+    expect(mutation).toHaveBeenCalledOnce();
+  });
+
+  it("rejects an attempt without invoking the mutation callback", async () => {
+    options = {
+      row: ownedRow(),
+      attempt: null,
+    };
+
+    const mutation = vi.fn(async () => ({ ok: true as const }));
+    const result = await withOwnedInProgressAttempt(
+      {
+        studentId: "student-1",
+        assignmentStudentId: "as-1",
+        attemptId: "attempt-1",
+      },
+      mutation,
+    );
+
+    expect(result).toEqual({ ok: false, error: "not_found_or_canceled" });
+    expect(mutation).not.toHaveBeenCalled();
+    expect(operations).toHaveLength(2);
+    expect(operations[1]?.filters).toEqual(
+      expect.arrayContaining([
+        ["id", "attempt-1"],
+        ["assignment_student_id", "as-1"],
+        ["status", "in_progress"],
+      ]),
+    );
   });
 });

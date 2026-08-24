@@ -283,7 +283,9 @@ function createMockSupabase(options: {
         if (table === "attempts") {
           return {
             data:
-              options.attemptFound === false
+              options.attemptFound === false ||
+              (options.attemptStatus !== undefined &&
+                options.attemptStatus !== "in_progress")
                 ? null
                 : {
                     id: "attempt-1",
@@ -333,7 +335,7 @@ describe("student audio storage migration", () => {
   });
 });
 
-describe("uploadAttemptAudioClip", () => {
+describe("recordSpeakingTry", () => {
   beforeEach(() => {
     vi.resetModules();
     mockLog.mockClear();
@@ -341,18 +343,6 @@ describe("uploadAttemptAudioClip", () => {
     mockConsumeRequestBudget.mockResolvedValue({ allowed: true });
     mockSupabase = createMockSupabase();
     process.env.STUDENT_AUDIO_BUCKET = "student-audio";
-  });
-
-  it("reads stored mission data through the shared interpreter", () => {
-    const source = readFileSync(
-      join(process.cwd(), "src/server/student-access/audio-upload.ts"),
-      "utf8",
-    );
-
-    expect(source).toContain(
-      'import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";',
-    );
-    expect(source).not.toContain("missionSnapshotSchema");
   });
 
   it.each([
@@ -373,12 +363,12 @@ describe("uploadAttemptAudioClip", () => {
       const scorePronunciation = vi.fn();
       const file = new Blob(["voice"], { type: "audio/webm" });
       const arrayBuffer = vi.spyOn(file, "arrayBuffer");
-      const { uploadAttemptAudioClip } = await import(
+      const { recordSpeakingTry } = await import(
         "@/server/student-access/audio-upload"
       );
 
       await expect(
-        uploadAttemptAudioClip(audioInput({ file, body: "voice" }), {
+        recordSpeakingTry(audioInput({ file, body: "voice" }), {
           consumeRequestBudget,
           transcribeAudioFile,
           evaluateOriginalTurn,
@@ -416,11 +406,11 @@ describe("uploadAttemptAudioClip", () => {
     const transcribeAudioFile = vi.fn();
     const file = new Blob(["voice"], { type: "audio/webm" });
     const arrayBuffer = vi.spyOn(file, "arrayBuffer");
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    const result = await uploadAttemptAudioClip(
+    const result = await recordSpeakingTry(
       audioInput({ file, body: "voice" }),
       { consumeRequestBudget, transcribeAudioFile },
     );
@@ -449,11 +439,11 @@ describe("uploadAttemptAudioClip", () => {
   it("still uploads, inserts, and transcribes when the audio budget admits", async () => {
     const consumeRequestBudget = vi.fn(async () => ({ allowed: true as const }));
     const transcribeAudioFile = successfulTranscriber("I like apples.");
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       consumeRequestBudget,
       transcribeAudioFile,
       evaluateOriginalTurn: vi.fn(async () => ({
@@ -479,11 +469,11 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("keeps failed_schema for a genuine malformed-output failure with no contract involvement", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I like apples."),
       evaluateOriginalTurn: vi.fn(async () => ({
         ok: false as const,
@@ -533,11 +523,11 @@ describe("uploadAttemptAudioClip", () => {
         ],
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginalTurn = successfulOriginalEvaluator();
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber(
         "I'd rather big city because more things to do.",
       ),
@@ -573,7 +563,7 @@ describe("uploadAttemptAudioClip", () => {
         ],
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginalTurn = successfulOriginalEvaluator({
@@ -583,7 +573,7 @@ describe("uploadAttemptAudioClip", () => {
     });
     const koreanSpans = [{ hangul: "바닐라", romanized: "Banilla" }];
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber(
         "I think 바닐라 is the best.",
         koreanSpans,
@@ -604,12 +594,12 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("retries a dangling original before scoring or evaluation", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const scorePronunciation = vi.fn();
     const evaluateOriginalTurn = vi.fn();
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I"),
       scorePronunciation,
       evaluateOriginalTurn,
@@ -643,11 +633,11 @@ describe("uploadAttemptAudioClip", () => {
         ],
       },
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginalTurn = vi.fn();
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I"),
       evaluateOriginalTurn,
     });
@@ -659,13 +649,13 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("filters assignment ownership by assignment_students.student_id before upload", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
     const transcribe = successfulTranscriber("I like apples.");
     const evaluateOriginal = successfulOriginalEvaluator();
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: transcribe,
       evaluateOriginalTurn: evaluateOriginal,
     });
@@ -712,7 +702,7 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("skips OpenAI evaluation and accepts directly when the transcript exactly matches targetExample", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -722,7 +712,7 @@ describe("uploadAttemptAudioClip", () => {
       "I LIKE PLAYING SOCCER AFTER SCHOOL!",
     );
     const evaluateOriginal = successfulOriginalEvaluator();
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: transcribe,
       evaluateOriginalTurn: evaluateOriginal,
     });
@@ -743,11 +733,11 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("gives a low-confidence exact target a free retry before the fast path", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateOriginal = successfulOriginalEvaluator();
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: vi.fn(async () => ({
         ok: true as const,
         text: "I like playing soccer after school.",
@@ -770,7 +760,7 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("uses semantic evaluation for a relevant open-ended answer that differs from the example", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     mockSupabase = createMockSupabase({
@@ -789,7 +779,7 @@ describe("uploadAttemptAudioClip", () => {
     });
 
     const evaluateOriginal = successfulOriginalEvaluator();
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I am going to play games."),
       evaluateOriginalTurn: evaluateOriginal,
     });
@@ -812,7 +802,7 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("passes the snapshot turn's answerShape to the evaluator", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     mockSupabase = createMockSupabase({
@@ -832,7 +822,7 @@ describe("uploadAttemptAudioClip", () => {
     });
 
     const evaluateOriginal = successfulOriginalEvaluator();
-    await uploadAttemptAudioClip(audioInput(), {
+    await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I like chocolate ice cream."),
       evaluateOriginalTurn: evaluateOriginal,
     });
@@ -844,7 +834,7 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("passes a fixed answerShape through to the evaluator", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     mockSupabase = createMockSupabase({
@@ -864,7 +854,7 @@ describe("uploadAttemptAudioClip", () => {
     });
 
     const evaluateOriginal = successfulOriginalEvaluator();
-    await uploadAttemptAudioClip(audioInput(), {
+    await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("The capital of Korea is Busan."),
       evaluateOriginalTurn: evaluateOriginal,
     });
@@ -876,7 +866,7 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("does not auto-accept an off-topic answer merely because it fills the grammar frame", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     mockSupabase = createMockSupabase({
@@ -903,7 +893,7 @@ describe("uploadAttemptAudioClip", () => {
       correctionReason: "grammar" as const,
       improvedSentence: "I'm going to do my homework.",
     });
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I am going to eat the moon."),
       evaluateOriginalTurn: evaluateOriginal,
     });
@@ -919,7 +909,7 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("falls through to OpenAI evaluation when the transcript matches neither the example nor target pattern", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -927,7 +917,7 @@ describe("uploadAttemptAudioClip", () => {
       "I enjoy playing soccer with my friends after school.",
     );
     const evaluateOriginal = successfulOriginalEvaluator();
-    await uploadAttemptAudioClip(audioInput(), {
+    await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: transcribe,
       evaluateOriginalTurn: evaluateOriginal,
     });
@@ -941,11 +931,11 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("logs production-safe stage timings for successful uploads", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    await uploadAttemptAudioClip(audioInput(), {
+    await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I like apples."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       scorePronunciation: vi.fn(async () => ({
@@ -989,11 +979,11 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("writes pending and transcribed processing_status metadata", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    await uploadAttemptAudioClip(audioInput({
+    await recordSpeakingTry(audioInput({
       turnOrder: 2,
       clipKind: "repeat_attempt",
       body: "repeat",
@@ -1026,11 +1016,11 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("writes original_transcript through the original answer path", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    await uploadAttemptAudioClip(audioInput(), {
+    await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I want pizza."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
     });
@@ -1055,7 +1045,7 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("warms Coco TTS for an improved sentence after original-turn evaluation writes it", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -1066,7 +1056,7 @@ describe("uploadAttemptAudioClip", () => {
       failed: 0,
     }));
 
-    await uploadAttemptAudioClip(audioInput(), {
+    await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I play soccer"),
       evaluateOriginalTurn: successfulOriginalEvaluator({
         outcome: "needs_correction",
@@ -1086,11 +1076,11 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("does not fail audio upload when improved-sentence TTS warming fails", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I play soccer"),
       evaluateOriginalTurn: successfulOriginalEvaluator({
         outcome: "needs_correction",
@@ -1112,12 +1102,12 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("evaluates repeat attempts before writing repeat_transcript and repeat_accepted", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
     const evaluateRepeat = successfulRepeatEvaluator();
-    await uploadAttemptAudioClip(audioInput({ clipKind: "repeat_attempt" }), {
+    await recordSpeakingTry(audioInput({ clipKind: "repeat_attempt" }), {
       transcribeAudioFile: successfulTranscriber("I want pizza, please."),
       evaluateRepeatTurn: evaluateRepeat,
     });
@@ -1155,7 +1145,7 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("does not treat a bare outcome-and-reason row as prior original evidence", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     mockSupabase = createMockSupabase({
@@ -1166,7 +1156,7 @@ describe("uploadAttemptAudioClip", () => {
     });
 
     const evaluateRepeat = successfulRepeatEvaluator();
-    await uploadAttemptAudioClip(audioInput({ clipKind: "repeat_attempt" }), {
+    await recordSpeakingTry(audioInput({ clipKind: "repeat_attempt" }), {
       transcribeAudioFile: successfulTranscriber("I want pizza, please."),
       evaluateRepeatTurn: evaluateRepeat,
     });
@@ -1191,12 +1181,12 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("passes normalized repeat transcript Korean spans to repeat evaluation", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateRepeat = successfulRepeatEvaluator();
 
-    await uploadAttemptAudioClip(
+    await recordSpeakingTry(
       audioInput({ clipKind: "repeat_attempt", body: "repeat" }),
       {
         transcribeAudioFile: successfulTranscriber(
@@ -1219,12 +1209,12 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("still bypasses repeat evaluation for an exact English repeat", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateRepeat = successfulRepeatEvaluator();
 
-    const result = await uploadAttemptAudioClip(
+    const result = await recordSpeakingTry(
       audioInput({ clipKind: "repeat_attempt", body: "repeat" }),
       {
         transcribeAudioFile: successfulTranscriber(
@@ -1242,7 +1232,7 @@ describe("uploadAttemptAudioClip", () => {
     mockSupabase = createMockSupabase({
       uploadError: new Error("storage unavailable"),
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -1251,7 +1241,7 @@ describe("uploadAttemptAudioClip", () => {
     // still completes even though its result is discarded once the upload
     // failure is detected.
     const transcribe = successfulTranscriber("runs concurrently with upload");
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: transcribe,
     });
 
@@ -1282,11 +1272,11 @@ describe("uploadAttemptAudioClip", () => {
     mockSupabase = createMockSupabase({
       turnWriteError: new Error("turn write down"),
     });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I like apples."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
     });
@@ -1307,11 +1297,11 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("marks the clip failed when transcription fails and does not write transcript fields", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: failedTranscriber(),
     });
 
@@ -1342,14 +1332,14 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("maps no_speech to retryable without evaluation, scoring, or a transcript write", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const transcribe = noSpeechTranscriber();
     const evaluateOriginal = successfulOriginalEvaluator();
     const scorePronunciation = successfulPronunciationScorer();
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: transcribe,
       evaluateOriginalTurn: evaluateOriginal,
       scorePronunciation,
@@ -1384,7 +1374,7 @@ describe("uploadAttemptAudioClip", () => {
   // call; it must be reached. A genuinely Korean answer still routes to a
   // retry, now via the evaluator's non_english outcome.
   it("passes a Korean-only transcript through to the evaluator to judge", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -1402,7 +1392,7 @@ describe("uploadAttemptAudioClip", () => {
       },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("나는 방과 후에 축구를 좋아해요."),
       evaluateOriginalTurn: evaluateOriginal,
       scorePronunciation,
@@ -1423,12 +1413,12 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("stores a code-switched transcript verbatim and gives the evaluator its Korean spans", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
     const evaluateOriginal = successfulOriginalEvaluator();
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I like 축구 after school."),
       evaluateOriginalTurn: evaluateOriginal,
     });
@@ -1461,11 +1451,11 @@ describe("uploadAttemptAudioClip", () => {
     // The teach half of the allow/teach split: 축구 is ordinary vocabulary,
     // so the student hears "soccer" and says the sentence again. The stored
     // transcript still records the Korean they actually said.
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I like 축구 after school.", [
         { hangul: "축구", romanized: "Chukgu" },
       ]),
@@ -1506,11 +1496,11 @@ describe("uploadAttemptAudioClip", () => {
 
   it("rejects closed assignments and attempts before creating audio rows", async () => {
     mockSupabase = createMockSupabase({ assignmentStatus: "completed" });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    const completedAssignmentResult = await uploadAttemptAudioClip(audioInput());
+    const completedAssignmentResult = await recordSpeakingTry(audioInput());
 
     expect(completedAssignmentResult).toEqual({
       ok: false,
@@ -1525,7 +1515,7 @@ describe("uploadAttemptAudioClip", () => {
     ).toBe(false);
 
     mockSupabase = createMockSupabase({ attemptStatus: "completed" });
-    const completedAttemptResult = await uploadAttemptAudioClip(audioInput());
+    const completedAttemptResult = await recordSpeakingTry(audioInput());
 
     expect(completedAttemptResult).toEqual({
       ok: false,
@@ -1541,12 +1531,12 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("rejects turn orders outside the mission snapshot before creating evidence rows", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
     const evaluateOriginal = successfulOriginalEvaluator();
-    const result = await uploadAttemptAudioClip(audioInput({ turnOrder: 999 }), {
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 999 }), {
       evaluateOriginalTurn: evaluateOriginal,
     });
 
@@ -1567,7 +1557,7 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("returns retryable for a 300 ms tap before file, database, storage, or transcription work", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const file = new Blob(["voice"], { type: "audio/webm" });
@@ -1576,7 +1566,7 @@ describe("uploadAttemptAudioClip", () => {
     const evaluateOriginal = successfulOriginalEvaluator();
     const scorePronunciation = successfulPronunciationScorer();
 
-    const result = await uploadAttemptAudioClip(
+    const result = await recordSpeakingTry(
       audioInput({ durationMs: 300, file }),
       {
         transcribeAudioFile: transcribe,
@@ -1611,12 +1601,12 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("allows a clip at the exact 500 ms boundary", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const transcribe = successfulTranscriber("I like apples.");
 
-    const result = await uploadAttemptAudioClip(audioInput({ durationMs: 500 }), {
+    const result = await recordSpeakingTry(audioInput({ durationMs: 500 }), {
       transcribeAudioFile: transcribe,
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       scorePronunciation: successfulPronunciationScorer(),
@@ -1630,13 +1620,13 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("rejects oversized, overlong, and unsupported audio before storage or transcription", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const transcribe = successfulTranscriber("should not run");
 
     await expect(
-      uploadAttemptAudioClip(
+      recordSpeakingTry(
         { ...audioInput(), byteSize: 5 * 1024 * 1024 + 1 },
         { transcribeAudioFile: transcribe },
       ),
@@ -1646,7 +1636,7 @@ describe("uploadAttemptAudioClip", () => {
       retryable: false,
     });
     await expect(
-      uploadAttemptAudioClip(
+      recordSpeakingTry(
         audioInput({ durationMs: 90_001 }),
         { transcribeAudioFile: transcribe },
       ),
@@ -1656,7 +1646,7 @@ describe("uploadAttemptAudioClip", () => {
       retryable: false,
     });
     await expect(
-      uploadAttemptAudioClip(
+      recordSpeakingTry(
         audioInput({ mimeType: "audio/ogg" }),
         { transcribeAudioFile: transcribe },
       ),
@@ -1672,11 +1662,11 @@ describe("uploadAttemptAudioClip", () => {
 
   it("does not upload when assignment ownership does not match", async () => {
     mockSupabase = createMockSupabase({ assignmentFound: false });
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    const result = await uploadAttemptAudioClip({
+    const result = await recordSpeakingTry({
       ...audioInput(),
       studentId: "other-student",
     });
@@ -1707,7 +1697,7 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("scores original-answer pronunciation against the transcript and upserts a pronunciation_scores row on success", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -1727,7 +1717,7 @@ describe("uploadAttemptAudioClip", () => {
       },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       // Transcript contains "playing" so the mispronounced word is one the
       // student actually said — wordsToPractice intersects against the
       // transcript, so a word absent from it is never surfaced.
@@ -1770,7 +1760,7 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("does not surface target-sentence words the student never said as words to practice", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -1793,7 +1783,7 @@ describe("uploadAttemptAudioClip", () => {
       },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I like apples."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       scorePronunciation,
@@ -1814,7 +1804,7 @@ describe("uploadAttemptAudioClip", () => {
       }),
     })) as typeof mockSupabase.storage.from;
 
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -1846,7 +1836,7 @@ describe("uploadAttemptAudioClip", () => {
       };
     });
 
-    const result = await uploadAttemptAudioClip(
+    const result = await recordSpeakingTry(
       audioInput({ file: oneShotFile }),
       {
         transcribeAudioFile: successfulTranscriber("I like apples."),
@@ -1865,7 +1855,7 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("uses the improved sentence as reference text for repeat attempts", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -1882,7 +1872,7 @@ describe("uploadAttemptAudioClip", () => {
       },
     }));
 
-    await uploadAttemptAudioClip(
+    await recordSpeakingTry(
       audioInput({ turnOrder: 2, clipKind: "repeat_attempt", body: "repeat" }),
       {
         transcribeAudioFile: successfulTranscriber("I like eating pizza."),
@@ -1897,7 +1887,7 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("degrades gracefully when pronunciation scoring fails, still returning ok:true with no score row", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -1906,7 +1896,7 @@ describe("uploadAttemptAudioClip", () => {
       error: "provider_failed" as const,
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I like apples."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       scorePronunciation,
@@ -1927,7 +1917,7 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("degrades gracefully when pronunciation scoring throws, still returning ok:true", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -1935,7 +1925,7 @@ describe("uploadAttemptAudioClip", () => {
       throw new Error("azure down");
     });
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I like apples."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       scorePronunciation,
@@ -1965,7 +1955,7 @@ describe("uploadAttemptAudioClip", () => {
       return query;
     }) as typeof mockSupabase.from;
 
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -1982,7 +1972,7 @@ describe("uploadAttemptAudioClip", () => {
       },
     }));
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I like apples."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       scorePronunciation,
@@ -1996,7 +1986,7 @@ describe("uploadAttemptAudioClip", () => {
   });
 
   it("starts pronunciation scoring concurrently with turn evaluation, not serially after it", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -2043,7 +2033,7 @@ describe("uploadAttemptAudioClip", () => {
       return { ok: true as const, score };
     });
 
-    await uploadAttemptAudioClip(audioInput(), {
+    await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I like apples."),
       evaluateOriginalTurn: evaluateOriginal,
       scorePronunciation,
@@ -2070,13 +2060,13 @@ describe("minimal-effort answer guard", () => {
   });
 
   it("blocks a minimal-effort answer without calling the evaluator or scorer", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluate = successfulOriginalEvaluator();
     const score = successfulPronunciationScorer();
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("Yes."),
       evaluateOriginalTurn: evaluate,
       scorePronunciation: score,
@@ -2111,7 +2101,7 @@ describe("minimal-effort answer guard", () => {
   });
 
   it("increments the block counter from the stored evaluation", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     mockSupabase = createMockSupabase({
@@ -2123,7 +2113,7 @@ describe("minimal-effort answer guard", () => {
       },
     });
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I don't know."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       scorePronunciation: successfulPronunciationScorer(),
@@ -2140,7 +2130,7 @@ describe("minimal-effort answer guard", () => {
   });
 
   it("routes an invented correction after 2 prior blocks to teacher review", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     mockSupabase = createMockSupabase({
@@ -2159,7 +2149,7 @@ describe("minimal-effort answer guard", () => {
       improvedSentence: "Yes, I like pizza.",
     });
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("Yes."),
       evaluateOriginalTurn: evaluate,
       scorePronunciation: successfulPronunciationScorer(),
@@ -2175,7 +2165,7 @@ describe("minimal-effort answer guard", () => {
   });
 
   it("does not restart blocking after a post-cap generic retry overwrites the reason", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     mockSupabase = createMockSupabase({
@@ -2187,7 +2177,7 @@ describe("minimal-effort answer guard", () => {
     });
     const evaluate = successfulOriginalEvaluator();
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("No."),
       evaluateOriginalTurn: evaluate,
       scorePronunciation: successfulPronunciationScorer(),
@@ -2198,7 +2188,7 @@ describe("minimal-effort answer guard", () => {
   });
 
   it("never blocks an exact target-example match", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     mockSupabase = createMockSupabase({
@@ -2211,7 +2201,7 @@ describe("minimal-effort answer guard", () => {
       },
     });
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("Yes."),
       evaluateOriginalTurn: successfulOriginalEvaluator(),
       scorePronunciation: successfulPronunciationScorer(),
@@ -2223,12 +2213,12 @@ describe("minimal-effort answer guard", () => {
   });
 
   it("does not run the guard for repeat attempts", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
     const evaluateRepeat = successfulRepeatEvaluator();
 
-    const result = await uploadAttemptAudioClip(
+    const result = await recordSpeakingTry(
       audioInput({ clipKind: "repeat_attempt" }),
       {
         transcribeAudioFile: successfulTranscriber("Yes."),
@@ -2261,14 +2251,14 @@ describe("learner-safe display transcript at the upload boundary", () => {
   }
 
   it("shows the English reading of accented-English spans and scores against it", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
     const raw = "바닐라 아이스크림 is tastier than 초콜릿 아이스크림.";
     const scorePronunciation = successfulPronunciationScorer();
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber(raw, [
         { hangul: "바닐라", romanized: "Banilla" },
         { hangul: "아이스크림", romanized: "Aiseukeurim" },
@@ -2319,13 +2309,13 @@ describe("learner-safe display transcript at the upload boundary", () => {
   });
 
   it("hides the whole transcript and skips scoring when a span is Korean vocabulary", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
     const scorePronunciation = successfulPronunciationScorer();
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I like 축구.", [
         { hangul: "축구", romanized: "Chukgu" },
       ]),
@@ -2351,11 +2341,11 @@ describe("learner-safe display transcript at the upload boundary", () => {
   });
 
   it("keeps a proper name exactly as spoken in the learner transcript", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I'm going to 거제도.", [
         { hangul: "거제도", romanized: "Geojedo" },
       ]),
@@ -2374,13 +2364,13 @@ describe("learner-safe display transcript at the upload boundary", () => {
   });
 
   it("fails closed when interpretation metadata is missing for a Hangul transcript", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
     // A deterministic decision made before any evaluator ran carries no
     // classifications, so the learner surface must show nothing at all.
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I like 바닐라.", [
         { hangul: "바닐라", romanized: "Banilla" },
       ]),
@@ -2398,11 +2388,11 @@ describe("learner-safe display transcript at the upload boundary", () => {
   });
 
   it("gives the repeat turn a learner-safe display while storing the raw repeat", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
-    const result = await uploadAttemptAudioClip(
+    const result = await recordSpeakingTry(
       audioInput({ turnOrder: 2, clipKind: "repeat_attempt", body: "repeat" }),
       {
         transcribeAudioFile: successfulTranscriber("I like 아이스크림.", [
@@ -2431,7 +2421,7 @@ describe("learner-safe display transcript at the upload boundary", () => {
   });
 
   it("leaves all-English uploads on the concurrent scoring fast path", async () => {
-    const { uploadAttemptAudioClip } = await import(
+    const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"
     );
 
@@ -2460,7 +2450,7 @@ describe("learner-safe display transcript at the upload boundary", () => {
       return successfulOriginalEvaluator()();
     });
 
-    const result = await uploadAttemptAudioClip(audioInput(), {
+    const result = await recordSpeakingTry(audioInput(), {
       transcribeAudioFile: successfulTranscriber("I like apples."),
       evaluateOriginalTurn,
       scorePronunciation,

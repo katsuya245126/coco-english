@@ -11,7 +11,10 @@
  */
 
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
-import { requireOwnedAssignmentStudent } from "@/server/student-access/owned-assignment";
+import {
+  requireOwnedAssignmentStudent,
+  withOwnedInProgressAttempt,
+} from "@/server/student-access/owned-assignment";
 import type { Json } from "@/lib/db/types";
 import { assertTransitionRequest } from "@/domain/foundation/status";
 import { buildPlaceholderEvaluation } from "@/domain/flow/evaluation";
@@ -66,21 +69,10 @@ export type RecordCocoLineResult =
 
 // ─── Helpers ───
 
-async function loadOwnedAttempt(
-  supabase: ReturnType<typeof createSupabaseServiceClient>,
-  assignmentStudentId: string,
-  attemptId: string,
-) {
-  const { data, error } = await supabase
-    .from("attempts")
-    .select("id, assignment_student_id, status")
-    .eq("id", attemptId)
-    .eq("assignment_student_id", assignmentStudentId)
-    .maybeSingle();
-
-  if (error) return { ok: false as const, error: "db_error" as const };
-  if (!data) return { ok: false as const, error: "not_found" as const };
-  return { ok: true as const, attempt: data };
+function mapAttemptGuardError(
+  error: "not_found_or_canceled" | "db_error",
+): "not_found" | "db_error" {
+  return error === "db_error" ? "db_error" : "not_found";
 }
 
 // ─── Service functions ───
@@ -126,33 +118,27 @@ export async function flagAttemptForTeacherReview(input: {
 }): Promise<RouteTeacherReviewResult> {
   try {
     const supabase = createSupabaseServiceClient();
-    const ownedProof1 = await requireOwnedAssignmentStudent({
-      studentId: input.studentId,
-      assignmentStudentId: input.assignmentStudentId,
+    const result = await withOwnedInProgressAttempt(input, async (owned) => {
+      if (owned.status !== "started") {
+        return { ok: false, error: "not_found" } as const;
+      }
+
+      const { error } = await supabase
+        .from("attempts")
+        .update({ needs_review_reason: input.reviewReason })
+        .eq("id", input.attemptId)
+        .eq("assignment_student_id", input.assignmentStudentId)
+        .eq("status", "in_progress");
+
+      return error
+        ? ({ ok: false, error: "db_error" } as const)
+        : ({ ok: true } as const);
     });
-    const asRow = ownedProof1.ok ? ownedProof1.owned : null;
-    if (!asRow || asRow.status !== "started") {
-      return { ok: false, error: "not_found" };
+
+    if (!result.ok) {
+      return { ok: false, error: mapAttemptGuardError(result.error) };
     }
-
-    const attempt = await loadOwnedAttempt(
-      supabase,
-      input.assignmentStudentId,
-      input.attemptId,
-    );
-    if (!attempt.ok) return attempt;
-    if (attempt.attempt.status !== "in_progress") {
-      return { ok: false, error: "not_found" };
-    }
-
-    const { error } = await supabase
-      .from("attempts")
-      .update({ needs_review_reason: input.reviewReason })
-      .eq("id", input.attemptId)
-      .eq("assignment_student_id", input.assignmentStudentId)
-      .eq("status", "in_progress");
-
-    return error ? { ok: false, error: "db_error" } : { ok: true };
+    return result.value;
   } catch {
     return { ok: false, error: "db_error" };
   }
@@ -346,41 +332,30 @@ export async function recordAnswer(input: {
 
   try {
     const supabase = createSupabaseServiceClient();
+    const result = await withOwnedInProgressAttempt(input, async () => {
+      // Upsert on (attempt_id, turn_order) — Pitfall 2 idempotency
+      const { error } = await supabase
+        .from("attempt_turns")
+        .upsert(
+          {
+            attempt_id: input.attemptId,
+            turn_order: input.turnOrder,
+            original_transcript: trimmed,
+            target_attempted: true,
+            evaluation: buildPlaceholderEvaluation(),
+          },
+          { onConflict: "attempt_id,turn_order" },
+        );
 
-    // Verify ownership
-    const ownedProof4 = await requireOwnedAssignmentStudent({
-      studentId: input.studentId,
-      assignmentStudentId: input.assignmentStudentId,
+      return error
+        ? ({ ok: false, error: "db_error" } as const)
+        : ({ ok: true } as const);
     });
-    const asRow = ownedProof4.ok ? ownedProof4.owned : null;
-    if (!asRow) return { ok: false, error: "not_found" };
 
-    const attempt = await loadOwnedAttempt(
-      supabase,
-      input.assignmentStudentId,
-      input.attemptId,
-    );
-    if (!attempt.ok) return attempt;
-    if (attempt.attempt.status !== "in_progress") {
-      return { ok: false, error: "not_found" };
+    if (!result.ok) {
+      return { ok: false, error: mapAttemptGuardError(result.error) };
     }
-
-    // Upsert on (attempt_id, turn_order) — Pitfall 2 idempotency
-    const { error } = await supabase
-      .from("attempt_turns")
-      .upsert(
-        {
-          attempt_id: input.attemptId,
-          turn_order: input.turnOrder,
-          original_transcript: trimmed,
-          target_attempted: true,
-          evaluation: buildPlaceholderEvaluation(),
-        },
-        { onConflict: "attempt_id,turn_order" },
-      );
-
-    if (error) return { ok: false, error: "db_error" };
-    return { ok: true };
+    return result.value;
   } catch {
     return { ok: false, error: "db_error" };
   }
@@ -392,8 +367,8 @@ export async function recordAnswer(input: {
  *
  * Upserts on (attempt_id, turn_order) — same idempotency shape as
  * recordAnswer, so a second call for the same turn_order overwrites rather
- * than duplicates. Enforces ownership via requireOwnedAssignmentStudent +
- * loadOwnedAttempt before writing (V4) — never trusts a client-supplied
+ * than duplicates. Enforces ownership via withOwnedInProgressAttempt around
+ * the write (V4) — never trusts a client-supplied
  * turn number. Generation/moderation calls themselves live in the
  * orchestration layer (audio-upload.ts); this function is persistence-only,
  * preserving the "imports NO AI client" boundary above.
@@ -409,41 +384,30 @@ export async function recordCocoLine(input: {
 }): Promise<RecordCocoLineResult> {
   try {
     const supabase = createSupabaseServiceClient();
+    const result = await withOwnedInProgressAttempt(input, async () => {
+      // Upsert on (attempt_id, turn_order) — idempotent, mirrors recordAnswer
+      const { error } = await supabase
+        .from("attempt_turns")
+        .upsert(
+          {
+            attempt_id: input.attemptId,
+            turn_order: input.turnOrder,
+            coco_line: input.cocoLine,
+            moderation_event: (input.moderationEvent ?? null) as Json,
+            ...(input.evaluation === undefined ? {} : { evaluation: input.evaluation }),
+          },
+          { onConflict: "attempt_id,turn_order" },
+        );
 
-    // Verify ownership
-    const ownedProof5 = await requireOwnedAssignmentStudent({
-      studentId: input.studentId,
-      assignmentStudentId: input.assignmentStudentId,
+      return error
+        ? ({ ok: false, error: "db_error" } as const)
+        : ({ ok: true } as const);
     });
-    const asRow = ownedProof5.ok ? ownedProof5.owned : null;
-    if (!asRow) return { ok: false, error: "not_found" };
 
-    const attempt = await loadOwnedAttempt(
-      supabase,
-      input.assignmentStudentId,
-      input.attemptId,
-    );
-    if (!attempt.ok) return attempt;
-    if (attempt.attempt.status !== "in_progress") {
-      return { ok: false, error: "not_found" };
+    if (!result.ok) {
+      return { ok: false, error: mapAttemptGuardError(result.error) };
     }
-
-    // Upsert on (attempt_id, turn_order) — idempotent, mirrors recordAnswer
-    const { error } = await supabase
-      .from("attempt_turns")
-      .upsert(
-        {
-          attempt_id: input.attemptId,
-          turn_order: input.turnOrder,
-          coco_line: input.cocoLine,
-          moderation_event: (input.moderationEvent ?? null) as Json,
-          ...(input.evaluation === undefined ? {} : { evaluation: input.evaluation }),
-        },
-        { onConflict: "attempt_id,turn_order" },
-      );
-
-    if (error) return { ok: false, error: "db_error" };
-    return { ok: true };
+    return result.value;
   } catch {
     return { ok: false, error: "db_error" };
   }
@@ -470,40 +434,28 @@ export async function recordRepeat(input: {
 
   try {
     const supabase = createSupabaseServiceClient();
+    const result = await withOwnedInProgressAttempt(input, async () => {
+      // UPDATE existing turn row (never insert a new one)
+      const { data, error } = await supabase
+        .from("attempt_turns")
+        .update({
+          repeat_transcript: trimmed,
+          repeat_accepted: true,
+        })
+        .eq("attempt_id", input.attemptId)
+        .eq("turn_order", input.turnOrder)
+        .select("id")
+        .maybeSingle();
 
-    // Verify ownership
-    const ownedProof6 = await requireOwnedAssignmentStudent({
-      studentId: input.studentId,
-      assignmentStudentId: input.assignmentStudentId,
+      if (error) return { ok: false, error: "db_error" } as const;
+      if (!data) return { ok: false, error: "no_turn_row" } as const;
+      return { ok: true } as const;
     });
-    const asRow = ownedProof6.ok ? ownedProof6.owned : null;
-    if (!asRow) return { ok: false, error: "not_found" };
 
-    const attempt = await loadOwnedAttempt(
-      supabase,
-      input.assignmentStudentId,
-      input.attemptId,
-    );
-    if (!attempt.ok) return attempt;
-    if (attempt.attempt.status !== "in_progress") {
-      return { ok: false, error: "not_found" };
+    if (!result.ok) {
+      return { ok: false, error: mapAttemptGuardError(result.error) };
     }
-
-    // UPDATE existing turn row (never insert a new one)
-    const { data, error } = await supabase
-      .from("attempt_turns")
-      .update({
-        repeat_transcript: trimmed,
-        repeat_accepted: true,
-      })
-      .eq("attempt_id", input.attemptId)
-      .eq("turn_order", input.turnOrder)
-      .select("id")
-      .maybeSingle();
-
-    if (error) return { ok: false, error: "db_error" };
-    if (!data) return { ok: false, error: "no_turn_row" };
-    return { ok: true };
+    return result.value;
   } catch {
     return { ok: false, error: "db_error" };
   }
@@ -533,55 +485,42 @@ export async function recordHintReveal(input: {
 
   try {
     const supabase = createSupabaseServiceClient();
+    const result = await withOwnedInProgressAttempt(input, async (owned) => {
+      // UPDATE turn: hint_level_used = GREATEST(hint_level_used, hintLevel)
+      // Supabase JS client doesn't support SQL GREATEST in update, so we
+      // read-then-write with GREATEST semantics via Math.max in app code.
+      const { data: turn, error: turnErr } = await supabase
+        .from("attempt_turns")
+        .select("id, hint_level_used")
+        .eq("attempt_id", input.attemptId)
+        .eq("turn_order", input.turnOrder)
+        .maybeSingle();
 
-    // Verify ownership
-    const ownedProof7 = await requireOwnedAssignmentStudent({
-      studentId: input.studentId,
-      assignmentStudentId: input.assignmentStudentId,
+      if (turnErr) return { ok: false, error: "db_error" } as const;
+      if (!turn) return { ok: false, error: "no_turn_row" } as const;
+
+      const newHintLevel = Math.max(turn.hint_level_used ?? 0, input.hintLevel);
+      const { error: updateErr } = await supabase
+        .from("attempt_turns")
+        .update({ hint_level_used: newHintLevel })
+        .eq("id", turn.id);
+
+      if (updateErr) return { ok: false, error: "db_error" } as const;
+
+      // Roll up assignment_students.highest_hint_level = GREATEST(highest_hint_level, hintLevel)
+      const newHighest = Math.max(owned.highestHintLevel ?? 0, input.hintLevel);
+      await supabase
+        .from("assignment_students")
+        .update({ highest_hint_level: newHighest })
+        .eq("id", input.assignmentStudentId);
+
+      return { ok: true } as const;
     });
-    const asRow = ownedProof7.ok ? ownedProof7.owned : null;
-    if (!asRow) return { ok: false, error: "not_found" };
 
-    const attempt = await loadOwnedAttempt(
-      supabase,
-      input.assignmentStudentId,
-      input.attemptId,
-    );
-    if (!attempt.ok) return attempt;
-    if (attempt.attempt.status !== "in_progress") {
-      return { ok: false, error: "not_found" };
+    if (!result.ok) {
+      return { ok: false, error: mapAttemptGuardError(result.error) };
     }
-
-    // UPDATE turn: hint_level_used = GREATEST(hint_level_used, hintLevel)
-    // Supabase JS client doesn't support SQL GREATEST in update, so we
-    // read-then-write with GREATEST semantics via Math.max in app code.
-    const { data: turn, error: turnErr } = await supabase
-      .from("attempt_turns")
-      .select("id, hint_level_used")
-      .eq("attempt_id", input.attemptId)
-      .eq("turn_order", input.turnOrder)
-      .maybeSingle();
-
-    if (turnErr) return { ok: false, error: "db_error" };
-    if (!turn) return { ok: false, error: "no_turn_row" };
-
-    const newHintLevel = Math.max(turn.hint_level_used ?? 0, input.hintLevel);
-
-    const { error: updateErr } = await supabase
-      .from("attempt_turns")
-      .update({ hint_level_used: newHintLevel })
-      .eq("id", turn.id);
-
-    if (updateErr) return { ok: false, error: "db_error" };
-
-    // Roll up assignment_students.highest_hint_level = GREATEST(highest_hint_level, hintLevel)
-    const newHighest = Math.max(asRow.highestHintLevel ?? 0, input.hintLevel);
-    await supabase
-      .from("assignment_students")
-      .update({ highest_hint_level: newHighest })
-      .eq("id", input.assignmentStudentId);
-
-    return { ok: true };
+    return result.value;
   } catch {
     return { ok: false, error: "db_error" };
   }
