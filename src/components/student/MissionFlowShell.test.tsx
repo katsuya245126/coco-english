@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MissionFlowShell } from "./MissionFlowShell";
+import { completeMissionAction } from "@/app/student/missions/[assignmentStudentId]/actions";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -179,6 +180,50 @@ describe("MissionFlowShell teacher-review feedback", () => {
     expect(buttonLabels()).not.toContain("Record again");
     expect(uploadBodies).toHaveLength(1);
     expect(uploadBodies[0]?.has("status")).toBe(false);
+  });
+
+  it("completes a final original review before showing review pending", async () => {
+    const completion = vi.mocked(completeMissionAction);
+    const calls: string[] = [];
+    completion.mockImplementationOnce(async () => {
+      calls.push("complete");
+      return { ok: true };
+    });
+
+    await renderMission({
+      original_answer: {
+        displayTranscript: "Maybe.",
+        evaluation: {
+          kind: "original",
+          outcome: "teacher_review",
+          improvedSentence: null,
+        },
+      },
+    });
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="Record answer"]')
+        ?.click();
+      await flush();
+    });
+
+    const continueMission = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Continue mission",
+    );
+    expect(continueMission).not.toBeUndefined();
+
+    await act(async () => {
+      continueMission?.click();
+      await flush();
+    });
+
+    expect(completion).toHaveBeenCalledWith({
+      assignmentStudentId: "assignment-student-1",
+      attemptId: "attempt-1",
+    });
+    expect(calls).toEqual(["complete"]);
+    expect(container.textContent).toContain("Teacher review sent");
   });
 
   it("shows Continue mission without Record again after a repeat review", async () => {
