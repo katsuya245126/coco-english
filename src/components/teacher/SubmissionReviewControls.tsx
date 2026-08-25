@@ -15,13 +15,17 @@ export function SubmissionReviewControls({
   attemptId,
   assignedHomeworkId,
   assignmentStudentStatus,
-  className,
+  classId,
+  assignmentId,
+  reviewReason,
   dismissed,
 }: {
   attemptId: string;
   assignedHomeworkId: string;
   assignmentStudentStatus: string;
-  className: string;
+  classId: string;
+  assignmentId: string;
+  reviewReason: string | null;
   dismissed: boolean;
 }) {
   const router = useRouter();
@@ -30,20 +34,21 @@ export function SubmissionReviewControls({
   const [error, setError] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  const isIncomplete = INCOMPLETE_STATUSES.includes(assignmentStudentStatus);
-  const incompleteHref = `/teacher/incomplete?class=${encodeURIComponent(className)}`;
+  const isTeacherReview = reviewReason != null;
+  const isIncomplete = !isTeacherReview && INCOMPLETE_STATUSES.includes(assignmentStudentStatus);
+  const reviewHref = `/teacher/classes/${classId}/review/${assignmentId}`;
 
   const markReviewed = () => startTransition(async () => {
     setError(false);
     const result = await markSubmissionReviewedAction(attemptId);
-    if (result.ok) router.push(`/teacher?reviewed=${attemptId}`);
+    if (result.ok) router.push(reviewHref);
     else setError(true);
   });
   const markDone = () => startTransition(async () => {
     setError(false);
     try {
       const result = await changeAssignedHomeworkAction({ assignedHomeworkId, action: "dismiss" });
-      if (result.ok) router.push(incompleteHref);
+      if (result.ok) router.push(reviewHref);
       else setError(true);
     } catch {
       setError(true);

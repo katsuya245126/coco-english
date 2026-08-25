@@ -280,7 +280,6 @@ describe("SubmissionReviewControls source", () => {
     expect(src).toContain("Removes this from your incomplete list. You can undo this.");
     expect(src).toContain("Mark reviewed");
     expect(src).toContain("changeAssignedHomeworkAction");
-    expect(src).toContain("/teacher/incomplete?class=");
   });
 
   it("shows the submission error when Mark as done rejects", () => {

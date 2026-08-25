@@ -22,7 +22,19 @@ vi.mock("@/components/teacher/AudioClipPlayer", () => ({
   ),
 }));
 vi.mock("@/components/teacher/SubmissionReviewControls", () => ({
-  SubmissionReviewControls: () => <div>submission controls</div>,
+  SubmissionReviewControls: (props: {
+    classId: string;
+    assignmentId: string;
+    reviewReason: string | null;
+  }) => (
+    <div
+      data-class-id={props.classId}
+      data-assignment-id={props.assignmentId}
+      data-review-reason={props.reviewReason ?? ""}
+    >
+      submission controls
+    </div>
+  ),
 }));
 vi.mock("@/components/teacher/PronunciationDiagnosticPanel", () => ({
   PronunciationDiagnosticPanel: () => null,
@@ -111,5 +123,17 @@ describe("AttemptEvidencePage", () => {
     expect(html).not.toContain("Expected target pattern");
     expect(html).not.toContain("Target pattern result");
     expect(html).not.toContain("I like ___");
+  });
+
+  it("passes flagged attempt state and assignment destination to the controls", async () => {
+    const html = await renderEvidence({
+      ...presetEvidence,
+      assignmentStudentStatus: "started",
+      reviewReason: "failed_schema",
+    });
+
+    expect(html).toContain('data-class-id="class-1"');
+    expect(html).toContain('data-assignment-id="assignment-1"');
+    expect(html).toContain('data-review-reason="failed_schema"');
   });
 });
