@@ -212,6 +212,7 @@ function createMockSupabase(options: {
   attemptStatus?: Database["public"]["Enums"]["attempt_status"];
   uploadError?: Error | null;
   turnWriteError?: Error | null;
+  pronunciationScoreError?: Error | null;
   missionSnapshot?: unknown;
   turnEvaluation?: unknown;
 } = {}) {
@@ -315,12 +316,190 @@ function createMockSupabase(options: {
     return query;
   }
 
+  const rpc = vi.fn(async (_name: string, args: {
+    p_operation: string;
+    p_payload: Record<string, unknown>;
+  }) => {
+    const payload = args.p_payload;
+    const operationByName: Record<string, Operation> = {
+      load_conversation_turns: {
+        table: "attempt_turns",
+        action: "select",
+        filters: [["attempt_id", "attempt-1"], ["turn_order<", payload.turn_order]],
+      },
+      initialize_turn: {
+        table: "attempt_turns",
+        action: "upsert",
+        filters: [],
+        payload: { attempt_id: "attempt-1", turn_order: payload.turn_order },
+      },
+      insert_audio_clip: {
+        table: "audio_clips",
+        action: "insert",
+        filters: [],
+        payload: {
+          attempt_turn_id: payload.attempt_turn_id,
+          clip_kind: payload.clip_kind,
+          processing_status: "pending_upload",
+        },
+      },
+      update_clip: {
+        table: "audio_clips",
+        action: "update",
+        filters: [["id", payload.audio_clip_id], ["attempt_turn_id", payload.attempt_turn_id]],
+        payload: {
+          ...(payload.object_key ? { object_key: payload.object_key } : {}),
+          mime_type: payload.mime_type,
+          duration_ms: payload.duration_ms,
+          byte_size: payload.byte_size,
+          processing_status: payload.processing_status,
+        },
+      },
+      write_guard_evaluation: {
+        table: "attempt_turns",
+        action: "upsert",
+        filters: [],
+        payload: {
+          original_transcript: payload.transcript,
+          turn_order: payload.turn_order,
+          target_attempted: false,
+          improved_sentence: null,
+          evaluation: payload.evaluation,
+          reply_hint_frame: payload.reply_hint_frame,
+        },
+      },
+      write_original_turn: {
+        table: "attempt_turns",
+        action: "upsert",
+        filters: [],
+        payload: {
+          original_transcript: payload.transcript,
+          turn_order: payload.turn_order,
+          target_attempted: payload.target_attempted,
+          improved_sentence: payload.improved_sentence,
+          ...(payload.evaluation !== undefined
+            ? { evaluation: payload.evaluation }
+            : {}),
+          reply_hint_frame: payload.reply_hint_frame,
+        },
+      },
+      write_repeat_turn: {
+        table: "attempt_turns",
+        action: "update",
+        filters: [["id", payload.turn_id], ["attempt_id", "attempt-1"]],
+        payload: {
+          repeat_transcript: payload.transcript,
+          repeat_accepted: payload.repeat_accepted,
+          evaluation: payload.evaluation,
+        },
+      },
+      route_teacher_review: {
+        table: "attempts",
+        action: "update",
+        filters: [["id", "attempt-1"], ["assignment_student_id", "as-1"], ["status", "in_progress"]],
+        payload: { needs_review_reason: payload.review_reason },
+      },
+      record_coco_line: {
+        table: "attempt_turns",
+        action: "upsert",
+        filters: [],
+        payload: {
+          turn_order: payload.turn_order,
+          coco_line: payload.coco_line,
+          moderation_event: payload.moderation_event,
+          ...(payload.evaluation !== undefined
+            ? { evaluation: payload.evaluation }
+            : {}),
+        },
+      },
+      count_transcribed_repeat_clips: {
+        table: "audio_clips",
+        action: "select",
+        filters: [["attempt_turn_id", payload.attempt_turn_id], ["clip_kind", "repeat_attempt"], ["processing_status", "transcribed"]],
+      },
+      write_pronunciation_score: {
+        table: "pronunciation_scores",
+        action: "upsert",
+        filters: [],
+        payload: {
+          audio_clip_id: payload.audio_clip_id,
+          provider: "azure_speech",
+          reference_text: payload.reference_text,
+          accuracy_score: payload.accuracy_score,
+          fluency_score: payload.fluency_score,
+          completeness_score: payload.completeness_score,
+          pronunciation_score: payload.pronunciation_score,
+          star_band: payload.star_band,
+          word_scores: payload.word_scores,
+        },
+      },
+    };
+    const operation = operationByName[args.p_operation];
+    if (operation) operations.push(operation);
+
+    if (args.p_operation === "initialize_turn") {
+      return {
+        data: {
+          ok: true,
+          value: {
+            id: "turn-1",
+            original_transcript: null,
+            improved_sentence: null,
+            evaluation: options.turnEvaluation ?? null,
+            coco_line: null,
+          },
+        },
+        error: null,
+      };
+    }
+    if (args.p_operation === "insert_audio_clip") {
+      return { data: { ok: true, value: { id: "clip-1" } }, error: null };
+    }
+    if (args.p_operation === "authorize_storage_upload") {
+      return {
+        data: {
+          ok: true,
+          value: {
+            object_key: `as-1/attempt-1/${payload.turn_order}/${payload.clip_kind}-${payload.audio_clip_id}.webm`,
+          },
+        },
+        error: null,
+      };
+    }
+    if (args.p_operation === "count_transcribed_repeat_clips") {
+      return {
+        data: { ok: true, value: { count: 0 } },
+        error: null,
+      };
+    }
+    if (
+      args.p_operation === "write_original_turn" &&
+      options.turnWriteError
+    ) {
+      return {
+        data: { ok: true, value: { error: options.turnWriteError } },
+        error: null,
+      };
+    }
+    if (
+      args.p_operation === "write_pronunciation_score" &&
+      options.pronunciationScoreError
+    ) {
+      return {
+        data: null,
+        error: options.pronunciationScoreError,
+      };
+    }
+    return { data: { ok: true, value: { error: null } }, error: null };
+  });
+
   return {
     operations,
     storage: {
       from: vi.fn(() => ({ upload })),
     },
     upload,
+    rpc,
     from: vi.fn((table: string) => createQuery(table)),
   };
 }
@@ -1939,21 +2118,9 @@ describe("recordSpeakingTry", () => {
   });
 
   it("does not fail the upload when the pronunciation_scores DB write fails", async () => {
-    mockSupabase = createMockSupabase();
-    const originalFrom = mockSupabase.from;
-    mockSupabase.from = vi.fn((table: string) => {
-      const query = originalFrom(table);
-      if (table === "pronunciation_scores") {
-        return {
-          ...query,
-          upsert: vi.fn((payload: unknown) => {
-            void payload;
-            return { error: new Error("db down") };
-          }),
-        };
-      }
-      return query;
-    }) as typeof mockSupabase.from;
+    mockSupabase = createMockSupabase({
+      pronunciationScoreError: new Error("db down"),
+    });
 
     const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"

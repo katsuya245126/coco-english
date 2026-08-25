@@ -416,6 +416,16 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      owned_speaking_try_operation: {
+        Args: {
+          p_student_id: string;
+          p_assignment_student_id: string;
+          p_attempt_id: string;
+          p_operation: string;
+          p_payload?: Json;
+        };
+        Returns: Json;
+      };
       assign_mission_to_class: {
         Args: {
           p_class_id: string;
