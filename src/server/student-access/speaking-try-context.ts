@@ -151,30 +151,6 @@ function asRpcResponse(value: unknown): RpcResponse | null {
   return value as RpcResponse;
 }
 
-function extensionForMimeType(mimeType: string) {
-  const normalized = mimeType.toLowerCase().split(";")[0]?.trim();
-  if (normalized === "audio/mp4" || normalized === "audio/m4a") return "m4a";
-  if (normalized === "audio/mpeg") return "mp3";
-  if (normalized === "audio/wav" || normalized === "audio/wave") return "wav";
-  return "webm";
-}
-
-function buildOwnedObjectKey(input: {
-  assignmentStudentId: string;
-  attemptId: string;
-  turnOrder: number;
-  clipKind: Database["public"]["Enums"]["audio_clip_kind"];
-  audioClipId: string;
-  mimeType: string;
-}) {
-  return [
-    input.assignmentStudentId,
-    input.attemptId,
-    String(input.turnOrder),
-    `${input.clipKind}-${input.audioClipId}.${extensionForMimeType(input.mimeType)}`,
-  ].join("/");
-}
-
 export function createOwnedSpeakingTryContext(
   input: OwnedSpeakingTryContextInput,
 ): OwnedSpeakingTryContext {
@@ -278,19 +254,10 @@ export function createOwnedSpeakingTryContext(
         return { ok: false as const, error: "not_found" as const };
       }
 
-      // The caller cannot supply the object key. It is derived from the
-      // immutable owned context IDs, then checked by the RPC against the
-      // child rows before Storage is touched. Storage has no transactional
-      // join to Postgres, so the upload is the unavoidable boundary after the
-      // operation-time authorization call.
-      const objectKey = buildOwnedObjectKey({
-        assignmentStudentId: input.assignmentStudentId,
-        attemptId: input.attemptId,
-        turnOrder: uploadInput.turnOrder,
-        clipKind: uploadInput.clipKind,
-        audioClipId: uploadInput.audioClipId,
-        mimeType: uploadInput.mimeType,
-      });
+      // The caller cannot supply the object key. The owned RPC derives it from
+      // immutable IDs, validates the child rows, and returns it before Storage
+      // is touched. Storage has no transactional join to Postgres, so the
+      // upload is the unavoidable boundary after operation-time authorization.
       const authorization = await operation<{ object_key: string }>(
         "authorize_storage_upload",
         {
@@ -299,12 +266,12 @@ export function createOwnedSpeakingTryContext(
           turn_order: uploadInput.turnOrder,
           clip_kind: uploadInput.clipKind,
           mime_type: uploadInput.mimeType,
-          object_key: objectKey,
         },
       );
       if (!authorization.ok) return authorization;
-      if (authorization.value.object_key !== objectKey) {
-        return { ok: false, error: "not_found" };
+      const objectKey = authorization.value?.object_key;
+      if (typeof objectKey !== "string" || !objectKey) {
+        return { ok: false, error: "db_error" };
       }
 
       try {

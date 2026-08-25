@@ -457,7 +457,12 @@ function createMockSupabase(options: {
     }
     if (args.p_operation === "authorize_storage_upload") {
       return {
-        data: { ok: true, value: { object_key: payload.object_key } },
+        data: {
+          ok: true,
+          value: {
+            object_key: `as-1/attempt-1/${payload.turn_order}/${payload.clip_kind}-${payload.audio_clip_id}.webm`,
+          },
+        },
         error: null,
       };
     }

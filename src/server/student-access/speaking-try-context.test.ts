@@ -99,7 +99,9 @@ describe("owned speaking-try context", () => {
         case "insert_audio_clip":
           return rpcSuccess({ id: "clip-1" });
         case "authorize_storage_upload":
-          return rpcSuccess({ object_key: payload.object_key });
+          return rpcSuccess({
+            object_key: `as-1/attempt-1/${payload.turn_order}/${payload.clip_kind}-${payload.audio_clip_id}.webm`,
+          });
         case "count_transcribed_repeat_clips":
           return rpcSuccess({ count: 0 });
         case "load_conversation_turns":
@@ -212,12 +214,14 @@ describe("owned speaking-try context", () => {
       expect.objectContaining({
         p_operation: "authorize_storage_upload",
         p_payload: expect.objectContaining({
-          object_key: "as-1/attempt-1/1/original_answer-clip-1.webm",
           audio_clip_id: "clip-1",
           attempt_turn_id: "turn-1",
         }),
       }),
     );
+    expect(
+      (rpc.mock.calls.at(-1)?.[1] as RpcArguments).p_payload,
+    ).not.toHaveProperty("object_key");
     expect(upload).toHaveBeenCalledOnce();
     expect(upload).toHaveBeenCalledWith(
       "as-1/attempt-1/1/original_answer-clip-1.webm",

@@ -26,7 +26,6 @@ declare
   v_audio_clip_id uuid;
   v_value jsonb;
   v_count bigint;
-  v_object_key text;
   v_expected_object_key text;
   v_extension text;
   v_clip_kind audio_clip_kind;
@@ -109,8 +108,8 @@ begin
       v_attempt_turn_id := (p_payload->>'attempt_turn_id')::uuid;
       v_audio_clip_id := (p_payload->>'audio_clip_id')::uuid;
 
-      select ac.id
-        into v_audio_clip_id
+      select ac.id, ac.clip_kind, t.turn_order
+        into v_audio_clip_id, v_clip_kind, v_turn_order
         from audio_clips ac
         join attempt_turns t on t.id = ac.attempt_turn_id
        where ac.id = v_audio_clip_id
@@ -135,18 +134,14 @@ begin
         '/',
         p_attempt_id::text,
         '/',
-        (p_payload->>'turn_order'),
+        v_turn_order::text,
         '/',
-        (p_payload->>'clip_kind'),
+        v_clip_kind::text,
         '-',
         v_audio_clip_id::text,
         '.',
         v_extension
       );
-      v_object_key := p_payload->>'object_key';
-      if v_object_key is distinct from v_expected_object_key then
-        return jsonb_build_object('ok', false, 'error', 'not_found');
-      end if;
       v_value := jsonb_build_object('object_key', v_expected_object_key);
 
     when 'update_clip' then
@@ -385,8 +380,8 @@ exception
 end;
 $$;
 
-revoke all on function public.owned_speaking_try_operation(uuid, uuid, uuid, text, jsonb)
-from public;
+revoke execute on function public.owned_speaking_try_operation(uuid, uuid, uuid, text, jsonb)
+from public, anon, authenticated;
 grant execute on function public.owned_speaking_try_operation(uuid, uuid, uuid, text, jsonb)
 to service_role;
 
