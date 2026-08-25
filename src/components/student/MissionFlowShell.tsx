@@ -807,8 +807,22 @@ export function MissionFlowShell({
   // through continueAcceptedConversationTurn (see handleSubmitOriginalVoice
   // and handleSubmitRepeatVoice) and never reach this handler.
   async function finishTeacherReviewFeedback() {
+    const aid = await ensureAttempt();
+    if (!aid) {
+      throw new Error("attempt_start_failed");
+    }
+
     const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
     if (isFinalTurn) {
+      const result = await completeMissionAction({
+        assignmentStudentId,
+        attemptId: aid,
+      });
+      if (!result.ok) {
+        setActionError("Something went wrong. Try again, or ask your teacher for help.");
+        throw new Error("mission_complete_failed");
+      }
+
       setFlow((prev) => ({ ...prev, step: "reviewPending" }));
       return;
     }
