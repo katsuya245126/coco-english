@@ -76,13 +76,30 @@ async function clickButton(label: string) {
 describe("SubmissionReviewControls action routing", () => {
   it("accepts a flagged started attempt through review completion", async () => {
     await renderControls("failed_schema");
-    await clickButton("Mark reviewed");
+    await clickButton("Mark as done");
 
     expect(mocks.markSubmissionReviewedAction).toHaveBeenCalledWith("attempt-1");
     expect(mocks.changeAssignedHomeworkAction).not.toHaveBeenCalled();
     expect(mocks.push).toHaveBeenCalledWith(
       "/teacher/classes/class-1/review/assignment-1",
     );
+  });
+
+  it("explains missing answers and retry when flagged completion is rejected", async () => {
+    mocks.markSubmissionReviewedAction.mockResolvedValueOnce({
+      ok: false,
+      error: "not_allowed",
+    });
+    await renderControls("failed_schema");
+    await clickButton("Mark as done");
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "required answers may be missing",
+    );
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Request retry is available",
+    );
+    expect(mocks.push).not.toHaveBeenCalled();
   });
 
   it("dismisses a genuine started incomplete attempt", async () => {

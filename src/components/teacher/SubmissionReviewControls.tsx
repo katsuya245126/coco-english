@@ -94,11 +94,11 @@ export function SubmissionReviewControls({
       </>
     ) : (
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <HoverButton type="button" disabled={pending} onClick={markReviewed} style={primaryButtonStyle} hoverStyle={primaryHover}>Mark reviewed</HoverButton>
+        <HoverButton type="button" disabled={pending} onClick={markReviewed} style={primaryButtonStyle} hoverStyle={primaryHover}>Mark as done</HoverButton>
         <HoverButton type="button" disabled={pending} onClick={() => dialog.current?.showModal()} style={secondaryButtonStyle} hoverStyle={secondaryHover}>Request retry</HoverButton>
       </div>
     )}
-    {error && <p role="alert" style={errorStyle}>Could not update this submission. Please try again.</p>}
+    {error && <p role="alert" style={errorStyle}>{isTeacherReview ? "Could not mark this submission as done. One or more required answers may be missing. Request retry is available." : "Could not update this submission. Please try again."}</p>}
     <dialog ref={dialog} aria-labelledby="retry-heading" style={dialogStyle}>
       <h2 id="retry-heading" style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 600 }}>Request retry?</h2>
       <p style={{ margin: "0 0 16px", fontSize: 14, color: "#4B5563", lineHeight: 1.5 }}>The student can start a new attempt. This evidence stays available.</p>
