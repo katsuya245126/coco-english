@@ -1,100 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Database } from "@/lib/db/types";
+import type { Database, Json } from "@/lib/db/types";
 import {
   createOwnedSpeakingTryContext,
   type OwnedSpeakingTryContextInput,
 } from "@/server/student-access/speaking-try-context";
 
-type Operation = {
-  table: string;
-  action: "select" | "insert" | "update" | "upsert";
-  filters: Array<[string, unknown]>;
-  payload?: unknown;
+type RpcArguments = {
+  p_student_id: string;
+  p_assignment_student_id: string;
+  p_attempt_id: string;
+  p_operation: string;
+  p_payload: Record<string, Json>;
 };
 
 let attemptStatuses: Array<Database["public"]["Enums"]["attempt_status"]>;
 let attemptLookupCount: number;
-let operations: Operation[];
 let upload: ReturnType<typeof vi.fn>;
+let rpc: ReturnType<typeof vi.fn>;
 
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServiceClient: () => ({
-    from: (table: string) => {
-      const operation: Operation = { table, action: "select", filters: [] };
-      operations.push(operation);
-      const query: Record<string, unknown> & PromiseLike<{ error: unknown }> = {
-        select: vi.fn(() => query),
-        eq: vi.fn((column: string, value: unknown) => {
-          operation.filters.push([column, value]);
-          return query;
-        }),
-        lt: vi.fn((column: string, value: unknown) => {
-          operation.filters.push([`${column}<`, value]);
-          return query;
-        }),
-        order: vi.fn(async () => ({ data: [], error: null })),
-        insert: vi.fn((payload: unknown) => {
-          operation.action = "insert";
-          operation.payload = payload;
-          return query;
-        }),
-        update: vi.fn((payload: unknown) => {
-          operation.action = "update";
-          operation.payload = payload;
-          return query;
-        }),
-        upsert: vi.fn((payload: unknown) => {
-          operation.action = "upsert";
-          operation.payload = payload;
-          return query;
-        }),
-        maybeSingle: vi.fn(async () => {
-          if (table === "assignment_students") {
-            return {
-              data: {
-                id: "as-1",
-                student_id: "student-1",
-                status: "started",
-                assignments: { canceled_at: null },
-              },
-              error: null,
-            };
-          }
-          const status =
-            attemptStatuses[attemptLookupCount++] ?? "in_progress";
-          return {
-            data:
-              status === "in_progress"
-                ? {
-                    id: "attempt-1",
-                    assignment_student_id: "as-1",
-                    status,
-                  }
-                : null,
-            error: null,
-          };
-        }),
-        single: vi.fn(async () => ({
-          data: table === "attempt_turns" ? { id: "turn-1" } : { id: "clip-1" },
-          error: null,
-        })),
-        then: (<TResult1, TResult2 = never>(
-          onFulfilled?:
-            | ((value: { error: unknown; count?: number }) => TResult1 | PromiseLike<TResult1>)
-            | null,
-          onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
-        ) =>
-          Promise.resolve(
-            table === "audio_clips"
-              ? { count: 0, error: null }
-              : { error: null },
-          ).then(onFulfilled ?? undefined, onRejected ?? undefined)) as PromiseLike<{
-          error: unknown;
-          count?: number;
-        }>["then"],
-      };
-      return query;
-    },
+    rpc,
     storage: {
       from: vi.fn(() => ({ upload })),
     },
@@ -132,81 +58,186 @@ const input: OwnedSpeakingTryContextInput = {
   snapshot,
 };
 
+function rpcSuccess(value: unknown) {
+  return { data: { ok: true, value }, error: null };
+}
+
 describe("owned speaking-try context", () => {
   beforeEach(() => {
     attemptStatuses = [];
     attemptLookupCount = 0;
-    operations = [];
     upload = vi.fn(async () => ({ error: null }));
+    rpc = vi.fn(async (_name: string, args: RpcArguments) => {
+      const status =
+        attemptStatuses[attemptLookupCount++] ?? "in_progress";
+      if (status !== "in_progress") {
+        return { data: { ok: false, error: "not_found" }, error: null };
+      }
+
+      const payload = args.p_payload;
+      if (
+        payload.attempt_turn_id === "foreign-turn" ||
+        payload.turn_id === "foreign-turn" ||
+        payload.audio_clip_id === "foreign-clip" ||
+        (args.p_operation === "update_clip" &&
+          payload.object_key !== undefined &&
+          payload.object_key !==
+            "as-1/attempt-1/1/original_answer-clip-1.webm")
+      ) {
+        return { data: { ok: false, error: "not_found" }, error: null };
+      }
+
+      switch (args.p_operation) {
+        case "initialize_turn":
+          return rpcSuccess({
+            id: "turn-1",
+            original_transcript: null,
+            improved_sentence: null,
+            evaluation: {},
+            coco_line: null,
+          });
+        case "insert_audio_clip":
+          return rpcSuccess({ id: "clip-1" });
+        case "authorize_storage_upload":
+          return rpcSuccess({ object_key: payload.object_key });
+        case "count_transcribed_repeat_clips":
+          return rpcSuccess({ count: 0 });
+        case "load_conversation_turns":
+          return rpcSuccess([]);
+        default:
+          return rpcSuccess({ error: null });
+      }
+    });
   });
 
-  it("re-proves the active attempt before each operation and rejects a status flip", async () => {
+  it("uses one owned RPC per operation and rejects a status flip", async () => {
     attemptStatuses = ["in_progress", "completed"];
     const context = createOwnedSpeakingTryContext(input);
 
-    expect(await context.initializeTurn(1)).toEqual({
+    expect(await context.initializeTurn(1)).toMatchObject({
       ok: true,
       value: { id: "turn-1" },
     });
-
-    const result = await context.loadConversationTurns(2);
-
-    expect(result).toEqual({ ok: false, error: "not_found" });
-    expect(
-      operations.filter(({ table, action }) => table === "attempt_turns" && action === "select"),
-    ).toHaveLength(0);
+    expect(await context.loadConversationTurns(2)).toEqual({
+      ok: false,
+      error: "not_found",
+    });
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(rpc).toHaveBeenNthCalledWith(
+      1,
+      "owned_speaking_try_operation",
+      expect.objectContaining({
+        p_student_id: "student-1",
+        p_assignment_student_id: "as-1",
+        p_attempt_id: "attempt-1",
+        p_operation: "initialize_turn",
+      }),
+    );
   });
 
-  it("guards storage and failed-clip writes independently after admission", async () => {
-    attemptStatuses = ["in_progress", "completed", "completed"];
+  it("rejects foreign child identifiers before reads, writes, or storage", async () => {
     const context = createOwnedSpeakingTryContext(input);
 
-    await context.initializeTurn(1);
-
-    const storage = await context.uploadAudio({
+    const foreignTurn = await context.insertAudioClip({
+      attemptTurnId: "foreign-turn",
+      clipKind: "original_answer",
+    });
+    const foreignClip = await context.markClipFailed({
+      audioClipId: "foreign-clip",
+      attemptTurnId: "turn-1",
+      objectKey: "student-1/attempt-1/1/original_answer-foreign-clip.webm",
+      mimeType: "audio/webm",
+      durationMs: 1200,
+      byteSize: 5,
+    });
+    const foreignScore = await context.writePronunciationScore({
+      audioClipId: "foreign-clip",
+      attemptTurnId: "turn-1",
+      referenceText: "I play soccer.",
+      accuracyScore: 90,
+      fluencyScore: 90,
+      completenessScore: 90,
+      pronunciationScore: 90,
+      starBand: 3,
+      wordScores: [],
+    });
+    const foreignStorage = await context.uploadAudio({
       bucket: "student-audio",
-      objectKey: "as-1/attempt-1/1/original_answer-clip-1.webm",
+      audioClipId: "foreign-clip",
+      attemptTurnId: "turn-1",
+      turnOrder: 1,
+      clipKind: "original_answer",
       blob: new Blob(["voice"], { type: "audio/webm" }),
       mimeType: "audio/webm",
     });
-    const failed = await context.markClipFailed({
+
+    expect(foreignTurn).toEqual({ ok: false, error: "not_found" });
+    expect(foreignClip).toEqual({ ok: false, error: "not_found" });
+    expect(foreignScore).toEqual({ ok: false, error: "not_found" });
+    expect(foreignStorage).toEqual({ ok: false, error: "not_found" });
+    expect(upload).not.toHaveBeenCalled();
+    expect(
+      rpc.mock.calls.map(
+        (call) => (call[1] as RpcArguments).p_operation,
+      ),
+    ).toEqual([
+      "insert_audio_clip",
+      "update_clip",
+      "write_pronunciation_score",
+      "authorize_storage_upload",
+    ]);
+  });
+
+  it("derives the storage key and authorizes it before crossing into Storage", async () => {
+    const context = createOwnedSpeakingTryContext(input);
+
+    const result = await context.uploadAudio({
+      bucket: "student-audio",
       audioClipId: "clip-1",
       attemptTurnId: "turn-1",
-      objectKey: "as-1/attempt-1/1/original_answer-clip-1.webm",
+      turnOrder: 1,
+      clipKind: "original_answer",
+      blob: new Blob(["voice"], { type: "audio/webm" }),
+      mimeType: "audio/webm",
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        objectKey: "as-1/attempt-1/1/original_answer-clip-1.webm",
+      },
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      "owned_speaking_try_operation",
+      expect.objectContaining({
+        p_operation: "authorize_storage_upload",
+        p_payload: expect.objectContaining({
+          object_key: "as-1/attempt-1/1/original_answer-clip-1.webm",
+          audio_clip_id: "clip-1",
+          attempt_turn_id: "turn-1",
+        }),
+      }),
+    );
+    expect(upload).toHaveBeenCalledOnce();
+    expect(upload).toHaveBeenCalledWith(
+      "as-1/attempt-1/1/original_answer-clip-1.webm",
+      expect.any(Blob),
+      expect.objectContaining({ upsert: false }),
+    );
+  });
+
+  it("rejects a caller-supplied foreign object key on an owned clip update", async () => {
+    const context = createOwnedSpeakingTryContext(input);
+
+    const result = await context.markClipFailed({
+      audioClipId: "clip-1",
+      attemptTurnId: "turn-1",
+      objectKey: "as-1/attempt-1/99/original_answer-clip-1.webm",
       mimeType: "audio/webm",
       durationMs: 1200,
       byteSize: 5,
     });
 
-    expect(storage).toEqual({ ok: false, error: "not_found" });
-    expect(failed).toEqual({ ok: false, error: "not_found" });
-    expect(upload).not.toHaveBeenCalled();
-    expect(
-      operations.some(({ table, action }) => table === "audio_clips" && action === "update"),
-    ).toBe(false);
-  });
-
-  it("uses both student and active-attempt filters on every proof", async () => {
-    const context = createOwnedSpeakingTryContext(input);
-
-    await context.loadConversationTurns(2);
-
-    const assignmentProof = operations.find(
-      ({ table }) => table === "assignment_students",
-    );
-    const attemptProof = operations.find(({ table }) => table === "attempts");
-    expect(assignmentProof?.filters).toEqual(
-      expect.arrayContaining([
-        ["id", "as-1"],
-        ["student_id", "student-1"],
-      ]),
-    );
-    expect(attemptProof?.filters).toEqual(
-      expect.arrayContaining([
-        ["id", "attempt-1"],
-        ["assignment_student_id", "as-1"],
-        ["status", "in_progress"],
-      ]),
-    );
+    expect(result).toEqual({ ok: false, error: "not_found" });
   });
 });

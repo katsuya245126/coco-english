@@ -3,6 +3,7 @@ import type { StoredConversationRecoveryState } from "@/domain/ai/stored-evaluat
 import type { GenerateCocoReplyResult } from "@/server/ai/conversation-generator";
 import {
   orchestrateConversationTurn,
+  type ConversationOrchestratorPorts,
   type ConversationOrchestratorInput,
 } from "@/server/student-access/conversation-orchestrator";
 
@@ -52,15 +53,33 @@ function generated(line: string): GenerateCocoReplyResult {
   };
 }
 
+function ports(
+  generate: ConversationOrchestratorPorts["generateCocoReply"],
+  isContentSafe: ConversationOrchestratorPorts["isContentSafe"],
+  overrides: Partial<
+    Pick<ConversationOrchestratorPorts, "persistCocoLine" | "warmCocoLine">
+  > = {},
+): ConversationOrchestratorPorts {
+  return {
+    generateCocoReply: generate,
+    isContentSafe,
+    persistCocoLine:
+      overrides.persistCocoLine ??
+      vi.fn(async () => ({ ok: true as const })),
+    warmCocoLine:
+      overrides.warmCocoLine ?? vi.fn(async () => undefined),
+  };
+}
+
 describe("conversation turn orchestrator", () => {
   it("returns persistence and TTS intent after provider sequencing", async () => {
     const generate = vi.fn(async () => generated("That sounds fun!"));
     const moderate = vi.fn(async () => ({ safe: true as const, failedOpen: false as const }));
 
-    const result = await orchestrateConversationTurn(baseInput, {
-      generateCocoReply: generate,
-      isContentSafe: moderate,
-    });
+    const result = await orchestrateConversationTurn(
+      baseInput,
+      ports(generate, moderate),
+    );
 
     expect(result).toMatchObject({
       kind: "reply",
@@ -89,7 +108,7 @@ describe("conversation turn orchestrator", () => {
 
     const result = await orchestrateConversationTurn(
       { ...baseInput, recoveryState },
-      { generateCocoReply: generate, isContentSafe: moderate },
+      ports(generate, moderate),
     );
 
     expect(result).toMatchObject({
@@ -107,7 +126,7 @@ describe("conversation turn orchestrator", () => {
 
     const result = await orchestrateConversationTurn(
       { ...baseInput, conversationMode: false },
-      { generateCocoReply: generate, isContentSafe: moderate },
+      ports(generate, moderate),
     );
 
     expect(result).toMatchObject({
@@ -131,10 +150,10 @@ describe("conversation turn orchestrator", () => {
       .mockResolvedValueOnce({ safe: false as const, failedOpen: false as const })
       .mockResolvedValueOnce({ safe: true as const, failedOpen: false as const });
 
-    const result = await orchestrateConversationTurn(baseInput, {
-      generateCocoReply: generate,
-      isContentSafe: moderate,
-    });
+    const result = await orchestrateConversationTurn(
+      baseInput,
+      ports(generate, moderate),
+    );
 
     expect(result).toMatchObject({
       kind: "reply",
@@ -161,7 +180,7 @@ describe("conversation turn orchestrator", () => {
           reviewReason: "ambiguous",
         },
       },
-      { generateCocoReply: generate, isContentSafe: moderate },
+      ports(generate, moderate),
     );
 
     expect(result).toMatchObject({
@@ -177,11 +196,66 @@ describe("conversation turn orchestrator", () => {
 
     const result = await orchestrateConversationTurn(
       { ...baseInput, recoveryState: { kind: "prompt_echo" } },
-      { generateCocoReply: generate, isContentSafe: moderate },
+      ports(generate, moderate),
     );
 
     expect(result.kind).toBe("skip");
     expect(generate).not.toHaveBeenCalled();
     expect(moderate).not.toHaveBeenCalled();
+  });
+
+  it("persists before TTS, blocks TTS on persistence failure, and tolerates TTS failure", async () => {
+    const generate = vi.fn(async () => generated("That sounds fun!"));
+    const moderate = vi.fn(async () => ({
+      safe: true as const,
+      failedOpen: false as const,
+    }));
+    const events: string[] = [];
+    const persist = vi.fn(async () => {
+      events.push("persist");
+      return { ok: true as const };
+    });
+    const warm = vi.fn(async () => {
+      events.push("tts");
+    });
+
+    const successful = await orchestrateConversationTurn(
+      baseInput,
+      ports(generate, moderate, {
+        persistCocoLine: persist,
+        warmCocoLine: warm,
+      }),
+    );
+    expect(successful.kind).toBe("reply");
+    expect(events).toEqual(["persist", "tts"]);
+
+    const failedPersistence = vi.fn(async () => ({
+      ok: false as const,
+      error: "db_error" as const,
+    }));
+    const blockedTts = vi.fn(async () => undefined);
+    const failed = await orchestrateConversationTurn(
+      baseInput,
+      ports(generate, moderate, {
+        persistCocoLine: failedPersistence,
+        warmCocoLine: blockedTts,
+      }),
+    );
+    expect(failed).toMatchObject({
+      kind: "error",
+      error: "persistence_failed",
+      persistenceError: "db_error",
+    });
+    expect(blockedTts).not.toHaveBeenCalled();
+
+    const rejectingTts = vi.fn(async () => {
+      throw new Error("tts unavailable");
+    });
+    const nonFatal = await orchestrateConversationTurn(
+      baseInput,
+      ports(generate, moderate, { warmCocoLine: rejectingTts }),
+    );
+    expect(nonFatal.kind).toBe("reply");
+    expect(rejectingTts).toHaveBeenCalledOnce();
   });
 });

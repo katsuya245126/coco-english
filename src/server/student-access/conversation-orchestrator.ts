@@ -102,6 +102,10 @@ export type ConversationTtsIntent = {
   text: string;
 };
 
+export type ConversationPersistenceResult =
+  | { ok: true }
+  | { ok: false; error: "not_found" | "db_error" };
+
 export type ConversationOrchestratorInput = {
   conversationMode: boolean;
   turnOrder: number;
@@ -121,6 +125,10 @@ export type ConversationOrchestratorInput = {
 export type ConversationOrchestratorPorts = {
   generateCocoReply: typeof generateCocoReply;
   isContentSafe: typeof isContentSafe;
+  persistCocoLine: (
+    intent: ConversationPersistenceIntent,
+  ) => Promise<ConversationPersistenceResult>;
+  warmCocoLine: (intent: ConversationTtsIntent) => Promise<void>;
 };
 
 export type ConversationOrchestratorResult =
@@ -147,7 +155,11 @@ export type ConversationOrchestratorResult =
     }
   | {
       kind: "error";
-      error: "invalid_history" | "recovery_line_missing";
+      error:
+        | "invalid_history"
+        | "recovery_line_missing"
+        | "persistence_failed";
+      persistenceError?: "not_found" | "db_error";
     };
 
 function generationFallbackEvent(
@@ -419,21 +431,40 @@ export async function orchestrateConversationTurn(
     if (latestAmbiguity) latestAmbiguity.recoveryQuestion = cocoLine;
   }
 
+  const persistence: ConversationPersistenceIntent = {
+    kind: "record_coco_line",
+    turnOrder: input.turnOrder,
+    cocoLine,
+    moderationEvent,
+    ...(freeSameTurnRetry && input.evaluation
+      ? { evaluation: input.evaluation }
+      : {}),
+  };
+  const persistenceResult = await ports.persistCocoLine(persistence);
+  if (!persistenceResult.ok) {
+    return {
+      kind: "error",
+      error: "persistence_failed",
+      persistenceError: persistenceResult.error,
+    };
+  }
+
+  const tts = reviewPendingContinuation
+    ? null
+    : { characterId: input.characterId, text: cocoLine };
+  if (tts) {
+    try {
+      await ports.warmCocoLine(tts);
+    } catch {
+      // TTS is a cache warmup; a provider failure must not fail the upload.
+    }
+  }
+
   return {
     kind: "reply",
     cocoLine,
     moderationEvent,
-    persistence: {
-      kind: "record_coco_line",
-      turnOrder: input.turnOrder,
-      cocoLine,
-      moderationEvent,
-      ...(freeSameTurnRetry && input.evaluation
-        ? { evaluation: input.evaluation }
-        : {}),
-    },
-    tts: reviewPendingContinuation
-      ? null
-      : { characterId: input.characterId, text: cocoLine },
+    persistence,
+    tts,
   };
 }

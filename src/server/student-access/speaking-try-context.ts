@@ -4,6 +4,7 @@ import type { MissionSnapshot } from "@/domain/mission/schemas";
 import type { PersistedConversationTurn } from "@/server/student-access/conversation-history";
 
 type ServiceClient = ReturnType<typeof createSupabaseServiceClient>;
+type RpcPayload = Record<string, Json>;
 
 export type OwnedSpeakingTryContextInput = {
   studentId: string;
@@ -52,7 +53,7 @@ type RepeatTurnWrite = {
 type CocoLineWrite = {
   turnOrder: number;
   cocoLine: string;
-  moderationEvent?: unknown | null;
+  moderationEvent?: Json | null;
   evaluation?: Json;
 };
 
@@ -70,11 +71,15 @@ export type OwnedSpeakingTryContext = {
   }): Promise<OwnedSpeakingTryContextResult<{ id: string }>>;
   uploadAudio(input: {
     bucket: string;
-    objectKey: string;
+    audioClipId: string;
+    attemptTurnId: string;
+    turnOrder: number;
+    clipKind: Database["public"]["Enums"]["audio_clip_kind"];
     blob: Blob;
     mimeType: string;
   }): Promise<
     OwnedSpeakingTryContextResult<{
+      objectKey: string;
       promise: Promise<{ error: { message: string } | null }>;
     }>
   >;
@@ -109,6 +114,7 @@ export type OwnedSpeakingTryContext = {
   >;
   writePronunciationScore(input: {
     audioClipId: string;
+    attemptTurnId: string;
     referenceText: string;
     accuracyScore: number;
     fluencyScore: number | null;
@@ -121,7 +127,11 @@ export type OwnedSpeakingTryContext = {
   >;
 };
 
-type GuardResult = OwnedSpeakingTryContextResult<void>;
+type RpcResponse = {
+  ok?: unknown;
+  error?: unknown;
+  value?: unknown;
+};
 
 function normalizeError(error: unknown): { message: string } | null {
   if (!error) return null;
@@ -136,12 +146,33 @@ function normalizeError(error: unknown): { message: string } | null {
   return { message: String(error) };
 }
 
-function queryError(error: unknown): { message: string } | null {
-  return normalizeError(error);
+function asRpcResponse(value: unknown): RpcResponse | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as RpcResponse;
 }
 
-function failed(error: "not_found" | "db_error"): GuardResult {
-  return { ok: false, error };
+function extensionForMimeType(mimeType: string) {
+  const normalized = mimeType.toLowerCase().split(";")[0]?.trim();
+  if (normalized === "audio/mp4" || normalized === "audio/m4a") return "m4a";
+  if (normalized === "audio/mpeg") return "mp3";
+  if (normalized === "audio/wav" || normalized === "audio/wave") return "wav";
+  return "webm";
+}
+
+function buildOwnedObjectKey(input: {
+  assignmentStudentId: string;
+  attemptId: string;
+  turnOrder: number;
+  clipKind: Database["public"]["Enums"]["audio_clip_kind"];
+  audioClipId: string;
+  mimeType: string;
+}) {
+  return [
+    input.assignmentStudentId,
+    input.attemptId,
+    String(input.turnOrder),
+    `${input.clipKind}-${input.audioClipId}.${extensionForMimeType(input.mimeType)}`,
+  ].join("/");
 }
 
 export function createOwnedSpeakingTryContext(
@@ -149,83 +180,60 @@ export function createOwnedSpeakingTryContext(
 ): OwnedSpeakingTryContext {
   const supabase: ServiceClient = createSupabaseServiceClient();
 
-  async function proveCurrentOwnership(): Promise<GuardResult> {
+  async function operation<T>(
+    operationName: string,
+    payload: RpcPayload,
+    onDbError?: (error: unknown) => T,
+  ): Promise<OwnedSpeakingTryContextResult<T>> {
     try {
-      const { data: assignment, error: assignmentError } = await supabase
-        .from("assignment_students")
-        .select("id, student_id, status, assignments(canceled_at)")
-        .eq("id", input.assignmentStudentId)
-        .eq("student_id", input.studentId)
-        .maybeSingle();
-
-      if (assignmentError) return failed("db_error");
-      const assignmentRow = assignment as
-        | {
-            status?: string;
-            assignments?: { canceled_at?: string | null } | null;
-          }
-        | null;
-      if (
-        !assignmentRow ||
-        assignmentRow.status !== "started" ||
-        assignmentRow.assignments?.canceled_at
-      ) {
-        return failed("not_found");
+      const { data, error } = await supabase.rpc(
+        "owned_speaking_try_operation",
+        {
+          p_student_id: input.studentId,
+          p_assignment_student_id: input.assignmentStudentId,
+          p_attempt_id: input.attemptId,
+          p_operation: operationName,
+          p_payload: payload,
+        },
+      );
+      if (error) {
+        return onDbError
+          ? { ok: true, value: onDbError(error) }
+          : { ok: false, error: "db_error" };
       }
 
-      const { data: attempt, error: attemptError } = await supabase
-        .from("attempts")
-        .select("id")
-        .eq("id", input.attemptId)
-        .eq("assignment_student_id", input.assignmentStudentId)
-        .eq("status", "in_progress")
-        .maybeSingle();
-
-      if (attemptError) return failed("db_error");
-      return attempt ? { ok: true, value: undefined } : failed("not_found");
-    } catch {
-      return failed("db_error");
-    }
-  }
-
-  async function guarded<T>(
-    operation: () => T | PromiseLike<T>,
-  ): Promise<OwnedSpeakingTryContextResult<T>> {
-    const proof = await proveCurrentOwnership();
-    if (!proof.ok) return proof;
-
-    try {
-      return { ok: true, value: await operation() };
+      const response = asRpcResponse(data);
+      if (!response || response.ok !== true) {
+        if (response?.error === "db_error" && onDbError) {
+          return { ok: true, value: onDbError(response.error) };
+        }
+        return {
+          ok: false,
+          error: response?.error === "not_found" ? "not_found" : "db_error",
+        };
+      }
+      return { ok: true, value: response.value as T };
     } catch {
       return { ok: false, error: "db_error" };
     }
-  }
-
-  async function writeQuery(
-    operation: () => PromiseLike<{ error: unknown }>,
-  ): Promise<{ error: { message: string } | null }> {
-    const result = await operation();
-    return { error: queryError(result.error) };
   }
 
   async function updateClip(
     inputClip: ClipMetadata,
     processingStatus: Database["public"]["Enums"]["audio_processing_status"],
   ) {
-    return guarded(() =>
-      writeQuery(() =>
-        supabase
-          .from("audio_clips")
-          .update({
-            ...(inputClip.objectKey ? { object_key: inputClip.objectKey } : {}),
-            mime_type: inputClip.mimeType,
-            duration_ms: inputClip.durationMs,
-            byte_size: inputClip.byteSize,
-            processing_status: processingStatus,
-          })
-          .eq("id", inputClip.audioClipId)
-          .eq("attempt_turn_id", inputClip.attemptTurnId),
-      ),
+    const payload: RpcPayload = {
+      audio_clip_id: inputClip.audioClipId,
+      attempt_turn_id: inputClip.attemptTurnId,
+      mime_type: inputClip.mimeType,
+      duration_ms: inputClip.durationMs,
+      byte_size: inputClip.byteSize,
+      processing_status: processingStatus,
+    };
+    if (inputClip.objectKey) payload.object_key = inputClip.objectKey;
+    return operation<{ error: { message: string } | null }>(
+      "update_clip",
+      payload,
     );
   }
 
@@ -233,37 +241,15 @@ export function createOwnedSpeakingTryContext(
     snapshot: input.snapshot,
 
     async loadConversationTurns(turnOrder: number) {
-      return guarded(async () => {
-        const { data, error } = await supabase
-          .from("attempt_turns")
-          .select(
-            "turn_order, original_transcript, improved_sentence, coco_line, evaluation",
-          )
-          .eq("attempt_id", input.attemptId)
-          .lt("turn_order", turnOrder)
-          .order("turn_order", { ascending: true });
-        if (error) throw error;
-        return (data ?? []) as PersistedConversationTurn[];
-      });
+      return operation<PersistedConversationTurn[]>(
+        "load_conversation_turns",
+        { turn_order: turnOrder },
+      );
     },
 
     async initializeTurn(turnOrder: number) {
-      return guarded(async () => {
-        const { data, error } = await supabase
-          .from("attempt_turns")
-          .upsert(
-            {
-              attempt_id: input.attemptId,
-              turn_order: turnOrder,
-            },
-            { onConflict: "attempt_id,turn_order" },
-          )
-          .select(
-            "id, original_transcript, improved_sentence, evaluation, coco_line",
-          )
-          .single();
-        if (error || !data) throw error ?? new Error("turn missing");
-        return data as SpeakingTryTurn;
+      return operation<SpeakingTryTurn>("initialize_turn", {
+        turn_order: turnOrder,
       });
     },
 
@@ -271,36 +257,73 @@ export function createOwnedSpeakingTryContext(
       attemptTurnId: string;
       clipKind: Database["public"]["Enums"]["audio_clip_kind"];
     }) {
-      return guarded(async () => {
-        const { data, error } = await supabase
-          .from("audio_clips")
-          .insert({
-            attempt_turn_id: clipInput.attemptTurnId,
-            clip_kind: clipInput.clipKind,
-            processing_status: "pending_upload",
-          })
-          .select("id")
-          .single();
-        if (error || !data) throw error ?? new Error("clip missing");
-        return data;
+      return operation<{ id: string }>("insert_audio_clip", {
+        attempt_turn_id: clipInput.attemptTurnId,
+        clip_kind: clipInput.clipKind,
       });
     },
 
     async uploadAudio(uploadInput: {
       bucket: string;
-      objectKey: string;
+      audioClipId: string;
+      attemptTurnId: string;
+      turnOrder: number;
+      clipKind: Database["public"]["Enums"]["audio_clip_kind"];
       blob: Blob;
       mimeType: string;
     }) {
-      return guarded(() => ({
-        promise: supabase.storage
-          .from(uploadInput.bucket)
-          .upload(uploadInput.objectKey, uploadInput.blob, {
-            contentType: uploadInput.mimeType,
-            upsert: false,
-          })
-          .then((result) => ({ error: queryError(result.error) })),
-      }));
+      const expectedBucket =
+        process.env.STUDENT_AUDIO_BUCKET || "student-audio";
+      if (uploadInput.bucket !== expectedBucket) {
+        return { ok: false as const, error: "not_found" as const };
+      }
+
+      // The caller cannot supply the object key. It is derived from the
+      // immutable owned context IDs, then checked by the RPC against the
+      // child rows before Storage is touched. Storage has no transactional
+      // join to Postgres, so the upload is the unavoidable boundary after the
+      // operation-time authorization call.
+      const objectKey = buildOwnedObjectKey({
+        assignmentStudentId: input.assignmentStudentId,
+        attemptId: input.attemptId,
+        turnOrder: uploadInput.turnOrder,
+        clipKind: uploadInput.clipKind,
+        audioClipId: uploadInput.audioClipId,
+        mimeType: uploadInput.mimeType,
+      });
+      const authorization = await operation<{ object_key: string }>(
+        "authorize_storage_upload",
+        {
+          audio_clip_id: uploadInput.audioClipId,
+          attempt_turn_id: uploadInput.attemptTurnId,
+          turn_order: uploadInput.turnOrder,
+          clip_kind: uploadInput.clipKind,
+          mime_type: uploadInput.mimeType,
+          object_key: objectKey,
+        },
+      );
+      if (!authorization.ok) return authorization;
+      if (authorization.value.object_key !== objectKey) {
+        return { ok: false, error: "not_found" };
+      }
+
+      try {
+        return {
+          ok: true as const,
+          value: {
+            objectKey,
+            promise: supabase.storage
+              .from(uploadInput.bucket)
+              .upload(objectKey, uploadInput.blob, {
+                contentType: uploadInput.mimeType,
+                upsert: false,
+              })
+              .then((result) => ({ error: normalizeError(result.error) })),
+          },
+        };
+      } catch {
+        return { ok: false as const, error: "db_error" as const };
+      }
     },
 
     async markClipFailed(clipInput: ClipMetadata) {
@@ -312,107 +335,89 @@ export function createOwnedSpeakingTryContext(
     },
 
     async countTranscribedRepeatClips(attemptTurnId: string) {
-      return guarded(async () => {
-        const { count, error } = await supabase
-          .from("audio_clips")
-          .select("id", { count: "exact", head: true })
-          .eq("attempt_turn_id", attemptTurnId)
-          .eq("clip_kind", "repeat_attempt")
-          .eq("processing_status", "transcribed");
-        return { count: count ?? 0, error: queryError(error) };
-      });
+      const result = await operation<{
+        count: number;
+        error?: { message: string } | null;
+      }>(
+        "count_transcribed_repeat_clips",
+        { attempt_turn_id: attemptTurnId },
+        (error) => ({ count: 0, error: normalizeError(error) }),
+      );
+      if (!result.ok) return result;
+      return {
+        ok: true as const,
+        value: { count: result.value.count, error: result.value.error ?? null },
+      };
     },
 
     async writeGuardEvaluation(writeInput: OriginalTurnWrite) {
-      return guarded(() =>
-        writeQuery(() =>
-          supabase.from("attempt_turns").upsert(
-            {
-              attempt_id: input.attemptId,
-              turn_order: writeInput.turnOrder,
-              original_transcript: writeInput.transcript,
-              target_attempted: false,
-              improved_sentence: null,
-              evaluation: writeInput.evaluation,
-              reply_hint_frame: writeInput.replyHintFrame,
-            },
-            { onConflict: "attempt_id,turn_order" },
-          ),
-        ),
+      return operation<{ error: { message: string } | null }>(
+        "write_guard_evaluation",
+        {
+          transcript: writeInput.transcript,
+          turn_order: writeInput.turnOrder,
+          target_attempted: false,
+          improved_sentence: null,
+          evaluation: writeInput.evaluation ?? null,
+          reply_hint_frame: writeInput.replyHintFrame,
+        },
       );
     },
 
     async writeOriginalTurn(writeInput: OriginalTurnWrite) {
-      return guarded(() =>
-        writeQuery(() =>
-          supabase.from("attempt_turns").upsert(
-            {
-              attempt_id: input.attemptId,
-              turn_order: writeInput.turnOrder,
-              original_transcript: writeInput.transcript,
-              target_attempted: writeInput.targetAttempted,
-              improved_sentence: writeInput.improvedSentence,
-              ...(writeInput.evaluation === undefined
-                ? {}
-                : { evaluation: writeInput.evaluation }),
-              reply_hint_frame: writeInput.replyHintFrame,
-            },
-            { onConflict: "attempt_id,turn_order" },
-          ),
-        ),
+      const payload: RpcPayload = {
+        transcript: writeInput.transcript,
+        turn_order: writeInput.turnOrder,
+        target_attempted: writeInput.targetAttempted,
+        improved_sentence: writeInput.improvedSentence,
+        reply_hint_frame: writeInput.replyHintFrame,
+      };
+      if (writeInput.evaluation !== undefined) {
+        payload.evaluation = writeInput.evaluation;
+      }
+      return operation<{ error: { message: string } | null }>(
+        "write_original_turn",
+        payload,
       );
     },
 
     async writeRepeatTurn(writeInput: RepeatTurnWrite) {
-      return guarded(() =>
-        writeQuery(() =>
-          supabase
-            .from("attempt_turns")
-            .update({
-              repeat_transcript: writeInput.transcript,
-              repeat_accepted: writeInput.repeatAccepted,
-              evaluation: writeInput.evaluation,
-            })
-            .eq("id", writeInput.turnId)
-            .eq("attempt_id", input.attemptId),
-        ),
+      return operation<{ error: { message: string } | null }>(
+        "write_repeat_turn",
+        {
+          turn_id: writeInput.turnId,
+          transcript: writeInput.transcript,
+          repeat_accepted: writeInput.repeatAccepted,
+          evaluation: writeInput.evaluation,
+        },
       );
     },
 
     async routeTeacherReview(reviewReason: string) {
-      return guarded(() =>
-        writeQuery(() =>
-          supabase
-            .from("attempts")
-            .update({ needs_review_reason: reviewReason })
-            .eq("id", input.attemptId)
-            .eq("assignment_student_id", input.assignmentStudentId)
-            .eq("status", "in_progress"),
-        ),
+      return operation<{ error: { message: string } | null }>(
+        "route_teacher_review",
+        { review_reason: reviewReason },
       );
     },
 
     async recordCocoLine(lineInput: CocoLineWrite) {
-      return guarded(() =>
-        writeQuery(() =>
-          supabase.from("attempt_turns").upsert(
-            {
-              attempt_id: input.attemptId,
-              turn_order: lineInput.turnOrder,
-              coco_line: lineInput.cocoLine,
-              moderation_event: (lineInput.moderationEvent ?? null) as Json,
-              ...(lineInput.evaluation === undefined
-                ? {}
-                : { evaluation: lineInput.evaluation }),
-            },
-            { onConflict: "attempt_id,turn_order" },
-          ),
-        ),
+      const payload: RpcPayload = {
+        turn_order: lineInput.turnOrder,
+        coco_line: lineInput.cocoLine,
+        moderation_event: lineInput.moderationEvent ?? null,
+      };
+      if (lineInput.evaluation !== undefined) {
+        payload.evaluation = lineInput.evaluation;
+      }
+      return operation<{ error: { message: string } | null }>(
+        "record_coco_line",
+        payload,
       );
     },
 
     async writePronunciationScore(scoreInput: {
       audioClipId: string;
+      attemptTurnId: string;
       referenceText: string;
       accuracyScore: number;
       fluencyScore: number | null;
@@ -421,23 +426,19 @@ export function createOwnedSpeakingTryContext(
       starBand: number;
       wordScores: Json;
     }) {
-      return guarded(() =>
-        writeQuery(() =>
-          supabase.from("pronunciation_scores").upsert(
-            {
-              audio_clip_id: scoreInput.audioClipId,
-              provider: "azure_speech",
-              reference_text: scoreInput.referenceText,
-              accuracy_score: scoreInput.accuracyScore,
-              fluency_score: scoreInput.fluencyScore,
-              completeness_score: scoreInput.completenessScore,
-              pronunciation_score: scoreInput.pronunciationScore,
-              star_band: scoreInput.starBand,
-              word_scores: scoreInput.wordScores,
-            },
-            { onConflict: "audio_clip_id" },
-          ),
-        ),
+      return operation<{ error: { message: string } | null }>(
+        "write_pronunciation_score",
+        {
+          audio_clip_id: scoreInput.audioClipId,
+          attempt_turn_id: scoreInput.attemptTurnId,
+          reference_text: scoreInput.referenceText,
+          accuracy_score: scoreInput.accuracyScore,
+          fluency_score: scoreInput.fluencyScore,
+          completeness_score: scoreInput.completenessScore,
+          pronunciation_score: scoreInput.pronunciationScore,
+          star_band: scoreInput.starBand,
+          word_scores: scoreInput.wordScores,
+        },
       );
     },
   };

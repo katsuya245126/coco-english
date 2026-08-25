@@ -188,31 +188,6 @@ function getStudentAudioBucketId() {
   return process.env.STUDENT_AUDIO_BUCKET || DEFAULT_AUDIO_BUCKET;
 }
 
-function extensionForMimeType(mimeType: string) {
-  const normalized = mimeType.toLowerCase().split(";")[0]?.trim();
-  if (normalized === "audio/mp4" || normalized === "audio/m4a") return "m4a";
-  if (normalized === "audio/mpeg") return "mp3";
-  if (normalized === "audio/wav" || normalized === "audio/wave") return "wav";
-  return "webm";
-}
-
-function buildObjectKey(input: {
-  assignmentStudentId: string;
-  attemptId: string;
-  turnOrder: number;
-  clipKind: AudioClipKind;
-  audioClipId: string;
-  mimeType: string;
-}) {
-  const ext = extensionForMimeType(input.mimeType);
-  return [
-    input.assignmentStudentId,
-    input.attemptId,
-    String(input.turnOrder),
-    `${input.clipKind}-${input.audioClipId}.${ext}`,
-  ].join("/");
-}
-
 function isValidInput(input: UploadAttemptAudioClipInput) {
   const normalizedMimeType = input.mimeType.toLowerCase().split(";")[0]?.trim();
   const fileMimeType = input.file.type.toLowerCase().split(";")[0]?.trim();
@@ -554,15 +529,6 @@ export async function recordSpeakingTry(
     const audioClip = audioClipInsert.value;
     audioClipId = audioClip.id;
 
-    const objectKey = buildObjectKey({
-      assignmentStudentId: input.assignmentStudentId,
-      attemptId: input.attemptId,
-      turnOrder: input.turnOrder,
-      clipKind: input.clipKind,
-      audioClipId: audioClip.id,
-      mimeType: input.mimeType,
-    });
-
     // storageUpload and transcription both only depend on the in-memory audio
     // bytes (transcription never reads the uploaded object back), so they run
     // concurrently instead of paying for the upload before transcription can
@@ -574,7 +540,10 @@ export async function recordSpeakingTry(
       () =>
         context.uploadAudio({
           bucket: getStudentAudioBucketId(),
-          objectKey,
+          audioClipId: audioClip.id,
+          attemptTurnId: turn.id,
+          turnOrder: input.turnOrder,
+          clipKind: input.clipKind,
           blob: createAudioBlob(),
           mimeType: input.mimeType,
         }),
@@ -590,9 +559,11 @@ export async function recordSpeakingTry(
         retryable: storageUploadAdmission.error === "db_error",
       };
     }
+    const { objectKey, promise: admittedStorageUpload } =
+      storageUploadAdmission.value;
     const storageUploadPromise = timeStage(
       "storageUpload",
-      () => storageUploadAdmission.value.promise,
+      () => admittedStorageUpload,
     );
 
     const transcribe = deps.transcribeAudioFile ?? transcribeAudioFile;
@@ -1084,6 +1055,44 @@ export async function recordSpeakingTry(
           {
             generateCocoReply: deps.generateCocoReply ?? generateCocoReply,
             isContentSafe: deps.isContentSafe ?? isContentSafe,
+            persistCocoLine: async (intent) => {
+              const recordResult = await timeStage("cocoLineWrite", () =>
+                context.recordCocoLine({
+                  turnOrder: intent.turnOrder,
+                  cocoLine: intent.cocoLine,
+                  moderationEvent: intent.moderationEvent as Json | null,
+                  ...(intent.evaluation
+                    ? { evaluation: toJson(intent.evaluation) }
+                    : {}),
+                }),
+              );
+              if (!recordResult.ok) {
+                return { ok: false as const, error: recordResult.error };
+              }
+              if (recordResult.value.error) {
+                return { ok: false as const, error: "db_error" as const };
+              }
+              return { ok: true as const };
+            },
+            warmCocoLine: async (intent) => {
+              try {
+                const warm = deps.warmTtsAudioCache ?? warmTtsAudioCache;
+                await timeStage("ttsWarmupCocoLine", () =>
+                  warm({
+                    characterId: intent.characterId,
+                    voice: DEFAULT_COCO_TTS_VOICE,
+                    texts: [intent.text],
+                  }),
+                );
+              } catch (error) {
+                log("warn", "audio.tts_coco_line_warmup_failed", {
+                  assignmentStudentId: input.assignmentStudentId,
+                  attemptId: input.attemptId,
+                  turnOrder: input.turnOrder,
+                  error: error instanceof Error ? error.message : String(error),
+                });
+              }
+            },
           },
         ),
       );
@@ -1097,6 +1106,22 @@ export async function recordSpeakingTry(
           });
           return { ok: false, error: "db_error", retryable: true };
         }
+        if (conversationOutcome.error === "persistence_failed") {
+          await markClipFailed(audioClip.id, turn.id, objectKey);
+          const error = conversationOutcome.persistenceError ?? "db_error";
+          log("warn", "audio.coco_line_persist_failed", {
+            assignmentStudentId: input.assignmentStudentId,
+            attemptId: input.attemptId,
+            turnOrder: input.turnOrder,
+            error,
+          });
+          logTiming("failed", { error, step: "coco_line_write" });
+          return {
+            ok: false,
+            error,
+            retryable: error === "db_error",
+          };
+        }
         logTiming("failed", {
           error: "invalid_audio",
           step: "conversation_history",
@@ -1107,58 +1132,6 @@ export async function recordSpeakingTry(
       if (conversationOutcome.kind === "reply") {
         cocoLine = conversationOutcome.cocoLine;
         cocoLineModerationEvent = conversationOutcome.moderationEvent;
-        const recordResult = await timeStage("cocoLineWrite", () =>
-          context.recordCocoLine({
-            turnOrder: conversationOutcome.persistence.turnOrder,
-            cocoLine: conversationOutcome.persistence.cocoLine,
-            moderationEvent: conversationOutcome.persistence.moderationEvent,
-            ...(conversationOutcome.persistence.evaluation
-              ? {
-                  evaluation: toJson(
-                    conversationOutcome.persistence.evaluation,
-                  ),
-                }
-              : {}),
-          }),
-        );
-
-        if (!recordResult.ok || recordResult.value.error) {
-          await markClipFailed(audioClip.id, turn.id, objectKey);
-          log("warn", "audio.coco_line_persist_failed", {
-            assignmentStudentId: input.assignmentStudentId,
-            attemptId: input.attemptId,
-            turnOrder: input.turnOrder,
-            error: recordResult.ok
-              ? recordResult.value.error?.message
-              : recordResult.error,
-          });
-          logTiming("failed", {
-            error: "db_error",
-            step: "coco_line_write",
-          });
-          return { ok: false, error: "db_error", retryable: true };
-        }
-
-        if (conversationOutcome.tts) {
-          try {
-            const warm = deps.warmTtsAudioCache ?? warmTtsAudioCache;
-            const ttsIntent = conversationOutcome.tts;
-            await timeStage("ttsWarmupCocoLine", () =>
-              warm({
-                characterId: ttsIntent.characterId,
-                voice: DEFAULT_COCO_TTS_VOICE,
-                texts: [ttsIntent.text],
-              }),
-            );
-          } catch (error) {
-            log("warn", "audio.tts_coco_line_warmup_failed", {
-              assignmentStudentId: input.assignmentStudentId,
-              attemptId: input.attemptId,
-              turnOrder: input.turnOrder,
-              error: error instanceof Error ? error.message : String(error),
-            });
-          }
-        }
       }
     }
 
@@ -1182,6 +1155,7 @@ export async function recordSpeakingTry(
               timeStage("pronunciationScoreWrite", () =>
                 context.writePronunciationScore({
                   audioClipId: audioClip.id,
+                  attemptTurnId: turn.id,
                   referenceText: scoring.score.referenceText,
                   accuracyScore: scoring.score.accuracyScore,
                   fluencyScore: scoring.score.fluencyScore,
