@@ -45,13 +45,16 @@ afterEach(async () => {
   container.remove();
 });
 
-async function renderControls(reviewReason: string | null) {
+async function renderControls(
+  reviewReason: string | null,
+  assignmentStudentStatus = "started",
+) {
   await act(async () => {
     root.render(
       <SubmissionReviewControls
         attemptId="attempt-1"
         assignedHomeworkId="assigned-1"
-        assignmentStudentStatus="started"
+        assignmentStudentStatus={assignmentStudentStatus}
         classId="class-1"
         assignmentId="assignment-1"
         reviewReason={reviewReason}
@@ -102,8 +105,36 @@ describe("SubmissionReviewControls action routing", () => {
     expect(mocks.push).not.toHaveBeenCalled();
   });
 
-  it("dismisses a genuine started incomplete attempt", async () => {
+  it("accepts an unflagged started attempt through review completion", async () => {
     await renderControls(null);
+    await clickButton("Mark as done");
+
+    expect(mocks.markSubmissionReviewedAction).toHaveBeenCalledWith("attempt-1");
+    expect(mocks.changeAssignedHomeworkAction).not.toHaveBeenCalled();
+    expect(mocks.push).toHaveBeenCalledWith(
+      "/teacher/classes/class-1/review/assignment-1",
+    );
+  });
+
+  it("explains missing answers and retry when unflagged completion is rejected", async () => {
+    mocks.markSubmissionReviewedAction.mockResolvedValueOnce({
+      ok: false,
+      error: "not_allowed",
+    });
+    await renderControls(null);
+    await clickButton("Mark as done");
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "required answers may be missing",
+    );
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Request retry is available",
+    );
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it.each(["assigned", "missed"] as const)("dismisses a %s attempt", async (status) => {
+    await renderControls(null, status);
     await clickButton("Mark as done");
 
     expect(mocks.markSubmissionReviewedAction).not.toHaveBeenCalled();
