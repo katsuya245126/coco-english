@@ -1,7 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import type { Database } from "@/lib/db/types";
-import { changeAttemptReview } from "@/server/teacher/assignment-operations";
+import {
+  changeAssignedHomework,
+  changeAttemptReview,
+} from "@/server/teacher/assignment-operations";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const canRunLocally =
@@ -21,7 +24,11 @@ const noRealtime = {
 };
 
 type Fixture = Awaited<ReturnType<typeof createFixture>>;
-type FixtureKind = "completed" | "eligible_review" | "unfinished_active";
+type FixtureKind =
+  | "completed"
+  | "eligible_review"
+  | "unfinished_active"
+  | "fully_answered_invalid_evaluation";
 
 async function createAdminClient() {
   const { createClient } = await import("@supabase/supabase-js");
@@ -34,6 +41,7 @@ async function createAdminClient() {
 async function createFixture(kind: FixtureKind = "completed") {
   const admin = await createAdminClient();
   const active = kind !== "completed";
+  const requiredTurns = kind === "fully_answered_invalid_evaluation" ? 2 : 1;
   const suffix = randomBytes(12).toString("hex");
   const password = "Test-Passw0rd!";
   const ownerUser = await admin.auth.admin.createUser({
@@ -76,7 +84,7 @@ async function createFixture(kind: FixtureKind = "completed") {
     target_pattern: "I like cats.",
     topic: "pets",
     level: "elementary",
-    required_turns: 1,
+    required_turns: requiredTurns,
     character_id: "default-buddy",
   }).select("id").single();
   const assignment = await admin.from("assignments").insert({
@@ -84,7 +92,7 @@ async function createFixture(kind: FixtureKind = "completed") {
     mission_id: mission.data!.id,
     title: `Assignment ${suffix}`,
     data_mode: "real",
-    mission_snapshot: active ? { requiredTurns: 1, turns: [] } : { turns: [] },
+    mission_snapshot: active ? { requiredTurns, turns: [] } : { turns: [] },
   }).select("id").single();
   const completedAt = new Date().toISOString();
   const assignmentStudent = await admin.from("assignment_students").insert({
@@ -98,27 +106,46 @@ async function createFixture(kind: FixtureKind = "completed") {
     completed_at: active ? null : completedAt,
     needs_review_reason: active ? "ambiguous" : null,
   }).select("id").single();
-  const reviewTurn = kind === "eligible_review"
-    ? await admin.from("attempt_turns").insert({
+  const reviewTurns = kind === "eligible_review"
+    ? [
+        {
+          turn_order: 1,
+          original_transcript: "Maybe.",
+          evaluation: {
+            kind: "original",
+            version: "ai-eval-v1",
+            outcome: "teacher_review",
+            requireRepeat: false,
+          },
+        },
+      ]
+    : kind === "fully_answered_invalid_evaluation"
+      ? [
+          {
+            turn_order: 1,
+            original_transcript: "I like cats.",
+            evaluation: { malformed: true },
+          },
+          {
+            turn_order: 2,
+            original_transcript: "I like dogs.",
+            evaluation: { unexpected: "shape" },
+          },
+        ]
+      : [];
+  const reviewTurnResults = await Promise.all(
+    reviewTurns.map((turn) => admin.from("attempt_turns").insert({
       attempt_id: attempt.data!.id,
-      turn_order: 1,
-      original_transcript: "Maybe.",
-      evaluation: {
-        kind: "original",
-        version: "ai-eval-v1",
-        outcome: "teacher_review",
-        requireRepeat: false,
-      },
-    })
-    : null;
+      ...turn,
+    })),
+  );
   const linked = await admin.from("assignment_students").update({
     latest_attempt_id: attempt.data!.id,
   } as never).eq("id", assignmentStudent.data!.id);
 
-  for (const result of [classroom, student, mission, assignment, assignmentStudent, attempt, linked]) {
+  for (const result of [classroom, student, mission, assignment, assignmentStudent, attempt, linked, ...reviewTurnResults]) {
     expect(result.error).toBeNull();
   }
-  if (reviewTurn) expect(reviewTurn.error).toBeNull();
 
   return {
     admin,
@@ -250,6 +277,7 @@ describe("teacher attempt review interface", () => {
     if (!canRunLocally) return context.skip();
     const eligible = await createFixture("eligible_review");
     const unfinished = await createFixture("unfinished_active");
+    const fullyAnsweredInvalid = await createFixture("fully_answered_invalid_evaluation");
 
     try {
       expect(await changeAttemptReview({
@@ -287,10 +315,28 @@ describe("teacher attempt review interface", () => {
       ]));
 
       expect(await changeAttemptReview({
+        teacherId: fullyAnsweredInvalid.ownerId,
+        attemptId: fullyAnsweredInvalid.attemptId,
+        action: "mark_reviewed",
+      })).toEqual({ ok: true });
+
+      const repairedAssignment = await fullyAnsweredInvalid.admin.from("assignment_students")
+        .select("status")
+        .eq("id", fullyAnsweredInvalid.assignmentStudentId)
+        .single();
+      const repairedAttempt = await fullyAnsweredInvalid.admin.from("attempts")
+        .select("status, completed_at")
+        .eq("id", fullyAnsweredInvalid.attemptId)
+        .single();
+      expect(repairedAssignment.data?.status).toBe("completed");
+      expect(repairedAttempt.data?.status).toBe("completed");
+      expect(repairedAttempt.data?.completed_at).not.toBeNull();
+
+      expect(await changeAttemptReview({
         teacherId: unfinished.ownerId,
         attemptId: unfinished.attemptId,
         action: "mark_reviewed",
-      })).toEqual({ ok: true });
+      })).toEqual({ ok: false, error: "not_allowed" });
 
       const unfinishedAssignment = await unfinished.admin.from("assignment_students")
         .select("status")
@@ -306,11 +352,44 @@ describe("teacher attempt review interface", () => {
         .select("reviewed_at")
         .eq("teacher_id", unfinished.ownerId)
         .eq("attempt_id", unfinished.attemptId)
+        .maybeSingle();
+      expect(receipt.data).toBeNull();
+
+      expect(await changeAssignedHomework({
+        teacherId: unfinished.ownerId,
+        assignedHomeworkId: unfinished.assignmentStudentId,
+        action: "request_retry",
+        reasonNote: "Missing required answer",
+      })).toEqual({ ok: true });
+
+      const retriedAssignment = await unfinished.admin.from("assignment_students")
+        .select("status, latest_attempt_id" as never)
+        .eq("id", unfinished.assignmentStudentId)
+        .single() as { data: { status: string; latest_attempt_id: string | null } | null };
+      const retriedAttempt = await unfinished.admin.from("attempts")
+        .select("status")
+        .eq("id", unfinished.attemptId)
         .single();
-      expect(receipt.data?.reviewed_at).not.toBeNull();
+      expect(retriedAssignment.data?.status).toBe("needs_retry");
+      expect(retriedAssignment.data?.latest_attempt_id).toBeNull();
+      expect(retriedAttempt.data?.status).toBe("needs_retry");
+
+      const retryEvents = await unfinished.admin.from("assignment_status_events")
+        .select("previous_status, next_status, actor_type, reason_code, metadata")
+        .eq("assignment_student_id", unfinished.assignmentStudentId);
+      expect(retryEvents.data).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          previous_status: "started",
+          next_status: "needs_retry",
+          actor_type: "teacher",
+          reason_code: "teacher_requested_retry",
+          metadata: { reason_note: "Missing required answer" },
+        }),
+      ]));
     } finally {
       await cleanupFixture(eligible);
       await cleanupFixture(unfinished);
+      await cleanupFixture(fullyAnsweredInvalid);
     }
   }, 30_000);
 });

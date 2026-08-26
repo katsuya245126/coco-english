@@ -275,10 +275,11 @@ describe("teacher workspace source contract", () => {
 describe("SubmissionReviewControls source", () => {
   const src = source("src/components/teacher/SubmissionReviewControls.tsx");
 
-  it("offers Mark as done for incomplete attempts and Mark reviewed otherwise", () => {
+  it("offers Mark as done for incomplete and flagged attempts", () => {
     expect(src).toContain("Mark as done");
     expect(src).toContain("Removes this from your incomplete list. You can undo this.");
-    expect(src).toContain("Mark reviewed");
+    expect(src).toContain("Request retry");
+    expect(src).not.toContain("Mark reviewed");
     expect(src).toContain("changeAssignedHomeworkAction");
   });
 
