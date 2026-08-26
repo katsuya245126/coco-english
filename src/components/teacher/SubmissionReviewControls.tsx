@@ -9,7 +9,7 @@ import { changeAssignedHomeworkAction } from "@/app/teacher/assignment-actions";
 import { HoverButton } from "@/components/ui/HoverButton";
 import { primaryHover, secondaryHover } from "@/components/ui/hover-styles";
 
-const INCOMPLETE_STATUSES = ["assigned", "started", "missed"];
+const DISMISSIBLE_STATUSES = ["assigned", "missed"];
 
 export function SubmissionReviewControls({
   attemptId,
@@ -35,7 +35,8 @@ export function SubmissionReviewControls({
   const [pending, startTransition] = useTransition();
 
   const isTeacherReview = reviewReason != null;
-  const isIncomplete = !isTeacherReview && INCOMPLETE_STATUSES.includes(assignmentStudentStatus);
+  const isDismissible = DISMISSIBLE_STATUSES.includes(assignmentStudentStatus);
+  const usesReviewCompletion = !isDismissible && (assignmentStudentStatus === "started" || isTeacherReview);
   const reviewHref = `/teacher/classes/${classId}/review/${assignmentId}`;
 
   const markReviewed = () => startTransition(async () => {
@@ -84,7 +85,7 @@ export function SubmissionReviewControls({
           <HoverButton type="button" disabled={pending} onClick={undoDone} style={secondaryButtonStyle} hoverStyle={secondaryHover}>Undo</HoverButton>
         </div>
       </>
-    ) : isIncomplete ? (
+    ) : isDismissible ? (
       <>
         <p style={helperStyle}>Removes this from your incomplete list. You can undo this.</p>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -98,7 +99,7 @@ export function SubmissionReviewControls({
         <HoverButton type="button" disabled={pending} onClick={() => dialog.current?.showModal()} style={secondaryButtonStyle} hoverStyle={secondaryHover}>Request retry</HoverButton>
       </div>
     )}
-    {error && <p role="alert" style={errorStyle}>{isTeacherReview ? "Could not mark this submission as done. One or more required answers may be missing. Request retry is available." : "Could not update this submission. Please try again."}</p>}
+    {error && <p role="alert" style={errorStyle}>{usesReviewCompletion ? "Could not mark this submission as done. One or more required answers may be missing. Request retry is available." : "Could not update this submission. Please try again."}</p>}
     <dialog ref={dialog} aria-labelledby="retry-heading" style={dialogStyle}>
       <h2 id="retry-heading" style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 600 }}>Request retry?</h2>
       <p style={{ margin: "0 0 16px", fontSize: 14, color: "#4B5563", lineHeight: 1.5 }}>The student can start a new attempt. This evidence stays available.</p>
