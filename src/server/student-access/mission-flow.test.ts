@@ -79,6 +79,8 @@ function createMockSupabase(options: {
     evaluation: null;
   }>;
   rpcData?: string;
+  recordHintRpcData?: string | null;
+  recordHintRpcError?: { message: string } | null;
   startRpcData?: Database["public"]["Functions"]["start_student_attempt"]["Returns"];
 } = {}) {
   const operations: Operation[] = [];
@@ -190,22 +192,32 @@ function createMockSupabase(options: {
   return {
     operations,
     from: vi.fn((table: string) => createQuery(table)),
-    rpc: vi.fn(async (name: string) =>
-      name === "start_student_attempt"
-        ? {
-            data:
-              options.startRpcData ?? [
-                {
-                  outcome: "ok",
-                  attempt_id: "attempt-1",
-                  is_resume: true,
-                  required_turns: 5,
-                },
-              ],
-            error: null,
-          }
-        : { data: options.rpcData ?? "ok", error: null },
-    ),
+    rpc: vi.fn(async (name: string) => {
+      if (name === "start_student_attempt") {
+        return {
+          data:
+            options.startRpcData ?? [
+              {
+                outcome: "ok",
+                attempt_id: "attempt-1",
+                is_resume: true,
+                required_turns: 5,
+              },
+            ],
+          error: null,
+        };
+      }
+      if (name === "record_hint_reveal") {
+        return {
+          data:
+            "recordHintRpcData" in options
+              ? options.recordHintRpcData
+              : "ok",
+          error: options.recordHintRpcError ?? null,
+        };
+      }
+      return { data: options.rpcData ?? "ok", error: null };
+    }),
   };
 }
 
@@ -493,6 +505,91 @@ describe("flagAttemptForTeacherReview", () => {
         reviewReason: "low_confidence",
       }),
     ).resolves.toEqual({ ok: false, error: "not_found" });
+  });
+});
+
+describe("recordHintReveal RPC boundary", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    mockSupabase = createMockSupabase();
+  });
+
+  it("delegates the owned atomic operation without direct table writes", async () => {
+    const { recordHintReveal } = await import(
+      "@/server/student-access/mission-flow"
+    );
+
+    await expect(
+      recordHintReveal({
+        studentId: "student-1",
+        assignmentStudentId: "as-1",
+        attemptId: "attempt-1",
+        turnOrder: 2,
+        hintLevel: 3,
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(mockSupabase.rpc).toHaveBeenCalledWith("record_hint_reveal", {
+      p_student_id: "student-1",
+      p_assignment_student_id: "as-1",
+      p_attempt_id: "attempt-1",
+      p_turn_order: 2,
+      p_hint_level: 3,
+    });
+    expect(mockSupabase.operations).toEqual([]);
+  });
+
+  it.each([
+    ["not_found", { ok: false, error: "not_found" }],
+    ["invalid_hint_level", { ok: false, error: "invalid_hint_level" }],
+    ["no_turn_row", { ok: false, error: "no_turn_row" }],
+  ] as const)("maps the RPC outcome %s", async (rpcData, expected) => {
+    mockSupabase = createMockSupabase({ recordHintRpcData: rpcData });
+    const { recordHintReveal } = await import(
+      "@/server/student-access/mission-flow"
+    );
+
+    await expect(
+      recordHintReveal({
+        studentId: "student-1",
+        assignmentStudentId: "as-1",
+        attemptId: "attempt-1",
+        turnOrder: 1,
+        hintLevel: 1,
+      }),
+    ).resolves.toEqual(expected);
+  });
+
+  it("maps an RPC error or unexpected result to db_error", async () => {
+    mockSupabase = createMockSupabase({
+      recordHintRpcError: { message: "transaction failed" },
+    });
+    const { recordHintReveal } = await import(
+      "@/server/student-access/mission-flow"
+    );
+
+    await expect(
+      recordHintReveal({
+        studentId: "student-1",
+        assignmentStudentId: "as-1",
+        attemptId: "attempt-1",
+        turnOrder: 1,
+        hintLevel: 1,
+      }),
+    ).resolves.toEqual({ ok: false, error: "db_error" });
+
+    mockSupabase = createMockSupabase({ recordHintRpcData: null });
+    vi.resetModules();
+    const reloaded = await import("@/server/student-access/mission-flow");
+    await expect(
+      reloaded.recordHintReveal({
+        studentId: "student-1",
+        assignmentStudentId: "as-1",
+        attemptId: "attempt-1",
+        turnOrder: 1,
+        hintLevel: 1,
+      }),
+    ).resolves.toEqual({ ok: false, error: "db_error" });
   });
 });
 

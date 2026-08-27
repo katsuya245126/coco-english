@@ -451,6 +451,16 @@ export type Database = {
           required_turns: number | null;
         }[];
       };
+      record_hint_reveal: {
+        Args: {
+          p_student_id: string;
+          p_assignment_student_id: string;
+          p_attempt_id: string;
+          p_turn_order: number;
+          p_hint_level: number;
+        };
+        Returns: "ok" | "not_found" | "invalid_hint_level" | "no_turn_row";
+      };
       complete_student_attempt: {
         Args: {
           p_student_id: string;

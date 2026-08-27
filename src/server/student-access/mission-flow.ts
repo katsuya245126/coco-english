@@ -392,42 +392,25 @@ export async function recordHintReveal(input: {
 
   try {
     const supabase = createSupabaseServiceClient();
-    const result = await withOwnedInProgressAttempt(input, async (owned) => {
-      // UPDATE turn: hint_level_used = GREATEST(hint_level_used, hintLevel)
-      // Supabase JS client doesn't support SQL GREATEST in update, so we
-      // read-then-write with GREATEST semantics via Math.max in app code.
-      const { data: turn, error: turnErr } = await supabase
-        .from("attempt_turns")
-        .select("id, hint_level_used")
-        .eq("attempt_id", input.attemptId)
-        .eq("turn_order", input.turnOrder)
-        .maybeSingle();
-
-      if (turnErr) return { ok: false, error: "db_error" } as const;
-      if (!turn) return { ok: false, error: "no_turn_row" } as const;
-
-      const newHintLevel = Math.max(turn.hint_level_used ?? 0, input.hintLevel);
-      const { error: updateErr } = await supabase
-        .from("attempt_turns")
-        .update({ hint_level_used: newHintLevel })
-        .eq("id", turn.id);
-
-      if (updateErr) return { ok: false, error: "db_error" } as const;
-
-      // Roll up assignment_students.highest_hint_level = GREATEST(highest_hint_level, hintLevel)
-      const newHighest = Math.max(owned.highestHintLevel ?? 0, input.hintLevel);
-      await supabase
-        .from("assignment_students")
-        .update({ highest_hint_level: newHighest })
-        .eq("id", input.assignmentStudentId);
-
-      return { ok: true } as const;
+    const { data, error } = await supabase.rpc("record_hint_reveal", {
+      p_student_id: input.studentId,
+      p_assignment_student_id: input.assignmentStudentId,
+      p_attempt_id: input.attemptId,
+      p_turn_order: input.turnOrder,
+      p_hint_level: input.hintLevel,
     });
 
-    if (!result.ok) {
-      return { ok: false, error: mapAttemptGuardError(result.error) };
+    if (error) return { ok: false, error: "db_error" };
+    switch (data) {
+      case "ok":
+        return { ok: true };
+      case "not_found":
+      case "invalid_hint_level":
+      case "no_turn_row":
+        return { ok: false, error: data };
+      default:
+        return { ok: false, error: "db_error" };
     }
-    return result.value;
   } catch {
     return { ok: false, error: "db_error" };
   }
