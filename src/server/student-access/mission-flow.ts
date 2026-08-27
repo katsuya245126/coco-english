@@ -1,5 +1,5 @@
 /**
- * Mission-flow service (D-01..D-08, FLOW-02/04/05/07; D-01..D-05 Phase 11).
+ * Mission-flow service for start/resume, hints, completion, and turn caps.
  *
  * Server-only module — performs NO free-text generation and imports NO
  * AI client (AI-06 structural). Uses the service-role client to bypass
@@ -11,12 +11,8 @@
  */
 
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
-import {
-  requireOwnedAssignmentStudent,
-  withOwnedInProgressAttempt,
-} from "@/server/student-access/owned-assignment";
-import type { Database, Json } from "@/lib/db/types";
-import { buildPlaceholderEvaluation } from "@/domain/flow/evaluation";
+import { requireOwnedAssignmentStudent } from "@/server/student-access/owned-assignment";
+import type { Database } from "@/lib/db/types";
 import { log } from "@/server/logging/logger";
 import { nextUnfinishedTurnOrder } from "@/domain/flow/completion";
 import { HARD_TURN_CAP } from "@/domain/ai/conversation-generation";
@@ -32,14 +28,6 @@ export type StartOrResumeResult =
     }
   | { ok: false; error: "not_found" | "not_assigned_or_started" | "db_error" };
 
-export type RecordAnswerResult =
-  | { ok: true }
-  | { ok: false; error: "not_found" | "empty_transcript" | "db_error" };
-
-export type RecordRepeatResult =
-  | { ok: true }
-  | { ok: false; error: "not_found" | "empty_transcript" | "no_turn_row" | "db_error" };
-
 export type RecordHintRevealResult =
   | { ok: true }
   | {
@@ -50,29 +38,6 @@ export type RecordHintRevealResult =
 export type CompleteAttemptResult =
   | { ok: true }
   | { ok: false; error: "not_found" | "not_complete" | "db_error" };
-
-export type TeacherReviewReason =
-  | "low_confidence"
-  | "ambiguous"
-  | "failed_schema"
-  | "provider_failed"
-  | "contract_rejected";
-
-export type RouteTeacherReviewResult =
-  | { ok: true }
-  | { ok: false; error: "not_found" | "invalid_transition" | "db_error" };
-
-export type RecordCocoLineResult =
-  | { ok: true }
-  | { ok: false; error: "not_found" | "db_error" };
-
-// ─── Helpers ───
-
-function mapAttemptGuardError(
-  error: "not_found_or_canceled" | "db_error",
-): "not_found" | "db_error" {
-  return error === "db_error" ? "db_error" : "not_found";
-}
 
 // ─── Service functions ───
 
@@ -86,61 +51,6 @@ function mapAttemptGuardError(
  */
 export function canGenerateNextDynamicTurn(turnOrder: number): boolean {
   return turnOrder <= HARD_TURN_CAP;
-}
-
-/**
- * Flag an attempt as needing teacher review WITHOUT terminalizing anything
- * (Task 3, deferred-completion redesign).
- *
- * The assignment stays `started` and the attempt stays `in_progress` — a
- * teacher-review turn is not necessarily the mission's final turn, and the
- * client must be able to keep advancing the conversation (hints, TTS, the
- * next recording) against a still-active attempt. The ONLY place that
- * terminalizes a reviewed conversation is the atomic `complete_student_attempt`
- * RPC, which inspects `attempts.needs_review_reason` once the mission's
- * required turn count is reached and atomically chooses `teacher_review` vs
- * `completed` as the terminal status (see the
- * 202607230002_deferred_teacher_review_completion.sql migration).
- *
- * Never writes assignment_students.status, attempts.status, or an
- * assignment_status_events row — those are exclusively RPC-owned once this
- * function returns. Independently verifies both ownership hops (the
- * assignment_student belongs to the calling student and is `started`, and the
- * attempt belongs to that assignment_student and is `in_progress`) before
- * writing anything.
- */
-export async function flagAttemptForTeacherReview(input: {
-  studentId: string;
-  assignmentStudentId: string;
-  attemptId: string;
-  reviewReason: TeacherReviewReason;
-}): Promise<RouteTeacherReviewResult> {
-  try {
-    const supabase = createSupabaseServiceClient();
-    const result = await withOwnedInProgressAttempt(input, async (owned) => {
-      if (owned.status !== "started") {
-        return { ok: false, error: "not_found" } as const;
-      }
-
-      const { error } = await supabase
-        .from("attempts")
-        .update({ needs_review_reason: input.reviewReason })
-        .eq("id", input.attemptId)
-        .eq("assignment_student_id", input.assignmentStudentId)
-        .eq("status", "in_progress");
-
-      return error
-        ? ({ ok: false, error: "db_error" } as const)
-        : ({ ok: true } as const);
-    });
-
-    if (!result.ok) {
-      return { ok: false, error: mapAttemptGuardError(result.error) };
-    }
-    return result.value;
-  } catch {
-    return { ok: false, error: "db_error" };
-  }
 }
 
 /**
@@ -211,158 +121,6 @@ export async function startOrResumeAttempt(input: {
       isResume: true,
       resumeTurnOrder,
     };
-  } catch {
-    return { ok: false, error: "db_error" };
-  }
-}
-
-/**
- * Record a student's answer for a turn (D-01, D-02, Pitfall 2).
- *
- * Upserts on (attempt_id, turn_order) unique key for idempotency.
- * Writes original_transcript, target_attempted=true (truthful), and
- * evaluation = buildPlaceholderEvaluation(). Never sets repeat fields.
- * Rejects empty/whitespace transcript (the only gate — D-02 never
- * blocks on eval).
- */
-export async function recordAnswer(input: {
-  studentId: string;
-  assignmentStudentId: string;
-  attemptId: string;
-  turnOrder: number;
-  originalTranscript: string;
-}): Promise<RecordAnswerResult> {
-  const trimmed = input.originalTranscript.trim();
-  if (trimmed.length === 0) {
-    return { ok: false, error: "empty_transcript" };
-  }
-
-  try {
-    const supabase = createSupabaseServiceClient();
-    const result = await withOwnedInProgressAttempt(input, async () => {
-      // Upsert on (attempt_id, turn_order) — Pitfall 2 idempotency
-      const { error } = await supabase
-        .from("attempt_turns")
-        .upsert(
-          {
-            attempt_id: input.attemptId,
-            turn_order: input.turnOrder,
-            original_transcript: trimmed,
-            target_attempted: true,
-            evaluation: buildPlaceholderEvaluation(),
-          },
-          { onConflict: "attempt_id,turn_order" },
-        );
-
-      return error
-        ? ({ ok: false, error: "db_error" } as const)
-        : ({ ok: true } as const);
-    });
-
-    if (!result.ok) {
-      return { ok: false, error: mapAttemptGuardError(result.error) };
-    }
-    return result.value;
-  } catch {
-    return { ok: false, error: "db_error" };
-  }
-}
-
-/**
- * Persist Coco's generated line + moderation event for a dynamic conversation
- * turn (CHAT-03/05/06, D-10/D-11/D-13, T-11-08, T-11-11).
- *
- * Upserts on (attempt_id, turn_order) — same idempotency shape as
- * recordAnswer, so a second call for the same turn_order overwrites rather
- * than duplicates. Enforces ownership via withOwnedInProgressAttempt around
- * the write (V4) — never trusts a client-supplied
- * turn number. Generation/moderation calls themselves live in the
- * orchestration layer (audio-upload.ts); this function is persistence-only,
- * preserving the "imports NO AI client" boundary above.
- */
-export async function recordCocoLine(input: {
-  studentId: string;
-  assignmentStudentId: string;
-  attemptId: string;
-  turnOrder: number;
-  cocoLine: string;
-  moderationEvent?: object | null;
-  evaluation?: Json;
-}): Promise<RecordCocoLineResult> {
-  try {
-    const supabase = createSupabaseServiceClient();
-    const result = await withOwnedInProgressAttempt(input, async () => {
-      // Upsert on (attempt_id, turn_order) — idempotent, mirrors recordAnswer
-      const { error } = await supabase
-        .from("attempt_turns")
-        .upsert(
-          {
-            attempt_id: input.attemptId,
-            turn_order: input.turnOrder,
-            coco_line: input.cocoLine,
-            moderation_event: (input.moderationEvent ?? null) as Json,
-            ...(input.evaluation === undefined ? {} : { evaluation: input.evaluation }),
-          },
-          { onConflict: "attempt_id,turn_order" },
-        );
-
-      return error
-        ? ({ ok: false, error: "db_error" } as const)
-        : ({ ok: true } as const);
-    });
-
-    if (!result.ok) {
-      return { ok: false, error: mapAttemptGuardError(result.error) };
-    }
-    return result.value;
-  } catch {
-    return { ok: false, error: "db_error" };
-  }
-}
-
-/**
- * Record a student's repeat for a turn (D-05).
- *
- * Updates the EXISTING turn row — never inserts a new one. Sets
- * repeat_transcript and repeat_accepted=true (accept-any-non-empty).
- * Rejects empty/whitespace repeat.
- */
-export async function recordRepeat(input: {
-  studentId: string;
-  assignmentStudentId: string;
-  attemptId: string;
-  turnOrder: number;
-  repeatTranscript: string;
-}): Promise<RecordRepeatResult> {
-  const trimmed = input.repeatTranscript.trim();
-  if (trimmed.length === 0) {
-    return { ok: false, error: "empty_transcript" };
-  }
-
-  try {
-    const supabase = createSupabaseServiceClient();
-    const result = await withOwnedInProgressAttempt(input, async () => {
-      // UPDATE existing turn row (never insert a new one)
-      const { data, error } = await supabase
-        .from("attempt_turns")
-        .update({
-          repeat_transcript: trimmed,
-          repeat_accepted: true,
-        })
-        .eq("attempt_id", input.attemptId)
-        .eq("turn_order", input.turnOrder)
-        .select("id")
-        .maybeSingle();
-
-      if (error) return { ok: false, error: "db_error" } as const;
-      if (!data) return { ok: false, error: "no_turn_row" } as const;
-      return { ok: true } as const;
-    });
-
-    if (!result.ok) {
-      return { ok: false, error: mapAttemptGuardError(result.error) };
-    }
-    return result.value;
   } catch {
     return { ok: false, error: "db_error" };
   }

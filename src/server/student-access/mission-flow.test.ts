@@ -1,11 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/lib/db/types";
 
-// Mission-flow cap gate + coco_line persistence (CHAT-03/05/06, T-11-08, T-11-11).
-//
-// canGenerateNextDynamicTurn is pure and tested directly. recordCocoLine
-// touches Supabase, so it uses the same chained-query-builder mock shape as
-// tests/server/mission-assign.test.ts — no live DB, no Supabase env required.
+// Mission-flow cap gate and RPC boundaries.
 
 let mockSupabase: ReturnType<typeof createMockSupabase>;
 
@@ -15,8 +11,7 @@ vi.mock("@/lib/supabase/server", () => ({
 
 type Operation = {
   table: string;
-  action: "select" | "upsert" | "update";
-  payload?: unknown;
+  action: "select";
   filters: Array<[string, unknown]>;
 };
 
@@ -63,13 +58,6 @@ const legacySnapshot = {
 };
 
 function createMockSupabase(options: {
-  assignmentFound?: boolean;
-  attemptFound?: boolean;
-  attemptStatus?: string;
-  upsertError?: { message: string } | null;
-  updateError?: { message: string } | null;
-  assignmentStatus?: "assigned" | "started";
-  latestAttemptId?: string | null;
   missionSnapshot?: unknown;
   attemptTurns?: Array<{
     turn_order: number;
@@ -78,7 +66,6 @@ function createMockSupabase(options: {
     repeat_accepted: boolean;
     evaluation: null;
   }>;
-  rpcData?: string;
   recordHintRpcData?: string | null;
   recordHintRpcError?: { message: string } | null;
   startRpcData?: Database["public"]["Functions"]["start_student_attempt"]["Returns"];
@@ -90,37 +77,20 @@ function createMockSupabase(options: {
 
     const query: Record<string, unknown> & PromiseLike<{ error: unknown }> = {
       select: vi.fn(() => query),
-      upsert: vi.fn((payload: unknown) => {
-        operation.action = "upsert";
-        operation.payload = payload;
-        operations.push(operation);
-        return Promise.resolve({ error: options.upsertError ?? null });
-      }),
-      update: vi.fn((payload: unknown) => {
-        operation.action = "update";
-        operation.payload = payload;
-        operations.push(operation);
-        return query;
-      }),
       eq: vi.fn((column: string, value: unknown) => {
         operation.filters.push([column, value]);
         return query;
       }),
-      // Makes `query` itself awaitable so the update().eq().eq().eq() chain
-      // in flagAttemptForTeacherReview (no terminal .select()) resolves.
       then: (<TResult1, TResult2 = never>(
         onFulfilled?:
           | ((value: { error: unknown }) => TResult1 | PromiseLike<TResult1>)
           | null,
         onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
       ) => {
-        if (operation.action === "update" && !operations.includes(operation)) {
-          operations.push(operation);
-        }
         const result =
-          operation.action === "select" && table === "attempt_turns"
+          table === "attempt_turns"
             ? { data: options.attemptTurns ?? [], error: null }
-            : { error: options.updateError ?? null };
+            : { data: null, error: null };
         return Promise.resolve(result).then(
           onFulfilled ?? undefined,
           onRejected ?? undefined,
@@ -130,54 +100,22 @@ function createMockSupabase(options: {
         operations.push(operation);
         if (table === "assignment_students") {
           return {
-            data:
-              options.assignmentFound === false
-                ? null
-                : {
-                    id: "as-1",
-                    assignment_id: "assignment-1",
-                    student_id: "student-1",
-                    status: options.assignmentStatus ?? "started",
-                    latest_attempt_id:
-                      "latestAttemptId" in options
-                        ? options.latestAttemptId
-                        : "attempt-1",
-                    attempt_count: 1,
-                    highest_hint_level: 0,
-                    assignments: {
-                      canceled_at: null,
-                      title: "Mock mission",
-                      mission_snapshot:
-                        "missionSnapshot" in options
-                          ? options.missionSnapshot
-                          : makeCompleteSnapshot(),
-                    },
-                  },
-            error: null,
-          };
-        }
-        if (table === "attempts") {
-          return {
-            data:
-              options.attemptFound === false ||
-              (options.attemptStatus !== undefined &&
-                options.attemptStatus !== "in_progress")
-                ? null
-                : {
-                    id: "attempt-1",
-                    assignment_student_id: "as-1",
-                    status: options.attemptStatus ?? "in_progress",
-                  },
-            error: null,
-          };
-        }
-        if (table === "assignments") {
-          return {
             data: {
-              mission_snapshot:
-                "missionSnapshot" in options
-                  ? options.missionSnapshot
-                  : makeCompleteSnapshot(),
+              id: "as-1",
+              assignment_id: "assignment-1",
+              student_id: "student-1",
+              status: "started",
+              latest_attempt_id: "attempt-1",
+              attempt_count: 1,
+              highest_hint_level: 0,
+              assignments: {
+                canceled_at: null,
+                title: "Mock mission",
+                mission_snapshot:
+                  "missionSnapshot" in options
+                    ? options.missionSnapshot
+                    : makeCompleteSnapshot(),
+              },
             },
             error: null,
           };
@@ -216,7 +154,7 @@ function createMockSupabase(options: {
           error: options.recordHintRpcError ?? null,
         };
       }
-      return { data: options.rpcData ?? "ok", error: null };
+      return { data: "ok", error: null };
     }),
   };
 }
@@ -257,254 +195,6 @@ describe("canGenerateNextDynamicTurn (CHAT-03, T-11-08 hard cap)", () => {
     // required_turns=3 still permits generation through turn 8.
     expect(canGenerateNextDynamicTurn(3)).toBe(true);
     expect(canGenerateNextDynamicTurn(8)).toBe(true);
-  });
-});
-
-describe("Coco line persistence (recordCocoLine, CHAT-06, T-11-11)", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    mockSupabase = createMockSupabase();
-  });
-
-  it("upserts coco_line + moderation_event on (attempt_id, turn_order)", async () => {
-    const { recordCocoLine } = await import(
-      "@/server/student-access/mission-flow"
-    );
-
-    const result = await recordCocoLine({
-      studentId: "student-1",
-      assignmentStudentId: "as-1",
-      attemptId: "attempt-1",
-      turnOrder: 2,
-      cocoLine: "That sounds fun! What did you do next?",
-      moderationEvent: null,
-    });
-
-    expect(result).toEqual({ ok: true });
-
-    const upsertOp = mockSupabase.operations.find(
-      (op) => op.table === "attempt_turns" && op.action === "upsert",
-    );
-    expect(upsertOp?.payload).toMatchObject({
-      attempt_id: "attempt-1",
-      turn_order: 2,
-      coco_line: "That sounds fun! What did you do next?",
-      moderation_event: null,
-    });
-    expect(upsertOp?.payload).not.toHaveProperty("evaluation");
-  });
-
-  it("includes evaluation evidence only when supplied", async () => {
-    const { recordCocoLine } = await import(
-      "@/server/student-access/mission-flow"
-    );
-
-    const evaluation = {
-      outcome: "retry_original",
-      retryReason: "unclear_meaning",
-    };
-    const result = await recordCocoLine({
-      studentId: "student-1",
-      assignmentStudentId: "as-1",
-      attemptId: "attempt-1",
-      turnOrder: 2,
-      cocoLine: "Who do you play soccer with?",
-      moderationEvent: null,
-      evaluation,
-    });
-
-    expect(result).toEqual({ ok: true });
-    expect(mockSupabase.operations.at(-1)?.payload).toMatchObject({
-      coco_line: "Who do you play soccer with?",
-      evaluation,
-    });
-  });
-
-  it("a second call with the same turn_order overwrites, not duplicates (idempotent)", async () => {
-    const { recordCocoLine } = await import(
-      "@/server/student-access/mission-flow"
-    );
-
-    const base = {
-      studentId: "student-1",
-      assignmentStudentId: "as-1",
-      attemptId: "attempt-1",
-      turnOrder: 2,
-    };
-
-    await recordCocoLine({ ...base, cocoLine: "First line", moderationEvent: null });
-    const result = await recordCocoLine({
-      ...base,
-      cocoLine: "Retried line",
-      moderationEvent: { kind: "retried" },
-    });
-
-    expect(result).toEqual({ ok: true });
-
-    const upserts = mockSupabase.operations.filter(
-      (op) => op.table === "attempt_turns" && op.action === "upsert",
-    );
-    // Both calls target the same (attempt_id, turn_order); no duplicate row
-    // is implied — each call is a fresh upsert with onConflict set.
-    expect(upserts).toHaveLength(2);
-    expect(upserts[1]?.payload).toMatchObject({
-      attempt_id: "attempt-1",
-      turn_order: 2,
-      coco_line: "Retried line",
-      moderation_event: { kind: "retried" },
-    });
-  });
-
-  it("persists an attributable policy fallback event without rejected text", async () => {
-    const { recordCocoLine } = await import(
-      "@/server/student-access/mission-flow"
-    );
-    const event = {
-      kind: "canned_fallback" as const,
-      cause: "reply_policy_failed" as const,
-      violations: ["either_or_question" as const, "topic_drift" as const],
-    };
-
-    const result = await recordCocoLine({
-      studentId: "student-1",
-      assignmentStudentId: "as-1",
-      attemptId: "attempt-1",
-      turnOrder: 2,
-      cocoLine: "That's interesting! Tell me more about that.",
-      moderationEvent: event,
-    });
-
-    expect(result).toEqual({ ok: true });
-    expect(mockSupabase.operations.at(-1)?.payload).toMatchObject({
-      moderation_event: event,
-    });
-    expect(JSON.stringify(event)).not.toContain("line");
-  });
-
-  it("returns not_found for a mismatched student/attempt (ownership enforced, V4)", async () => {
-    mockSupabase = createMockSupabase({ assignmentFound: false });
-    const { recordCocoLine } = await import(
-      "@/server/student-access/mission-flow"
-    );
-
-    const result = await recordCocoLine({
-      studentId: "wrong-student",
-      assignmentStudentId: "as-1",
-      attemptId: "attempt-1",
-      turnOrder: 1,
-      cocoLine: "Hello!",
-    });
-
-    expect(result).toEqual({ ok: false, error: "not_found" });
-  });
-
-  it("returns not_found when the attempt does not belong to the assignment_student", async () => {
-    mockSupabase = createMockSupabase({ attemptFound: false });
-    const { recordCocoLine } = await import(
-      "@/server/student-access/mission-flow"
-    );
-
-    const result = await recordCocoLine({
-      studentId: "student-1",
-      assignmentStudentId: "as-1",
-      attemptId: "wrong-attempt",
-      turnOrder: 1,
-      cocoLine: "Hello!",
-    });
-
-    expect(result).toEqual({ ok: false, error: "not_found" });
-  });
-
-  it("returns not_found when the owned attempt is no longer in progress", async () => {
-    mockSupabase = createMockSupabase({ attemptStatus: "completed" });
-    const { recordCocoLine } = await import(
-      "@/server/student-access/mission-flow"
-    );
-
-    const result = await recordCocoLine({
-      studentId: "student-1",
-      assignmentStudentId: "as-1",
-      attemptId: "attempt-1",
-      turnOrder: 1,
-      cocoLine: "Hello!",
-    });
-
-    expect(result).toEqual({ ok: false, error: "not_found" });
-    expect(
-      mockSupabase.operations.some(
-        (operation) => operation.table === "attempt_turns" && operation.action === "upsert",
-      ),
-    ).toBe(false);
-  });
-
-  it("returns db_error when the upsert fails", async () => {
-    mockSupabase = createMockSupabase({
-      upsertError: { message: "constraint violation" },
-    });
-    const { recordCocoLine } = await import(
-      "@/server/student-access/mission-flow"
-    );
-
-    const result = await recordCocoLine({
-      studentId: "student-1",
-      assignmentStudentId: "as-1",
-      attemptId: "attempt-1",
-      turnOrder: 1,
-      cocoLine: "Hello!",
-    });
-
-    expect(result).toEqual({ ok: false, error: "db_error" });
-  });
-});
-
-describe("flagAttemptForTeacherReview", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    mockSupabase = createMockSupabase();
-  });
-
-  it("records an owned review reason without terminalizing assignment or attempt", async () => {
-    const { flagAttemptForTeacherReview } = await import(
-      "@/server/student-access/mission-flow"
-    );
-
-    const result = await flagAttemptForTeacherReview({
-      studentId: "student-1",
-      assignmentStudentId: "as-1",
-      attemptId: "attempt-1",
-      reviewReason: "ambiguous",
-    });
-
-    expect(result).toEqual({ ok: true });
-    expect(
-      mockSupabase.operations.find(
-        (operation) =>
-          operation.table === "attempts" && operation.action === "update",
-      )?.payload,
-    ).toEqual({ needs_review_reason: "ambiguous" });
-    expect(
-      mockSupabase.operations.some(
-        (operation) => operation.table === "assignment_students" && operation.action === "update",
-      ),
-    ).toBe(false);
-    expect(JSON.stringify(mockSupabase.operations)).not.toContain(
-      '"status":"teacher_review"',
-    );
-  });
-
-  it("rejects a non-owned or non-active attempt", async () => {
-    mockSupabase = createMockSupabase({ attemptFound: false });
-    const { flagAttemptForTeacherReview } = await import(
-      "@/server/student-access/mission-flow"
-    );
-    await expect(
-      flagAttemptForTeacherReview({
-        studentId: "student-1",
-        assignmentStudentId: "as-1",
-        attemptId: "wrong-attempt",
-        reviewReason: "low_confidence",
-      }),
-    ).resolves.toEqual({ ok: false, error: "not_found" });
   });
 });
 
@@ -597,8 +287,6 @@ describe("startOrResumeAttempt RPC boundary", () => {
   beforeEach(() => {
     vi.resetModules();
     mockSupabase = createMockSupabase({
-      assignmentStatus: "assigned",
-      latestAttemptId: null,
       startRpcData: [
         {
           outcome: "ok",

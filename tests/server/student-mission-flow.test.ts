@@ -189,14 +189,59 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(limitBranch).not.toContain("RecordAgainRequiredNotice");
   });
 
-  it("service-role mission-flow writes verify attempt ownership before mutation", () => {
+  it("keeps obsolete writers out of mission-flow and live writes owned", () => {
     const missionFlowSource = readFileSync(
       "src/server/student-access/mission-flow.ts",
       "utf8",
     );
+    const speakingTrySource = readFileSync(
+      "src/server/student-access/speaking-try-context.ts",
+      "utf8",
+    );
+    const audioUploadSource = readFileSync(
+      "src/server/student-access/audio-upload.ts",
+      "utf8",
+    );
 
-    expect(missionFlowSource).toContain("withOwnedInProgressAttempt");
-    expect(missionFlowSource).not.toContain("loadOwnedAttempt");
+    for (const writer of [
+      "recordAnswer",
+      "recordRepeat",
+      "recordCocoLine",
+      "flagAttemptForTeacherReview",
+    ]) {
+      expect(missionFlowSource).not.toMatch(
+        new RegExp(`export (?:async )?function ${writer}\\b`),
+      );
+    }
+    for (const resultType of [
+      "RecordAnswerResult",
+      "RecordRepeatResult",
+      "RecordCocoLineResult",
+      "RouteTeacherReviewResult",
+      "TeacherReviewReason",
+    ]) {
+      expect(missionFlowSource).not.toMatch(
+        new RegExp(`export type ${resultType}\\b`),
+      );
+    }
+
+    expect(speakingTrySource).toContain('"owned_speaking_try_operation"');
+    for (const operation of [
+      '"write_original_turn"',
+      '"write_repeat_turn"',
+      '"record_coco_line"',
+      '"route_teacher_review"',
+    ]) {
+      expect(speakingTrySource).toContain(operation);
+    }
+    for (const contextWrite of [
+      "context.writeOriginalTurn",
+      "context.writeRepeatTurn",
+      "context.recordCocoLine",
+      "context.routeTeacherReview",
+    ]) {
+      expect(audioUploadSource).toContain(contextWrite);
+    }
   });
 
   it("completion is delegated to the atomic database RPC", () => {
