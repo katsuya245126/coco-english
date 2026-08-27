@@ -12,7 +12,7 @@ const {
 
 vi.mock("next/cache", () => ({ revalidatePath: mockRevalidatePath }));
 
-vi.mock("@/server/teacher/auth", () => ({
+vi.mock("@/server/auth/teacher-profile", () => ({
   requireTeacherProfile: mockRequireTeacherProfile,
 }));
 

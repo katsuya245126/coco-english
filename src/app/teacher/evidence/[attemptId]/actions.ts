@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireTeacherProfile } from "@/server/teacher/auth";
+import { requireTeacherProfile } from "@/server/auth/teacher-profile";
 import { changeAttemptReview } from "@/server/teacher/assignment-operations";
 import { createSignedAudioUrlForTeacher } from "@/server/teacher/audio-evidence";
 import { reprocessClipPronunciation } from "@/server/audio/pronunciation-reprocess";

@@ -1,5 +1,6 @@
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
+import { loadEnvFile } from "node:process";
 import { chromium } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 
@@ -21,18 +22,7 @@ Optional env:
 
 function loadEnvLocal() {
   const envPath = path.resolve(process.cwd(), ".env.local");
-  if (!existsSync(envPath)) return;
-
-  for (const line of readFileSync(envPath, "utf8").split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const equalsIndex = trimmed.indexOf("=");
-    if (equalsIndex === -1) continue;
-
-    const key = trimmed.slice(0, equalsIndex).trim();
-    const value = trimmed.slice(equalsIndex + 1).trim().replace(/^["']|["']$/g, "");
-    process.env[key] ??= value;
-  }
+  if (existsSync(envPath)) loadEnvFile(envPath);
 }
 
 function fakeMediaRecorderInitScript() {

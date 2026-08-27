@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { ClassReviewPolicy } from "@/domain/teacher/assignment-operations";
-import { requireTeacherProfile } from "@/server/teacher/auth";
+import { requireTeacherProfile } from "@/server/auth/teacher-profile";
 import {
   type AssignedHomeworkChange,
   changeAttemptReview,

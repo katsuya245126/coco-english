@@ -53,8 +53,6 @@ export const createClassSchema = z.object({
     .max(80, "Class name is too long."),
 });
 
-export type CreateClassInput = z.infer<typeof createClassSchema>;
-
 // Class rename: target class id + new name. Ownership is enforced by RLS plus
 // the server-side requireTeacherProfile guard, not by trusting this input.
 export const updateClassSchema = z.object({
@@ -65,5 +63,3 @@ export const updateClassSchema = z.object({
     .min(1, "Enter a class name.")
     .max(80, "Class name is too long."),
 });
-
-export type UpdateClassInput = z.infer<typeof updateClassSchema>;
