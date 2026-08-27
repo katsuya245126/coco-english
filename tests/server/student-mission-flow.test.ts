@@ -2,6 +2,16 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+function readStartAttemptSource() {
+  const source = readFileSync(
+    "src/server/student-access/mission-flow.ts",
+    "utf8",
+  );
+  const start = source.indexOf("export async function startOrResumeAttempt");
+  const end = source.indexOf("/**", start + 1);
+  return source.slice(start, end);
+}
+
 describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
   it("answer evaluation is a pure AI seam while workflow state stays app-owned", async () => {
     const mod = await import("@/server/student-access/audio-upload");
@@ -210,44 +220,31 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(missionFlowSource).not.toContain("loadOwnedAttempt");
   });
 
-  it("start attempts conditionally claim the assignment before returning the new attempt", () => {
-    const missionFlowSource = readFileSync(
-      "src/server/student-access/mission-flow.ts",
-      "utf8",
-    );
+  it("start attempts delegate lifecycle transitions to the atomic RPC", () => {
+    const startSource = readStartAttemptSource();
 
-    expect(missionFlowSource).toContain("const { data: claimed");
-    // Claim guard now uses dynamic asRow.status (not hardcoded "assigned") to support needs_retry
-    expect(missionFlowSource).toContain(".eq(\"status\", asRow.status)");
-    expect(missionFlowSource).toContain("status: \"abandoned\" as const");
-    expect(missionFlowSource).toContain("resumed.latestAttemptId");
+    expect(startSource).toContain('supabase.rpc("start_student_attempt"');
+    expect(startSource).toContain("p_student_id: input.studentId");
+    expect(startSource).toContain(
+      "p_assignment_student_id: input.assignmentStudentId",
+    );
+    expect(startSource).not.toContain(".insert(");
+    expect(startSource).not.toContain(".update(");
   });
 
-  it("needs_retry gate is accepted and uses reopened_by_teacher reason code (D-10)", () => {
-    const missionFlowSource = readFileSync(
-      "src/server/student-access/mission-flow.ts",
-      "utf8",
-    );
+  it("needs_retry admission is delegated to the atomic RPC (D-10)", () => {
+    const startSource = readStartAttemptSource();
 
-    // Gate accepts needs_retry
-    expect(missionFlowSource).toContain('asRow.status !== "needs_retry"');
-    // Reason code for needs_retry path
-    expect(missionFlowSource).toContain('"reopened_by_teacher"');
-    // Audit event uses dynamic previousStatus (not hardcoded "assigned")
-    expect(missionFlowSource).toContain("previous_status: asRow.status");
-    // Reason code in audit event uses dynamic variable
-    expect(missionFlowSource).toContain("reason_code: reasonCode");
+    expect(startSource).toContain('supabase.rpc("start_student_attempt"');
+    expect(startSource).not.toContain('asRow.status !== "needs_retry"');
+    expect(startSource).not.toContain('"reopened_by_teacher"');
+    expect(startSource).not.toContain("previous_status: asRow.status");
+    expect(startSource).not.toContain("reason_code: reasonCode");
   });
 
-  it("missed-but-open homework starts through the owned audited transition (D-22)", () => {
-    const missionFlowSource = readFileSync(
-      "src/server/student-access/mission-flow.ts",
-      "utf8",
-    );
+  it("missed-but-open homework proves ownership before the atomic RPC (D-22)", () => {
+    const startSource = readStartAttemptSource();
 
-    expect(missionFlowSource).toContain('asRow.status !== "missed"');
-    expect(missionFlowSource).toContain('asRow.status === "missed"');
-    expect(missionFlowSource).toContain('"late_mission_started"');
     // Ownership proof lives in the shared seam since issue #67; the flow
     // consumes it instead of hand-rolling the query.
     const ownedAssignmentSource = readFileSync(
@@ -258,20 +255,15 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
       '.eq("student_id", input.studentId)',
     );
     expect(ownedAssignmentSource).toContain("canceledAt");
-    expect(missionFlowSource).toContain("requireOwnedAssignmentStudent");
-    // Reads of the table go through the seam; remaining direct uses are the
-    // auditable conditional-write transitions, never an ownership SELECT.
-    expect(missionFlowSource).not.toMatch(
+    expect(startSource).toContain("requireOwnedAssignmentStudent");
+    // The start flow reads through the ownership seam and leaves all status
+    // transitions to the atomic RPC.
+    expect(startSource).not.toMatch(
       /from\("assignment_students"\)\s*\n\s*\.select/,
     );
-    expect(missionFlowSource).toContain('.eq("status", asRow.status)');
-    expect(missionFlowSource).toContain(
-      "attempt_count: (asRow.attemptCount ?? 0) + 1",
-    );
-    expect(missionFlowSource).toContain("latest_attempt_id: newAttempt.id");
-    expect(missionFlowSource).toContain('actor_type: "student_session"');
-    expect(missionFlowSource).toContain("reason_code: reasonCode");
-    expect(missionFlowSource).toContain('status: "abandoned" as const');
+    expect(startSource).toContain('supabase.rpc("start_student_attempt"');
+    expect(startSource).not.toContain('asRow.status === "missed"');
+    expect(startSource).not.toContain('"late_mission_started"');
   });
 
   it("completion is delegated to the atomic database RPC", () => {

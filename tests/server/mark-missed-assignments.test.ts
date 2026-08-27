@@ -295,6 +295,12 @@ function createMockSupabase() {
     turns,
     operations,
     auditEvents,
+    rpc: vi.fn(async () => ({
+      data: [
+        { outcome: "ok", attempt_id: "attempt-live", is_resume: true },
+      ],
+      error: null,
+    })),
     claimAssignedOverdueBeforeUpdate: () => {
       claimAssignedOverdueBeforeUpdate = true;
     },
@@ -344,6 +350,10 @@ describe("markMissedAssignments", () => {
       attemptId: "attempt-live",
       isResume: true,
       resumeTurnOrder: 2,
+    });
+    expect(mockSupabase.rpc).toHaveBeenCalledWith("start_student_attempt", {
+      p_student_id: "student-1",
+      p_assignment_student_id: "late-opened",
     });
     expect(
       mockSupabase.assignmentStudents.find((row) => row.id === "late-opened"),
