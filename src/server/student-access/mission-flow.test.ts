@@ -19,6 +19,12 @@ type Operation = {
   filters: Array<[string, unknown]>;
 };
 
+type StartRpcData = Array<{
+  outcome: "ok" | "not_found" | "not_assigned_or_started";
+  attempt_id: string | null;
+  is_resume: boolean;
+}>;
+
 const missionId = "11111111-1111-4111-8111-111111111111";
 
 const completeTurn = {
@@ -78,6 +84,8 @@ function createMockSupabase(options: {
     evaluation: null;
   }>;
   rpcData?: string;
+  startRpcData?: StartRpcData;
+  startRpcError?: { message: string } | null;
 } = {}) {
   const operations: Operation[] = [];
 
@@ -188,7 +196,21 @@ function createMockSupabase(options: {
   return {
     operations,
     from: vi.fn((table: string) => createQuery(table)),
-    rpc: vi.fn(async () => ({ data: options.rpcData ?? "ok", error: null })),
+    rpc: vi.fn(async (name: string) =>
+      name === "start_student_attempt"
+        ? {
+            data:
+              options.startRpcData ?? [
+                {
+                  outcome: "ok",
+                  attempt_id: "attempt-1",
+                  is_resume: true,
+                },
+              ],
+            error: options.startRpcError ?? null,
+          }
+        : { data: options.rpcData ?? "ok", error: null },
+    ),
   };
 }
 
@@ -476,6 +498,68 @@ describe("flagAttemptForTeacherReview", () => {
         reviewReason: "low_confidence",
       }),
     ).resolves.toEqual({ ok: false, error: "not_found" });
+  });
+});
+
+describe("startOrResumeAttempt RPC boundary", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    mockSupabase = createMockSupabase({
+      assignmentStatus: "assigned",
+      latestAttemptId: null,
+      startRpcData: [
+        { outcome: "ok", attempt_id: "attempt-2", is_resume: false },
+      ],
+    });
+  });
+
+  it("maps a fresh RPC result without direct lifecycle writes", async () => {
+    const { startOrResumeAttempt } = await import(
+      "@/server/student-access/mission-flow"
+    );
+
+    await expect(
+      startOrResumeAttempt({
+        studentId: "student-1",
+        assignmentStudentId: "as-1",
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      attemptId: "attempt-2",
+      isResume: false,
+      resumeTurnOrder: 1,
+    });
+
+    expect(mockSupabase.rpc).toHaveBeenCalledWith("start_student_attempt", {
+      p_student_id: "student-1",
+      p_assignment_student_id: "as-1",
+    });
+    expect(
+      mockSupabase.operations.some(
+        (operation) =>
+          (operation.table === "attempts" && operation.action !== "select") ||
+          (operation.table === "assignment_students" && operation.action !== "select") ||
+          (operation.table === "assignment_status_events" && operation.action !== "select"),
+      ),
+    ).toBe(false);
+  });
+
+  it("maps a denied RPC result to the existing service contract", async () => {
+    mockSupabase = createMockSupabase({
+      startRpcData: [
+        { outcome: "not_assigned_or_started", attempt_id: null, is_resume: false },
+      ],
+    });
+    const { startOrResumeAttempt } = await import(
+      "@/server/student-access/mission-flow"
+    );
+
+    await expect(
+      startOrResumeAttempt({
+        studentId: "student-1",
+        assignmentStudentId: "as-1",
+      }),
+    ).resolves.toEqual({ ok: false, error: "not_assigned_or_started" });
   });
 });
 

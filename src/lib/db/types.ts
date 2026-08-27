@@ -439,6 +439,17 @@ export type Database = {
           out_class_name: string;
         }[];
       };
+      start_student_attempt: {
+        Args: {
+          p_student_id: string;
+          p_assignment_student_id: string;
+        };
+        Returns: {
+          outcome: "ok" | "not_found" | "not_assigned_or_started";
+          attempt_id: string | null;
+          is_resume: boolean;
+        }[];
+      };
       complete_student_attempt: {
         Args: {
           p_student_id: string;

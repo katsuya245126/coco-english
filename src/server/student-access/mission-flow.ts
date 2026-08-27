@@ -15,8 +15,7 @@ import {
   requireOwnedAssignmentStudent,
   withOwnedInProgressAttempt,
 } from "@/server/student-access/owned-assignment";
-import type { Json } from "@/lib/db/types";
-import { assertTransitionRequest } from "@/domain/foundation/status";
+import type { Database, Json } from "@/lib/db/types";
 import { buildPlaceholderEvaluation } from "@/domain/flow/evaluation";
 import { log } from "@/server/logging/logger";
 import { nextUnfinishedTurnOrder } from "@/domain/flow/completion";
@@ -172,137 +171,55 @@ export async function startOrResumeAttempt(input: {
     const snapshot = asRow.snapshot;
     if (!snapshot) return { ok: false, error: "not_found" };
 
-    // 2. If already started, try to resume the existing in_progress attempt
-    if (asRow.status === "started" && asRow.latestAttemptId) {
-      const { data: attempt } = await supabase
-        .from("attempts")
-        .select("id, status")
-        .eq("id", asRow.latestAttemptId)
-        .eq("status", "in_progress")
-        .maybeSingle();
-
-      if (attempt) {
-        // Load existing turns for resume position
-        const { data: turns } = await supabase
-          .from("attempt_turns")
-          .select("turn_order, original_transcript, repeat_transcript, repeat_accepted, evaluation")
-          .eq("attempt_id", attempt.id);
-
-        const resumeTurnOrder = nextUnfinishedTurnOrder(
-          snapshot.requiredTurns,
-          (turns ?? []).map((t) => ({
-            turn_order: t.turn_order,
-            original_transcript: t.original_transcript,
-            repeat_transcript: t.repeat_transcript,
-            repeat_accepted: t.repeat_accepted,
-            evaluation: t.evaluation,
-          })),
-        );
-
-        return {
-          ok: true,
-          attemptId: attempt.id,
-          isResume: true,
-          resumeTurnOrder,
-        };
-      }
-    }
-
-    // 3. Create a new attempt only for fresh, late-open, or teacher-reopened work.
-    if (
-      asRow.status !== "assigned" &&
-      asRow.status !== "missed" &&
-      asRow.status !== "needs_retry"
-    ) {
-      return { ok: false, error: "not_assigned_or_started" };
-    }
-
-    // 4. INSERT new attempt
-    const { data: newAttempt, error: attemptError } = await supabase
-      .from("attempts")
-      .insert({
-        assignment_student_id: input.assignmentStudentId,
-        status: "in_progress",
-      })
-      .select("id")
-      .single();
-
-    if (attemptError || !newAttempt) {
-      return { ok: false, error: "db_error" };
-    }
-
-    // 5. Audited transition — use actual prior status and appropriate reason code
-    const nowIso = new Date().toISOString();
-    const reasonCode =
-      asRow.status === "needs_retry"
-        ? "reopened_by_teacher"
-        : asRow.status === "missed"
-          ? "late_mission_started"
-          : "mission_started";
-    assertTransitionRequest({
-      previousStatus: asRow.status,
-      nextStatus: "started",
-      actorType: "student_session",
-      reasonCode,
-      occurredAt: nowIso,
+    // The RPC owns status, snapshot, ownership, attempt, count, and event
+    // decisions under one database lock. This service only maps its result and
+    // loads turns when the database resumed an active attempt.
+    const { data, error } = await supabase.rpc("start_student_attempt", {
+      p_student_id: input.studentId,
+      p_assignment_student_id: input.assignmentStudentId,
     });
 
-    // Conditional UPDATE. Use dynamic prior status as the claim guard so optimistic
-    // locking works for assigned, missed, and needs_retry paths (T-07-08).
-    const { data: claimed, error: claimError } = await supabase
-      .from("assignment_students")
-      .update({
-        status: "started" as const,
-        latest_attempt_id: newAttempt.id,
-        attempt_count: (asRow.attemptCount ?? 0) + 1,
-      })
-      .eq("id", input.assignmentStudentId)
-      .eq("status", asRow.status)
-      .select("id")
-      .maybeSingle();
+    if (error) return { ok: false, error: "db_error" };
 
-    if (claimError) return { ok: false, error: "db_error" };
+    const result = (Array.isArray(data) ? data[0] : data) as
+      | Database["public"]["Functions"]["start_student_attempt"]["Returns"][number]
+      | undefined;
+    if (!result) return { ok: false, error: "db_error" };
+    if (result.outcome !== "ok") {
+      return { ok: false, error: result.outcome };
+    }
+    if (!result.attempt_id) return { ok: false, error: "db_error" };
 
-    if (!claimed) {
-      await supabase
-        .from("attempts")
-        .update({ status: "abandoned" as const })
-        .eq("id", newAttempt.id);
-
-      const ownedProof3 = await requireOwnedAssignmentStudent({
-        studentId: input.studentId,
-        assignmentStudentId: input.assignmentStudentId,
-      });
-      const resumed = ownedProof3.ok ? ownedProof3.owned : null;
-      if (resumed?.latestAttemptId) {
-        return {
-          ok: true,
-          attemptId: resumed.latestAttemptId,
-          isResume: true,
-          resumeTurnOrder: 1,
-        };
-      }
-
-      return { ok: false, error: "not_assigned_or_started" };
+    if (!result.is_resume) {
+      return {
+        ok: true,
+        attemptId: result.attempt_id,
+        isResume: false,
+        resumeTurnOrder: 1,
+      };
     }
 
-    const { error: eventError } = await supabase
-      .from("assignment_status_events")
-      .insert({
-        assignment_student_id: input.assignmentStudentId,
-        previous_status: asRow.status,
-        next_status: "started",
-        actor_type: "student_session",
-        reason_code: reasonCode,
-      });
+    const { data: turns } = await supabase
+      .from("attempt_turns")
+      .select("turn_order, original_transcript, repeat_transcript, repeat_accepted, evaluation")
+      .eq("attempt_id", result.attempt_id);
 
-    if (eventError) return { ok: false, error: "db_error" };
+    const resumeTurnOrder = nextUnfinishedTurnOrder(
+      snapshot.requiredTurns,
+      (turns ?? []).map((t) => ({
+        turn_order: t.turn_order,
+        original_transcript: t.original_transcript,
+        repeat_transcript: t.repeat_transcript,
+        repeat_accepted: t.repeat_accepted,
+        evaluation: t.evaluation,
+      })),
+    );
 
     return {
       ok: true,
-      attemptId: newAttempt.id,
-      isResume: false,
-      resumeTurnOrder: 1,
+      attemptId: result.attempt_id,
+      isResume: true,
+      resumeTurnOrder,
     };
   } catch {
     return { ok: false, error: "db_error" };
