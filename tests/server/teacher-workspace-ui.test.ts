@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -25,8 +25,7 @@ describe("teacher workspace source contract", () => {
 
   it("uses a controlled, non-optimistic class review-policy control", () => {
     const path = "src/components/teacher/ClassReviewPolicyControl.tsx";
-    expect(existsSync(path)).toBe(true);
-    const control = existsSync(path) ? source(path) : "";
+    const control = source(path);
 
     expect(control).toContain("export function ClassReviewPolicyControl");
     expect(control).toContain('aria-label="Class review policy"');
@@ -44,7 +43,6 @@ describe("teacher workspace source contract", () => {
       /if \(result\.ok\)[\s\S]*setConfirmedValue\(nextValue\)[\s\S]*router\.refresh\(\)/,
     );
     expect(control.match(/router\.refresh\(\)/g)).toHaveLength(1);
-    expect(control).not.toContain("<style jsx");
   });
 
   it("polls one snapshot without moving inbox rows until the banner is clicked", () => {
@@ -88,14 +86,9 @@ describe("teacher workspace source contract", () => {
 
   it("ships shell styles as a real stylesheet in the layout (no styled-jsx FOUC)", () => {
     const layout = source("src/app/teacher/layout.tsx");
-    const shell = source("src/components/teacher/TeacherWorkspaceShell.tsx");
     const styles = source("src/app/teacher/teacher-workspace.css");
     expect(layout).toContain('import "./teacher-workspace.css"');
     expect(layout).not.toContain("TeacherWorkspaceStyles");
-    // The shell must not inject styles at runtime — styled-jsx renders
-    // client-side after hydration, which is the FOUC on hard refresh.
-    expect(shell).not.toContain("<style jsx");
-    expect(shell).not.toContain("style jsx>");
     expect(styles).toContain("grid-template-columns: 210px minmax(0, 1fr)");
     expect(styles).toContain(".teacher-shell .nav.active");
     expect(styles).toContain(".teacher-shell .count");

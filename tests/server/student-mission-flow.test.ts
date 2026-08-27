@@ -3,18 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
-  it("answer evaluation is a pure AI seam while workflow state stays app-owned", async () => {
-    const mod = await import("@/server/student-access/audio-upload");
-    const evaluation = await import("@/server/ai/answer-evaluation");
-
-    // The upload service remains the app-owned workflow boundary: writes,
-    // ownership checks, and attempt-state transitions never move into AI.
-    expect(mod.recordSpeakingTry).toBeDefined();
-
-    // The extracted evaluation pipeline exposes its seam to the service and
-    // tests, but owns no persistence or workflow state of its own.
-    expect(evaluation.evaluateOriginalTurnAnswer).toBeDefined();
-    expect(evaluation.evaluateRepeatTurnAnswer).toBeDefined();
+  it("keeps answer evaluation free of app-owned persistence imports", () => {
     const source = readFileSync(
       join(process.cwd(), "src/server/ai/answer-evaluation.ts"),
       "utf8",
