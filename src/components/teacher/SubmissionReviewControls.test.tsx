@@ -77,61 +77,44 @@ async function clickButton(label: string) {
 }
 
 describe("SubmissionReviewControls action routing", () => {
-  it("accepts a flagged started attempt through review completion", async () => {
-    await renderControls("failed_schema");
-    await clickButton("Mark as done");
+  const reviewCases = [
+    { name: "flagged", reviewReason: "failed_schema" },
+    { name: "unflagged", reviewReason: null },
+  ] as const;
 
-    expect(mocks.markSubmissionReviewedAction).toHaveBeenCalledWith("attempt-1");
-    expect(mocks.changeAssignedHomeworkAction).not.toHaveBeenCalled();
-    expect(mocks.push).toHaveBeenCalledWith(
-      "/teacher/classes/class-1/review/assignment-1",
-    );
-  });
+  it.each(reviewCases)(
+    "accepts a $name started attempt through review completion",
+    async ({ reviewReason }) => {
+      await renderControls(reviewReason);
+      await clickButton("Mark as done");
 
-  it("explains missing answers and retry when flagged completion is rejected", async () => {
-    mocks.markSubmissionReviewedAction.mockResolvedValueOnce({
-      ok: false,
-      error: "not_allowed",
-    });
-    await renderControls("failed_schema");
-    await clickButton("Mark as done");
+      expect(mocks.markSubmissionReviewedAction).toHaveBeenCalledWith("attempt-1");
+      expect(mocks.changeAssignedHomeworkAction).not.toHaveBeenCalled();
+      expect(mocks.push).toHaveBeenCalledWith(
+        "/teacher/classes/class-1/review/assignment-1",
+      );
+    },
+  );
 
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-      "required answers may be missing",
-    );
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-      "Request retry is available",
-    );
-    expect(mocks.push).not.toHaveBeenCalled();
-  });
+  it.each(reviewCases)(
+    "explains missing answers and retry when $name completion is rejected",
+    async ({ reviewReason }) => {
+      mocks.markSubmissionReviewedAction.mockResolvedValueOnce({
+        ok: false,
+        error: "not_allowed",
+      });
+      await renderControls(reviewReason);
+      await clickButton("Mark as done");
 
-  it("accepts an unflagged started attempt through review completion", async () => {
-    await renderControls(null);
-    await clickButton("Mark as done");
-
-    expect(mocks.markSubmissionReviewedAction).toHaveBeenCalledWith("attempt-1");
-    expect(mocks.changeAssignedHomeworkAction).not.toHaveBeenCalled();
-    expect(mocks.push).toHaveBeenCalledWith(
-      "/teacher/classes/class-1/review/assignment-1",
-    );
-  });
-
-  it("explains missing answers and retry when unflagged completion is rejected", async () => {
-    mocks.markSubmissionReviewedAction.mockResolvedValueOnce({
-      ok: false,
-      error: "not_allowed",
-    });
-    await renderControls(null);
-    await clickButton("Mark as done");
-
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-      "required answers may be missing",
-    );
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-      "Request retry is available",
-    );
-    expect(mocks.push).not.toHaveBeenCalled();
-  });
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+        "required answers may be missing",
+      );
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+        "Request retry is available",
+      );
+      expect(mocks.push).not.toHaveBeenCalled();
+    },
+  );
 
   it.each(["assigned", "missed"] as const)("dismisses a %s attempt", async (status) => {
     await renderControls(null, status);

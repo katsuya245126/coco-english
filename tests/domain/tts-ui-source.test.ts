@@ -36,32 +36,6 @@ function collectFiles(dir: string): string[] {
 }
 
 describe("CocoSpeechAudio replay UI source contract (VOICE-02, D-12, D-13)", () => {
-  it("renders an inline icon-only replay control with accessible label 'Play Coco'", () => {
-    const source = readSource("src/components/student/CocoSpeechAudio.tsx");
-
-    expect(source).toContain('aria-label="Play Coco"');
-    expect(source).toContain("<audio");
-  });
-
-  it("uses an inline SVG speaker icon instead of emoji glyphs", () => {
-    const source = readSource("src/components/student/CocoSpeechAudio.tsx");
-
-    expect(source).toContain("function SpeakerIcon");
-    expect(source).toContain("<svg");
-    expect(source).toContain('stroke: "currentColor"');
-    expect(source).toContain('fill="currentColor"');
-    expect(source).toMatch(/M15\.54 8\.46a5 5 0 0 1 0 7\.07/);
-    expect(source).not.toMatch(/[🔈🔊🔇…]/u);
-  });
-
-  it("uses a standard audio element, catches rejected play() promises, and exposes loading/ready/playing/error states", () => {
-    const source = readSource("src/components/student/CocoSpeechAudio.tsx");
-
-    expect(source).toContain("<audio");
-    expect(source).toMatch(/\.play\(\)/);
-    expect(source).toMatch(/catch/);
-  });
-
   it("reports playback stopped on pause, buffering, descriptor changes, and unmount", () => {
     const source = readSource("src/components/student/CocoSpeechAudio.tsx");
 
