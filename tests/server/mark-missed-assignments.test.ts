@@ -297,7 +297,12 @@ function createMockSupabase() {
     auditEvents,
     rpc: vi.fn(async () => ({
       data: [
-        { outcome: "ok", attempt_id: "attempt-live", is_resume: true },
+        {
+          outcome: "ok",
+          attempt_id: "attempt-live",
+          is_resume: true,
+          required_turns: 3,
+        },
       ],
       error: null,
     })),
