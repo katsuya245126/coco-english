@@ -76,7 +76,7 @@ export const ALLOWED_AUDIO_MIME_TYPES = new Set([
 
 export type AudioClipKind = Database["public"]["Enums"]["audio_clip_kind"];
 
-export type TeacherReviewReason =
+type TeacherReviewReason =
   | "low_confidence"
   | "ambiguous"
   | "failed_schema"

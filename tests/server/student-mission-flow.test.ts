@@ -203,27 +203,12 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
       "utf8",
     );
 
-    for (const writer of [
-      "recordAnswer",
-      "recordRepeat",
-      "recordCocoLine",
-      "flagAttemptForTeacherReview",
-    ]) {
-      expect(missionFlowSource).not.toMatch(
-        new RegExp(`export (?:async )?function ${writer}\\b`),
-      );
-    }
-    for (const resultType of [
-      "RecordAnswerResult",
-      "RecordRepeatResult",
-      "RecordCocoLineResult",
-      "RouteTeacherReviewResult",
-      "TeacherReviewReason",
-    ]) {
-      expect(missionFlowSource).not.toMatch(
-        new RegExp(`export type ${resultType}\\b`),
-      );
-    }
+    expect(missionFlowSource).not.toMatch(
+      /export (?:async )?function (?:recordAnswer|recordRepeat|recordCocoLine|flagAttemptForTeacherReview)\b/,
+    );
+    expect(missionFlowSource).not.toMatch(
+      /export type (?:RecordAnswerResult|RecordRepeatResult|RecordCocoLineResult|RouteTeacherReviewResult|TeacherReviewReason)\b/,
+    );
 
     expect(speakingTrySource).toContain('"owned_speaking_try_operation"');
     for (const operation of [
