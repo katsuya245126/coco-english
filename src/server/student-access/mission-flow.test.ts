@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Database } from "@/lib/db/types";
 
 // Mission-flow cap gate + coco_line persistence (CHAT-03/05/06, T-11-08, T-11-11).
 //
@@ -18,12 +19,6 @@ type Operation = {
   payload?: unknown;
   filters: Array<[string, unknown]>;
 };
-
-type StartRpcData = Array<{
-  outcome: "ok" | "not_found" | "not_assigned_or_started";
-  attempt_id: string | null;
-  is_resume: boolean;
-}>;
 
 const missionId = "11111111-1111-4111-8111-111111111111";
 
@@ -84,8 +79,7 @@ function createMockSupabase(options: {
     evaluation: null;
   }>;
   rpcData?: string;
-  startRpcData?: StartRpcData;
-  startRpcError?: { message: string } | null;
+  startRpcData?: Database["public"]["Functions"]["start_student_attempt"]["Returns"];
 } = {}) {
   const operations: Operation[] = [];
 
@@ -205,9 +199,10 @@ function createMockSupabase(options: {
                   outcome: "ok",
                   attempt_id: "attempt-1",
                   is_resume: true,
+                  required_turns: 5,
                 },
               ],
-            error: options.startRpcError ?? null,
+            error: null,
           }
         : { data: options.rpcData ?? "ok", error: null },
     ),
@@ -508,7 +503,12 @@ describe("startOrResumeAttempt RPC boundary", () => {
       assignmentStatus: "assigned",
       latestAttemptId: null,
       startRpcData: [
-        { outcome: "ok", attempt_id: "attempt-2", is_resume: false },
+        {
+          outcome: "ok",
+          attempt_id: "attempt-2",
+          is_resume: false,
+          required_turns: 1,
+        },
       ],
     });
   });
@@ -547,7 +547,12 @@ describe("startOrResumeAttempt RPC boundary", () => {
   it("maps a denied RPC result to the existing service contract", async () => {
     mockSupabase = createMockSupabase({
       startRpcData: [
-        { outcome: "not_assigned_or_started", attempt_id: null, is_resume: false },
+        {
+          outcome: "not_assigned_or_started",
+          attempt_id: null,
+          is_resume: false,
+          required_turns: null,
+        },
       ],
     });
     const { startOrResumeAttempt } = await import(
@@ -569,11 +574,16 @@ describe("mission snapshot lifecycle boundary", () => {
     mockSupabase = createMockSupabase();
   });
 
-  it("rejects an invalid snapshot before a fresh attempt mutation", async () => {
+  it("maps an RPC snapshot rejection without an application pre-read", async () => {
     mockSupabase = createMockSupabase({
-      assignmentStatus: "assigned",
-      latestAttemptId: null,
-      missionSnapshot: { requiredTurns: 5 },
+      startRpcData: [
+        {
+          outcome: "not_found",
+          attempt_id: null,
+          is_resume: false,
+          required_turns: null,
+        },
+      ],
     });
     const { startOrResumeAttempt } = await import(
       "@/server/student-access/mission-flow"
@@ -585,38 +595,15 @@ describe("mission snapshot lifecycle boundary", () => {
         assignmentStudentId: "as-1",
       }),
     ).resolves.toEqual({ ok: false, error: "not_found" });
-    expect(
-      mockSupabase.operations.filter((operation) => operation.action !== "select"),
-    ).toHaveLength(0);
+    expect(mockSupabase.rpc).toHaveBeenCalledWith("start_student_attempt", {
+      p_student_id: "student-1",
+      p_assignment_student_id: "as-1",
+    });
+    expect(mockSupabase.operations).toHaveLength(0);
   });
 
-  it.each([
-    ["legacy", legacySnapshot],
-    ["invalid without requiredTurns", { title: "Broken snapshot" }],
-  ])(
-    "rejects %s data before resume reads or mutations",
-    async (_label, missionSnapshot) => {
-      mockSupabase = createMockSupabase({ missionSnapshot });
-      const { startOrResumeAttempt } = await import(
-        "@/server/student-access/mission-flow"
-      );
-
-      await expect(
-        startOrResumeAttempt({
-          studentId: "student-1",
-          assignmentStudentId: "as-1",
-        }),
-      ).resolves.toEqual({ ok: false, error: "not_found" });
-      expect(
-        mockSupabase.operations.some(
-          (operation) => operation.table === "attempts",
-        ),
-      ).toBe(false);
-    },
-  );
-
   it.each([false, true])(
-    "uses complete snapshot requiredTurns when conversationMode is %s",
+    "uses RPC required_turns when conversationMode is %s",
     async (conversationMode) => {
       mockSupabase = createMockSupabase({
         missionSnapshot: makeCompleteSnapshot(conversationMode),
@@ -627,6 +614,14 @@ describe("mission snapshot lifecycle boundary", () => {
           repeat_accepted: true,
           evaluation: null,
         })),
+        startRpcData: [
+          {
+            outcome: "ok",
+            attempt_id: "attempt-1",
+            is_resume: true,
+            required_turns: 3,
+          },
+        ],
       });
       const { startOrResumeAttempt } = await import(
         "@/server/student-access/mission-flow"
@@ -641,7 +636,7 @@ describe("mission snapshot lifecycle boundary", () => {
         ok: true,
         attemptId: "attempt-1",
         isResume: true,
-        resumeTurnOrder: 5,
+        resumeTurnOrder: 4,
       });
     },
   );

@@ -159,18 +159,6 @@ export async function startOrResumeAttempt(input: {
   try {
     const supabase = createSupabaseServiceClient();
 
-    // 1. Load owned assignment_students row
-    const ownedProof2 = await requireOwnedAssignmentStudent({
-      studentId: input.studentId,
-      assignmentStudentId: input.assignmentStudentId,
-    });
-    const asRow = ownedProof2.ok ? ownedProof2.owned : null;
-    if (!asRow) return { ok: false, error: "not_found" };
-
-    // The seam already interpreted the owned snapshot.
-    const snapshot = asRow.snapshot;
-    if (!snapshot) return { ok: false, error: "not_found" };
-
     // The RPC owns status, snapshot, ownership, attempt, count, and event
     // decisions under one database lock. This service only maps its result and
     // loads turns when the database resumed an active attempt.
@@ -199,13 +187,15 @@ export async function startOrResumeAttempt(input: {
       };
     }
 
+    if (result.required_turns === null) return { ok: false, error: "db_error" };
+
     const { data: turns } = await supabase
       .from("attempt_turns")
       .select("turn_order, original_transcript, repeat_transcript, repeat_accepted, evaluation")
       .eq("attempt_id", result.attempt_id);
 
     const resumeTurnOrder = nextUnfinishedTurnOrder(
-      snapshot.requiredTurns,
+      result.required_turns,
       (turns ?? []).map((t) => ({
         turn_order: t.turn_order,
         original_transcript: t.original_transcript,

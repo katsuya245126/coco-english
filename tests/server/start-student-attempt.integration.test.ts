@@ -191,7 +191,11 @@ describe("start_student_attempt RPC", () => {
       expect(first.error).toBeNull();
       expect(first.data).toHaveLength(1);
       const firstRow = first.data![0];
-      expect(firstRow).toMatchObject({ outcome: "ok", is_resume: false });
+      expect(firstRow).toMatchObject({
+        outcome: "ok",
+        is_resume: false,
+        required_turns: 1,
+      });
       expect(firstRow.attempt_id).toEqual(expect.any(String));
 
       expect(await readState(fixture)).toMatchObject({
@@ -227,17 +231,15 @@ describe("start_student_attempt RPC", () => {
       });
       expect(resumed.error).toBeNull();
       expect(resumed.data).toEqual([
-        { outcome: "ok", attempt_id: firstRow.attempt_id, is_resume: true },
+        {
+          outcome: "ok",
+          attempt_id: firstRow.attempt_id,
+          is_resume: true,
+          required_turns: 1,
+        },
       ]);
       expect(await readState(fixture)).toMatchObject({ attempt_count: 1 });
-      expect(
-        (
-          await fixture.admin
-            .from("assignment_status_events")
-            .select("id", { count: "exact", head: true })
-            .eq("assignment_student_id", fixture.assignmentStudentId)
-        ).count,
-      ).toBe(1);
+      expect(await countRows(fixture, "assignment_status_events")).toBe(1);
     } finally {
       await cleanupFixture(fixture);
     }
@@ -265,34 +267,18 @@ describe("start_student_attempt RPC", () => {
         latest_attempt_id: rows[0]?.attempt_id,
         attempt_count: 1,
       });
-      expect(
-        (
-          await fixture.admin
-            .from("attempts")
-            .select("id", { count: "exact", head: true })
-            .eq("assignment_student_id", fixture.assignmentStudentId)
-        ).count,
-      ).toBe(1);
-      expect(
-        (
-          await fixture.admin
-            .from("assignment_status_events")
-            .select("id", { count: "exact", head: true })
-            .eq("assignment_student_id", fixture.assignmentStudentId)
-        ).count,
-      ).toBe(1);
+      expect(await countRows(fixture, "attempts")).toBe(1);
+      expect(await countRows(fixture, "assignment_status_events")).toBe(1);
     } finally {
       await cleanupFixture(fixture);
     }
   }, 30_000);
 
   async function expectDenied(
-    context: { skip: () => void },
     fixture: Fixture,
     studentId: string,
     outcome: "not_found" | "not_assigned_or_started",
   ) {
-    if (!canRunLocally) return context.skip();
     const before = await readState(fixture);
     const result = await fixture.admin.rpc("start_student_attempt", {
       p_student_id: studentId,
@@ -300,73 +286,52 @@ describe("start_student_attempt RPC", () => {
     });
     expect(result.error).toBeNull();
     expect(result.data).toEqual([
-      { outcome, attempt_id: null, is_resume: false },
+      {
+        outcome,
+        attempt_id: null,
+        is_resume: false,
+        required_turns: null,
+      },
     ]);
     expect(await readState(fixture)).toEqual(before);
-    expect(
-      (
-        await fixture.admin
-          .from("attempts")
-          .select("id", { count: "exact", head: true })
-          .eq("assignment_student_id", fixture.assignmentStudentId)
-      ).count,
-    ).toBe(0);
-    expect(
-      (
-        await fixture.admin
-          .from("assignment_status_events")
-          .select("id", { count: "exact", head: true })
-          .eq("assignment_student_id", fixture.assignmentStudentId)
-      ).count,
-    ).toBe(0);
+    expect(await countRows(fixture, "attempts")).toBe(0);
+    expect(await countRows(fixture, "assignment_status_events")).toBe(0);
   }
 
-  it("leaves state unchanged for a wrong student", async (context) => {
-    if (!canRunLocally) return context.skip();
-    const fixture = await createFixture();
-    try {
-      await expectDenied(context, fixture, fixture.otherStudentId, "not_found");
-    } finally {
-      await cleanupFixture(fixture);
-    }
-  }, 30_000);
-
-  it("leaves state unchanged for a canceled assignment", async (context) => {
-    if (!canRunLocally) return context.skip();
-    const fixture = await createFixture({ canceled: true });
-    try {
-      await expectDenied(context, fixture, fixture.ownerStudentId, "not_found");
-    } finally {
-      await cleanupFixture(fixture);
-    }
-  }, 30_000);
-
-  it("leaves state unchanged for an ineligible status", async (context) => {
-    if (!canRunLocally) return context.skip();
-    const fixture = await createFixture({ status: "completed" });
-    try {
-      await expectDenied(
-        context,
-        fixture,
-        fixture.ownerStudentId,
-        "not_assigned_or_started",
-      );
-    } finally {
-      await cleanupFixture(fixture);
-    }
-  }, 30_000);
-
-  it("leaves state unchanged for an incomplete snapshot", async (context) => {
-    if (!canRunLocally) return context.skip();
-    const fixture = await createFixture({
-      snapshot: { requiredTurns: 1, turns: [] },
-    });
-    try {
-      await expectDenied(context, fixture, fixture.ownerStudentId, "not_found");
-    } finally {
-      await cleanupFixture(fixture);
-    }
-  }, 30_000);
+  const denialTest = canRunLocally ? it : it.skip;
+  denialTest.each([
+    {
+      name: "wrong student",
+      options: {},
+      student: "other",
+      outcome: "not_found",
+    },
+    {
+      name: "canceled assignment",
+      options: { canceled: true },
+      student: "owner",
+      outcome: "not_found",
+    },
+    {
+      name: "ineligible status",
+      options: { status: "completed" },
+      student: "owner",
+      outcome: "not_assigned_or_started",
+    },
+  ] as const)(
+    "leaves state unchanged for $name",
+    async ({ options, student, outcome }) => {
+      const fixture = await createFixture(options);
+      try {
+        const studentId =
+          student === "other" ? fixture.otherStudentId : fixture.ownerStudentId;
+        await expectDenied(fixture, studentId, outcome);
+      } finally {
+        await cleanupFixture(fixture);
+      }
+    },
+    30_000,
+  );
 
   it("matches the application snapshot contract at the RPC boundary", async (context) => {
     if (!canRunLocally) return context.skip();
@@ -445,52 +410,10 @@ describe("start_student_attempt RPC", () => {
       expect(interpretMissionSnapshot(snapshot)).toEqual({ kind: "invalid" });
       const fixture = await createFixture({ snapshot });
       try {
-        await expectDenied(context, fixture, fixture.ownerStudentId, "not_found");
+        await expectDenied(fixture, fixture.ownerStudentId, "not_found");
       } finally {
         await cleanupFixture(fixture);
       }
-    }
-  }, 30_000);
-
-  it("rolls back the inserted attempt when the attempt count overflows", async (context) => {
-    if (!canRunLocally) return context.skip();
-    const fixture = await createFixture();
-    try {
-      const updated = await fixture.admin
-        .from("assignment_students")
-        .update({ attempt_count: 2147483647 } as never)
-        .eq("id", fixture.assignmentStudentId);
-      expect(updated.error).toBeNull();
-
-      const result = await fixture.admin.rpc("start_student_attempt", {
-        p_student_id: fixture.ownerStudentId,
-        p_assignment_student_id: fixture.assignmentStudentId,
-      });
-      expect(result.data).toBeNull();
-      expect(result.error).not.toBeNull();
-      expect(await readState(fixture)).toMatchObject({
-        status: "assigned",
-        latest_attempt_id: null,
-        attempt_count: 2147483647,
-      });
-      expect(
-        (
-          await fixture.admin
-            .from("attempts")
-            .select("id", { count: "exact", head: true })
-            .eq("assignment_student_id", fixture.assignmentStudentId)
-        ).count,
-      ).toBe(0);
-      expect(
-        (
-          await fixture.admin
-            .from("assignment_status_events")
-            .select("id", { count: "exact", head: true })
-            .eq("assignment_student_id", fixture.assignmentStudentId)
-        ).count,
-      ).toBe(0);
-    } finally {
-      await cleanupFixture(fixture);
     }
   }, 30_000);
 

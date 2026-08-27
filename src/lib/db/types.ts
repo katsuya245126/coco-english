@@ -448,6 +448,7 @@ export type Database = {
           outcome: "ok" | "not_found" | "not_assigned_or_started";
           attempt_id: string | null;
           is_resume: boolean;
+          required_turns: number | null;
         }[];
       };
       complete_student_attempt: {

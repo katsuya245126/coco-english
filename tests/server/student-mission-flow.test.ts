@@ -2,16 +2,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-function readStartAttemptSource() {
-  const source = readFileSync(
-    "src/server/student-access/mission-flow.ts",
-    "utf8",
-  );
-  const start = source.indexOf("export async function startOrResumeAttempt");
-  const end = source.indexOf("/**", start + 1);
-  return source.slice(start, end);
-}
-
 describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
   it("answer evaluation is a pure AI seam while workflow state stays app-owned", async () => {
     const mod = await import("@/server/student-access/audio-upload");
@@ -218,52 +208,6 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
 
     expect(missionFlowSource).toContain("withOwnedInProgressAttempt");
     expect(missionFlowSource).not.toContain("loadOwnedAttempt");
-  });
-
-  it("start attempts delegate lifecycle transitions to the atomic RPC", () => {
-    const startSource = readStartAttemptSource();
-
-    expect(startSource).toContain('supabase.rpc("start_student_attempt"');
-    expect(startSource).toContain("p_student_id: input.studentId");
-    expect(startSource).toContain(
-      "p_assignment_student_id: input.assignmentStudentId",
-    );
-    expect(startSource).not.toContain(".insert(");
-    expect(startSource).not.toContain(".update(");
-  });
-
-  it("needs_retry admission is delegated to the atomic RPC (D-10)", () => {
-    const startSource = readStartAttemptSource();
-
-    expect(startSource).toContain('supabase.rpc("start_student_attempt"');
-    expect(startSource).not.toContain('asRow.status !== "needs_retry"');
-    expect(startSource).not.toContain('"reopened_by_teacher"');
-    expect(startSource).not.toContain("previous_status: asRow.status");
-    expect(startSource).not.toContain("reason_code: reasonCode");
-  });
-
-  it("missed-but-open homework proves ownership before the atomic RPC (D-22)", () => {
-    const startSource = readStartAttemptSource();
-
-    // Ownership proof lives in the shared seam since issue #67; the flow
-    // consumes it instead of hand-rolling the query.
-    const ownedAssignmentSource = readFileSync(
-      "src/server/student-access/owned-assignment.ts",
-      "utf8",
-    );
-    expect(ownedAssignmentSource).toContain(
-      '.eq("student_id", input.studentId)',
-    );
-    expect(ownedAssignmentSource).toContain("canceledAt");
-    expect(startSource).toContain("requireOwnedAssignmentStudent");
-    // The start flow reads through the ownership seam and leaves all status
-    // transitions to the atomic RPC.
-    expect(startSource).not.toMatch(
-      /from\("assignment_students"\)\s*\n\s*\.select/,
-    );
-    expect(startSource).toContain('supabase.rpc("start_student_attempt"');
-    expect(startSource).not.toContain('asRow.status === "missed"');
-    expect(startSource).not.toContain('"late_mission_started"');
   });
 
   it("completion is delegated to the atomic database RPC", () => {

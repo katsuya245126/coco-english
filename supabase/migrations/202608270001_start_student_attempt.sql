@@ -9,7 +9,8 @@ create or replace function public.start_student_attempt(
 returns table (
   outcome text,
   attempt_id uuid,
-  is_resume boolean
+  is_resume boolean,
+  required_turns integer
 )
 language plpgsql
 security definer
@@ -36,7 +37,7 @@ begin
    for update of ast, a;
 
   if not found then
-    return query select 'not_found'::text, null::uuid, false;
+    return query select 'not_found'::text, null::uuid, false, null::integer;
     return;
   end if;
 
@@ -54,14 +55,14 @@ begin
     or v_snapshot ->> 'level' not in ('beginner', 'elementary', 'intermediate')
     or jsonb_typeof(v_snapshot -> 'turns') is distinct from 'array'
   then
-    return query select 'not_found'::text, null::uuid, false;
+    return query select 'not_found'::text, null::uuid, false, null::integer;
     return;
   end if;
 
   if jsonb_typeof(v_snapshot -> 'requiredTurns') is distinct from 'number'
     or v_snapshot ->> 'requiredTurns' !~ '^[0-9]+(\.0+)?$'
   then
-    return query select 'not_found'::text, null::uuid, false;
+    return query select 'not_found'::text, null::uuid, false, null::integer;
     return;
   end if;
 
@@ -69,7 +70,7 @@ begin
     or (v_snapshot ->> 'requiredTurns')::numeric > 2147483647
     or (v_snapshot ->> 'requiredTurns')::numeric <> trunc((v_snapshot ->> 'requiredTurns')::numeric)
   then
-    return query select 'not_found'::text, null::uuid, false;
+    return query select 'not_found'::text, null::uuid, false, null::integer;
     return;
   end if;
   v_required_turns := (v_snapshot ->> 'requiredTurns')::integer;
@@ -80,7 +81,7 @@ begin
       or nullif(btrim(v_snapshot ->> 'characterId'), '') is null
     )
   then
-    return query select 'not_found'::text, null::uuid, false;
+    return query select 'not_found'::text, null::uuid, false, null::integer;
     return;
   end if;
 
@@ -91,21 +92,21 @@ begin
       or length(btrim(v_snapshot ->> 'targetPattern')) > 160
     )
   then
-    return query select 'not_found'::text, null::uuid, false;
+    return query select 'not_found'::text, null::uuid, false, null::integer;
     return;
   end if;
 
   if v_snapshot ? 'conversationMode'
     and jsonb_typeof(v_snapshot -> 'conversationMode') is distinct from 'boolean'
   then
-    return query select 'not_found'::text, null::uuid, false;
+    return query select 'not_found'::text, null::uuid, false, null::integer;
     return;
   end if;
 
   if v_snapshot ? 'requireCompleteSentenceAnswers'
     and jsonb_typeof(v_snapshot -> 'requireCompleteSentenceAnswers') is distinct from 'boolean'
   then
-    return query select 'not_found'::text, null::uuid, false;
+    return query select 'not_found'::text, null::uuid, false, null::integer;
     return;
   end if;
   v_conversation_mode := coalesce((v_snapshot ->> 'conversationMode')::boolean, false);
@@ -116,7 +117,7 @@ begin
       and nullif(btrim(v_snapshot ->> 'targetPattern'), '') is not null
     )
   then
-    return query select 'not_found'::text, null::uuid, false;
+    return query select 'not_found'::text, null::uuid, false, null::integer;
     return;
   end if;
 
@@ -167,12 +168,12 @@ begin
           )
     )
   then
-    return query select 'not_found'::text, null::uuid, false;
+    return query select 'not_found'::text, null::uuid, false, null::integer;
     return;
   end if;
 
   if v_conversation_mode and nullif(btrim((v_snapshot -> 'turns' -> 0) ->> 'prompt'), '') is null then
-    return query select 'not_found'::text, null::uuid, false;
+    return query select 'not_found'::text, null::uuid, false, null::integer;
     return;
   end if;
 
@@ -186,16 +187,16 @@ begin
      for update;
 
     if found then
-      return query select 'ok'::text, v_attempt_id, true;
+      return query select 'ok'::text, v_attempt_id, true, v_required_turns;
       return;
     end if;
 
-    return query select 'not_assigned_or_started'::text, null::uuid, false;
+    return query select 'not_assigned_or_started'::text, null::uuid, false, null::integer;
     return;
   end if;
 
   if v_assignment_status not in ('assigned', 'missed', 'needs_retry') then
-    return query select 'not_assigned_or_started'::text, null::uuid, false;
+    return query select 'not_assigned_or_started'::text, null::uuid, false, null::integer;
     return;
   end if;
 
@@ -229,7 +230,7 @@ begin
     end
   );
 
-  return query select 'ok'::text, v_attempt_id, false;
+  return query select 'ok'::text, v_attempt_id, false, v_required_turns;
 end;
 $$;
 
