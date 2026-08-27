@@ -1,18 +1,14 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const migrationPath =
   "supabase/migrations/202608270002_record_hint_reveal.sql";
+const sql = readFileSync(migrationPath, "utf8")
+  .toLowerCase()
+  .replace(/\s+/g, " ");
 
 describe("record_hint_reveal RPC migration", () => {
   it("defines a fixed-search-path, service-role-only security-definer RPC", () => {
-    expect(existsSync(migrationPath)).toBe(true);
-    if (!existsSync(migrationPath)) return;
-
-    const sql = readFileSync(migrationPath, "utf8")
-      .toLowerCase()
-      .replace(/\s+/g, " ");
-
     expect(sql).toContain(
       "create or replace function public.record_hint_reveal( p_student_id uuid, p_assignment_student_id uuid, p_attempt_id uuid, p_turn_order integer, p_hint_level integer )",
     );
@@ -28,13 +24,6 @@ describe("record_hint_reveal RPC migration", () => {
   });
 
   it("locks the owned active chain, validates the turn, and updates both rollups monotonically", () => {
-    expect(existsSync(migrationPath)).toBe(true);
-    if (!existsSync(migrationPath)) return;
-
-    const sql = readFileSync(migrationPath, "utf8")
-      .toLowerCase()
-      .replace(/\s+/g, " ");
-
     expect(sql).toContain("p_hint_level < 1");
     expect(sql).toContain("p_hint_level > 3");
     expect(sql).toContain("ast.student_id = p_student_id");
