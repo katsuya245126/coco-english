@@ -1,5 +1,8 @@
+import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
 import type { Database, Json } from "@/lib/db/types";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
@@ -18,6 +21,15 @@ const noRealtime = {
     } as unknown as never,
   },
 };
+
+const execFileAsync = promisify(execFile);
+
+async function runLocalSql(sql: string) {
+  await execFileAsync("supabase", ["db", "query", "--local", sql], {
+    cwd: process.cwd(),
+    maxBuffer: 1024 * 1024,
+  });
+}
 
 async function createAdminClient() {
   const { createClient } = await import("@supabase/supabase-js");
@@ -153,6 +165,18 @@ async function readState(fixture: Fixture) {
     .single();
   expect(state.error).toBeNull();
   return state.data!;
+}
+
+async function countRows(
+  fixture: Fixture,
+  table: "attempts" | "assignment_status_events",
+) {
+  const result = await fixture.admin
+    .from(table)
+    .select("id", { count: "exact", head: true })
+    .eq("assignment_student_id", fixture.assignmentStudentId);
+  expect(result.error).toBeNull();
+  return result.count;
 }
 
 describe("start_student_attempt RPC", () => {
@@ -344,6 +368,90 @@ describe("start_student_attempt RPC", () => {
     }
   }, 30_000);
 
+  it("matches the application snapshot contract at the RPC boundary", async (context) => {
+    if (!canRunLocally) return context.skip();
+
+    const turn = {
+      prompt: "What do you like?",
+      targetExample: "I like cats.",
+      hintLadder: {
+        tier1: "I like ...",
+        tier2: "cats, dogs, pizza",
+        tier3: "I like cats.",
+      },
+      answerShape: "open",
+    };
+    const validSnapshots = [
+      {
+        missionId: "11111111-1111-4111-8111-111111111111",
+        title: "Conversation parity",
+        level: "elementary",
+        requiredTurns: 3,
+        characterId: "default-buddy",
+        conversationMode: true,
+        requireCompleteSentenceAnswers: false,
+        targetPattern: "x".repeat(160),
+        turns: [{ ...turn, turnOrder: 1 }],
+      },
+      {
+        missionId: "11111111-1111-4111-8111-111111111111",
+        title: "Preset parity",
+        level: "elementary",
+        requiredTurns: 1,
+        characterId: "default-buddy",
+        conversationMode: false,
+        requireCompleteSentenceAnswers: true,
+        turns: [
+          { ...turn, turnOrder: 1, targetPattern: "x".repeat(160) },
+        ],
+      },
+    ];
+    const invalidSnapshots = [
+      {
+        ...validSnapshots[0],
+        targetPattern: "x".repeat(161),
+      },
+      {
+        ...validSnapshots[1],
+        turns: [
+          { ...turn, turnOrder: 1, targetPattern: "x".repeat(161) },
+        ],
+      },
+      {
+        ...validSnapshots[1],
+        requireCompleteSentenceAnswers: "true",
+      },
+    ];
+
+    for (const snapshot of validSnapshots) {
+      expect(interpretMissionSnapshot(snapshot).kind).toBe("complete");
+      const fixture = await createFixture({ snapshot });
+      try {
+        const result = await fixture.admin.rpc("start_student_attempt", {
+          p_student_id: fixture.ownerStudentId,
+          p_assignment_student_id: fixture.assignmentStudentId,
+        });
+        expect(result.error).toBeNull();
+        expect(result.data?.[0]).toMatchObject({
+          outcome: "ok",
+          is_resume: false,
+        });
+      } finally {
+        await cleanupFixture(fixture);
+      }
+    }
+
+    for (const snapshot of invalidSnapshots) {
+      expect(interpretMissionSnapshot(snapshot)).toEqual({ kind: "invalid" });
+      const fixture = await createFixture({ snapshot });
+      try {
+        await expectDenied(context, fixture, fixture.ownerStudentId, "not_found");
+      } finally {
+        await cleanupFixture(fixture);
+      }
+    }
+  }, 30_000);
+
   it("rolls back the inserted attempt when the attempt count overflows", async (context) => {
     if (!canRunLocally) return context.skip();
     const fixture = await createFixture();
@@ -383,6 +491,40 @@ describe("start_student_attempt RPC", () => {
       ).toBe(0);
     } finally {
       await cleanupFixture(fixture);
+    }
+  }, 30_000);
+
+  it("rolls back all start writes when the audit insert fails", async (context) => {
+    if (!canRunLocally) return context.skip();
+    const fixture = await createFixture();
+    const constraintName = `test_start_student_attempt_audit_${randomBytes(8).toString("hex")}`;
+    try {
+      // This fixture-scoped check constraint is failure injection for the local
+      // test database only. It is always removed below and is not a migration
+      // or a production RPC failpoint.
+      await runLocalSql(
+        `alter table public.assignment_status_events add constraint "${constraintName}" check (assignment_student_id <> '${fixture.assignmentStudentId}'::uuid)`,
+      );
+
+      const before = await readState(fixture);
+      const result = await fixture.admin.rpc("start_student_attempt", {
+        p_student_id: fixture.ownerStudentId,
+        p_assignment_student_id: fixture.assignmentStudentId,
+      });
+      expect(result.data).toBeNull();
+      expect(result.error).not.toBeNull();
+      expect(result.error?.message).toContain(constraintName);
+      expect(await readState(fixture)).toEqual(before);
+      expect(await countRows(fixture, "attempts")).toBe(0);
+      expect(await countRows(fixture, "assignment_status_events")).toBe(0);
+    } finally {
+      try {
+        await runLocalSql(
+          `alter table public.assignment_status_events drop constraint if exists "${constraintName}"`,
+        );
+      } finally {
+        await cleanupFixture(fixture);
+      }
     }
   }, 30_000);
 

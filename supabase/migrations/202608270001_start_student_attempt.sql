@@ -41,8 +41,10 @@ begin
   end if;
 
   -- Keep the database admission boundary aligned with the complete mission
-  -- snapshot shape. Defaults accepted by the application snapshot schema are
-  -- also accepted here; legacy snapshots fail the required current fields.
+  -- snapshot shape. The application parser remains the schema source of truth;
+  -- these are only the minimum checks needed before this security-definer RPC
+  -- trusts service-role input. Parity tests cover the shared fields, while
+  -- legacy snapshots fail the required current fields here.
   if jsonb_typeof(v_snapshot) is distinct from 'object'
     or jsonb_typeof(v_snapshot -> 'missionId') is distinct from 'string'
     or v_snapshot ->> 'missionId' !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
@@ -86,6 +88,7 @@ begin
     and (
       jsonb_typeof(v_snapshot -> 'targetPattern') is distinct from 'string'
       or nullif(btrim(v_snapshot ->> 'targetPattern'), '') is null
+      or length(btrim(v_snapshot ->> 'targetPattern')) > 160
     )
   then
     return query select 'not_found'::text, null::uuid, false;
@@ -94,6 +97,13 @@ begin
 
   if v_snapshot ? 'conversationMode'
     and jsonb_typeof(v_snapshot -> 'conversationMode') is distinct from 'boolean'
+  then
+    return query select 'not_found'::text, null::uuid, false;
+    return;
+  end if;
+
+  if v_snapshot ? 'requireCompleteSentenceAnswers'
+    and jsonb_typeof(v_snapshot -> 'requireCompleteSentenceAnswers') is distinct from 'boolean'
   then
     return query select 'not_found'::text, null::uuid, false;
     return;
@@ -144,6 +154,7 @@ begin
             and (
               jsonb_typeof(turn_row.value -> 'targetPattern') is distinct from 'string'
               or nullif(btrim(turn_row.value ->> 'targetPattern'), '') is null
+              or length(btrim(turn_row.value ->> 'targetPattern')) > 160
             )
           )
           or (
