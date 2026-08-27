@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  CHARACTER_PROFILES,
-  DEFAULT_BUDDY,
-  getCharacterProfile,
-} from "@/domain/character/profile";
+import { DEFAULT_BUDDY, getCharacterProfile } from "@/domain/character/profile";
 import { DEFAULT_CHARACTER_ID } from "@/domain/mission/schemas";
 
 describe("character profile module (CHAR-01/02/03/04, FLOW-02)", () => {
@@ -21,10 +17,6 @@ describe("character profile module (CHAR-01/02/03/04, FLOW-02)", () => {
 
   it("exposes the DEFAULT_BUDDY constant with the default-buddy id", () => {
     expect(DEFAULT_BUDDY.characterId).toBe(DEFAULT_CHARACTER_ID);
-  });
-
-  it("exports CHARACTER_PROFILES keyed by characterId", () => {
-    expect(CHARACTER_PROFILES[DEFAULT_CHARACTER_ID]).toBe(DEFAULT_BUDDY);
   });
 
   it("has a questionLabel field", () => {

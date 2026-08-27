@@ -23,8 +23,6 @@ export const joinCodeInputSchema = z
   .max(32, "That class code is too long.")
   .transform((value) => value.toUpperCase());
 
-export type JoinCodeInput = z.infer<typeof joinCodeInputSchema>;
-
 // Typed student name (D-11: typed, never selected from a roster). Kept raw here;
 // the unlock service normalizes it with normalizeRosterName before matching.
 export const typedNameSchema = z
@@ -32,8 +30,6 @@ export const typedNameSchema = z
   .trim()
   .min(1, "Enter your name.")
   .max(80, "That name is too long.");
-
-export type TypedNameInput = z.infer<typeof typedNameSchema>;
 
 // PIN: exactly 4 digits (STUD-04). A malformed PIN is rejected before any DB
 // lookup so a wrong-shape PIN costs nothing and still reads as a generic failure
@@ -43,13 +39,9 @@ export const pinInputSchema = z
   .trim()
   .regex(/^\d{4}$/, "Enter your 4-digit PIN.");
 
-export type PinInput = z.infer<typeof pinInputSchema>;
-
 // Full unlock tuple: join code + typed name + PIN.
 export const studentUnlockSchema = z.object({
   joinCode: joinCodeInputSchema,
   typedName: typedNameSchema,
   pin: pinInputSchema,
 });
-
-export type StudentUnlockInput = z.infer<typeof studentUnlockSchema>;

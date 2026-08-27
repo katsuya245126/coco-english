@@ -1,8 +1,34 @@
-@import "tailwindcss";
-
 * {
     border-color: oklch(0.922 0 0);
     outline-color: oklch(0.708 0 0 / 50%);
+}
+
+/* Minimal browser normalization retained from Tailwind Preflight. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    margin: 0;
+    font-size: inherit;
+    font-weight: inherit;
+}
+
+p {
+    margin: 0;
+}
+
+a {
+    color: inherit;
+    text-decoration: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+    font: inherit;
 }
 
 body {
@@ -12,6 +38,7 @@ body {
 
 html {
     font-family: var(--font-sans);
+    line-height: 1.5;
 }
 
 .student-primary-button:hover {

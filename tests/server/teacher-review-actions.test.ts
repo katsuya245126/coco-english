@@ -5,7 +5,7 @@ import * as assignmentOperations from "@/server/teacher/assignment-operations";
 import { updateClassReviewPolicy } from "@/server/teacher/assignment-operations";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/server/teacher/auth", () => ({ requireTeacherProfile: vi.fn().mockResolvedValue({ id: "teacher-1" }) }));
+vi.mock("@/server/auth/teacher-profile", () => ({ requireTeacherProfile: vi.fn().mockResolvedValue({ id: "teacher-1" }) }));
 
 afterEach(() => vi.clearAllMocks());
 

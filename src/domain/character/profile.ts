@@ -2,7 +2,7 @@
  * Character profile module (CHAR-04, D-11).
  *
  * Pure domain module — no DB, server, or AI/LLM imports.
- * Exports static template strings keyed by characterId.
+ * Exports Coco's static template strings.
  * Consumed by client components to render buddy speech.
  *
  * The default buddy is Coco (CHAR-01). All static copy is reviewed
@@ -36,10 +36,6 @@ export const DEFAULT_BUDDY: CharacterProfile = {
   resumeNotice: "Welcome back! Picking up where you left off.",
 };
 
-export const CHARACTER_PROFILES: Record<string, CharacterProfile> = {
-  [DEFAULT_CHARACTER_ID]: DEFAULT_BUDDY,
-};
-
-export function getCharacterProfile(characterId: string): CharacterProfile {
-  return CHARACTER_PROFILES[characterId] ?? DEFAULT_BUDDY;
+export function getCharacterProfile(_characterId: string): CharacterProfile {
+  return DEFAULT_BUDDY;
 }

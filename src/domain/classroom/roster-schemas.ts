@@ -16,8 +16,6 @@ export const studentSchema = z.object({
   displayName: studentNameSchema,
 });
 
-export type StudentInput = z.infer<typeof studentSchema>;
-
 // Bulk paste form: the raw textarea contents. Parsing/blank/duplicate surfacing
 // is done by parseRosterPaste; this only guards that something was pasted.
 export const bulkRosterSchema = z.object({
@@ -26,13 +24,9 @@ export const bulkRosterSchema = z.object({
     .min(1, "Paste at least one student name."),
 });
 
-export type BulkRosterInput = z.infer<typeof bulkRosterSchema>;
-
 // A 4-digit PIN entered/confirmed by a teacher when manually changing a PIN.
 export const pinSchema = z.object({
   pin: z
     .string()
     .regex(/^\d{4}$/, "PIN must be exactly 4 digits."),
 });
-
-export type PinInput = z.infer<typeof pinSchema>;

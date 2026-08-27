@@ -5,7 +5,7 @@ const { changeAssignedHomework, requireTeacherProfile } = vi.hoisted(() => ({
   requireTeacherProfile: vi.fn(),
 }));
 
-vi.mock("@/server/teacher/auth", () => ({ requireTeacherProfile }));
+vi.mock("@/server/auth/teacher-profile", () => ({ requireTeacherProfile }));
 vi.mock("@/server/teacher/assignment-operations", () => ({ changeAssignedHomework }));
 
 async function change(input: unknown) {
