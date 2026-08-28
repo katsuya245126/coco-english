@@ -59,7 +59,6 @@ export default async function AttemptEvidencePage({
           assignmentStudentStatus={evidence.assignmentStudentStatus}
           classId={evidence.classId}
           assignmentId={evidence.assignmentId}
-          reviewReason={evidence.reviewReason}
           dismissed={evidence.dismissedAt != null}
         />
 

@@ -7,10 +7,11 @@ const mocks = vi.hoisted(() => ({
   markSubmissionReviewedAction: vi.fn(),
   changeAssignedHomeworkAction: vi.fn(),
   push: vi.fn(),
+  refresh: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mocks.push, refresh: vi.fn() }),
+  useRouter: () => ({ push: mocks.push, refresh: mocks.refresh }),
 }));
 vi.mock("@/app/teacher/evidence/[attemptId]/actions", () => ({
   markSubmissionReviewedAction: mocks.markSubmissionReviewedAction,
@@ -36,6 +37,7 @@ beforeEach(() => {
   mocks.markSubmissionReviewedAction.mockReset();
   mocks.changeAssignedHomeworkAction.mockReset();
   mocks.push.mockReset();
+  mocks.refresh.mockReset();
   mocks.markSubmissionReviewedAction.mockResolvedValue({ ok: true });
   mocks.changeAssignedHomeworkAction.mockResolvedValue({ ok: true });
 });
@@ -45,10 +47,7 @@ afterEach(async () => {
   container.remove();
 });
 
-async function renderControls(
-  reviewReason: string | null,
-  assignmentStudentStatus = "started",
-) {
+async function renderControls(assignmentStudentStatus = "started", dismissed = false) {
   await act(async () => {
     root.render(
       <SubmissionReviewControls
@@ -57,8 +56,7 @@ async function renderControls(
         assignmentStudentStatus={assignmentStudentStatus}
         classId="class-1"
         assignmentId="assignment-1"
-        reviewReason={reviewReason}
-        dismissed={false}
+        dismissed={dismissed}
       />,
     );
   });
@@ -77,15 +75,10 @@ async function clickButton(label: string) {
 }
 
 describe("SubmissionReviewControls action routing", () => {
-  const reviewCases = [
-    { name: "flagged", reviewReason: "failed_schema" },
-    { name: "unflagged", reviewReason: null },
-  ] as const;
-
-  it.each(reviewCases)(
-    "accepts a $name started attempt through review completion",
-    async ({ reviewReason }) => {
-      await renderControls(reviewReason);
+  it.each(["started", "teacher_review", "completed"] as const)(
+    "accepts a %s attempt through review completion",
+    async (status) => {
+      await renderControls(status);
       await clickButton("Mark as done");
 
       expect(mocks.markSubmissionReviewedAction).toHaveBeenCalledWith("attempt-1");
@@ -96,28 +89,53 @@ describe("SubmissionReviewControls action routing", () => {
     },
   );
 
-  it.each(reviewCases)(
-    "explains missing answers and retry when $name completion is rejected",
-    async ({ reviewReason }) => {
-      mocks.markSubmissionReviewedAction.mockResolvedValueOnce({
-        ok: false,
-        error: "not_allowed",
-      });
-      await renderControls(reviewReason);
-      await clickButton("Mark as done");
+  it.each([
+    ["incomplete", "Some answers are missing. Request retry is available."],
+    ["not_allowed", "This homework changed. Refresh the page and try again."],
+    ["not_found", "This homework changed. Refresh the page and try again."],
+    ["failed", "Could not update this homework. Try again."],
+    ["unexpected", "Could not update this homework. Try again."],
+  ] as const)("shows the right message for a %s result", async (error, message) => {
+    mocks.markSubmissionReviewedAction.mockResolvedValueOnce({ ok: false, error });
+    await renderControls("started");
+    await clickButton("Mark as done");
 
-      expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-        "required answers may be missing",
-      );
-      expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-        "Request retry is available",
-      );
-      expect(mocks.push).not.toHaveBeenCalled();
-    },
-  );
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(message);
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it("requests retry and returns to the teacher dashboard", async () => {
+    await renderControls("started");
+    const retryButtons = Array.from(container.querySelectorAll("button")).filter(
+      (button) => button.textContent?.trim() === "Request retry",
+    );
+    const submitButton = retryButtons[retryButtons.length - 1];
+    await act(async () => {
+      submitButton?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mocks.changeAssignedHomeworkAction).toHaveBeenCalledWith({
+      assignedHomeworkId: "assigned-1",
+      action: "request_retry",
+      reasonNote: undefined,
+    });
+    expect(mocks.push).toHaveBeenCalledWith("/teacher");
+  });
+
+  it("shows the system message when a mutation throws", async () => {
+    mocks.markSubmissionReviewedAction.mockRejectedValueOnce(new Error("boom"));
+    await renderControls("started");
+    await clickButton("Mark as done");
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      "Could not update this homework. Try again.",
+    );
+  });
 
   it.each(["assigned", "missed"] as const)("dismisses a %s attempt", async (status) => {
-    await renderControls(null, status);
+    await renderControls(status);
     await clickButton("Mark as done");
 
     expect(mocks.markSubmissionReviewedAction).not.toHaveBeenCalled();
@@ -128,5 +146,34 @@ describe("SubmissionReviewControls action routing", () => {
     expect(mocks.push).toHaveBeenCalledWith(
       "/teacher/classes/class-1/review/assignment-1",
     );
+    expect(Array.from(container.querySelectorAll("button")).map((button) => button.textContent?.trim())).toEqual([
+      "Mark as done",
+    ]);
   });
+
+  it.each(["needs_retry", "unknown"] as const)("shows no controls for %s", async (status) => {
+    await renderControls(status);
+
+    expect(container.querySelectorAll("button")).toHaveLength(0);
+  });
+
+  it.each(["assigned", "started", "missed"] as const)("refreshes after undoing a dismissed %s attempt", async (status) => {
+    await renderControls(status, true);
+    await clickButton("Undo");
+
+    expect(mocks.changeAssignedHomeworkAction).toHaveBeenCalledWith({
+      assignedHomeworkId: "assigned-1",
+      action: "undo_dismiss",
+    });
+    expect(mocks.refresh).toHaveBeenCalled();
+  });
+
+  it.each(["completed", "needs_retry", "teacher_review", "unknown"] as const)(
+    "shows no controls for dismissed %s work",
+    async (status) => {
+      await renderControls(status, true);
+
+      expect(container.querySelectorAll("button")).toHaveLength(0);
+    },
+  );
 });

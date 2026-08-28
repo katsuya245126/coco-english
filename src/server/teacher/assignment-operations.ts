@@ -152,7 +152,7 @@ async function loadOwnedAssignmentStudent(input: { teacherId: string; assignment
 
 export type TeacherMutationResult =
   | { ok: true }
-  | { ok: false; error: "not_found" | "not_allowed" | "failed" };
+  | { ok: false; error: "not_found" | "not_allowed" | "incomplete" | "failed" };
 
 export type AssignedHomeworkChange =
   | { action: "request_retry"; reasonNote?: string }
@@ -189,7 +189,7 @@ export async function changeAttemptReview(input: {
   if (result.error) return { ok: false, error: "failed" };
   if (result.data === "ok") return { ok: true };
   if (result.data === "not_found") return { ok: false, error: "not_found" };
-  if (result.data === "not_complete") return { ok: false, error: "not_allowed" };
+  if (result.data === "not_complete") return { ok: false, error: "incomplete" };
   if (result.data === "invalid_status") return { ok: false, error: "not_allowed" };
   return { ok: false, error: "failed" };
 }

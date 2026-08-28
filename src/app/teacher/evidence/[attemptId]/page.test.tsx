@@ -25,12 +25,10 @@ vi.mock("@/components/teacher/SubmissionReviewControls", () => ({
   SubmissionReviewControls: (props: {
     classId: string;
     assignmentId: string;
-    reviewReason: string | null;
   }) => (
     <div
       data-class-id={props.classId}
       data-assignment-id={props.assignmentId}
-      data-review-reason={props.reviewReason ?? ""}
     >
       submission controls
     </div>
@@ -125,7 +123,7 @@ describe("AttemptEvidencePage", () => {
     expect(html).not.toContain("I like ___");
   });
 
-  it("passes flagged attempt state and assignment destination to the controls", async () => {
+  it("passes the assignment destination to the controls", async () => {
     const html = await renderEvidence({
       ...presetEvidence,
       assignmentStudentStatus: "started",
@@ -134,6 +132,5 @@ describe("AttemptEvidencePage", () => {
 
     expect(html).toContain('data-class-id="class-1"');
     expect(html).toContain('data-assignment-id="assignment-1"');
-    expect(html).toContain('data-review-reason="failed_schema"');
   });
 });

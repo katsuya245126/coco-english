@@ -39,6 +39,10 @@ _Avoid_: Current prompt
 The student page that follows completed homework. It shows the latest homework attempt and provides the Back Home action.
 _Avoid_: Mission flow, teacher evidence
 
+**Teacher evidence**:
+The teacher view of a homework attempt, including transcripts and available audio.
+_Avoid_: Submission review, attempt evidence
+
 **Assigned homework**:
 One student's obligation created by an assignment. It has an overall lifecycle and may contain one or more homework attempts.
 _Avoid_: Assignment student

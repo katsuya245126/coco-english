@@ -37,7 +37,7 @@ describe("changeAttemptReview", () => {
 
   it.each([
     ["not_found", { ok: false, error: "not_found" }],
-    ["not_complete", { ok: false, error: "not_allowed" }],
+    ["not_complete", { ok: false, error: "incomplete" }],
     ["invalid_status", { ok: false, error: "not_allowed" }],
   ] as const)("maps %s database results", async (data, expected) => {
     rpc.mockResolvedValueOnce({ data, error: null });

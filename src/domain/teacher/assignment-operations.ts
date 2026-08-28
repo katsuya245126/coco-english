@@ -16,6 +16,22 @@ export function isSubmissionPendingReview(input: ReviewEligibilityInput): boolea
   return isCompleted && (input.reviewPolicy === "every_submission" || input.needsReviewReason !== null);
 }
 
+export type TeacherEvidenceAction = "mark_reviewed" | "dismiss" | "request_retry" | "undo_dismiss";
+
+export function resolveTeacherEvidenceActions(input: {
+  status: string;
+  dismissed: boolean;
+}): TeacherEvidenceAction[] {
+  if (input.dismissed) {
+    return ["assigned", "started", "missed"].includes(input.status) ? ["undo_dismiss"] : [];
+  }
+  if (["assigned", "missed"].includes(input.status)) return ["dismiss"];
+  if (["started", "teacher_review", "completed"].includes(input.status)) {
+    return ["mark_reviewed", "request_retry"];
+  }
+  return [];
+}
+
 export type IncompleteStatus = "assigned" | "started" | "missed" | "completed" | "needs_retry" | "teacher_review";
 export type IncompleteProgress = "not_started" | "started";
 export type IncompleteUrgency = "missed" | "due_soon" | "later";

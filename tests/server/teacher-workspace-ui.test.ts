@@ -275,28 +275,6 @@ describe("SubmissionReviewControls source", () => {
     expect(src).not.toContain("Mark reviewed");
     expect(src).toContain("changeAssignedHomeworkAction");
   });
-
-  it("shows the submission error when Mark as done rejects", () => {
-    const markDoneStart = src.indexOf("const markDone");
-    const undoStart = src.indexOf("const undoDone");
-    const markDone = src.slice(markDoneStart, undoStart);
-
-    expect(markDoneStart).toBeGreaterThan(-1);
-    expect(undoStart).toBeGreaterThan(markDoneStart);
-    expect(markDone).toContain('changeAssignedHomeworkAction({ assignedHomeworkId, action: "dismiss" })');
-    expect(markDone).toMatch(/try[\s\S]*catch[\s\S]*setError\(true\)/);
-  });
-
-  it("shows the submission error when Undo rejects", () => {
-    const undoStart = src.indexOf("const undoDone");
-    const retryStart = src.indexOf("const requestRetry");
-    const undo = src.slice(undoStart, retryStart);
-
-    expect(undoStart).toBeGreaterThan(-1);
-    expect(retryStart).toBeGreaterThan(undoStart);
-    expect(undo).toContain('changeAssignedHomeworkAction({ assignedHomeworkId, action: "undo_dismiss" })');
-    expect(undo).toMatch(/try[\s\S]*catch[\s\S]*setError\(true\)/);
-  });
 });
 
 describe("no-attempt assignment evidence source", () => {
