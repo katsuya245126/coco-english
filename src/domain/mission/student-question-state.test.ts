@@ -6,6 +6,7 @@ import {
   deriveSameTurnRecoveryPrompt,
   deriveResumedDynamicPrompt,
   isPendingConversationRecovery,
+  resolveActiveStudentQuestion,
   resolveAcceptedConversationTurn,
 } from "@/domain/mission/student-question-state";
 
@@ -21,7 +22,180 @@ const opener: MissionSnapshotTurn = {
   answerShape: "open",
 };
 
+const conversationSnapshot = {
+  conversationMode: true,
+  requiredTurns: 3,
+  turns: [opener],
+};
+
 describe("student question state", () => {
+  it("resolves a generated follow-up from the immediately previous saved turn", () => {
+    expect(
+      resolveActiveStudentQuestion({
+        snapshot: conversationSnapshot,
+        savedTurns: [{ turnOrder: 1, cocoLine: "Tell me more about soccer." }],
+        currentTurn: { turnOrder: 2, cocoLine: null },
+      }),
+    ).toEqual({
+      question: "Tell me more about soccer.",
+      source: { lineKind: "coco_dynamic_line", turnOrder: 1 },
+    });
+  });
+
+  it("resolves a pending recovery question from the current saved turn", () => {
+    expect(
+      resolveActiveStudentQuestion({
+        snapshot: conversationSnapshot,
+        savedTurns: [],
+        currentTurn: {
+          turnOrder: 1,
+          cocoLine: "Do you play soccer with friends or family?",
+          evaluation: {
+            kind: "original",
+            outcome: "retry_original",
+            retryReason: "unclear_meaning",
+            ambiguityRetries: 1,
+          },
+        },
+      }),
+    ).toEqual({
+      question: "Do you play soccer with friends or family?",
+      source: { lineKind: "coco_dynamic_line", turnOrder: 1 },
+    });
+  });
+
+  it("resolves the authored Conversation opening on turn one", () => {
+    expect(
+      resolveActiveStudentQuestion({
+        snapshot: conversationSnapshot,
+        savedTurns: [],
+        currentTurn: { turnOrder: 1, cocoLine: null },
+      }),
+    ).toEqual({
+      question: opener.prompt,
+      source: { lineKind: "mission_prompt", turnOrder: 1 },
+    });
+  });
+
+  it("resolves an authored Preset turn by its saved turn order", () => {
+    const secondTurn: MissionSnapshotTurn = {
+      ...opener,
+      turnOrder: 2,
+      prompt: "What food do you like?",
+    };
+
+    expect(
+      resolveActiveStudentQuestion({
+        snapshot: {
+          conversationMode: false,
+          requiredTurns: 2,
+          turns: [opener, secondTurn],
+        },
+        savedTurns: [{ turnOrder: 1, cocoLine: null }],
+        currentTurn: { turnOrder: 2, cocoLine: null },
+      }),
+    ).toEqual({
+      question: secondTurn.prompt,
+      source: { lineKind: "mission_prompt", turnOrder: 2 },
+    });
+  });
+
+  it("fails closed when a Conversation history row is missing", () => {
+    expect(
+      resolveActiveStudentQuestion({
+        snapshot: {
+          conversationMode: true,
+          requiredTurns: 4,
+          turns: [opener],
+        },
+        savedTurns: [{ turnOrder: 2, cocoLine: "A line from the wrong row." }],
+        currentTurn: { turnOrder: 3, cocoLine: null },
+      }),
+    ).toBeNull();
+  });
+
+  it("fails closed when an earlier Conversation question is missing", () => {
+    expect(
+      resolveActiveStudentQuestion({
+        snapshot: {
+          conversationMode: true,
+          requiredTurns: 4,
+          turns: [opener],
+        },
+        savedTurns: [
+          { turnOrder: 1, cocoLine: null },
+          { turnOrder: 2, cocoLine: "What do you play after school?" },
+        ],
+        currentTurn: { turnOrder: 3, cocoLine: null },
+      }),
+    ).toBeNull();
+  });
+
+  it("fails closed when a recovery row has inconsistent prior history", () => {
+    expect(
+      resolveActiveStudentQuestion({
+        snapshot: {
+          conversationMode: true,
+          requiredTurns: 4,
+          turns: [opener],
+        },
+        savedTurns: [{ turnOrder: 2, cocoLine: "A line from the wrong row." }],
+        currentTurn: {
+          turnOrder: 3,
+          cocoLine: "Please tell me one more thing.",
+          evaluation: {
+            kind: "original",
+            outcome: "retry_original",
+            retryReason: "unclear_meaning",
+            ambiguityRetries: 1,
+          },
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("ignores a legacy authored tail when a stored line owns the next turn", () => {
+    const legacyTail: MissionSnapshotTurn = {
+      ...opener,
+      turnOrder: 2,
+      prompt: "What food do you like?",
+    };
+
+    expect(
+      resolveActiveStudentQuestion({
+        snapshot: {
+          conversationMode: true,
+          requiredTurns: 3,
+          turns: [opener, legacyTail],
+        },
+        savedTurns: [{ turnOrder: 1, cocoLine: "Tell me more about soccer." }],
+        currentTurn: { turnOrder: 2, cocoLine: null },
+      }),
+    ).toEqual({
+      question: "Tell me more about soccer.",
+      source: { lineKind: "coco_dynamic_line", turnOrder: 1 },
+    });
+  });
+
+  it("keeps the final stored Coco line separate from the final Active question", () => {
+    expect(
+      resolveActiveStudentQuestion({
+        snapshot: conversationSnapshot,
+        savedTurns: [
+          { turnOrder: 1, cocoLine: "Tell me about soccer." },
+          { turnOrder: 2, cocoLine: "What do you play after school?" },
+        ],
+        currentTurn: {
+          turnOrder: 3,
+          cocoLine: "That was fun! See you next time!",
+        },
+      }),
+    ).toEqual({
+      question: "What do you play after school?",
+      source: { lineKind: "coco_dynamic_line", turnOrder: 2 },
+    });
+  });
+
   it("uses current-row recovery without advancing turn one", () => {
     expect(
       deriveActiveStudentQuestion({
@@ -118,7 +292,6 @@ describe("student question state", () => {
     const dynamicPrompt = deriveResumedDynamicPrompt({
       conversationMode: true,
       startingTurnIndex: 1,
-      pendingUnclearRetry: false,
       attemptTurns: [
         { turnOrder: 1, cocoLine: "Tell me more about soccer." },
         { turnOrder: 2, cocoLine: "A later line must not be used." },
@@ -149,12 +322,17 @@ describe("student question state", () => {
       deriveResumedDynamicPrompt({
         conversationMode: true,
         startingTurnIndex: 1,
-        pendingUnclearRetry: true,
         attemptTurns: [
           { turnOrder: 1, cocoLine: "Who do you play soccer with?" },
           {
             turnOrder: 2,
             cocoLine: "Do you play soccer with friends or family?",
+            evaluation: {
+              kind: "original",
+              outcome: "retry_original",
+              retryReason: "unclear_meaning",
+              ambiguityRetries: 1,
+            },
           },
         ],
       }),
@@ -169,11 +347,16 @@ describe("student question state", () => {
       deriveResumedDynamicPrompt({
         conversationMode: true,
         startingTurnIndex: 0,
-        pendingUnclearRetry: true,
         attemptTurns: [
           {
             turnOrder: 1,
             cocoLine: "Do you play soccer with friends or family?",
+            evaluation: {
+              kind: "original",
+              outcome: "retry_original",
+              retryReason: "unclear_meaning",
+              ambiguityRetries: 1,
+            },
           },
         ],
       }),
@@ -204,9 +387,17 @@ describe("student question state", () => {
         deriveResumedDynamicPrompt({
           conversationMode: true,
           startingTurnIndex: 0,
-          pendingUnclearRetry: pendingRecovery,
           attemptTurns: [
-            { turnOrder: 1, cocoLine: "Do you play soccer with friends or family?" },
+            {
+              turnOrder: 1,
+              cocoLine: "Do you play soccer with friends or family?",
+              evaluation: {
+                kind: "original",
+                outcome: "retry_original",
+                retryReason,
+                ambiguityRetries: 1,
+              },
+            },
           ],
         }),
       ).toEqual({
@@ -287,7 +478,6 @@ describe("student question state", () => {
       deriveResumedDynamicPrompt({
         conversationMode: true,
         startingTurnIndex: 0,
-        pendingUnclearRetry: false,
         attemptTurns: [
           { turnOrder: 1, cocoLine: "A future line must not be used." },
         ],
@@ -324,7 +514,6 @@ describe("student question state", () => {
       deriveResumedDynamicPrompt({
         conversationMode: true,
         startingTurnIndex: 1,
-        pendingUnclearRetry: false,
         attemptTurns: [
           { turnOrder: 1, cocoLine: "Who do you play soccer with?" },
           { turnOrder: 2, cocoLine: "A future line must not be used." },

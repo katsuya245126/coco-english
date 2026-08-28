@@ -17,7 +17,6 @@ import { MissionFlowShell } from "@/components/student/MissionFlowShell";
 import { warmEvaluators } from "@/server/ai/evaluator-warmup";
 import {
   deriveResumedDynamicPrompt,
-  isPendingConversationRecovery,
 } from "@/domain/mission/student-question-state";
 
 // Student mission-flow route (FLOW-01, D-12, PILOT-01).
@@ -87,9 +86,11 @@ export default async function MissionPage({ params }: MissionPageProps) {
   let startingTurnIndex = 0; // 0-based index for the shell
   let attemptId: string | null = null;
   let initialReview: InitialReview | null = null;
-  let attemptTurns: Array<{ turnOrder: number; cocoLine: string | null }> = [];
-  let pendingConversationRecovery = false;
-
+  let attemptTurns: Array<{
+    turnOrder: number;
+    cocoLine: string | null;
+    evaluation?: unknown;
+  }> = [];
   if (asRow.latestAttemptId) {
     const { data: attempt } = await supabase
       .from("attempts")
@@ -122,6 +123,7 @@ export default async function MissionPage({ params }: MissionPageProps) {
       attemptTurns = (turns ?? []).map((turn) => ({
         turnOrder: turn.turn_order,
         cocoLine: turn.coco_line,
+        evaluation: turn.evaluation,
       }));
 
       // Convert 1-based turn_order to 0-based index for the shell.
@@ -135,12 +137,6 @@ export default async function MissionPage({ params }: MissionPageProps) {
       const persistedReview = reviewTurn
         ? getPendingTurnReview(reviewTurn)
         : null;
-
-      pendingConversationRecovery = isPendingConversationRecovery({
-        conversationMode: snapshot.conversationMode,
-        evaluation: reviewTurn?.evaluation,
-        cocoLine: reviewTurn?.coco_line ?? null,
-      });
 
       if (persistedReview && reviewTurn) {
         initialReview = persistedReview;
@@ -181,7 +177,6 @@ export default async function MissionPage({ params }: MissionPageProps) {
   const initialDynamicPrompt = deriveResumedDynamicPrompt({
     conversationMode: snapshot.conversationMode,
     startingTurnIndex,
-    pendingUnclearRetry: pendingConversationRecovery,
     attemptTurns,
   });
 

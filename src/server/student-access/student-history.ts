@@ -7,6 +7,10 @@ import {
   resolveMissionSnapshotTargetPattern,
 } from "@/domain/mission/mission-snapshot";
 import {
+  resolveActiveStudentQuestion,
+  type StudentQuestionTurnFacts,
+} from "@/domain/mission/student-question-state";
+import {
   buildLearnerTranscript,
   hangulInterpretationSchema,
   type HangulInterpretation,
@@ -150,6 +154,8 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
   const snapshot = snapshotResult.snapshot;
   const conversationMode =
     snapshotResult.kind === "complete" && snapshotResult.snapshot.conversationMode;
+  const completeSnapshot =
+    snapshotResult.kind === "complete" ? snapshotResult.snapshot : null;
 
   const attempt = await supabase.from("attempts").select("id, status, completed_at").eq("id", row.latest_attempt_id).eq("assignment_student_id", row.id).in("status", ["completed", "teacher_review"]).maybeSingle();
   if (attempt.error || !attempt.data) return null;
@@ -191,7 +197,6 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
   }
 
   const presetPrompts = new Map(snapshot.turns.map((turn) => [turn.turnOrder, turn.prompt]));
-  let nextDynamicPrompt = snapshot.turns[0]?.prompt ?? "Coco's question";
   let finalCocoLine: string | null = null;
 
   const turns: StudentRecapTurn[] = turnRows.map((turn) => {
@@ -229,13 +234,28 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
     // otherwise the original answer.
     const shown = turn.repeat_accepted === true && repeat ? repeat : original;
 
-    const cocoPrompt = conversationMode
-      ? nextDynamicPrompt
+    const cocoPrompt = completeSnapshot
+      ? resolveActiveStudentQuestion({
+          snapshot: completeSnapshot,
+          savedTurns: turnRows
+            .filter((savedTurn) => savedTurn.turn_order < turn.turn_order)
+            .map(
+              (savedTurn): StudentQuestionTurnFacts => ({
+                turnOrder: savedTurn.turn_order,
+                cocoLine: savedTurn.coco_line,
+                evaluation: savedTurn.evaluation,
+              }),
+            ),
+          currentTurn: {
+            turnOrder: turn.turn_order,
+            cocoLine: turn.coco_line,
+            evaluation: turn.evaluation,
+          },
+        })?.question ?? "Coco's question"
       : presetPrompts.get(turn.turn_order) ?? "Coco's question";
 
     if (conversationMode) {
       if (turn.coco_line?.trim()) {
-        nextDynamicPrompt = turn.coco_line.trim();
         finalCocoLine = turn.coco_line.trim();
       }
     }

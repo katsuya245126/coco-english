@@ -471,6 +471,44 @@ describe("student completed mission recap dynamic homework review", () => {
     expect(JSON.stringify(recap)).not.toContain("ambiguous");
     expect(JSON.stringify(recap)).not.toContain("evaluation");
   });
+
+  it("fails closed instead of carrying a stale question across missing Conversation history", async () => {
+    mockSupabase = createDynamicMockSupabase([
+      {
+        id: "turn-first",
+        turn_order: 1,
+        original_transcript: "I am going to school.",
+        improved_sentence: null,
+        repeat_transcript: null,
+        repeat_accepted: false,
+        evaluation: { outcome: "accepted_original" },
+        coco_line: "What do you do at school?",
+      },
+      {
+        id: "turn-third",
+        turn_order: 3,
+        original_transcript: "I read books.",
+        improved_sentence: null,
+        repeat_transcript: null,
+        repeat_accepted: false,
+        evaluation: { outcome: "accepted_original" },
+        coco_line: "That was fun! See you next time!",
+      },
+    ]);
+
+    const recap = await getCompletedMissionRecap(
+      "student-1",
+      "assignment-student-1",
+    );
+
+    expect(recap?.turns.map(({ turnOrder, cocoPrompt }) => ({
+      turnOrder,
+      cocoPrompt,
+    }))).toEqual([
+      { turnOrder: 1, cocoPrompt: "Where are you going?" },
+      { turnOrder: 3, cocoPrompt: "Coco's question" },
+    ]);
+  });
 });
 
 describe("completed homework review derives learner-safe transcripts", () => {

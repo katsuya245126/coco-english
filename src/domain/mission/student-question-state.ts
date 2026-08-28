@@ -1,4 +1,8 @@
-import type { HintLadder, MissionSnapshotTurn } from "@/domain/mission/schemas";
+import type {
+  HintLadder,
+  MissionSnapshot,
+  MissionSnapshotTurn,
+} from "@/domain/mission/schemas";
 import { buildReplyHintFrame } from "@/domain/ai/reply-hint-frame";
 import { classifyStoredConversationRecovery } from "@/domain/ai/stored-evaluation";
 
@@ -6,6 +10,108 @@ type StudentQuestionSpeechLine = {
   lineKind: "mission_prompt" | "coco_dynamic_line";
   turnOrder: number;
 };
+
+export type StudentQuestionTurnFacts = {
+  turnOrder: number;
+  cocoLine: string | null;
+  evaluation?: unknown;
+};
+
+type ActiveQuestionSnapshot = Pick<
+  MissionSnapshot,
+  "conversationMode" | "requiredTurns" | "turns"
+>;
+
+export function resolveActiveStudentQuestion({
+  snapshot,
+  savedTurns,
+  currentTurn,
+}: {
+  snapshot: ActiveQuestionSnapshot;
+  savedTurns: readonly StudentQuestionTurnFacts[];
+  currentTurn: StudentQuestionTurnFacts;
+}): { question: string; source: StudentQuestionSpeechLine } | null {
+  if (currentTurn.turnOrder < 1 || currentTurn.turnOrder > snapshot.requiredTurns) {
+    return null;
+  }
+
+  if (!snapshot.conversationMode) {
+    const authoredTurn = snapshot.turns.find(
+      (turn) => turn.turnOrder === currentTurn.turnOrder,
+    );
+    const question = authoredTurn?.prompt.trim();
+    if (!question || !authoredTurn) return null;
+    return {
+      question,
+      source: {
+        lineKind: "mission_prompt",
+        turnOrder: authoredTurn.turnOrder,
+      },
+    };
+  }
+
+  if (currentTurn.turnOrder === 1) {
+    const currentQuestion = currentTurn.cocoLine?.trim();
+    if (
+      currentQuestion &&
+      isPendingConversationRecovery({
+        conversationMode: true,
+        evaluation: currentTurn.evaluation,
+        cocoLine: currentQuestion,
+      })
+    ) {
+      return {
+        question: currentQuestion,
+        source: {
+          lineKind: "coco_dynamic_line",
+          turnOrder: currentTurn.turnOrder,
+        },
+      };
+    }
+
+    const opener = snapshot.turns.find((turn) => turn.turnOrder === 1);
+    const question = opener?.prompt.trim();
+    return question
+      ? {
+          question,
+          source: { lineKind: "mission_prompt", turnOrder: 1 },
+        }
+      : null;
+  }
+
+  if (
+    savedTurns.length !== currentTurn.turnOrder - 1 ||
+    savedTurns.some(
+      (turn, index) => turn.turnOrder !== index + 1 || !turn.cocoLine?.trim(),
+    )
+  ) {
+    return null;
+  }
+
+  const currentQuestion = currentTurn.cocoLine?.trim();
+  if (
+    currentQuestion &&
+    isPendingConversationRecovery({
+      conversationMode: true,
+      evaluation: currentTurn.evaluation,
+      cocoLine: currentQuestion,
+    })
+  ) {
+    return {
+      question: currentQuestion,
+      source: { lineKind: "coco_dynamic_line", turnOrder: currentTurn.turnOrder },
+    };
+  }
+
+  const previousTurn = savedTurns[currentTurn.turnOrder - 2];
+  const question = previousTurn?.cocoLine?.trim();
+  if (!question) return null;
+
+  return {
+    question,
+    source: { lineKind: "coco_dynamic_line", turnOrder: previousTurn.turnOrder },
+  };
+}
 
 export type DynamicConversationPrompt = {
   text: string;
@@ -92,49 +198,53 @@ export function deriveActiveStudentQuestion({
   dynamicPrompt: DynamicConversationPrompt | null;
 }): ActiveStudentQuestion {
   const dynamicText = dynamicPrompt?.text.trim();
-  if (
+  const resolution =
     conversationMode &&
-    dynamicPrompt &&
     dynamicText &&
+    dynamicPrompt &&
     dynamicPrompt.sourceTurnOrder >= 1
-  ) {
-    return {
-      kind: "conversation",
-      prompt: dynamicText,
-      replyHintFrame: buildReplyHintFrame(dynamicText),
-      activeTurnOrder: turnIndex + 1,
-      recordingEnabled: true,
-      line: {
-        lineKind: "coco_dynamic_line",
-        turnOrder: dynamicPrompt.sourceTurnOrder,
-      },
-    };
-  }
+      ? {
+          question: dynamicText,
+          source: {
+            lineKind: "coco_dynamic_line" as const,
+            turnOrder: dynamicPrompt.sourceTurnOrder,
+          },
+        }
+      : resolveActiveStudentQuestion({
+          snapshot: { conversationMode, requiredTurns: turns.length, turns },
+          savedTurns: [],
+          currentTurn: { turnOrder: turnIndex + 1, cocoLine: null },
+        });
 
-  const snapshotTurn =
-    !conversationMode || turnIndex === 0 ? turns[turnIndex] : undefined;
-  if (snapshotTurn) {
+  if (resolution) {
+    const snapshotTurn = turns.find(
+      (turn) => turn.turnOrder === resolution.source.turnOrder,
+    );
+    if (!conversationMode && snapshotTurn) {
+      return {
+        kind: "preset",
+        prompt: resolution.question,
+        activeTurnOrder: snapshotTurn.turnOrder,
+        hintLadder: snapshotTurn.hintLadder,
+        targetExample: snapshotTurn.targetExample,
+        recordingEnabled: true,
+        line: resolution.source,
+      };
+    }
     if (conversationMode) {
       return {
         kind: "conversation",
-        prompt: snapshotTurn.prompt,
-        replyHintFrame: buildReplyHintFrame(snapshotTurn.prompt),
-        activeTurnOrder: snapshotTurn.turnOrder,
+        prompt: resolution.question,
+        replyHintFrame: buildReplyHintFrame(resolution.question),
+        activeTurnOrder: turnIndex + 1,
         recordingEnabled: true,
-        line: { lineKind: "mission_prompt", turnOrder: snapshotTurn.turnOrder },
+        line: resolution.source,
       };
     }
-    return {
-      kind: "preset",
-      prompt: snapshotTurn.prompt,
-      activeTurnOrder: snapshotTurn.turnOrder,
-      hintLadder: snapshotTurn.hintLadder,
-      targetExample: snapshotTurn.targetExample,
-      recordingEnabled: true,
-      line: { lineKind: "mission_prompt", turnOrder: snapshotTurn.turnOrder },
-    };
   }
 
+  // The fallback remains a projection-specific unavailable state. The pure
+  // resolver itself returns null when no safe question exists.
   return {
     kind: "unavailable",
     reason: "missing_dynamic_prompt",
@@ -194,26 +304,39 @@ export function resolveAcceptedConversationTurn({
 export function deriveResumedDynamicPrompt({
   conversationMode,
   startingTurnIndex,
-  pendingUnclearRetry,
   attemptTurns,
 }: {
   conversationMode: boolean;
   startingTurnIndex: number;
-  pendingUnclearRetry: boolean;
-  attemptTurns: Array<{ turnOrder: number; cocoLine: string | null }>;
+  attemptTurns: Array<StudentQuestionTurnFacts>;
 }): DynamicConversationPrompt | null {
-  if (
-    !conversationMode ||
-    (startingTurnIndex < 1 && !pendingUnclearRetry)
-  ) {
+  if (!conversationMode) return null;
+
+  const currentTurnOrder = startingTurnIndex + 1;
+  const currentTurn = attemptTurns.find(
+    (turn) => turn.turnOrder === currentTurnOrder,
+  );
+  const resolution = resolveActiveStudentQuestion({
+    snapshot: {
+      conversationMode: true,
+      requiredTurns: Math.max(currentTurnOrder, attemptTurns.length + 1),
+      turns: [],
+    },
+    savedTurns: attemptTurns.filter(
+      (turn) => turn.turnOrder < currentTurnOrder,
+    ),
+    currentTurn: {
+      turnOrder: currentTurnOrder,
+      cocoLine: currentTurn?.cocoLine ?? null,
+      evaluation: currentTurn?.evaluation,
+    },
+  });
+
+  if (!resolution || resolution.source.lineKind !== "coco_dynamic_line") {
     return null;
   }
-
-  const sourceTurnOrder = pendingUnclearRetry
-    ? startingTurnIndex + 1
-    : startingTurnIndex;
-  const text = attemptTurns
-    .find((turn) => turn.turnOrder === sourceTurnOrder)
-    ?.cocoLine?.trim();
-  return text ? { text, sourceTurnOrder } : null;
+  return {
+    text: resolution.question,
+    sourceTurnOrder: resolution.source.turnOrder,
+  };
 }

@@ -3697,6 +3697,48 @@ describe("recordSpeakingTry conversation-mode orchestration", () => {
     expect(generate).not.toHaveBeenCalled();
   });
 
+  it("rejects a dynamic turn when saved Conversation history is out of order", async () => {
+    mockSupabase = createMockSupabase({
+      previousTurns: [
+        {
+          turn_order: 1,
+          original_transcript: "Answer one.",
+          improved_sentence: null,
+          coco_line: "Question two?",
+        },
+        {
+          turn_order: 3,
+          original_transcript: "Answer three.",
+          improved_sentence: null,
+          coco_line: "Question four?",
+        },
+      ],
+    });
+    const { recordSpeakingTry } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateOriginal = successfulOriginalEvaluator();
+    const generate = fakeGenerateCocoReply(async () => ({
+      ok: true,
+      reply: { line: "should never be called" },
+    }));
+
+    const result = await recordSpeakingTry(audioInput({ turnOrder: 3 }), {
+      transcribeAudioFile: successfulTranscriber("I play soccer."),
+      evaluateOriginalTurn: evaluateOriginal,
+      generateCocoReply: generate,
+      isContentSafe: fakeIsContentSafe(async () => ({
+        safe: true,
+        failedOpen: false,
+      })),
+    });
+
+    expect(result).toEqual({ ok: false, error: "invalid_audio", retryable: false });
+    expect(evaluateOriginal).not.toHaveBeenCalled();
+    expect(generate).not.toHaveBeenCalled();
+    expect(mockSupabase.upload).not.toHaveBeenCalled();
+  });
+
   it("generated line passes moderation: coco_line persisted with no moderation_event; TTS warmed", async () => {
     const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"

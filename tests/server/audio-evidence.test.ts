@@ -515,6 +515,74 @@ describe("teacher audio evidence service", () => {
     expect(evidence?.turns.map((turn) => turn.targetPattern)).toEqual([null, null]);
   });
 
+  it("ignores a legacy authored Conversation tail when labeling stored follow-ups", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: {
+        ...completeConversationSnapshot,
+        turns: [
+          ...completeConversationSnapshot.turns,
+          {
+            ...completeConversationSnapshot.turns[0],
+            turnOrder: 2,
+            prompt: "Legacy authored tail",
+          },
+        ],
+      },
+      attemptTurns: [
+        {
+          id: "turn-1",
+          turn_order: 1,
+          original_transcript: "I am going to play soccer.",
+          improved_sentence: null,
+          repeat_transcript: null,
+          target_attempted: true,
+          repeat_accepted: null,
+          evaluation: {
+            outcome: "accepted_original",
+            meaningUnderstood: true,
+            targetPatternAttempted: true,
+          },
+          coco_line: "Who are you going with?",
+          reply_hint_frame: null,
+          hint_level_used: 0,
+        },
+        {
+          id: "turn-2",
+          turn_order: 2,
+          original_transcript: "I am going with my friend.",
+          improved_sentence: null,
+          repeat_transcript: null,
+          target_attempted: true,
+          repeat_accepted: null,
+          evaluation: {
+            outcome: "accepted_original",
+            meaningUnderstood: true,
+            targetPatternAttempted: true,
+          },
+          coco_line: null,
+          reply_hint_frame: null,
+          hint_level_used: 0,
+        },
+      ],
+    });
+    const { getAttemptEvidenceForTeacher } = await import(
+      "@/server/teacher/audio-evidence"
+    );
+
+    const evidence = await getAttemptEvidenceForTeacher({
+      teacherId: "teacher-1",
+      attemptId: "attempt-1",
+    });
+
+    expect(evidence?.turns.map((turn) => ({
+      turnOrder: turn.turnOrder,
+      question: turn.question,
+    }))).toEqual([
+      { turnOrder: 1, question: "What are you doing this weekend?" },
+      { turnOrder: 2, question: "Who are you going with?" },
+    ]);
+  });
+
   it("keeps evidence but removes mission context for an invalid snapshot", async () => {
     mockSupabase = createMockSupabase({
       missionSnapshot: {
