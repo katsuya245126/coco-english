@@ -31,6 +31,10 @@ _Avoid_: Target pattern
 **Conversation mission**:
 A bounded free conversation with an authored opening question and generated follow-up questions.
 
+**Active question**:
+The question that a student answers in the current speaking try. A preset mission uses an authored turn; a conversation mission uses its opening, a generated follow-up question, or a recovery question.
+_Avoid_: Current prompt
+
 **Student recap**:
 The student page that follows completed homework. It shows the latest homework attempt and provides the Back Home action.
 _Avoid_: Mission flow, teacher evidence

@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MissionFlowShell } from "./MissionFlowShell";
+import { MissionFlowShell, type MissionFlowShellProps } from "./MissionFlowShell";
 import { completeMissionAction } from "@/app/student/missions/[assignmentStudentId]/actions";
 
 vi.mock("next/navigation", () => ({
@@ -101,7 +101,10 @@ async function flush() {
   await Promise.resolve();
 }
 
-async function renderMission(responses: Record<string, UploadResponse>) {
+async function renderMission(
+  responses: Record<string, UploadResponse>,
+  props: MissionFlowShellProps = shellProps,
+) {
   const uploadBodies: FormData[] = [];
   const fetchMock = vi.fn(async (_url: string, init?: { body?: FormData }) => {
     if (!init?.body) throw new Error("Expected upload FormData");
@@ -117,7 +120,7 @@ async function renderMission(responses: Record<string, UploadResponse>) {
   vi.stubGlobal("fetch", fetchMock);
 
   await act(async () => {
-    root.render(<MissionFlowShell {...shellProps} />);
+    root.render(<MissionFlowShell {...props} />);
     await flush();
   });
 
@@ -180,6 +183,44 @@ describe("MissionFlowShell teacher-review feedback", () => {
     expect(buttonLabels()).not.toContain("Record again");
     expect(uploadBodies).toHaveLength(1);
     expect(uploadBodies[0]?.has("status")).toBe(false);
+  });
+
+  it("renders a resumed Conversation follow-up and submits its current turn", async () => {
+    const uploadBodies = await renderMission(
+      {
+        original_answer: {
+          displayTranscript: "I play soccer.",
+          evaluation: {
+            kind: "original",
+            outcome: "accepted_original",
+          },
+        },
+      },
+      {
+        ...shellProps,
+        turns,
+        requiredTurns: 3,
+        conversationMode: true,
+        startingTurnIndex: 1,
+        initialDynamicPrompt: {
+          text: "Who do you play with?",
+          sourceTurnOrder: 1,
+        },
+        isResume: true,
+      },
+    );
+
+    expect(container.textContent).toContain("Who do you play with?");
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="Record answer"]')
+        ?.click();
+      await flush();
+    });
+
+    expect(uploadBodies).toHaveLength(1);
+    expect(uploadBodies[0]?.get("turnOrder")).toBe("2");
   });
 
   it("completes a final original review before showing review pending", async () => {

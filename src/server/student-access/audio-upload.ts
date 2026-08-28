@@ -8,7 +8,10 @@
 
 import type { Database, Json } from "@/lib/db/types";
 import { resolveMissionSnapshotTargetPattern } from "@/domain/mission/mission-snapshot";
-import { isPendingConversationRecovery } from "@/domain/mission/student-question-state";
+import {
+  resolveActiveStudentQuestion,
+  type StudentQuestionTurnFacts,
+} from "@/domain/mission/student-question-state";
 import { buildReplyHintFrame } from "@/domain/ai/reply-hint-frame";
 import {
   hasEnglishTranscript,
@@ -217,24 +220,6 @@ function toJson(
   return value satisfies Json;
 }
 
-function persistedConversationRecoveryQuestion(
-  evaluation: unknown,
-  cocoLine: unknown,
-  conversationMode: boolean,
-) {
-  if (
-    !isPendingConversationRecovery({
-      conversationMode,
-      evaluation,
-      cocoLine: typeof cocoLine === "string" ? cocoLine : null,
-    })
-  ) {
-    return null;
-  }
-
-  return typeof cocoLine === "string" ? cocoLine.trim() : null;
-}
-
 function reviewReasonOrDefault(
   reviewReason: string | null,
 ): TeacherReviewReason {
@@ -420,7 +405,6 @@ export async function recordSpeakingTry(
     }
 
     let priorConversationTurns: PersistedConversationTurn[] = [];
-    let previousCocoLine: string | null = null;
 
     if (
       snapshot.conversationMode === true &&
@@ -444,17 +428,29 @@ export async function recordSpeakingTry(
         };
       }
       priorConversationTurns = historyResult.value;
-      previousCocoLine = priorConversationTurns.at(-1)?.coco_line ?? null;
     }
 
-    if (
-      isDynamicChatTurn &&
-      input.clipKind === "original_answer" &&
-      (previousCocoLine === null ||
-        priorConversationTurns.length !== input.turnOrder - 1)
-    ) {
-      logTiming("failed", { error: "invalid_audio", step: "previous_coco_line" });
-      return { ok: false, error: "invalid_audio", retryable: false };
+    const priorConversationTurnFacts = priorConversationTurns.map(
+      (turn): StudentQuestionTurnFacts => ({
+        turnOrder: turn.turn_order,
+        cocoLine: turn.coco_line,
+        evaluation: turn.evaluation,
+      }),
+    );
+
+    if (isDynamicChatTurn && input.clipKind === "original_answer") {
+      const activeQuestion = resolveActiveStudentQuestion({
+        snapshot,
+        savedTurns: priorConversationTurnFacts,
+        currentTurn: { turnOrder: input.turnOrder, cocoLine: null },
+      });
+      if (!activeQuestion) {
+        logTiming("failed", {
+          error: "invalid_audio",
+          step: "active_question",
+        });
+        return { ok: false, error: "invalid_audio", retryable: false };
+      }
     }
 
     const targetExample =
@@ -483,22 +479,32 @@ export async function recordSpeakingTry(
 
     const turn = turnInit.value;
 
-    const missionQuestion =
-      persistedConversationRecoveryQuestion(
-        turn.evaluation,
-        turn.coco_line,
-        snapshot.conversationMode === true,
-      ) ??
-      snapshotTurn?.prompt ??
-      previousCocoLine;
+    const activeQuestion =
+      input.clipKind === "original_answer"
+        ? resolveActiveStudentQuestion({
+            snapshot,
+            savedTurns: priorConversationTurnFacts,
+            currentTurn: {
+              turnOrder: input.turnOrder,
+              cocoLine: turn.coco_line,
+              evaluation: turn.evaluation,
+            },
+          })
+        : null;
+    const missionQuestion = activeQuestion?.question ?? null;
+    if (input.clipKind === "original_answer" && !missionQuestion) {
+      logTiming("failed", { error: "invalid_audio", step: "active_question" });
+      return { ok: false, error: "invalid_audio", retryable: false };
+    }
     // The reply hint frame OFFERED to the student for the question they just
     // answered — recorded, not derived later, so a future change to
     // buildReplyHintFrame cannot rewrite what old attempts actually showed.
-    // Mirrors deriveActiveStudentQuestion, which is what the UI renders, so
-    // this is the available frame regardless of whether the student expanded
+    // This is the available frame regardless of whether the student expanded
     // it. Preset missions never show one, so they stay null.
     const replyHintFrame =
-      snapshot.conversationMode === true && missionQuestion
+      input.clipKind === "original_answer" &&
+      snapshot.conversationMode === true &&
+      missionQuestion
         ? buildReplyHintFrame(missionQuestion)
         : null;
 

@@ -15,6 +15,11 @@ import {
   interpretMissionSnapshot,
   resolveMissionSnapshotTargetPattern,
 } from "@/domain/mission/mission-snapshot";
+import type { MissionSnapshot } from "@/domain/mission/schemas";
+import {
+  resolveActiveStudentQuestion,
+  type StudentQuestionTurnFacts,
+} from "@/domain/mission/student-question-state";
 import {
   getOwnedAttemptForTeacher,
   getOwnedAudioClipForTeacher,
@@ -153,6 +158,7 @@ type AttemptMissionContext = {
   questionsByOrder: Map<number, string>;
   targetPatternsByOrder: Map<number, string>;
   conversationMode: boolean;
+  snapshot: MissionSnapshot | null;
 };
 
 function readAttemptMissionContext(
@@ -168,6 +174,7 @@ function readAttemptMissionContext(
       questionsByOrder: new Map(),
       targetPatternsByOrder: new Map(),
       conversationMode: false,
+      snapshot: null,
     };
   }
 
@@ -198,34 +205,9 @@ function readAttemptMissionContext(
     conversationMode:
       snapshotResult.kind === "complete" &&
       snapshotResult.snapshot.conversationMode,
+    snapshot:
+      snapshotResult.kind === "complete" ? snapshotResult.snapshot : null,
   };
-}
-
-/**
- * Fill in the questions a conversation mission asked after its opening turn.
- *
- * Free-talking missions only carry turn 1's prompt in the snapshot; every later
- * question is generated during the attempt and stored on the *previous* turn as
- * `coco_line`. Without this the evidence page shows a question on turn 1 and
- * nothing after it. Mirrors the student recap in `student-history.ts`.
- *
- * Preset missions already have every prompt in the snapshot, so entries added
- * here never overwrite one that is already present.
- */
-export function addDynamicTurnQuestions(
-  questionsByOrder: Map<number, string>,
-  turnRows: AttemptTurnRow[],
-): Map<number, string> {
-  for (const row of turnRows) {
-    const cocoLine = row.coco_line?.trim();
-    if (!cocoLine) continue;
-    const nextOrder = row.turn_order + 1;
-    if (!questionsByOrder.has(nextOrder)) {
-      questionsByOrder.set(nextOrder, cocoLine);
-    }
-  }
-
-  return questionsByOrder;
 }
 
 function mapPronunciationScore(
@@ -345,13 +327,34 @@ function readInterpretations(value: unknown): HangulInterpretation[] {
 function mapTurn(
   row: AttemptTurnRow,
   clipsByTurnId: Map<string, AttemptAudioClipEvidence[]>,
-  questionsByOrder: Map<number, string>,
+  missionContext: AttemptMissionContext,
+  turnRows: AttemptTurnRow[],
   targetPatternsByOrder: Map<number, string>,
 ): AttemptTurnEvidence {
+  const question = missionContext.snapshot
+    ? resolveActiveStudentQuestion({
+        snapshot: missionContext.snapshot,
+        savedTurns: turnRows
+          .filter((turn) => turn.turn_order < row.turn_order)
+          .map(
+            (turn): StudentQuestionTurnFacts => ({
+              turnOrder: turn.turn_order,
+              cocoLine: turn.coco_line,
+              evaluation: turn.evaluation,
+            }),
+          ),
+        currentTurn: {
+          turnOrder: row.turn_order,
+          cocoLine: row.coco_line,
+          evaluation: row.evaluation,
+        },
+      })?.question ?? null
+    : missionContext.questionsByOrder.get(row.turn_order) ?? null;
+
   return {
     id: row.id,
     turnOrder: row.turn_order,
-    question: questionsByOrder.get(row.turn_order) ?? null,
+    question,
     originalTranscript: row.original_transcript,
     originalDisplayTranscript: row.original_transcript
       ? buildLearnerTranscript(
@@ -451,9 +454,6 @@ export async function getAttemptEvidenceForTeacher(input: {
   const ownershipRow = attempt.data as AttemptOwnershipRow;
   const metadata = mapAttemptMetadata(ownershipRow);
   const missionContext = readAttemptMissionContext(ownershipRow);
-  const questionsByOrder = missionContext.conversationMode
-    ? addDynamicTurnQuestions(missionContext.questionsByOrder, turnRows)
-    : missionContext.questionsByOrder;
 
   return {
     attemptId: attempt.data.id,
@@ -476,7 +476,8 @@ export async function getAttemptEvidenceForTeacher(input: {
       mapTurn(
         turn,
         clipsByTurnId,
-        questionsByOrder,
+        missionContext,
+        turnRows,
         missionContext.targetPatternsByOrder,
       ),
     ),
