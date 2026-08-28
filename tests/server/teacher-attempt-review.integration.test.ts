@@ -409,7 +409,7 @@ describe("teacher attempt review interface", () => {
         teacherId: unfinished.ownerId,
         attemptId: unfinished.attemptId,
         action: "mark_reviewed",
-      })).toEqual({ ok: false, error: "not_allowed" });
+      })).toEqual({ ok: false, error: "incomplete" });
 
       const incompleteResult = await unfinished.admin.rpc("mark_submission_reviewed", {
         p_teacher_id: unfinished.ownerId,

@@ -8,8 +8,11 @@ import {
 import { changeAssignedHomeworkAction } from "@/app/teacher/assignment-actions";
 import { HoverButton } from "@/components/ui/HoverButton";
 import { primaryHover, secondaryHover } from "@/components/ui/hover-styles";
+import { resolveTeacherEvidenceActions } from "@/domain/teacher/assignment-operations";
 
-const DISMISSIBLE_STATUSES = ["assigned", "missed"];
+const INCOMPLETE_ERROR = "Some answers are missing. Request retry is available.";
+const STALE_ERROR = "This homework changed. Refresh the page and try again.";
+const SYSTEM_ERROR = "Could not update this homework. Try again.";
 
 export function SubmissionReviewControls({
   attemptId,
@@ -17,7 +20,6 @@ export function SubmissionReviewControls({
   assignmentStudentStatus,
   classId,
   assignmentId,
-  reviewReason,
   dismissed,
 }: {
   attemptId: string;
@@ -25,82 +27,88 @@ export function SubmissionReviewControls({
   assignmentStudentStatus: string;
   classId: string;
   assignmentId: string;
-  reviewReason: string | null;
   dismissed: boolean;
 }) {
   const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
   const [note, setNote] = useState("");
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const isTeacherReview = reviewReason != null;
-  const isDismissible = DISMISSIBLE_STATUSES.includes(assignmentStudentStatus);
-  const usesReviewCompletion = !isDismissible && (assignmentStudentStatus === "started" || isTeacherReview);
+  const actions = resolveTeacherEvidenceActions({
+    status: assignmentStudentStatus,
+    dismissed,
+  });
+  const markAsDoneAction = actions.find(
+    (action): action is "mark_reviewed" | "dismiss" =>
+      action === "mark_reviewed" || action === "dismiss",
+  );
+  const canRequestRetry = actions.includes("request_retry");
+  const canUndo = actions.includes("undo_dismiss");
   const reviewHref = `/teacher/classes/${classId}/review/${assignmentId}`;
 
-  const markReviewed = () => startTransition(async () => {
-    setError(false);
-    const result = await markSubmissionReviewedAction(attemptId);
-    if (result.ok) router.push(reviewHref);
-    else setError(true);
-  });
   const markDone = () => startTransition(async () => {
-    setError(false);
+    setError(null);
+    if (!markAsDoneAction) return;
     try {
-      const result = await changeAssignedHomeworkAction({ assignedHomeworkId, action: "dismiss" });
+      const result = markAsDoneAction === "mark_reviewed"
+        ? await markSubmissionReviewedAction(attemptId)
+        : await changeAssignedHomeworkAction({ assignedHomeworkId, action: "dismiss" });
       if (result.ok) router.push(reviewHref);
-      else setError(true);
+      else setError(errorMessageFor(result.error));
     } catch {
-      setError(true);
+      setError(SYSTEM_ERROR);
     }
   });
   const undoDone = () => startTransition(async () => {
-    setError(false);
+    setError(null);
     try {
       const result = await changeAssignedHomeworkAction({ assignedHomeworkId, action: "undo_dismiss" });
       if (result.ok) router.refresh();
-      else setError(true);
+      else setError(errorMessageFor(result.error));
     } catch {
-      setError(true);
+      setError(SYSTEM_ERROR);
     }
   });
   const requestRetry = () => startTransition(async () => {
-    setError(false);
-    const result = await changeAssignedHomeworkAction({
-      assignedHomeworkId,
-      action: "request_retry",
-      reasonNote: note.trim() || undefined,
-    });
-    if (result.ok) router.push("/teacher");
-    else setError(true);
+    setError(null);
+    try {
+      const result = await changeAssignedHomeworkAction({
+        assignedHomeworkId,
+        action: "request_retry",
+        reasonNote: note.trim() || undefined,
+      });
+      if (result.ok) router.push("/teacher");
+      else setError(errorMessageFor(result.error));
+    } catch {
+      setError(SYSTEM_ERROR);
+    }
   });
 
   return <section aria-label="Submission review actions" style={sectionStyle}>
     <h2 style={headingStyle}>Teacher action</h2>
-    {dismissed ? (
+    {canUndo ? (
       <>
         <p style={helperStyle}>This assignment is marked done and hidden from your incomplete list.</p>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <HoverButton type="button" disabled={pending} onClick={undoDone} style={secondaryButtonStyle} hoverStyle={secondaryHover}>Undo</HoverButton>
         </div>
       </>
-    ) : isDismissible ? (
+    ) : markAsDoneAction === "dismiss" ? (
       <>
         <p style={helperStyle}>Removes this from your incomplete list. You can undo this.</p>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <HoverButton type="button" disabled={pending} onClick={markDone} style={primaryButtonStyle} hoverStyle={primaryHover}>Mark as done</HoverButton>
-          <HoverButton type="button" disabled={pending} onClick={() => dialog.current?.showModal()} style={secondaryButtonStyle} hoverStyle={secondaryHover}>Request retry</HoverButton>
         </div>
       </>
-    ) : (
+    ) : markAsDoneAction === "mark_reviewed" ? (
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <HoverButton type="button" disabled={pending} onClick={markReviewed} style={primaryButtonStyle} hoverStyle={primaryHover}>Mark as done</HoverButton>
-        <HoverButton type="button" disabled={pending} onClick={() => dialog.current?.showModal()} style={secondaryButtonStyle} hoverStyle={secondaryHover}>Request retry</HoverButton>
+        <HoverButton type="button" disabled={pending} onClick={markDone} style={primaryButtonStyle} hoverStyle={primaryHover}>Mark as done</HoverButton>
+        {canRequestRetry && <HoverButton type="button" disabled={pending} onClick={() => dialog.current?.showModal()} style={secondaryButtonStyle} hoverStyle={secondaryHover}>Request retry</HoverButton>}
       </div>
-    )}
-    {error && <p role="alert" style={errorStyle}>{usesReviewCompletion ? "Could not mark this submission as done. One or more required answers may be missing. Request retry is available." : "Could not update this submission. Please try again."}</p>}
-    <dialog ref={dialog} aria-labelledby="retry-heading" style={dialogStyle}>
+    ) : null}
+    {error && <p role="alert" style={errorStyle}>{error}</p>}
+    {canRequestRetry && <dialog ref={dialog} aria-labelledby="retry-heading" style={dialogStyle}>
       <h2 id="retry-heading" style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 600 }}>Request retry?</h2>
       <p style={{ margin: "0 0 16px", fontSize: 14, color: "#4B5563", lineHeight: 1.5 }}>The student can start a new attempt. This evidence stays available.</p>
       <label htmlFor="retry-note" style={{ display: "block", marginBottom: 6, fontSize: 14, fontWeight: 600, color: "#4B5563" }}>Note (optional)</label>
@@ -109,8 +117,14 @@ export function SubmissionReviewControls({
         <HoverButton type="button" onClick={() => dialog.current?.close()} style={secondaryButtonStyle} hoverStyle={secondaryHover}>Cancel</HoverButton>
         <HoverButton type="button" disabled={pending} onClick={requestRetry} style={primaryButtonStyle} hoverStyle={primaryHover}>Request retry</HoverButton>
       </div>
-    </dialog>
+    </dialog>}
   </section>;
+}
+
+function errorMessageFor(error: string) {
+  if (error === "incomplete") return INCOMPLETE_ERROR;
+  if (error === "not_allowed" || error === "not_found") return STALE_ERROR;
+  return SYSTEM_ERROR;
 }
 
 const sectionStyle: React.CSSProperties = {

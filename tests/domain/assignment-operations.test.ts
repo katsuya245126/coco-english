@@ -4,7 +4,29 @@ import {
   countIncompleteItems,
   groupIncompleteAssignments,
   isSubmissionPendingReview,
+  resolveTeacherEvidenceActions,
 } from "@/domain/teacher/assignment-operations";
+
+describe("resolveTeacherEvidenceActions", () => {
+  it.each([
+    ["assigned", false, ["dismiss"]],
+    ["started", false, ["mark_reviewed", "request_retry"]],
+    ["completed", false, ["mark_reviewed", "request_retry"]],
+    ["missed", false, ["dismiss"]],
+    ["needs_retry", false, []],
+    ["teacher_review", false, ["mark_reviewed", "request_retry"]],
+    ["unknown", false, []],
+    ["assigned", true, ["undo_dismiss"]],
+    ["started", true, ["undo_dismiss"]],
+    ["missed", true, ["undo_dismiss"]],
+    ["completed", true, []],
+    ["needs_retry", true, []],
+    ["teacher_review", true, []],
+    ["unknown", true, []],
+  ] as const)("returns expected actions for %s when dismissed=%s", (status, dismissed, expected) => {
+    expect(resolveTeacherEvidenceActions({ status, dismissed })).toEqual(expected);
+  });
+});
 
 describe("isSubmissionPendingReview", () => {
   const eligible = {
