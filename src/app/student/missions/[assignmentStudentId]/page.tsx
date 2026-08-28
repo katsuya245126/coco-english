@@ -94,8 +94,12 @@ export default async function MissionPage({ params }: MissionPageProps) {
   if (asRow.latestAttemptId) {
     const { data: attempt } = await supabase
       .from("attempts")
-      .select("id, status")
+      .select(
+        "id, status, assignment_students!attempts_assignment_student_id_fkey!inner(id, student_id)",
+      )
       .eq("id", asRow.latestAttemptId)
+      .eq("assignment_student_id", assignmentStudentId)
+      .eq("assignment_students.student_id", unlock.studentId)
       .eq("status", "in_progress")
       .maybeSingle();
 
@@ -104,8 +108,16 @@ export default async function MissionPage({ params }: MissionPageProps) {
 
       const { data: turns } = await supabase
         .from("attempt_turns")
-        .select("id, turn_order, original_transcript, improved_sentence, repeat_transcript, repeat_accepted, evaluation, coco_line")
-        .eq("attempt_id", attempt.id);
+        .select(
+          `id, turn_order, original_transcript, improved_sentence, repeat_transcript, repeat_accepted, evaluation, coco_line,
+          attempts!inner(
+            assignment_student_id,
+            assignment_students!attempts_assignment_student_id_fkey!inner(id, student_id)
+          )`,
+        )
+        .eq("attempt_id", attempt.id)
+        .eq("attempts.assignment_student_id", assignmentStudentId)
+        .eq("attempts.assignment_students.student_id", unlock.studentId);
 
       const resumeOrder = nextUnfinishedTurnOrder(
         snapshot.requiredTurns,
@@ -143,8 +155,26 @@ export default async function MissionPage({ params }: MissionPageProps) {
 
         const { data: audioClip } = await supabase
           .from("audio_clips")
-          .select("object_key")
+          .select(
+            `object_key,
+            attempt_turns!inner(
+              attempt_id,
+              attempts!inner(
+                assignment_student_id,
+                assignment_students!attempts_assignment_student_id_fkey!inner(id, student_id)
+              )
+            )`,
+          )
           .eq("attempt_turn_id", reviewTurn.id)
+          .eq("attempt_turns.attempt_id", attempt.id)
+          .eq(
+            "attempt_turns.attempts.assignment_student_id",
+            assignmentStudentId,
+          )
+          .eq(
+            "attempt_turns.attempts.assignment_students.student_id",
+            unlock.studentId,
+          )
           .eq("clip_kind", persistedReview.clipKind)
           .eq("processing_status", "transcribed")
           .is("deleted_at", null)

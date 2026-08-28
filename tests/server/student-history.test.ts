@@ -472,6 +472,50 @@ describe("student completed mission recap dynamic homework review", () => {
     expect(JSON.stringify(recap)).not.toContain("evaluation");
   });
 
+  it("labels an accepted completed recovery with its persisted recovery question", async () => {
+    mockSupabase = createDynamicMockSupabase([
+      {
+        id: "turn-opening",
+        turn_order: 1,
+        original_transcript: "I am going to school.",
+        improved_sentence: null,
+        repeat_transcript: null,
+        repeat_accepted: false,
+        evaluation: { kind: "original", outcome: "accepted_original" },
+        coco_line: "Who do you go with?",
+      },
+      {
+        id: "turn-recovery",
+        turn_order: 2,
+        original_transcript: "I go with my friend.",
+        improved_sentence: null,
+        repeat_transcript: null,
+        repeat_accepted: false,
+        evaluation: {
+          kind: "original",
+          outcome: "accepted_original",
+          ambiguityHistory: [
+            { recoveryQuestion: "Can you say that another way?" },
+          ],
+        },
+        coco_line: "That was fun! See you next time!",
+      },
+    ]);
+
+    const recap = await getCompletedMissionRecap(
+      "student-1",
+      "assignment-student-1",
+    );
+
+    expect(recap?.turns.map(({ turnOrder, cocoPrompt }) => ({
+      turnOrder,
+      cocoPrompt,
+    }))).toEqual([
+      { turnOrder: 1, cocoPrompt: "Where are you going?" },
+      { turnOrder: 2, cocoPrompt: "Can you say that another way?" },
+    ]);
+  });
+
   it("fails closed instead of carrying a stale question across missing Conversation history", async () => {
     mockSupabase = createDynamicMockSupabase([
       {

@@ -40,6 +40,41 @@ describe("student mission resume state", () => {
     expect(pageSource).toContain("getPendingTurnReview");
   });
 
+  it("rechecks unlocked-student ownership on every resume query", () => {
+    const attemptStart = pageSource.indexOf('.from("attempts")');
+    const turnStart = pageSource.indexOf('.from("attempt_turns")');
+    const clipStart = pageSource.indexOf('.from("audio_clips")');
+    expect(attemptStart).toBeGreaterThanOrEqual(0);
+    expect(turnStart).toBeGreaterThan(attemptStart);
+    expect(clipStart).toBeGreaterThan(turnStart);
+
+    const attemptQuery = pageSource.slice(attemptStart, turnStart);
+    const turnQuery = pageSource.slice(turnStart, clipStart);
+    const clipQuery = pageSource.slice(clipStart);
+
+    expect(attemptQuery).toMatch(
+      /assignment_students![^\s(]*!inner\([\s\S]*student_id/,
+    );
+    expect(attemptQuery).toContain('.eq("assignment_student_id", assignmentStudentId)');
+    expect(attemptQuery).toContain('.eq("assignment_students.student_id", unlock.studentId)');
+
+    expect(turnQuery).toMatch(
+      /attempts!inner\([\s\S]*assignment_students![^\s(]*!inner\([\s\S]*student_id/,
+    );
+    expect(turnQuery).toContain('.eq("attempts.assignment_student_id", assignmentStudentId)');
+    expect(turnQuery).toContain('.eq("attempts.assignment_students.student_id", unlock.studentId)');
+
+    expect(clipQuery).toMatch(
+      /attempt_turns!inner\([\s\S]*attempts!inner\([\s\S]*assignment_students![^\s(]*!inner\([\s\S]*student_id/,
+    );
+    expect(clipQuery).toMatch(
+      /\.eq\(\s*"attempt_turns\.attempts\.assignment_student_id",\s*assignmentStudentId\s*,?\s*\)/,
+    );
+    expect(clipQuery).toMatch(
+      /\.eq\(\s*"attempt_turns\.attempts\.assignment_students\.student_id",\s*unlock\.studentId\s*,?\s*\)/,
+    );
+  });
+
   it("restores the saved feedback screen and its recording URL", () => {
     expect(pageSource).toContain("initialReview");
     expect(pageSource).toContain("createSignedUrl");

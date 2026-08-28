@@ -3739,6 +3739,38 @@ describe("recordSpeakingTry conversation-mode orchestration", () => {
     expect(mockSupabase.upload).not.toHaveBeenCalled();
   });
 
+  it("does not load Conversation history for a later-turn repeat upload", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: soccerConversationSnapshot,
+      historyLookupError: { message: "repeat must not load history" },
+      turnEvaluation: originalEvaluation({
+        outcome: "needs_correction",
+        correctionNeeded: true,
+        correctionSeverity: "material",
+        improvedSentence: "I play soccer every day.",
+      }),
+      turnImprovedSentence: "I play soccer every day.",
+    });
+    const { recordSpeakingTry } = await import(
+      "@/server/student-access/audio-upload"
+    );
+    const evaluateRepeat = repeatEvaluator();
+
+    const result = await recordSpeakingTry(
+      {
+        ...audioInput({ turnOrder: 2 }),
+        clipKind: "repeat_attempt" as const,
+      },
+      {
+        transcribeAudioFile: successfulTranscriber("I play soccer daily."),
+        evaluateRepeatTurn: evaluateRepeat,
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(evaluateRepeat).toHaveBeenCalled();
+  });
+
   it("generated line passes moderation: coco_line persisted with no moderation_event; TTS warmed", async () => {
     const { recordSpeakingTry } = await import(
       "@/server/student-access/audio-upload"

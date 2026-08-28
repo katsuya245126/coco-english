@@ -515,6 +515,68 @@ describe("teacher audio evidence service", () => {
     expect(evidence?.turns.map((turn) => turn.targetPattern)).toEqual([null, null]);
   });
 
+  it("labels a teacher-reviewed completed recovery with its persisted recovery question", async () => {
+    mockSupabase = createMockSupabase({
+      missionSnapshot: completeConversationSnapshot,
+      attemptTurns: [
+        {
+          id: "turn-1",
+          turn_order: 1,
+          original_transcript: "I am going to play soccer.",
+          improved_sentence: null,
+          repeat_transcript: null,
+          target_attempted: true,
+          repeat_accepted: null,
+          evaluation: {
+            kind: "original",
+            outcome: "accepted_original",
+            meaningUnderstood: true,
+            targetPatternAttempted: true,
+          },
+          coco_line: "Who are you going with?",
+          reply_hint_frame: null,
+          hint_level_used: 0,
+        },
+        {
+          id: "turn-2",
+          turn_order: 2,
+          original_transcript: "I am going with my friend.",
+          improved_sentence: null,
+          repeat_transcript: null,
+          target_attempted: false,
+          repeat_accepted: null,
+          evaluation: {
+            kind: "original",
+            outcome: "teacher_review",
+            reviewReason: "ambiguous",
+            ambiguityHistory: [
+              { recoveryQuestion: "Can you say that another way?" },
+            ],
+          },
+          coco_line: "That was fun! See you next time!",
+          reply_hint_frame: null,
+          hint_level_used: 0,
+        },
+      ],
+    });
+    const { getAttemptEvidenceForTeacher } = await import(
+      "@/server/teacher/audio-evidence"
+    );
+
+    const evidence = await getAttemptEvidenceForTeacher({
+      teacherId: "teacher-1",
+      attemptId: "attempt-1",
+    });
+
+    expect(evidence?.turns.map(({ turnOrder, question }) => ({
+      turnOrder,
+      question,
+    }))).toEqual([
+      { turnOrder: 1, question: "What are you doing this weekend?" },
+      { turnOrder: 2, question: "Can you say that another way?" },
+    ]);
+  });
+
   it("ignores a legacy authored Conversation tail when labeling stored follow-ups", async () => {
     mockSupabase = createMockSupabase({
       missionSnapshot: {

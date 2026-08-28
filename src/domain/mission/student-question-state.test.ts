@@ -64,6 +64,34 @@ describe("student question state", () => {
     });
   });
 
+  it.each(["accepted_original", "teacher_review"] as const)(
+    "uses the latest completed recovery question for a %s row",
+    (outcome) => {
+      expect(
+        resolveActiveStudentQuestion({
+          snapshot: conversationSnapshot,
+          savedTurns: [{ turnOrder: 1, cocoLine: "Previous question?" }],
+          currentTurn: {
+            turnOrder: 2,
+            cocoLine: "That was fun! See you next time!",
+            evaluation: {
+              kind: "original",
+              outcome,
+              ambiguityHistory: [
+                { recoveryQuestion: "First recovery question?" },
+                { recoveryQuestion: "   " },
+                { recoveryQuestion: "Latest recovery question?" },
+              ],
+            },
+          },
+        }),
+      ).toEqual({
+        question: "Latest recovery question?",
+        source: { lineKind: "coco_dynamic_line", turnOrder: 2 },
+      });
+    },
+  );
+
   it("resolves the authored Conversation opening on turn one", () => {
     expect(
       resolveActiveStudentQuestion({

@@ -408,6 +408,7 @@ export async function recordSpeakingTry(
 
     if (
       snapshot.conversationMode === true &&
+      input.clipKind === "original_answer" &&
       input.turnOrder > 1
     ) {
       const historyResult = await timeStage("conversationHistoryGuard", () =>
@@ -437,7 +438,7 @@ export async function recordSpeakingTry(
       }),
     );
 
-    if (isDynamicChatTurn) {
+    if (isDynamicChatTurn && input.clipKind === "original_answer") {
       const activeQuestion = resolveActiveStudentQuestion({
         snapshot,
         savedTurns: priorConversationTurnFacts,
@@ -478,17 +479,20 @@ export async function recordSpeakingTry(
 
     const turn = turnInit.value;
 
-    const activeQuestion = resolveActiveStudentQuestion({
-      snapshot,
-      savedTurns: priorConversationTurnFacts,
-      currentTurn: {
-        turnOrder: input.turnOrder,
-        cocoLine: turn.coco_line,
-        evaluation: turn.evaluation,
-      },
-    });
+    const activeQuestion =
+      input.clipKind === "original_answer"
+        ? resolveActiveStudentQuestion({
+            snapshot,
+            savedTurns: priorConversationTurnFacts,
+            currentTurn: {
+              turnOrder: input.turnOrder,
+              cocoLine: turn.coco_line,
+              evaluation: turn.evaluation,
+            },
+          })
+        : null;
     const missionQuestion = activeQuestion?.question ?? null;
-    if (!missionQuestion) {
+    if (input.clipKind === "original_answer" && !missionQuestion) {
       logTiming("failed", { error: "invalid_audio", step: "active_question" });
       return { ok: false, error: "invalid_audio", retryable: false };
     }
@@ -498,7 +502,9 @@ export async function recordSpeakingTry(
     // This is the available frame regardless of whether the student expanded
     // it. Preset missions never show one, so they stay null.
     const replyHintFrame =
-      snapshot.conversationMode === true && missionQuestion
+      input.clipKind === "original_answer" &&
+      snapshot.conversationMode === true &&
+      missionQuestion
         ? buildReplyHintFrame(missionQuestion)
         : null;
 

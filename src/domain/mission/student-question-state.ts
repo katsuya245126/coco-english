@@ -4,7 +4,10 @@ import type {
   MissionSnapshotTurn,
 } from "@/domain/mission/schemas";
 import { buildReplyHintFrame } from "@/domain/ai/reply-hint-frame";
-import { classifyStoredConversationRecovery } from "@/domain/ai/stored-evaluation";
+import {
+  classifyStoredConversationRecovery,
+  parseStoredEvaluation,
+} from "@/domain/ai/stored-evaluation";
 
 type StudentQuestionSpeechLine = {
   lineKind: "mission_prompt" | "coco_dynamic_line";
@@ -21,6 +24,21 @@ type ActiveQuestionSnapshot = Pick<
   MissionSnapshot,
   "conversationMode" | "requiredTurns" | "turns"
 >;
+
+function completedRecoveryQuestionOf(evaluation: unknown): string | null {
+  const parsed = parseStoredEvaluation(evaluation);
+  if (!parsed.ok) return null;
+
+  const original =
+    parsed.kind === "original"
+      ? parsed.evaluation
+      : parsed.evaluation.originalEvaluation ?? null;
+  const history = original?.ambiguityHistory;
+  if (!history) return null;
+
+  const latest = history.findLast((entry) => entry.recoveryQuestion?.trim());
+  return latest?.recoveryQuestion?.trim() ?? null;
+}
 
 export function resolveActiveStudentQuestion({
   snapshot,
@@ -50,25 +68,40 @@ export function resolveActiveStudentQuestion({
     };
   }
 
-  if (currentTurn.turnOrder === 1) {
-    const currentQuestion = currentTurn.cocoLine?.trim();
-    if (
-      currentQuestion &&
-      isPendingConversationRecovery({
-        conversationMode: true,
-        evaluation: currentTurn.evaluation,
-        cocoLine: currentQuestion,
-      })
-    ) {
-      return {
-        question: currentQuestion,
-        source: {
-          lineKind: "coco_dynamic_line",
-          turnOrder: currentTurn.turnOrder,
-        },
-      };
-    }
+  const completedRecoveryQuestion = completedRecoveryQuestionOf(
+    currentTurn.evaluation,
+  );
 
+  const currentQuestion = currentTurn.cocoLine?.trim();
+  const pendingRecoveryQuestion =
+    currentQuestion &&
+    isPendingConversationRecovery({
+      conversationMode: true,
+      evaluation: currentTurn.evaluation,
+      cocoLine: currentQuestion,
+    })
+      ? currentQuestion
+      : null;
+  const recoveryQuestion = pendingRecoveryQuestion ?? completedRecoveryQuestion;
+
+  if (
+    currentTurn.turnOrder !== 1 &&
+    (savedTurns.length !== currentTurn.turnOrder - 1 ||
+      savedTurns.some(
+        (turn, index) => turn.turnOrder !== index + 1 || !turn.cocoLine?.trim(),
+      ))
+  ) {
+    return null;
+  }
+
+  if (recoveryQuestion) {
+    return {
+      question: recoveryQuestion,
+      source: { lineKind: "coco_dynamic_line", turnOrder: currentTurn.turnOrder },
+    };
+  }
+
+  if (currentTurn.turnOrder === 1) {
     const opener = snapshot.turns.find((turn) => turn.turnOrder === 1);
     const question = opener?.prompt.trim();
     return question
@@ -77,30 +110,6 @@ export function resolveActiveStudentQuestion({
           source: { lineKind: "mission_prompt", turnOrder: 1 },
         }
       : null;
-  }
-
-  if (
-    savedTurns.length !== currentTurn.turnOrder - 1 ||
-    savedTurns.some(
-      (turn, index) => turn.turnOrder !== index + 1 || !turn.cocoLine?.trim(),
-    )
-  ) {
-    return null;
-  }
-
-  const currentQuestion = currentTurn.cocoLine?.trim();
-  if (
-    currentQuestion &&
-    isPendingConversationRecovery({
-      conversationMode: true,
-      evaluation: currentTurn.evaluation,
-      cocoLine: currentQuestion,
-    })
-  ) {
-    return {
-      question: currentQuestion,
-      source: { lineKind: "coco_dynamic_line", turnOrder: currentTurn.turnOrder },
-    };
   }
 
   const previousTurn = savedTurns[currentTurn.turnOrder - 2];
