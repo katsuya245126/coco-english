@@ -45,10 +45,7 @@ import {
   type StoredRepeatTurnEvaluation,
   type StudentFacingEvaluation,
 } from "@/domain/ai/stored-evaluation";
-import {
-  canGenerateNextDynamicTurn,
-  type TeacherReviewReason,
-} from "@/server/student-access/mission-flow";
+import { canGenerateNextDynamicTurn } from "@/server/student-access/mission-flow";
 import {
   orchestrateConversationTurn,
   type CocoLineModerationEvent,
@@ -78,6 +75,13 @@ export const ALLOWED_AUDIO_MIME_TYPES = new Set([
 ]);
 
 export type AudioClipKind = Database["public"]["Enums"]["audio_clip_kind"];
+
+type TeacherReviewReason =
+  | "low_confidence"
+  | "ambiguous"
+  | "failed_schema"
+  | "provider_failed"
+  | "contract_rejected";
 
 export type UploadAttemptAudioClipInput = {
   studentId: string;
