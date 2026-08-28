@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MissionSnapshotTurn } from "@/domain/mission/schemas";
+import { SAY_IT_AGAIN_FALLBACK_LINE } from "@/domain/conversation/fallback-lines";
 import {
   advanceConversationQuestion,
   deriveActiveStudentQuestion,
@@ -91,6 +92,27 @@ describe("student question state", () => {
       });
     },
   );
+
+  it("uses the deterministic recovery line for a completed low-confidence retry without ambiguity history", () => {
+    expect(
+      resolveActiveStudentQuestion({
+        snapshot: conversationSnapshot,
+        savedTurns: [{ turnOrder: 1, cocoLine: "Previous question?" }],
+        currentTurn: {
+          turnOrder: 2,
+          cocoLine: "That was fun! See you next time!",
+          evaluation: {
+            kind: "original",
+            outcome: "accepted_original",
+            lowConfidenceAudioRetries: 1,
+          },
+        },
+      }),
+    ).toEqual({
+      question: SAY_IT_AGAIN_FALLBACK_LINE,
+      source: { lineKind: "coco_dynamic_line", turnOrder: 2 },
+    });
+  });
 
   it("resolves the authored Conversation opening on turn one", () => {
     expect(

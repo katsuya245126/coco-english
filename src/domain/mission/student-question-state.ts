@@ -4,6 +4,7 @@ import type {
   MissionSnapshotTurn,
 } from "@/domain/mission/schemas";
 import { buildReplyHintFrame } from "@/domain/ai/reply-hint-frame";
+import { SAY_IT_AGAIN_FALLBACK_LINE } from "@/domain/conversation/fallback-lines";
 import {
   classifyStoredConversationRecovery,
   parseStoredEvaluation,
@@ -33,11 +34,18 @@ function completedRecoveryQuestionOf(evaluation: unknown): string | null {
     parsed.kind === "original"
       ? parsed.evaluation
       : parsed.evaluation.originalEvaluation ?? null;
-  const history = original?.ambiguityHistory;
-  if (!history) return null;
+  const latest = original?.ambiguityHistory?.findLast((entry) =>
+    entry.recoveryQuestion?.trim(),
+  );
+  const recoveryQuestion = latest?.recoveryQuestion?.trim();
+  if (recoveryQuestion) return recoveryQuestion;
 
-  const latest = history.findLast((entry) => entry.recoveryQuestion?.trim());
-  return latest?.recoveryQuestion?.trim() ?? null;
+  return original &&
+    typeof original.lowConfidenceAudioRetries === "number" &&
+    Number.isFinite(original.lowConfidenceAudioRetries) &&
+    original.lowConfidenceAudioRetries > 0
+    ? SAY_IT_AGAIN_FALLBACK_LINE
+    : null;
 }
 
 export function resolveActiveStudentQuestion({

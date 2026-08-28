@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { SAY_IT_AGAIN_FALLBACK_LINE } from "@/domain/conversation/fallback-lines";
 
 let mockSupabase: { from: (table: never) => unknown };
 
@@ -514,6 +515,42 @@ describe("student completed mission recap dynamic homework review", () => {
       { turnOrder: 1, cocoPrompt: "Where are you going?" },
       { turnOrder: 2, cocoPrompt: "Can you say that another way?" },
     ]);
+  });
+
+  it("labels a completed low-confidence retry without ambiguity history", async () => {
+    mockSupabase = createDynamicMockSupabase([
+      {
+        id: "turn-opening",
+        turn_order: 1,
+        original_transcript: "I am going to school.",
+        improved_sentence: null,
+        repeat_transcript: null,
+        repeat_accepted: false,
+        evaluation: { kind: "original", outcome: "accepted_original" },
+        coco_line: "Who do you go with?",
+      },
+      {
+        id: "turn-recovery",
+        turn_order: 2,
+        original_transcript: "I go with my friend.",
+        improved_sentence: null,
+        repeat_transcript: null,
+        repeat_accepted: false,
+        evaluation: {
+          kind: "original",
+          outcome: "accepted_original",
+          lowConfidenceAudioRetries: 1,
+        },
+        coco_line: "That was fun! See you next time!",
+      },
+    ]);
+
+    const recap = await getCompletedMissionRecap(
+      "student-1",
+      "assignment-student-1",
+    );
+
+    expect(recap?.turns[1]?.cocoPrompt).toBe(SAY_IT_AGAIN_FALLBACK_LINE);
   });
 
   it("fails closed instead of carrying a stale question across missing Conversation history", async () => {
