@@ -6,11 +6,11 @@
  * -> repeat -> transition -> complete), and assert "Mission complete!"
  * then return to homework.
  *
- * Follows the student-join.spec.ts env-aware pattern: cleanly skips
- * when Supabase env is absent.
+ * Runs through test:e2e:local, which provides a reset local Supabase instance.
  */
 
 import { expect, test } from "@playwright/test";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 test.use({
   launchOptions: {
@@ -20,28 +20,29 @@ test.use({
     ],
   },
 });
-
-const hasSupabaseEnv = Boolean(
-  process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
-);
+test.describe.configure({ timeout: 60_000 });
 
 async function submitVoiceRecording(page: import("@playwright/test").Page) {
-  await page.getByRole("button", { name: "Start recording" }).click();
+  await page.getByRole("button", { name: "Record", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Stop recording" }),
+  ).toBeVisible();
   await page.waitForTimeout(200);
   await page.getByRole("button", { name: "Stop recording" }).click();
 }
 
+async function revealHint(
+  page: import("@playwright/test").Page,
+  hintText: string,
+) {
+  await expect(async () => {
+    await page.getByRole("button", { name: "💡 Hint" }).click();
+    await expect(page.getByText(hintText)).toBeVisible({ timeout: 500 });
+  }).toPass();
+}
+
 async function installFakeRecorder(page: import("@playwright/test").Page) {
   await page.addInitScript(() => {
-    Object.defineProperty(navigator, "mediaDevices", {
-      configurable: true,
-      value: {
-        getUserMedia: async () => ({
-          getTracks: () => [{ stop: () => undefined }],
-        }),
-      },
-    });
-
     class FakeMediaRecorder {
       state = "inactive";
       mimeType = "audio/webm";
@@ -78,12 +79,24 @@ async function installFakeRecorder(page: import("@playwright/test").Page) {
   });
 }
 
+type MockAudioResponse = {
+  turnOrder: number;
+  clipKind: "original_answer" | "repeat_attempt";
+  displayTranscript: string;
+  evaluation:
+    | {
+        kind: "original";
+        outcome: "needs_correction" | "accepted_original";
+        improvedSentence: string | null;
+      }
+    | { kind: "repeat"; outcome: "accepted_repeat" };
+};
+
 async function mockAudioResponses(
   page: import("@playwright/test").Page,
-  responses: Array<{
-    transcript: string;
-    evaluation: { outcome: string; improvedSentence?: string };
-  }>,
+  admin: SupabaseClient,
+  assignmentStudentId: string,
+  responses: MockAudioResponse[],
 ) {
   await page.route("**/student/missions/**/audio", async (route) => {
     const response = responses.shift();
@@ -93,6 +106,51 @@ async function mockAudioResponses(
         contentType: "application/json",
         body: JSON.stringify({ ok: false, error: "unexpected_audio_call" }),
       });
+      return;
+    }
+
+    const { data: attempt } = await admin
+      .from("attempts")
+      .select("id")
+      .eq("assignment_student_id", assignmentStudentId)
+      .eq("status", "in_progress")
+      .single();
+    if (!attempt) {
+      await route.fulfill({ status: 500, body: "mock_attempt_missing" });
+      return;
+    }
+
+    const evaluation = {
+      version: "ai-eval-v1",
+      outcome: response.evaluation.outcome,
+      requireRepeat:
+        response.evaluation.kind === "original" &&
+        response.evaluation.outcome === "needs_correction",
+    };
+    const mutation =
+      response.clipKind === "original_answer"
+        ? admin.from("attempt_turns").upsert({
+            attempt_id: attempt.id,
+            turn_order: response.turnOrder,
+            original_transcript: response.displayTranscript,
+            improved_sentence:
+              response.evaluation.kind === "original"
+                ? response.evaluation.improvedSentence
+                : null,
+            evaluation,
+          })
+        : admin
+            .from("attempt_turns")
+            .update({
+              repeat_transcript: response.displayTranscript,
+              repeat_accepted: true,
+              evaluation,
+            })
+            .eq("attempt_id", attempt.id)
+            .eq("turn_order", response.turnOrder);
+    const { error } = await mutation;
+    if (error) {
+      await route.fulfill({ status: 500, body: "mock_persistence_failed" });
       return;
     }
 
@@ -107,35 +165,37 @@ async function mockAudioResponses(
 test("multi-pattern preset: wrong pattern repeats and active pattern completes", async ({
   page,
 }) => {
-  if (!hasSupabaseEnv) {
-    test.skip(true, "Requires Supabase env with seeded assignment data.");
-    return;
-  }
-  test.skip(
-    process.env.E2E_LIVE_RECORDER !== "true",
-    "Live recorder walk is manual/device-gated; set E2E_LIVE_RECORDER=true to run.",
-  );
-
   const { createClient } = await import("@supabase/supabase-js");
   const { randomBytes, scryptSync } = await import("node:crypto");
   await installFakeRecorder(page);
-  await mockAudioResponses(page, [
+  const audioResponses: MockAudioResponse[] = [
     {
-      transcript: "Apples are yellow.",
+      turnOrder: 1,
+      clipKind: "original_answer",
+      displayTranscript: "Apples are yellow.",
       evaluation: {
+        kind: "original",
         outcome: "needs_correction",
         improvedSentence: "I like bananas.",
       },
     },
     {
-      transcript: "I like bananas.",
-      evaluation: { outcome: "repeat_accepted" },
+      turnOrder: 1,
+      clipKind: "repeat_attempt",
+      displayTranscript: "I like bananas.",
+      evaluation: { kind: "repeat", outcome: "accepted_repeat" },
     },
     {
-      transcript: "Apples are red.",
-      evaluation: { outcome: "accepted_original" },
+      turnOrder: 2,
+      clipKind: "original_answer",
+      displayTranscript: "Apples are red.",
+      evaluation: {
+        kind: "original",
+        outcome: "accepted_original",
+        improvedSentence: null,
+      },
     },
-  ]);
+  ];
 
   const JOIN_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   const generateJoinCode = () =>
@@ -277,6 +337,12 @@ test("multi-pattern preset: wrong pattern repeats and active pattern completes",
     .select("id")
     .single();
   expect(assignmentStudent.error).toBeNull();
+  await mockAudioResponses(
+    page,
+    admin,
+    assignmentStudent.data!.id,
+    audioResponses,
+  );
 
   try {
     // Unlock the student
@@ -299,8 +365,7 @@ test("multi-pattern preset: wrong pattern repeats and active pattern completes",
       page.getByText("What fruit do you like?"),
     ).toBeVisible();
     await expect(page.getByText("Start with: I like")).toBeHidden();
-    await page.getByRole("button", { name: "💡 Hint" }).click();
-    await expect(page.getByText("Start with: I like")).toBeVisible();
+    await revealHint(page, "Start with: I like");
 
     // Submit a voice answer
     await submitVoiceRecording(page);
@@ -322,8 +387,7 @@ test("multi-pattern preset: wrong pattern repeats and active pattern completes",
       page.getByText("What color are apples?"),
     ).toBeVisible();
     await expect(page.getByText("Start with: Apples are")).toBeHidden();
-    await page.getByRole("button", { name: "💡 Hint" }).click();
-    await expect(page.getByText("Start with: Apples are")).toBeVisible();
+    await revealHint(page, "Start with: Apples are");
     await submitVoiceRecording(page);
 
     await expect(page.getByText("Nice answer!")).toBeVisible();
@@ -348,34 +412,30 @@ test("multi-pattern preset: wrong pattern repeats and active pattern completes",
 test("mobile viewport shows mission flow within 420px max-width (PILOT-01)", async ({
   page,
 }) => {
-  if (!hasSupabaseEnv) {
-    test.skip(true, "Requires Supabase env with seeded assignment data.");
-    return;
-  }
-  test.skip(
-    process.env.E2E_LIVE_RECORDER !== "true",
-    "Live recorder mobile walk is manual/device-gated; set E2E_LIVE_RECORDER=true to run.",
-  );
-
   // Set mobile viewport (iPhone SE size)
   await page.setViewportSize({ width: 375, height: 812 });
 
   const { createClient } = await import("@supabase/supabase-js");
   const { randomBytes, scryptSync } = await import("node:crypto");
   await installFakeRecorder(page);
-  await mockAudioResponses(page, [
+  const audioResponses: MockAudioResponse[] = [
     {
-      transcript: "I have a cat",
+      turnOrder: 1,
+      clipKind: "original_answer",
+      displayTranscript: "I have a cat",
       evaluation: {
+        kind: "original",
         outcome: "needs_correction",
         improvedSentence: "I have a cat at home.",
       },
     },
     {
-      transcript: "I have a cat at home",
-      evaluation: { outcome: "repeat_accepted" },
+      turnOrder: 1,
+      clipKind: "repeat_attempt",
+      displayTranscript: "I have a cat at home",
+      evaluation: { kind: "repeat", outcome: "accepted_repeat" },
     },
-  ]);
+  ];
 
   const JOIN_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   const generateJoinCode = () =>
@@ -487,13 +547,22 @@ test("mobile viewport shows mission flow within 420px max-width (PILOT-01)", asy
     .single();
   expect(assignment.error).toBeNull();
 
-  await admin
+  const assignmentStudent = await admin
     .from("assignment_students")
     .insert({
       assignment_id: assignment.data!.id,
       student_id: student.data!.id,
       status: "assigned",
-    });
+    })
+    .select("id")
+    .single();
+  expect(assignmentStudent.error).toBeNull();
+  await mockAudioResponses(
+    page,
+    admin,
+    assignmentStudent.data!.id,
+    audioResponses,
+  );
 
   try {
     // Unlock
@@ -513,9 +582,11 @@ test("mobile viewport shows mission flow within 420px max-width (PILOT-01)", asy
     expect(box).not.toBeNull();
     expect(box!.width).toBeLessThanOrEqual(420);
 
+    await revealHint(page, "I have a ___");
+
     // Primary action is reachable
     await expect(
-      page.getByRole("button", { name: "Start recording" }),
+      page.getByRole("button", { name: "Record", exact: true }),
     ).toBeVisible();
 
     // Complete the single turn
@@ -534,22 +605,4 @@ test("mobile viewport shows mission flow within 420px max-width (PILOT-01)", asy
       .delete()
       .eq("id", teacher.data!.id);
   }
-});
-
-test("multi-turn mission completes after all turns answered and repeated", async () => {
-  if (!hasSupabaseEnv) {
-    test.skip(
-      true,
-      "Requires Supabase env with seeded assignment data.",
-    );
-    return;
-  }
-
-  // This test is covered comprehensively by the first test above.
-  // This case asserts the structural assertion: completion screen exists
-  // and the env-aware guard works.
-  test.skip(
-    true,
-    "Full multi-turn walk covered by the FLOW-04 test above.",
-  );
 });

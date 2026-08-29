@@ -15,12 +15,14 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:agent": "vitest run --reporter=dot",
+    "test:all:local": "npm run test:agent && npm run test:integration:local && npm run test:e2e:local",
+    "test:integration:local": "bash scripts/with-local-supabase.sh vitest run tests/server/*.integration.test.ts --no-file-parallelism --reporter=dot",
     "test:schema": "vitest run tests/schema/foundation-schema.test.ts",
     "test:rls": "vitest run tests/schema/classroom-access-schema.test.ts",
     "test:e2e": "playwright test",
+    "test:e2e:local": "bash scripts/with-local-supabase.sh playwright test",
     "test:student-feedback-states": "node scripts/check-student-feedback-states.mjs",
-    "test:auth:e2e": "playwright test tests/e2e/teacher-auth.spec.ts",
-    "test:classes:e2e": "playwright test tests/e2e/teacher-classes.spec.ts"
+    "test:auth:e2e": "playwright test tests/e2e/teacher-auth.spec.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
@@ -44,6 +46,7 @@
     "eslint": "^9.17.0",
     "eslint-config-next": "^15.0.0",
     "jsdom": "^26.1.0",
+    "supabase": "^2.116.0",
     "typescript": "^5.7.2",
     "vite": "^6.4.3",
     "vitest": "^3.2.6"

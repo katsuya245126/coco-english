@@ -12,9 +12,10 @@ import { unlockStudent } from "@/server/student-access/unlock";
 // lookup, and the env-aware happy-path / live-lookup assertions are gated behind
 // Supabase env like tests/server/foundation-smoke.test.ts.
 
-const hasSupabaseEnv = Boolean(
-  process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
-);
+const hasSupabaseEnv =
+  /^(https?:\/\/)?(127\.0\.0\.1|localhost)(:\d+)?(?:\/|$)/.test(
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
+  ) && Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
 const TEST_NETWORK = "test-network";
 
 describe("unlockStudent generic-mismatch invariant (D-16)", () => {
@@ -209,13 +210,4 @@ describe("unlockStudent generic-mismatch invariant (D-16)", () => {
       }
     },
   );
-
-  it("keeps the live-lookup path explicitly skipped when Supabase env is absent", (context) => {
-    if (hasSupabaseEnv) {
-      context.skip();
-      return;
-    }
-
-    expect(hasSupabaseEnv).toBe(false);
-  });
 });

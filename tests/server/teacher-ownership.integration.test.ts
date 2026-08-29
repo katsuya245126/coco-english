@@ -15,11 +15,14 @@ import { describe, expect, it } from "vitest";
 // also require the anon key to mint a user session, so the full isolation run is
 // gated on BOTH keys being present.
 
-const hasServiceEnv = Boolean(
-  process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
-);
+const localSupabase =
+  /^(https?:\/\/)?(127\.0\.0\.1|localhost)(:\d+)?(?:\/|$)/.test(
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
+  );
+const hasServiceEnv =
+  localSupabase && Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
 const hasAnonEnv = Boolean(
-  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  localSupabase &&
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
 );
 const canRunIsolation = hasServiceEnv && hasAnonEnv;
@@ -187,13 +190,4 @@ describe("cross-teacher RLS isolation (AUTH-04)", () => {
     },
     30_000,
   );
-
-  it("keeps the cross-teacher isolation check explicitly skipped without Supabase env", (context) => {
-    if (canRunIsolation) {
-      context.skip();
-      return;
-    }
-
-    expect(canRunIsolation).toBe(false);
-  });
 });

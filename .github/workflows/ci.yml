@@ -54,7 +54,7 @@ jobs:
       # `npm test` is `vitest` in watch mode, which never exits on CI — so the
       # runner is invoked directly with `run`.
       #
-      # The four excluded specs open real connections to Supabase and fail with
+      # The excluded specs open real connections to Supabase and fail with
       # `fetch failed` against the placeholder URL above. They are not broken;
       # they need credentials this workflow deliberately does not carry. Run
       # them locally against a real project:
@@ -62,10 +62,7 @@ jobs:
       - name: Unit tests
         run: |
           npx vitest run --reporter=dot \
-            --exclude "tests/server/foundation-smoke.test.ts" \
-            --exclude "tests/server/remembered-class-resolve.test.ts" \
-            --exclude "tests/server/student-access.test.ts" \
-            --exclude "tests/server/teacher-ownership.test.ts"
+            --exclude "tests/server/*.integration.test.ts"
 
       # Also runs `postbuild`, which asserts the ffmpeg-static binary is traced
       # into the student audio route. That guard protects against a silent
@@ -73,3 +70,36 @@ jobs:
       # closely than macOS does locally.
       - name: Build
         run: npm run build
+
+  database:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+          cache: npm
+
+      - run: npm ci
+      - run: npm run test:integration:local
+
+  e2e:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+          cache: npm
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e:local
