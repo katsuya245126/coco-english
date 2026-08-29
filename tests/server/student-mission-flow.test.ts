@@ -195,7 +195,7 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
       "utf8",
     );
     const speakingTrySource = readFileSync(
-      "src/server/student-access/speaking-try-context.ts",
+      "src/server/student-access/speaking-try-persistence.ts",
       "utf8",
     );
     const audioUploadSource = readFileSync(
@@ -219,14 +219,13 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     ]) {
       expect(speakingTrySource).toContain(operation);
     }
-    for (const contextWrite of [
-      "context.writeOriginalTurn",
-      "context.writeRepeatTurn",
-      "context.recordCocoLine",
-      "context.routeTeacherReview",
+    for (const persistencePhase of [
+      "persistence.persistTurn",
+      "persistence.persistCocoLine",
     ]) {
-      expect(audioUploadSource).toContain(contextWrite);
+      expect(audioUploadSource).toContain(persistencePhase);
     }
+    expect(audioUploadSource).not.toContain("routeTeacherReview");
   });
 
   it("completion is delegated to the atomic database RPC", () => {

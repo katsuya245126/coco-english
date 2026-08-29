@@ -1,9 +1,9 @@
 /**
  * Student audio upload service (T-05-04..T-05-07).
  *
- * Server-only module. Admission and each speaking-try operation are owned by
- * the short-lived context, which keeps service-role access behind one seam.
- * Storage object keys are internal evidence pointers, never authorization.
+ * Server-only module. Admission and the persistence lifecycle are owned by
+ * short-lived, per-try seams. Storage object keys are internal evidence
+ * pointers, never authorization.
  */
 
 import type { Database, Json } from "@/lib/db/types";
@@ -56,15 +56,14 @@ import {
 import { consumeRequestBudget } from "@/server/security/request-budget";
 import type { PersistedConversationTurn } from "@/server/student-access/conversation-history";
 import {
-  createOwnedSpeakingTryContext,
-  type OwnedSpeakingTryContext,
-} from "@/server/student-access/speaking-try-context";
+  prepareOwnedSpeakingTry,
+  type OwnedSpeakingTryPersistence,
+} from "@/server/student-access/speaking-try-persistence";
 import { withOwnedInProgressAttempt } from "@/server/student-access/owned-assignment";
 import { generateCocoReply } from "@/server/ai/conversation-generator";
 import { isContentSafe } from "@/server/ai/content-moderation";
 import { log } from "@/server/logging/logger";
 
-const DEFAULT_AUDIO_BUCKET = "student-audio";
 export const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
 export const MAX_AUDIO_DURATION_MS = 90_000;
 export const MIN_TRANSCRIBABLE_AUDIO_DURATION_MS = 500;
@@ -189,10 +188,6 @@ export function toStudentEvaluation(
   }
 
   return projected;
-}
-
-function getStudentAudioBucketId() {
-  return process.env.STUDENT_AUDIO_BUCKET || DEFAULT_AUDIO_BUCKET;
 }
 
 function isValidInput(input: UploadAttemptAudioClipInput) {
@@ -380,27 +375,38 @@ export async function recordSpeakingTry(
       };
     }
 
-    const context: OwnedSpeakingTryContext = createOwnedSpeakingTryContext({
-      studentId: input.studentId,
-      assignmentStudentId: input.assignmentStudentId,
-      attemptId: input.attemptId,
-      snapshot,
-    });
+    const prepared = await timeStage("turnGuard", () =>
+      timeStage(
+        "turnInit",
+        () =>
+          prepareOwnedSpeakingTry({
+            studentId: input.studentId,
+            assignmentStudentId: input.assignmentStudentId,
+            attemptId: input.attemptId,
+            conversationMode: snapshot.conversationMode,
+            turnOrder: input.turnOrder,
+            clipKind: input.clipKind,
+            mimeType: input.mimeType,
+            durationMs: input.durationMs,
+            byteSize: input.byteSize,
+          }),
+      ),
+    );
+    if (!prepared.ok) {
+      const error = prepared.error === "db_error" ? "db_error" : "not_found";
+      logTiming("failed", { error, step: "turn_guard" });
+      return {
+        ok: false,
+        error,
+        retryable: error === "db_error",
+      };
+    }
 
-    async function markClipFailed(
-      audioClipId: string,
-      attemptTurnId: string,
-      objectKey?: string,
-    ): Promise<void> {
+    const persistence: OwnedSpeakingTryPersistence = prepared.value;
+
+    async function failFromExternalError(): Promise<void> {
       await timeStage("failedClipGuard", () =>
-        context.markClipFailed({
-          audioClipId,
-          attemptTurnId,
-          ...(objectKey ? { objectKey } : {}),
-          mimeType: input.mimeType,
-          durationMs: input.durationMs,
-          byteSize: input.byteSize,
-        }),
+        persistence.failFromExternalError(),
       );
     }
 
@@ -413,7 +419,7 @@ export async function recordSpeakingTry(
     ) {
       const historyResult = await timeStage("conversationHistoryGuard", () =>
         timeStage("conversationHistoryLookup", () =>
-          context.loadConversationTurns(input.turnOrder),
+          persistence.readConversationHistory(),
         ),
       );
       if (!historyResult.ok) {
@@ -463,21 +469,7 @@ export async function recordSpeakingTry(
     const audioBytes = await timeStage("readAudio", () => input.file.arrayBuffer());
     const createAudioBlob = () => new Blob([audioBytes], { type: input.mimeType });
 
-    const turnInit = await timeStage("turnGuard", () =>
-      timeStage("turnInit", () => context.initializeTurn(input.turnOrder)),
-    );
-
-    if (!turnInit.ok) {
-      const error = turnInit.error === "db_error" ? "db_error" : "not_found";
-      logTiming("failed", { error, step: "turn_guard" });
-      return {
-        ok: false,
-        error,
-        retryable: error === "db_error",
-      };
-    }
-
-    const turn = turnInit.value;
+    const turn = persistence.turn;
 
     const activeQuestion =
       input.clipKind === "original_answer"
@@ -515,62 +507,34 @@ export async function recordSpeakingTry(
     }
     const repeatTargetValue = repeatTarget ?? "";
 
-    const audioClipInsert = await timeStage("audioClipGuard", () =>
+    const clipCreation = await timeStage("audioClipGuard", () =>
       timeStage("audioClipInsert", () =>
-        context.insertAudioClip({
-          attemptTurnId: turn.id,
-          clipKind: input.clipKind,
-        }),
+        persistence.createClip(createAudioBlob()),
       ),
     );
 
-    if (!audioClipInsert.ok) {
+    if (!clipCreation.ok) {
       logTiming("failed", {
-        error: audioClipInsert.error,
+        error: clipCreation.error,
         step: "audio_clip_guard",
       });
       return {
         ok: false,
-        error: audioClipInsert.error,
-        retryable: audioClipInsert.error === "db_error",
+        error: clipCreation.error,
+        retryable: clipCreation.error === "db_error",
       };
     }
 
-    const audioClip = audioClipInsert.value;
-    audioClipId = audioClip.id;
+    const audioClip = clipCreation.value;
+    audioClipId = audioClip.audioClipId;
 
     // storageUpload and transcription both only depend on the in-memory audio
     // bytes (transcription never reads the uploaded object back), so they run
     // concurrently instead of paying for the upload before transcription can
-    // start. The callback returns the in-flight upload promise as data so the
-    // guard admits first, then transcription can start while upload runs.
-    // The upload result is still checked before returning success.
-    const storageUploadAdmission = await timeStage(
-      "storageUploadGuard",
-      () =>
-        context.uploadAudio({
-          bucket: getStudentAudioBucketId(),
-          audioClipId: audioClip.id,
-          attemptTurnId: turn.id,
-          turnOrder: input.turnOrder,
-          clipKind: input.clipKind,
-          blob: createAudioBlob(),
-          mimeType: input.mimeType,
-        }),
-    );
-    if (!storageUploadAdmission.ok) {
-      logTiming("failed", {
-        error: storageUploadAdmission.error,
-        step: "storage_upload_guard",
-      });
-      return {
-        ok: false,
-        error: storageUploadAdmission.error,
-        retryable: storageUploadAdmission.error === "db_error",
-      };
-    }
-    const { objectKey, promise: admittedStorageUpload } =
-      storageUploadAdmission.value;
+    // start. The handle returns the in-flight upload promise as data so the
+    // authorization completes before transcription starts while the two
+    // independent operations still run concurrently.
+    const { uploadPromise: admittedStorageUpload } = clipCreation.value;
     const storageUploadPromise = timeStage(
       "storageUpload",
       () => admittedStorageUpload,
@@ -601,10 +565,8 @@ export async function recordSpeakingTry(
     ]);
 
     if (uploadError) {
-      await markClipFailed(audioClip.id, turn.id);
-
       log("warn", "audio.upload_failed", {
-        audioClipId: audioClip.id,
+        audioClipId: audioClip.audioClipId,
         assignmentStudentId: input.assignmentStudentId,
         attemptId: input.attemptId,
         turnOrder: input.turnOrder,
@@ -623,7 +585,7 @@ export async function recordSpeakingTry(
     }
 
     if (!transcription.ok) {
-      await markClipFailed(audioClip.id, turn.id, objectKey);
+      await failFromExternalError();
 
       logTiming("failed", {
         error: "transcription_failed_retryable",
@@ -640,7 +602,7 @@ export async function recordSpeakingTry(
       transcription.text,
     );
     if (!transcript || !hasEnglishTranscript(transcript)) {
-      await markClipFailed(audioClip.id, turn.id, objectKey);
+      await failFromExternalError();
 
       logTiming("failed", {
         error: "transcription_failed_retryable",
@@ -727,7 +689,7 @@ export async function recordSpeakingTry(
               priorTurnEvaluation: (
                 turn as { evaluation?: unknown }
               ).evaluation,
-              audioClipId: audioClip.id,
+              audioClipId: audioClip.audioClipId,
               ...(snapshot.turns[0]?.prompt
                 ? { openingPrompt: snapshot.turns[0].prompt }
                 : {}),
@@ -759,11 +721,9 @@ export async function recordSpeakingTry(
       const decision = evaluationOutcome.decision;
       const writeResult = await timeStage("turnWriteGuard", () =>
         timeStage("turnWrite", () =>
-          context.writeGuardEvaluation({
+          persistence.persistTurn({
+            kind: "guard",
             transcript,
-            turnOrder: input.turnOrder,
-            targetAttempted: false,
-            improvedSentence: null,
             evaluation: toJson(decision.evaluation),
             replyHintFrame,
           }),
@@ -785,14 +745,7 @@ export async function recordSpeakingTry(
       }
       const clipUpdateResult = await timeStage("finalClipGuard", () =>
         timeStage("finalClipUpdate", () =>
-          context.finalizeClip({
-            audioClipId: audioClip.id,
-            attemptTurnId: turn.id,
-            objectKey,
-            mimeType: input.mimeType,
-            durationMs: input.durationMs,
-            byteSize: input.byteSize,
-          }),
+          persistence.complete(),
         ),
       );
       if (!clipUpdateResult.ok) {
@@ -814,7 +767,7 @@ export async function recordSpeakingTry(
 
       if (evaluationOutcome.stage === "minimal_effort_guard") {
         log("info", "audio.minimal_effort_blocked", {
-          audioClipId: audioClip.id,
+          audioClipId: audioClip.audioClipId,
           assignmentStudentId: input.assignmentStudentId,
           attemptId: input.attemptId,
           turnOrder: input.turnOrder,
@@ -824,7 +777,7 @@ export async function recordSpeakingTry(
       logTiming("success", { step: evaluationOutcome.stage });
       return {
         ok: true,
-        audioClipId: audioClip.id,
+        audioClipId: audioClip.audioClipId,
         processingStatus: "transcribed",
         displayTranscript: buildLearnerTranscript(transcript, []),
         evaluation: decision.evaluation,
@@ -853,15 +806,18 @@ export async function recordSpeakingTry(
 
             const writeResult = await timeStage("turnWriteGuard", () =>
               timeStage("turnWrite", () =>
-                context.writeOriginalTurn({
+                persistence.persistTurn({
+                  kind: "original",
                   transcript,
-                  turnOrder: input.turnOrder,
                   targetAttempted: decision.targetAttempted,
                   improvedSentence: decision.improvedSentence,
                   ...(recoveryPersistencePending
                     ? {}
                     : { evaluation: toJson(decision.evaluation) }),
                   replyHintFrame,
+                  reviewReason: isStoredTeacherReview(decision.evaluation)
+                    ? reviewReasonOrDefault(decision.evaluation.reviewReason)
+                    : null,
                 }),
               ),
             );
@@ -873,24 +829,7 @@ export async function recordSpeakingTry(
                 guardError,
               };
             }
-            const write = writeResult.value;
-
-            if (write.error || !isStoredTeacherReview(decision.evaluation)) {
-              return write;
-            }
-
-            const routeResult = await context.routeTeacherReview(
-              reviewReasonOrDefault(decision.evaluation.reviewReason),
-            );
-
-            if (!routeResult.ok) {
-              return { error: new Error(routeResult.error) };
-            }
-            if (routeResult.value.error) {
-              return { error: new Error(routeResult.value.error.message) };
-            }
-
-            return write;
+            return writeResult;
           })()
         : await (async () => {
             // Count only prior repeats that completed transcription. The
@@ -901,7 +840,7 @@ export async function recordSpeakingTry(
               () =>
                 timeStage(
                   "repeatAttemptCount",
-                  () => context.countTranscribedRepeatClips(turn.id),
+                  () => persistence.readRepeatEvaluationContext(),
                 ),
             );
             if (!repeatCountResult.ok) {
@@ -911,7 +850,9 @@ export async function recordSpeakingTry(
               count: priorRepeatClipCount,
               error: repeatCountError,
             } = repeatCountResult.value;
-            if (repeatCountError) return { error: repeatCountError };
+            if (repeatCountError) {
+              return { ok: true as const, value: { error: repeatCountError } };
+            }
 
             // The original and the repeat arrive as separate uploads, so the
             // in-memory value is normally undefined here; the row is the
@@ -943,11 +884,14 @@ export async function recordSpeakingTry(
               timeStage(
                 "turnWrite",
                 () =>
-                  context.writeRepeatTurn({
-                    turnId: turn.id,
+                  persistence.persistTurn({
+                    kind: "repeat",
                     transcript,
                     repeatAccepted: decision.repeatAccepted,
                     evaluation: toJson(decision),
+                    reviewReason: isStoredTeacherReview(decision)
+                      ? reviewReasonOrDefault(decision.reviewReason)
+                      : null,
                   }),
               ),
             );
@@ -959,24 +903,7 @@ export async function recordSpeakingTry(
                 guardError,
               };
             }
-            const write = writeResult.value;
-
-            if (write.error || !isStoredTeacherReview(decision)) {
-              return write;
-            }
-
-            const routeResult = await context.routeTeacherReview(
-              reviewReasonOrDefault(decision.reviewReason),
-            );
-
-            if (!routeResult.ok) {
-              return { error: new Error(routeResult.error) };
-            }
-            if (routeResult.value.error) {
-              return { error: new Error(routeResult.value.error.message) };
-            }
-
-            return write;
+            return writeResult;
           })();
 
     if ("guardError" in turnWrite) {
@@ -993,16 +920,14 @@ export async function recordSpeakingTry(
       };
     }
 
-    if (turnWrite.error) {
-      await markClipFailed(audioClip.id, turn.id, objectKey);
-
+    if (turnWrite.value.error) {
       log("warn", "audio.processing_failed", {
-        audioClipId: audioClip.id,
+        audioClipId: audioClip.audioClipId,
         assignmentStudentId: input.assignmentStudentId,
         attemptId: input.attemptId,
         turnOrder: input.turnOrder,
         step: "turn_write",
-        error: errorMessage(turnWrite.error),
+        error: errorMessage(turnWrite.value.error),
       });
       logTiming("failed", { error: "db_error", step: "turn_write" });
 
@@ -1067,8 +992,7 @@ export async function recordSpeakingTry(
             isContentSafe: deps.isContentSafe ?? isContentSafe,
             persistCocoLine: async (intent) => {
               const recordResult = await timeStage("cocoLineWrite", () =>
-                context.recordCocoLine({
-                  turnOrder: intent.turnOrder,
+                persistence.persistCocoLine({
                   cocoLine: intent.cocoLine,
                   moderationEvent: intent.moderationEvent as Json | null,
                   ...(intent.evaluation
@@ -1109,7 +1033,7 @@ export async function recordSpeakingTry(
 
       if (conversationOutcome.kind === "error") {
         if (conversationOutcome.error === "recovery_line_missing") {
-          await markClipFailed(audioClip.id, turn.id, objectKey);
+          await failFromExternalError();
           logTiming("failed", {
             error: "db_error",
             step: "recovery_line_missing",
@@ -1117,7 +1041,6 @@ export async function recordSpeakingTry(
           return { ok: false, error: "db_error", retryable: true };
         }
         if (conversationOutcome.error === "persistence_failed") {
-          await markClipFailed(audioClip.id, turn.id, objectKey);
           const error = conversationOutcome.persistenceError ?? "db_error";
           log("warn", "audio.coco_line_persist_failed", {
             assignmentStudentId: input.assignmentStudentId,
@@ -1163,9 +1086,7 @@ export async function recordSpeakingTry(
             "pronunciationScoreGuard",
             () =>
               timeStage("pronunciationScoreWrite", () =>
-                context.writePronunciationScore({
-                  audioClipId: audioClip.id,
-                  attemptTurnId: turn.id,
+                persistence.persistPronunciation({
                   referenceText: scoring.score.referenceText,
                   accuracyScore: scoring.score.accuracyScore,
                   fluencyScore: scoring.score.fluencyScore,
@@ -1252,14 +1173,7 @@ export async function recordSpeakingTry(
       timeStage(
         "finalClipUpdate",
         () =>
-          context.finalizeClip({
-            audioClipId: audioClip.id,
-            attemptTurnId: turn.id,
-            objectKey,
-            mimeType: input.mimeType,
-            durationMs: input.durationMs,
-            byteSize: input.byteSize,
-          }),
+          persistence.complete(),
       ),
     );
 
@@ -1286,14 +1200,14 @@ export async function recordSpeakingTry(
     }
 
     log("info", "audio.uploaded", {
-      audioClipId: audioClip.id,
+      audioClipId: audioClip.audioClipId,
       assignmentStudentId: input.assignmentStudentId,
       attemptId: input.attemptId,
     });
     logTiming("success");
     return {
       ok: true,
-      audioClipId: audioClip.id,
+      audioClipId: audioClip.audioClipId,
       processingStatus: "transcribed",
       displayTranscript,
       evaluation: originalEvaluation ?? repeatEvaluation,
