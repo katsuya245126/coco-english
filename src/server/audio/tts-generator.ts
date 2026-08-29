@@ -26,6 +26,8 @@ const COCO_TTS_INSTRUCTIONS =
   "Use a gentle, clear, upbeat tone at a slightly slow pace so a young English " +
   "learner can follow every word. Keep it supportive and never harsh.";
 
+export const TTS_PROVIDER_TIMEOUT_MS = 15_000;
+
 export type TtsGeneratorError = "missing_api_key" | "provider_failed";
 
 export type GenerateTtsAudioResult =
@@ -46,6 +48,10 @@ export type SpeechClient = {
         input: string;
         response_format: typeof TTS_RESPONSE_FORMAT;
         instructions?: string;
+      }, options?: {
+        signal?: AbortSignal;
+        timeout?: number;
+        maxRetries?: number;
       }): Promise<{ arrayBuffer(): Promise<ArrayBuffer> }>;
     };
   };
@@ -112,6 +118,12 @@ export async function generateTtsAudio(
   const model = resolveModel(input, deps);
   const voice = resolveVoice(input, deps);
 
+  const abortController = new AbortController();
+  const timeout = setTimeout(
+    () => abortController.abort(),
+    TTS_PROVIDER_TIMEOUT_MS,
+  );
+
   try {
     const client = deps?.client ?? createClient(apiKey);
     const response = await client.audio.speech.create({
@@ -120,6 +132,10 @@ export async function generateTtsAudio(
       input: input.text,
       response_format: TTS_RESPONSE_FORMAT,
       instructions: COCO_TTS_INSTRUCTIONS,
+    }, {
+      signal: abortController.signal,
+      timeout: TTS_PROVIDER_TIMEOUT_MS,
+      maxRetries: 0,
     });
 
     const buffer = await response.arrayBuffer();
@@ -134,5 +150,7 @@ export async function generateTtsAudio(
       error: "provider_failed",
     });
     return { ok: false, error: "provider_failed" };
+  } finally {
+    clearTimeout(timeout);
   }
 }

@@ -14,12 +14,19 @@ import { log } from "@/server/logging/logger";
 
 export type TranscodeError = "transcode_failed";
 
+// 16 kHz mono 16-bit PCM WAV is about 2.9 MB at the app's 90-second maximum.
+// Keep headroom for the WAV container while rejecting malformed streams that
+// expand far beyond the caller's reported duration.
+export const MAX_TRANSCODED_WAV_BYTES = 5 * 1024 * 1024;
+const FFMPEG_TIMEOUT_MS = 15_000;
+
 export type TranscodeResult =
   | { ok: true; wav: Buffer }
   | { ok: false; error: TranscodeError };
 
 export type TranscodeToWavDeps = {
   spawn?: typeof nodeSpawn;
+  timeoutMs?: number;
 };
 
 export async function transcodeToWav(
@@ -27,6 +34,7 @@ export async function transcodeToWav(
   deps?: TranscodeToWavDeps,
 ): Promise<TranscodeResult> {
   const spawnFn = deps?.spawn ?? nodeSpawn;
+  const timeoutMs = deps?.timeoutMs ?? FFMPEG_TIMEOUT_MS;
 
   return new Promise((resolve) => {
     let inputBuffer: Buffer;
@@ -65,9 +73,41 @@ export async function transcodeToWav(
         ]);
 
         const chunks: Buffer[] = [];
+        let outputBytes = 0;
         let settled = false;
+        let killIssued = false;
+
+        const killOnce = () => {
+          if (killIssued) return;
+          killIssued = true;
+          try {
+            ffmpeg.kill();
+          } catch {
+            // The process may already have exited; close/error still settle it.
+          }
+        };
+
+        function fail(stage: string) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          killOnce();
+          log("error", "audio.transcode_failed", {
+            error: "transcode_failed",
+            stage,
+          });
+          resolve({ ok: false, error: "transcode_failed" });
+        }
+
+        const timeout = setTimeout(() => fail("timeout"), timeoutMs);
 
         ffmpeg.stdout?.on("data", (chunk: Buffer) => {
+          if (settled) return;
+          if (outputBytes + chunk.length > MAX_TRANSCODED_WAV_BYTES) {
+            fail("output_limit");
+            return;
+          }
+          outputBytes += chunk.length;
           chunks.push(chunk);
         });
 
@@ -79,6 +119,8 @@ export async function transcodeToWav(
         ffmpeg.on("error", (error: NodeJS.ErrnoException) => {
           if (settled) return;
           settled = true;
+          clearTimeout(timeout);
+          killOnce();
           log("error", "audio.transcode_failed", {
             error: "transcode_failed",
             stage: "spawn_error",
@@ -89,6 +131,7 @@ export async function transcodeToWav(
 
         ffmpeg.on("close", (code: number | null) => {
           if (settled) return;
+          clearTimeout(timeout);
           settled = true;
           if (code === 0) {
             resolve({ ok: true, wav: Buffer.concat(chunks) });
@@ -103,12 +146,17 @@ export async function transcodeToWav(
           }
         });
 
-        ffmpeg.stdin?.on("error", () => {
-          // Writing to a dead stdin (e.g. process already exited) must never
-          // throw/reject — the "close"/"error" handlers above own resolution.
-        });
-        ffmpeg.stdin?.write(buffer);
-        ffmpeg.stdin?.end();
+        ffmpeg.stdout?.on("error", () => fail("stdout_error"));
+        ffmpeg.stderr?.on("error", () => fail("stderr_error"));
+        ffmpeg.stdin?.on("error", () => fail("stdin_error"));
+        // Native flowing mode drains stderr without retaining its contents.
+        ffmpeg.stderr?.resume();
+        try {
+          ffmpeg.stdin?.write(buffer);
+          ffmpeg.stdin?.end();
+        } catch {
+          fail("stdin_write_threw");
+        }
       } catch (error) {
         log("error", "audio.transcode_failed", {
           error: "transcode_failed",

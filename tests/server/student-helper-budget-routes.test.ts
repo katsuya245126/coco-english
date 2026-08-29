@@ -333,6 +333,33 @@ describe("student helper budget routes", () => {
     expect(mockGetOrCreateTtsAudio).toHaveBeenCalledTimes(1);
   });
 
+  it("ignores a forged characterId for TTS profile, provider, and cache input", async () => {
+    stubOwnedAssignment();
+
+    const trustedResponse = await postTts(
+      ttsRequest({ lineKind: "coco_transition" }),
+    );
+    expect(trustedResponse.status).toBe(200);
+    const trustedInput = mockGetOrCreateTtsAudio.mock.calls[0]?.[0];
+
+    mockGetOrCreateTtsAudio.mockClear();
+
+    const forgedResponse = await postTts(
+      ttsRequest({
+        lineKind: "coco_transition",
+        characterId: "forged-buddy",
+      }),
+    );
+
+    expect(forgedResponse.status).toBe(200);
+    const forgedInput = mockGetOrCreateTtsAudio.mock.calls[0]?.[0];
+    expect(forgedInput).toEqual(trustedInput);
+    expect(forgedInput).toMatchObject({
+      characterId: missionSnapshot.characterId,
+      text: "Good job! Ready for the next one?",
+    });
+  });
+
   it("admits translation and performs exactly one cache lookup", async () => {
     const response = await postTranslation(translationRequest());
 

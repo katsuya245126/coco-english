@@ -365,30 +365,7 @@ export async function deleteMission(input: {
   teacherId: string;
   missionId: string;
 }): Promise<void> {
-  const supabase = await createSupabaseServerClient();
-
-  const assignments = await supabase
-    .from("assignments")
-    .select("id")
-    .eq("mission_id", input.missionId);
-
-  if (assignments.error) {
-    throw new Error(`Unable to check mission assignments: ${assignments.error.message}`);
-  }
-
-  if ((assignments.data ?? []).length > 0) {
-    throw new Error("Assigned missions cannot be deleted.");
-  }
-
-  const deleted = await supabase
-    .from("missions")
-    .delete()
-    .eq("id", input.missionId)
-    .eq("teacher_id", input.teacherId);
-
-  if (deleted.error) {
-    throw new Error(`Unable to delete mission: ${deleted.error.message}`);
-  }
+  return archiveMission(input);
 }
 
 export async function getMissionForTeacher(input: {

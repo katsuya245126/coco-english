@@ -24,6 +24,8 @@ function createMockSupabase(
 ) {
   const operations: Operation[] = [];
   let cacheRow: unknown = options.cacheRow ?? null;
+  let activeClaim: string | null = null;
+  let claimSequence = 0;
   const upload = vi.fn(async () => ({
     error: options.uploadError ?? null,
   }));
@@ -33,6 +35,37 @@ function createMockSupabase(
       : { signedUrl: "https://signed.example/tts-audio/object-key" },
     error: options.signedUrlError ?? null,
   }));
+  const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
+    if (name === "claim_tts_audio_generation") {
+      if (cacheRow || activeClaim) {
+        return {
+          data: [{ acquired: false, owner_token: null, lease_expires_at: null }],
+          error: null,
+        };
+      }
+      activeClaim = `token-${++claimSequence}`;
+      return {
+        data: [{ acquired: true, owner_token: activeClaim, lease_expires_at: new Date().toISOString() }],
+        error: null,
+      };
+    }
+    if (name === "finalize_tts_audio_generation") {
+      const objectKey = String(args.p_object_key);
+      const mimeType = String(args.p_mime_type);
+      cacheRow = {
+        id: "cache-1",
+        object_key: objectKey,
+        mime_type: mimeType,
+      };
+      activeClaim = null;
+      return { data: [{ finalized: true, object_key: objectKey, mime_type: mimeType }], error: null };
+    }
+    if (name === "release_tts_audio_generation") {
+      activeClaim = null;
+      return { data: true, error: null };
+    }
+    throw new Error(`Unexpected RPC ${name}`);
+  });
 
   function createQuery(table: string) {
     const operation: Operation = { table, action: "select", filters: [] };
@@ -97,6 +130,7 @@ function createMockSupabase(
 
   return {
     operations,
+    rpc,
     storage: {
       from: vi.fn(() => ({ upload, createSignedUrl })),
     },
@@ -220,6 +254,23 @@ describe("getOrCreateTtsAudio (VOICE-03)", () => {
           (operation.action === "insert" || operation.action === "upsert"),
       ),
     ).toBe(false);
+  });
+
+  it("releases the claim when generation throws unexpectedly", async () => {
+    const { getOrCreateTtsAudio } = await import("@/server/audio/tts-cache");
+    const fakeGenerateTtsAudio = vi.fn(async () => {
+      throw new Error("unexpected provider failure");
+    });
+
+    const result = await getOrCreateTtsAudio(baseInput(), {
+      generateTtsAudio: fakeGenerateTtsAudio,
+    });
+
+    expect(result).toEqual({ ok: false, error: "generation_failed" });
+    expect(mockSupabase.rpc).toHaveBeenCalledWith(
+      "release_tts_audio_generation",
+      expect.objectContaining({ p_owner_token: expect.any(String) }),
+    );
   });
 
   it("returns a non-blocking failure and does not insert a cache row when storage upload fails", async () => {

@@ -116,6 +116,7 @@ describe("unlockStudent generic-mismatch invariant (D-16)", () => {
       expect(student.error).toBeNull();
 
       const rateLimitNetwork = `rate-limit-test-${stamp}`;
+      const secondRateLimitNetwork = `rate-limit-test-second-${stamp}`;
       const secret = process.env.STUDENT_ACCESS_SECRET ?? "";
       const digest = (purpose: string, value: string) =>
         createHmac("sha256", secret)
@@ -127,11 +128,9 @@ describe("unlockStudent generic-mismatch invariant (D-16)", () => {
         rateLimitNetwork,
       );
       const clearLimiter = () =>
-        supabase
-          .from("student_unlock_attempts")
-          .delete()
-          .eq("target_digest", targetDigest)
-          .eq("network_digest", networkDigest);
+        supabase.rpc("clear_student_unlock_attempts", {
+          p_target_digest: targetDigest,
+        });
 
       try {
         for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -162,6 +161,26 @@ describe("unlockStudent generic-mismatch invariant (D-16)", () => {
         const reset = await clearLimiter();
         expect(reset.error).toBeNull();
 
+        expect(
+          await unlockStudent(
+            { joinCode, typedName: realName, pin: "0000" },
+            rateLimitNetwork,
+          ),
+        ).toEqual({ ok: false, error: "generic_mismatch" });
+        expect(
+          await unlockStudent(
+            { joinCode, typedName: realName, pin: "0000" },
+            secondRateLimitNetwork,
+          ),
+        ).toEqual({ ok: false, error: "generic_mismatch" });
+
+        const seededPairs = await supabase
+          .from("student_unlock_attempts")
+          .select("network_digest")
+          .eq("target_digest", targetDigest);
+        expect(seededPairs.error).toBeNull();
+        expect(seededPairs.data).toHaveLength(2);
+
         const ok = await unlockStudent(
           { joinCode, typedName: realName, pin: realPin },
           rateLimitNetwork,
@@ -175,10 +194,16 @@ describe("unlockStudent generic-mismatch invariant (D-16)", () => {
         const afterSuccess = await supabase
           .from("student_unlock_attempts")
           .select("target_digest")
-          .eq("target_digest", targetDigest)
-          .eq("network_digest", networkDigest);
+          .eq("target_digest", targetDigest);
         expect(afterSuccess.error).toBeNull();
         expect(afterSuccess.data).toHaveLength(0);
+
+        const targetAfterSuccess = await supabase
+          .from("student_unlock_target_attempts")
+          .select("target_digest")
+          .eq("target_digest", targetDigest);
+        expect(targetAfterSuccess.error).toBeNull();
+        expect(targetAfterSuccess.data).toHaveLength(0);
 
         // Three distinct failure branches must produce one identical value.
         const wrongCode = await unlockStudent(
