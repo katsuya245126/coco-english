@@ -365,6 +365,26 @@ export type Database = {
         >;
         Relationships: [];
       };
+      tts_audio_generation_claims: {
+        Row: {
+          content_hash: string;
+          owner_token: string;
+          lease_expires_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          content_hash: string;
+          owner_token: string;
+          lease_expires_at: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["tts_audio_generation_claims"]["Insert"]
+        >;
+        Relationships: [];
+      };
       student_unlock_attempts: {
         Row: {
           target_digest: string;
@@ -382,6 +402,24 @@ export type Database = {
         };
         Update: Partial<
           Database["public"]["Tables"]["student_unlock_attempts"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      student_unlock_target_attempts: {
+        Row: {
+          target_digest: string;
+          window_started_at: string;
+          attempt_count: number;
+          updated_at: string;
+        };
+        Insert: {
+          target_digest: string;
+          window_started_at?: string;
+          attempt_count?: number;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["student_unlock_target_attempts"]["Insert"]
         >;
         Relationships: [];
       };
@@ -490,6 +528,41 @@ export type Database = {
           p_target_digest: string;
           p_network_digest: string;
         };
+        Returns: boolean;
+      };
+      clear_student_unlock_attempts: {
+        Args: { p_target_digest: string };
+        Returns: undefined;
+      };
+      claim_tts_audio_generation: {
+        Args: { p_content_hash: string; p_lease_seconds: number };
+        Returns: {
+          acquired: boolean;
+          owner_token: string | null;
+          lease_expires_at: string | null;
+        }[];
+      };
+      finalize_tts_audio_generation: {
+        Args: {
+          p_content_hash: string;
+          p_owner_token: string;
+          p_object_key: string;
+          p_mime_type: string;
+          p_byte_size: number;
+          p_provider: string;
+          p_model: string;
+          p_voice: string;
+          p_response_format: string;
+          p_character_id: string;
+        };
+        Returns: {
+          finalized: boolean;
+          object_key: string | null;
+          mime_type: string | null;
+        }[];
+      };
+      release_tts_audio_generation: {
+        Args: { p_content_hash: string; p_owner_token: string };
         Returns: boolean;
       };
       consume_request_budget: {

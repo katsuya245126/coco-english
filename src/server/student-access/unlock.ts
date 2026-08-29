@@ -106,11 +106,9 @@ export async function unlockStudent(input: {
       return GENERIC_MISMATCH;
     }
 
-    const cleared = await supabase
-      .from("student_unlock_attempts")
-      .delete()
-      .eq("target_digest", targetDigest)
-      .eq("network_digest", networkDigest);
+    const cleared = await supabase.rpc("clear_student_unlock_attempts", {
+      p_target_digest: targetDigest,
+    });
     if (cleared.error) return GENERIC_MISMATCH;
 
     // 5. Full match. Return minimal student/class context for the home shell.

@@ -28,11 +28,17 @@ import {
 } from "@/domain/audio/tts";
 import {
   generateTtsAudio as defaultGenerateTtsAudio,
+  TTS_PROVIDER_TIMEOUT_MS,
   type GenerateTtsAudioResult,
 } from "@/server/audio/tts-generator";
 
 export const TTS_AUDIO_BUCKET = "tts-audio";
 export const SIGNED_TTS_URL_TTL_SECONDS = 60 * 60; // 1 hour
+export const TTS_CACHE_UPLOAD_ALLOWANCE_MS = 15_000;
+export const TTS_CACHE_CLAIM_LEASE_MS =
+  TTS_PROVIDER_TIMEOUT_MS + TTS_CACHE_UPLOAD_ALLOWANCE_MS + 5_000;
+const TTS_CACHE_FOLLOWER_WAIT_MS = 100;
+const TTS_CACHE_FOLLOWER_ATTEMPTS = 20;
 
 export type GetOrCreateTtsAudioError =
   | "not_found"
@@ -80,8 +86,55 @@ export type GetOrCreateTtsAudioDeps = {
  * Deterministic Storage object key for a cached line. Derived from the
  * server-computed content hash so identical lines resolve to one object.
  */
-function buildObjectKey(contentHash: string): string {
-  return `${TTS_PROVIDER}/${contentHash}.mp3`;
+function buildTemporaryObjectKey(contentHash: string, ownerToken: string): string {
+  return `${TTS_PROVIDER}/tmp/${contentHash}/${ownerToken}.mp3`;
+}
+
+type CachedTtsRow = {
+  id: string;
+  object_key: string;
+  mime_type: string | null;
+};
+
+async function findCachedTtsObject(
+  supabase: ReturnType<typeof createSupabaseServiceClient>,
+  contentHash: string,
+): Promise<CachedTtsRow | null> {
+  const { data } = await supabase
+    .from("tts_audio_cache")
+    .select("id, object_key, mime_type")
+    .eq("content_hash", contentHash)
+    .maybeSingle();
+  return data?.object_key ? data : null;
+}
+
+async function waitForCachedTtsObject(
+  supabase: ReturnType<typeof createSupabaseServiceClient>,
+  contentHash: string,
+): Promise<CachedTtsRow | null> {
+  for (let attempt = 0; attempt < TTS_CACHE_FOLLOWER_ATTEMPTS; attempt += 1) {
+    const cached = await findCachedTtsObject(supabase, contentHash);
+    if (cached) return cached;
+    if (attempt + 1 < TTS_CACHE_FOLLOWER_ATTEMPTS) {
+      await new Promise((resolve) => setTimeout(resolve, TTS_CACHE_FOLLOWER_WAIT_MS));
+    }
+  }
+  return null;
+}
+
+async function releaseTtsClaim(
+  supabase: ReturnType<typeof createSupabaseServiceClient>,
+  contentHash: string,
+  ownerToken: string,
+) {
+  try {
+    await supabase.rpc("release_tts_audio_generation", {
+      p_content_hash: contentHash,
+      p_owner_token: ownerToken,
+    });
+  } catch {
+    // A stale owner must not affect a newer claim; the token guard is in SQL.
+  }
 }
 
 async function getOrCreateCachedTtsObject(
@@ -112,11 +165,7 @@ async function getOrCreateCachedTtsObject(
     responseFormat: TTS_RESPONSE_FORMAT,
   });
 
-  const { data: cachedRow } = await supabase
-    .from("tts_audio_cache")
-    .select("id, object_key, mime_type")
-    .eq("content_hash", contentHash)
-    .maybeSingle();
+  const cachedRow = await findCachedTtsObject(supabase, contentHash);
 
   if (cachedRow?.object_key) {
     await supabase
@@ -132,57 +181,95 @@ async function getOrCreateCachedTtsObject(
     };
   }
 
-  const generated = await generate({ text, voice });
-  if (!generated.ok) {
+  const claim = await supabase.rpc("claim_tts_audio_generation", {
+    p_content_hash: contentHash,
+    p_lease_seconds: Math.ceil(TTS_CACHE_CLAIM_LEASE_MS / 1000),
+  });
+  const claimRow = claim.data?.[0];
+
+  if (claim.error || !claimRow) {
+    return { ok: false, error: "generation_failed" };
+  }
+
+  if (!claimRow.acquired || !claimRow.owner_token) {
+    const follower = await waitForCachedTtsObject(supabase, contentHash);
+    if (!follower) return { ok: false, error: "generation_failed" };
+    return {
+      ok: true,
+      cacheStatus: "hit",
+      objectKey: follower.object_key,
+      mimeType: follower.mime_type ?? "audio/mpeg",
+    };
+  }
+
+  const ownerToken = claimRow.owner_token;
+  const objectKey = buildTemporaryObjectKey(contentHash, ownerToken);
+
+  try {
+    const generated = await generate({ text, voice });
+    if (!generated.ok) {
+      await releaseTtsClaim(supabase, contentHash, ownerToken);
+      log("warn", "audio.tts_generation_failed", {
+        provider: TTS_PROVIDER,
+        model: TTS_MODEL,
+        voice,
+        error: generated.error,
+      });
+      return { ok: false, error: "generation_failed" };
+    }
+
+    const uploadResult = await supabase.storage
+      .from(TTS_AUDIO_BUCKET)
+      .upload(objectKey, generated.audio, {
+        contentType: generated.mimeType,
+        upsert: false,
+      });
+
+    if (uploadResult.error) {
+      await releaseTtsClaim(supabase, contentHash, ownerToken);
+      log("warn", "audio.tts_upload_failed", {
+        provider: TTS_PROVIDER,
+        model: TTS_MODEL,
+        voice,
+      });
+      return { ok: false, error: "storage_failed" };
+    }
+
+    const finalized = await supabase.rpc("finalize_tts_audio_generation", {
+      p_content_hash: contentHash,
+      p_owner_token: ownerToken,
+      p_object_key: objectKey,
+      p_mime_type: generated.mimeType,
+      p_byte_size: generated.audio.size,
+      p_provider: TTS_PROVIDER,
+      p_model: TTS_MODEL,
+      p_voice: voice,
+      p_response_format: TTS_RESPONSE_FORMAT,
+      p_character_id: characterId,
+    });
+    const finalizedRow = finalized.data?.[0];
+
+    if (finalized.error || !finalizedRow?.object_key) {
+      await releaseTtsClaim(supabase, contentHash, ownerToken);
+      return { ok: false, error: "generation_failed" };
+    }
+
+    return {
+      ok: true,
+      cacheStatus: finalizedRow.finalized ? "miss" : "hit",
+      objectKey: finalizedRow.object_key,
+      mimeType: finalizedRow.mime_type ?? generated.mimeType,
+    };
+  } catch {
+    await releaseTtsClaim(supabase, contentHash, ownerToken);
     log("warn", "audio.tts_generation_failed", {
       provider: TTS_PROVIDER,
       model: TTS_MODEL,
       voice,
-      error: generated.error,
+      error: "unexpected_failure",
     });
     return { ok: false, error: "generation_failed" };
   }
-
-  const objectKey = buildObjectKey(contentHash);
-  const byteSize = generated.audio.size;
-
-  const uploadResult = await supabase.storage
-    .from(TTS_AUDIO_BUCKET)
-    .upload(objectKey, generated.audio, {
-      contentType: generated.mimeType,
-      upsert: true,
-    });
-
-  if (uploadResult.error) {
-    log("warn", "audio.tts_upload_failed", {
-      provider: TTS_PROVIDER,
-      model: TTS_MODEL,
-      voice,
-    });
-    return { ok: false, error: "storage_failed" };
-  }
-
-  await supabase.from("tts_audio_cache").upsert(
-    {
-      content_hash: contentHash,
-      provider: TTS_PROVIDER,
-      model: TTS_MODEL,
-      voice,
-      response_format: TTS_RESPONSE_FORMAT,
-      character_id: characterId,
-      object_key: objectKey,
-      mime_type: generated.mimeType,
-      byte_size: byteSize,
-    },
-    { onConflict: "content_hash" },
-  );
-
-  return {
-    ok: true,
-    cacheStatus: "miss",
-    objectKey,
-    mimeType: generated.mimeType,
-  };
 }
 
 export async function warmTtsAudioCache(

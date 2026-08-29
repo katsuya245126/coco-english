@@ -7,6 +7,8 @@ import { describe, expect, it, vi } from "vitest";
 type FakeChildProcess = EventEmitter & {
   stdin: Writable;
   stdout: PassThrough;
+  stderr: PassThrough;
+  kill: ReturnType<typeof vi.fn>;
 };
 
 function createFakeSpawn(behavior: {
@@ -22,6 +24,8 @@ function createFakeSpawn(behavior: {
   return vi.fn(() => {
     const child = new EventEmitter() as FakeChildProcess;
     child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.kill = vi.fn(() => true);
     child.stdin = new Writable({
       write(_chunk, _encoding, callback) {
         callback();
@@ -41,6 +45,22 @@ function createFakeSpawn(behavior: {
 
     return child;
   });
+}
+
+function createHangingSpawn() {
+  const child = new EventEmitter() as FakeChildProcess;
+  child.stdout = new PassThrough();
+  child.stderr = new PassThrough();
+  child.stdin = new Writable({
+    write(_chunk, _encoding, callback) {
+      callback();
+    },
+  });
+  child.kill = vi.fn(() => {
+    queueMicrotask(() => child.emit("close", null));
+    return true;
+  });
+  return { spawn: vi.fn(() => child), child };
 }
 
 /** An ErrnoException as `spawn` raises it — the `code` is what we assert on. */
@@ -112,14 +132,19 @@ describe("transcodeToWav", () => {
 
   it("maps a spawn error to a typed transcode_failed result without throwing", async () => {
     const { transcodeToWav } = await import("@/server/audio/audio-transcode");
-    const spawnFn = createFakeSpawn({ exitCode: null, emitError: new Error("ENOENT") });
+    const spawnFn = createFakeSpawn({
+      exitCode: null,
+      emitError: new Error("ENOENT"),
+    });
 
     const result = await transcodeToWav(
       new Blob(["voice"], { type: "audio/webm" }),
       { spawn: spawnFn as never },
     );
+    const child = spawnFn.mock.results[0]?.value as FakeChildProcess;
 
     expect(result).toEqual({ ok: false, error: "transcode_failed" });
+    expect(child.kill).toHaveBeenCalledTimes(1);
   });
 
   it("logs the spawn errno code so ENOENT is distinguishable from EACCES", async () => {
@@ -184,5 +209,64 @@ describe("transcodeToWav", () => {
 
     expect(result).toMatchObject({ ok: true });
     expect(lines.entries()).toEqual([]);
+  });
+
+  it("caps cumulative decoded output and kills ffmpeg once", async () => {
+    const { transcodeToWav, MAX_TRANSCODED_WAV_BYTES } = await import(
+      "@/server/audio/audio-transcode"
+    );
+    const spawnFn = createFakeSpawn({
+      chunks: [Buffer.alloc(MAX_TRANSCODED_WAV_BYTES + 1)],
+      exitCode: 0,
+    });
+
+    const result = await transcodeToWav(
+      new Blob(["voice"], { type: "audio/webm" }),
+      { spawn: spawnFn as never },
+    );
+    const child = spawnFn.mock.results[0]?.value as FakeChildProcess;
+
+    expect(result).toEqual({ ok: false, error: "transcode_failed" });
+    expect(child.kill).toHaveBeenCalledTimes(1);
+  });
+
+  it("times out a hung process, kills once, and settles", async () => {
+    const { transcodeToWav } = await import("@/server/audio/audio-transcode");
+    const { spawn, child } = createHangingSpawn();
+
+    const result = await transcodeToWav(
+      new Blob(["voice"], { type: "audio/webm" }),
+      { spawn: spawn as never, timeoutMs: 1 },
+    );
+
+    expect(result).toEqual({ ok: false, error: "transcode_failed" });
+    expect(child.kill).toHaveBeenCalledTimes(1);
+  });
+
+  it("drains large stderr without changing the success result", async () => {
+    const { transcodeToWav } = await import("@/server/audio/audio-transcode");
+    const spawnFn = vi.fn(() => {
+      const child = new EventEmitter() as FakeChildProcess;
+      child.stdout = new PassThrough();
+      child.stderr = new PassThrough();
+      child.stdin = new Writable({
+        write(_chunk, _encoding, callback) {
+          callback();
+        },
+      });
+      child.kill = vi.fn(() => true);
+      queueMicrotask(() => {
+        child.stderr.emit("data", Buffer.alloc(1024 * 1024));
+        child.stdout.emit("data", Buffer.from("RIFF....WAVEfmt "));
+        child.emit("close", 0);
+      });
+      return child;
+    });
+
+    await expect(
+      transcodeToWav(new Blob(["voice"], { type: "audio/webm" }), {
+        spawn: spawnFn as never,
+      }),
+    ).resolves.toMatchObject({ ok: true });
   });
 });

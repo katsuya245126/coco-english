@@ -140,7 +140,8 @@ export async function POST(request: Request, context: RouteContext) {
   }
   const snapshot = owned.owned.snapshot;
 
-  const characterId = parsed.data.characterId ?? snapshot.characterId;
+  // Keep accepting characterId for client compatibility, but never trust it.
+  const characterId = snapshot.characterId;
   // A restarted/retried mission produces additional attempts whose
   // attempt_turns reuse the same turn_order values, so the per-turn lookups
   // below must pin to the current attempt — an assignment-wide join returns

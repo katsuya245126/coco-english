@@ -41,6 +41,11 @@ describe("generateTtsAudio (VOICE-01)", () => {
         response_format: "mp3",
         instructions: expect.any(String),
       }),
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+        timeout: expect.any(Number),
+        maxRetries: 0,
+      }),
     );
   });
 
@@ -76,5 +81,42 @@ describe("generateTtsAudio (VOICE-01)", () => {
 
     expect(result).toEqual({ ok: false, error: "provider_failed" });
     expect(JSON.stringify(result)).not.toContain("sensitive detail");
+  });
+
+  it("aborts a hung provider request at the configured timeout", async () => {
+    const { generateTtsAudio, TTS_PROVIDER_TIMEOUT_MS } = await import(
+      "@/server/audio/tts-generator"
+    );
+    let aborted = false;
+    const client: FakeSpeechClient = {
+      audio: {
+        speech: {
+          create: vi.fn((_input, options) =>
+            new Promise((_resolve, reject) => {
+              options?.signal?.addEventListener("abort", () => {
+                aborted = true;
+                reject(new Error("aborted"));
+              });
+            }),
+          ) as SpeechClient["audio"]["speech"]["create"],
+        },
+      },
+    };
+
+    vi.useFakeTimers();
+    try {
+      const pending = generateTtsAudio(
+        { text: "Hello", voice: "marin" },
+        { apiKey: "test-key", client },
+      );
+      await vi.advanceTimersByTimeAsync(TTS_PROVIDER_TIMEOUT_MS);
+      await expect(pending).resolves.toEqual({
+        ok: false,
+        error: "provider_failed",
+      });
+      expect(aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
