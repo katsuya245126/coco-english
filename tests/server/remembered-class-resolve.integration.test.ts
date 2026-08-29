@@ -13,9 +13,10 @@ import { resolveClassById } from "@/server/student-access/class-lookup";
 // (reset → resolve-by-id returns the NEW code) is env-gated like the other
 // server tests.
 
-const hasSupabaseEnv = Boolean(
-  process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
-);
+const hasSupabaseEnv =
+  /^(https?:\/\/)?(127\.0\.0\.1|localhost)(:\d+)?(?:\/|$)/.test(
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
+  ) && Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 describe("resolveClassById (D-18 remembered-class survival)", () => {
   it("returns null for an empty/blank class id without a lookup", async () => {
