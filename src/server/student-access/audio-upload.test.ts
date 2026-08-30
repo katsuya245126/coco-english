@@ -908,7 +908,16 @@ describe("recordSpeakingTry admission and upload", () => {
         starBand: 3 as const,
         referenceText: "I like soccer.",
         wordScores: [
-          { word: "soccer", accuracyScore: 40, errorType: "Mispronunciation" },
+          {
+            word: "soccer",
+            accuracyScore: 40,
+            errorType: "Mispronunciation",
+            phonemes: [{
+              phoneme: "s",
+              accuracyScore: 30,
+              candidates: [{ phoneme: "θ", score: 82 }],
+            }],
+          },
         ],
       },
     }));
@@ -930,11 +939,21 @@ describe("recordSpeakingTry admission and upload", () => {
         durationMs: 1200,
       }),
     );
-    expect(
-      mockSupabase.operations.some(
-        (operation) => operation.table === "pronunciation_scores",
-      ),
-    ).toBe(true);
+    const pronunciationWrite = mockSupabase.operations.find(
+      (operation) => operation.table === "pronunciation_scores",
+    )?.payload as { word_scores?: unknown } | undefined;
+    expect(pronunciationWrite?.word_scores).toEqual([
+      {
+        word: "soccer",
+        accuracyScore: 40,
+        errorType: "Mispronunciation",
+        phonemes: [{
+          phoneme: "s",
+          accuracyScore: 30,
+          candidates: [{ phoneme: "θ", score: 82 }],
+        }],
+      },
+    ]);
   });
 });
 

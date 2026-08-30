@@ -5,7 +5,29 @@ import type {
 } from "@/server/audio/pronunciation-scorer";
 import type { TranscodeResult } from "@/server/audio/audio-transcode";
 
-const FAKE_WAV = Buffer.from("RIFF....WAVEfmt ");
+function createPcmWav(
+  durationMs: number,
+  dataChunkSize = Math.round((16_000 * durationMs) / 1_000) * 2,
+) {
+  const dataBytes = Math.round((16_000 * durationMs) / 1_000) * 2;
+  const wav = Buffer.alloc(44 + dataBytes);
+  wav.write("RIFF", 0, "ascii");
+  wav.writeUInt32LE(36 + dataBytes, 4);
+  wav.write("WAVE", 8, "ascii");
+  wav.write("fmt ", 12, "ascii");
+  wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20);
+  wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(16_000, 24);
+  wav.writeUInt32LE(32_000, 28);
+  wav.writeUInt16LE(2, 32);
+  wav.writeUInt16LE(16, 34);
+  wav.write("data", 36, "ascii");
+  wav.writeUInt32LE(dataChunkSize, 40);
+  return wav;
+}
+
+const FAKE_WAV = createPcmWav(4_000);
 
 function createFakeRecognizerFactory(
   result: unknown,
@@ -39,7 +61,257 @@ function fakeAzureResult(overrides?: Partial<Record<string, number>>) {
   };
 }
 
+function fakeAzureResultWithCandidates() {
+  return {
+    ...fakeAzureResult(),
+    words: [
+      {
+        word: "fan",
+        accuracyScore: 35,
+        errorType: "Mispronunciation",
+        phonemes: [
+          {
+            phoneme: "f",
+            accuracyScore: 35,
+            candidates: [
+              { phoneme: "p", score: 0.78 },
+              { phoneme: "f", score: 0.22 },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
 describe("scorePronunciation", () => {
+  it("normalizes ranked phoneme candidates from injected recognizer output", async () => {
+    const { scorePronunciation } = await import("@/server/audio/pronunciation-scorer");
+
+    const client = createFakeRecognizerFactory(fakeAzureResultWithCandidates());
+    const transcodeToWav = createFakeTranscode({ ok: true, wav: FAKE_WAV });
+
+    const result = await scorePronunciation(baseInput(), {
+      apiKey: "test-key",
+      region: "eastus",
+      client,
+      transcodeToWav,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      score: {
+        wordScores: [
+          {
+            phonemes: [
+              {
+                phoneme: "f",
+                accuracyScore: 35,
+                candidates: [
+                  { phoneme: "p", score: 0.78 },
+                  { phoneme: "f", score: 0.22 },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(client).toHaveBeenCalledWith(
+      expect.objectContaining({ includeCandidates: true }),
+    );
+  });
+
+  it("accepts a phoneme with no optional candidate list", async () => {
+    const { scorePronunciation } = await import("@/server/audio/pronunciation-scorer");
+
+    const client = createFakeRecognizerFactory({
+      ...fakeAzureResult(),
+      words: [
+        {
+          word: "fan",
+          accuracyScore: 35,
+          errorType: "Mispronunciation",
+          phonemes: [{ phoneme: "f", accuracyScore: 35 }],
+        },
+      ],
+    });
+    const transcodeToWav = createFakeTranscode({ ok: true, wav: FAKE_WAV });
+
+    const result = await scorePronunciation(baseInput(), {
+      apiKey: "test-key",
+      region: "eastus",
+      client,
+      transcodeToWav,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      score: {
+        wordScores: [
+          { phonemes: [{ phoneme: "f", accuracyScore: 35 }] },
+        ],
+      },
+    });
+  });
+
+  it("fails safely when injected candidate evidence is malformed", async () => {
+    const { scorePronunciation } = await import("@/server/audio/pronunciation-scorer");
+
+    const client = createFakeRecognizerFactory({
+      ...fakeAzureResult(),
+      words: [
+        {
+          word: "fan",
+          accuracyScore: 35,
+          errorType: "Mispronunciation",
+          phonemes: [
+            {
+              phoneme: "f",
+              accuracyScore: 35,
+              candidates: [{ phoneme: "p", score: "not-a-number" }],
+            },
+          ],
+        },
+      ],
+    });
+    const transcodeToWav = createFakeTranscode({ ok: true, wav: FAKE_WAV });
+
+    const result = await scorePronunciation(baseInput(), {
+      apiKey: "test-key",
+      region: "eastus",
+      client,
+      transcodeToWav,
+    });
+
+    expect(result).toEqual({ ok: false, error: "provider_failed" });
+  });
+
+  it("uses actual transcoded WAV length when deciding candidate eligibility", async () => {
+    const { scorePronunciation } = await import("@/server/audio/pronunciation-scorer");
+
+    const client = createFakeRecognizerFactory(fakeAzureResultWithCandidates());
+    const transcodeToWav = createFakeTranscode({
+      ok: true,
+      // The request says 4 seconds, but ffmpeg's pipe WAV contains >30 seconds.
+      wav: createPcmWav(30_001, 0xffff_ffff),
+    });
+
+    const result = await scorePronunciation(
+      baseInput(),
+      { apiKey: "test-key", region: "eastus", client, transcodeToWav },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      score: {
+        wordScores: [
+          {
+            phonemes: [{ phoneme: "f", accuracyScore: 35 }],
+          },
+        ],
+      },
+    });
+    expect(client).toHaveBeenCalledWith(
+      expect.objectContaining({ includeCandidates: false }),
+    );
+  });
+
+  it("parses official-shaped NBestPhonemes JSON at the adapter boundary", async () => {
+    const { parsePronunciationAssessmentJson } = await import(
+      "@/server/audio/pronunciation-scorer"
+    );
+
+    expect(
+      parsePronunciationAssessmentJson({
+        NBest: [
+          {
+            Words: [
+              {
+                Word: "fan",
+                PronunciationAssessment: {
+                  AccuracyScore: 35,
+                  ErrorType: "Mispronunciation",
+                },
+                Phonemes: [
+                  {
+                    Phoneme: "f",
+                    PronunciationAssessment: {
+                      AccuracyScore: 35,
+                      NBestPhonemes: [
+                        { Phoneme: "p", Score: 0.78 },
+                        { Phoneme: "f", Score: 0.22 },
+                      ],
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        word: "fan",
+        accuracyScore: 35,
+        errorType: "Mispronunciation",
+        phonemes: [
+          {
+            phoneme: "f",
+            accuracyScore: 35,
+            candidates: [
+              { phoneme: "p", score: 0.78 },
+              { phoneme: "f", score: 0.22 },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("accepts official-shaped phonemes without optional candidates", async () => {
+    const { parsePronunciationAssessmentJson } = await import(
+      "@/server/audio/pronunciation-scorer"
+    );
+
+    expect(
+      parsePronunciationAssessmentJson({
+        NBest: [{
+          Words: [{
+            Word: "fan",
+            PronunciationAssessment: { AccuracyScore: 35 },
+            Phonemes: [{
+              Phoneme: "f",
+              PronunciationAssessment: { AccuracyScore: 35 },
+            }],
+          }],
+        }],
+      }),
+    ).toMatchObject([{ phonemes: [{ phoneme: "f", accuracyScore: 35 }] }]);
+  });
+
+  it("rejects malformed official-shaped candidate evidence", async () => {
+    const { parsePronunciationAssessmentJson } = await import(
+      "@/server/audio/pronunciation-scorer"
+    );
+
+    expect(() => parsePronunciationAssessmentJson({
+      NBest: [{
+        Words: [{
+          Word: "fan",
+          PronunciationAssessment: { AccuracyScore: 35 },
+          Phonemes: [{
+            Phoneme: "f",
+            PronunciationAssessment: {
+              AccuracyScore: 35,
+              NBestPhonemes: [{ Phoneme: "p", Score: "not-a-number" }],
+            },
+          }],
+        }],
+      }],
+    })).toThrow();
+  });
+
   it("resolves a derived star band from an injected fake recognizer and transcode", async () => {
     const { scorePronunciation } = await import("@/server/audio/pronunciation-scorer");
     const { computeBandScore, scoreToStarBand } = await import("@/domain/pronunciation/scoring");
