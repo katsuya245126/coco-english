@@ -57,3 +57,23 @@ _Avoid_: Homework attempt
 **Pronunciation reprocessing**:
 A teacher-triggered operation that creates a missing pronunciation assessment for an existing audio clip without replacing an existing score. Only one operation can be active for a clip, and a teacher can retry after a failure.
 _Avoid_: Rescore, rescoring
+
+**Teacher-added pronunciation sample**:
+A recording of one existing student that their teacher adds outside assigned homework as evidence for the student's pronunciation profile.
+_Avoid_: Legacy audio, imported recording, uploaded audio
+
+**Student pronunciation profile**:
+A teacher-facing summary of sounds an existing student repeatedly struggles with, based on confirmed pronunciation evidence from speaking tries and teacher-added pronunciation samples.
+_Avoid_: Weak sounds part
+
+**Sound confusion candidate**:
+A provider-ranked sound that a weak expected sound may have resembled. It is supporting evidence for a student's pronunciation profile, not a definitive statement of what the student said.
+_Avoid_: Sound substitution, pronunciation diagnosis
+
+**Automatic transcript**:
+The text speech recognition originally produces for a speaking try or teacher-added pronunciation sample. It remains the original speech evidence even when a teacher later clarifies the intended wording.
+_Avoid_: AI transcript, editable transcript
+
+**Teacher-confirmed wording**:
+A teacher's optional clarification of what a student was trying to say, used as the pronunciation reference without replacing the automatic transcript or changing mission evaluation.
+_Avoid_: Edited transcript, corrected transcript

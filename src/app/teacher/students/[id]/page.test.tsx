@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   requireTeacherProfile: vi.fn(),
   getStudentProfileHeader: vi.fn(),
   getStudentSoundProfile: vi.fn(),
+  getPronunciationSamplesForTeacher: vi.fn(),
 }));
 
 vi.mock("@/server/auth/teacher-profile", () => ({
@@ -13,6 +14,9 @@ vi.mock("@/server/auth/teacher-profile", () => ({
 vi.mock("@/server/teacher/student-profile", () => ({
   getStudentProfileHeader: mocks.getStudentProfileHeader,
   getStudentSoundProfile: mocks.getStudentSoundProfile,
+}));
+vi.mock("@/server/teacher/pronunciation-samples", () => ({
+  getPronunciationSamplesForTeacher: mocks.getPronunciationSamplesForTeacher,
 }));
 
 import StudentProfilePage from "./page";
@@ -26,6 +30,7 @@ beforeEach(() => {
     displayName: "Mina",
     className: "Test class",
   });
+  mocks.getPronunciationSamplesForTeacher.mockResolvedValue([]);
 });
 
 describe("StudentProfilePage", () => {

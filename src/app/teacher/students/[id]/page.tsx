@@ -6,6 +6,8 @@ import {
   getStudentProfileHeader,
   getStudentSoundProfile,
 } from "@/server/teacher/student-profile";
+import { getPronunciationSamplesForTeacher } from "@/server/teacher/pronunciation-samples";
+import { PronunciationSamplesPanel } from "@/components/teacher/PronunciationSamplesPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +24,13 @@ export default async function StudentProfilePage({
     notFound();
   }
 
-  const weaknesses = await getStudentSoundProfile(studentId, teacher.id);
+  const [weaknesses, samples] = await Promise.all([
+    getStudentSoundProfile(studentId, teacher.id),
+    getPronunciationSamplesForTeacher({
+      studentId,
+      teacherId: teacher.id,
+    }),
+  ]);
 
   return (
     <div
@@ -62,75 +70,77 @@ export default async function StudentProfilePage({
           </p>
         </div>
 
-        <section>
-          <h2
-            style={{
-              fontSize: 20,
-              fontWeight: 600,
-              lineHeight: 1.25,
-              margin: "0 0 12px",
-            }}
-          >
-            Sounds to work on
-          </h2>
-
-          {weaknesses.length === 0 ? (
-            <div
+        <PronunciationSamplesPanel studentId={studentId} samples={samples}>
+          <section>
+            <h2
               style={{
-                padding: 16,
-                border: "1px solid #D1D5DB",
-                borderRadius: 8,
-                background: "#FFFFFF",
+                fontSize: 20,
+                fontWeight: 600,
+                lineHeight: 1.25,
+                margin: "0 0 12px",
               }}
             >
-              <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#111827" }}>
-                No consistent weak sounds yet.
-              </p>
-              <p style={{ margin: "4px 0 0", fontSize: 14, color: "#4B5563" }}>
-                As this student completes more speaking homework, sounds they
-                repeatedly struggle with will appear here.
-              </p>
-            </div>
-          ) : (
-            <div style={{ display: "grid", gap: 8 }}>
-              {weaknesses.map((sound) => {
-                if (!sound.candidate) {
-                  return (
-                    <article key={sound.label + sound.ipa} style={soundCardStyle}>
-                      <div style={soundSummaryStyle}>
-                        <SoundSummary sound={sound} />
-                      </div>
-                    </article>
-                  );
-                }
+              Sounds to work on
+            </h2>
 
-                return (
-                  <details
-                    key={sound.label + sound.ipa}
-                    style={soundCardStyle}
-                  >
-                    <summary style={{ ...soundSummaryStyle, cursor: "pointer" }}>
-                      <SoundSummary sound={sound} />
-                    </summary>
-                    <div style={soundDetailStyle}>
-                      <p style={{ margin: 0, fontWeight: 600, color: "#92400E" }}>
-                        Sounded closer to /{sound.candidate.ipa}/
-                      </p>
-                      <p style={{ margin: "4px 0 0" }}>
-                        Seen in {sound.candidate.count} weak attempt
-                        {sound.candidate.count === 1 ? "" : "s"} · example
-                        {sound.candidate.exampleWords.length === 1 ? "" : "s"}:{" "}
-                        {sound.candidate.exampleWords
-                          .map((word) => `“${word}”`)
-                          .join(", ")} · Source: Mission
-                      </p>
-                    </div>
-                  </details>
-                );
-              })}
-            </div>
-          )}
-        </section>
+            {weaknesses.length === 0 ? (
+              <div
+                style={{
+                  padding: 16,
+                  border: "1px solid #D1D5DB",
+                  borderRadius: 8,
+                  background: "#FFFFFF",
+                }}
+              >
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#111827" }}>
+                  No consistent weak sounds yet.
+                </p>
+                <p style={{ margin: "4px 0 0", fontSize: 14, color: "#4B5563" }}>
+                  As this student completes more speaking homework, sounds they
+                  repeatedly struggle with will appear here.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: 8 }}>
+                {weaknesses.map((sound) => {
+                  if (!sound.candidate) {
+                    return (
+                      <article key={sound.label + sound.ipa} style={soundCardStyle}>
+                        <div style={soundSummaryStyle}>
+                          <SoundSummary sound={sound} />
+                        </div>
+                      </article>
+                    );
+                  }
+
+                  return (
+                    <details
+                      key={sound.label + sound.ipa}
+                      style={soundCardStyle}
+                    >
+                      <summary style={{ ...soundSummaryStyle, cursor: "pointer" }}>
+                        <SoundSummary sound={sound} />
+                      </summary>
+                      <div style={soundDetailStyle}>
+                        <p style={{ margin: 0, fontWeight: 600, color: "#92400E" }}>
+                          Sounded closer to /{sound.candidate.ipa}/
+                        </p>
+                        <p style={{ margin: "4px 0 0" }}>
+                          Seen in {sound.candidate.count} weak attempt
+                          {sound.candidate.count === 1 ? "" : "s"} · example
+                          {sound.candidate.exampleWords.length === 1 ? "" : "s"}:{" "}
+                          {sound.candidate.exampleWords
+                            .map((word) => `“${word}”`)
+                            .join(", ")} · Source: Mission
+                        </p>
+                      </div>
+                    </details>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </PronunciationSamplesPanel>
       </main>
     </div>
   );

@@ -286,6 +286,46 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["audio_clips"]["Insert"]>;
         Relationships: [];
       };
+      pronunciation_samples: {
+        Row: {
+          id: string;
+          student_id: string;
+          object_key: string | null;
+          mime_type: string | null;
+          duration_ms: number;
+          byte_size: number;
+          status: Database["public"]["Enums"]["pronunciation_sample_status"];
+          automatic_transcript: string | null;
+          automatic_transcript_model: string | null;
+          automatic_transcript_confidence: Json | null;
+          provisional_result: Json | null;
+          teacher_confirmed_text: string | null;
+          audio_expires_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          student_id: string;
+          object_key?: string | null;
+          mime_type?: string | null;
+          duration_ms: number;
+          byte_size: number;
+          status?: Database["public"]["Enums"]["pronunciation_sample_status"];
+          automatic_transcript?: string | null;
+          automatic_transcript_model?: string | null;
+          automatic_transcript_confidence?: Json | null;
+          provisional_result?: Json | null;
+          teacher_confirmed_text?: string | null;
+          audio_expires_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["pronunciation_samples"]["Insert"]
+        >;
+        Relationships: [];
+      };
       assignment_status_events: {
         Row: { id: string; assignment_student_id: string };
         Insert: {
@@ -603,6 +643,35 @@ export type Database = {
         Args: { p_teacher_id: string; p_audio_clip_id: string };
         Returns: "ok" | "not_found";
       };
+      begin_teacher_pronunciation_sample: {
+        Args: {
+          p_teacher_id: string;
+          p_student_id: string;
+          p_mime_type: string;
+          p_duration_ms: number;
+          p_byte_size: number;
+        };
+        Returns: {
+          outcome: "ok" | "unauthorized" | "invalid_input";
+          sample_id: string | null;
+          object_key: string | null;
+        }[];
+      };
+      complete_teacher_pronunciation_sample: {
+        Args: {
+          p_teacher_id: string;
+          p_sample_id: string;
+          p_automatic_transcript: string;
+          p_transcription_model: string;
+          p_transcription_confidence: Json;
+          p_provisional_result: Json;
+        };
+        Returns: "ok" | "not_found";
+      };
+      clear_teacher_pronunciation_sample: {
+        Args: { p_teacher_id: string; p_sample_id: string };
+        Returns: "ok" | "not_found";
+      };
     };
     Enums: {
       data_mode: "demo" | "real";
@@ -627,6 +696,7 @@ export type Database = {
         | "transcribed"
         | "failed"
         | "deleted";
+      pronunciation_sample_status: "processing" | "pending" | "confirmed";
       status_actor_type:
         | "system"
         | "teacher"
