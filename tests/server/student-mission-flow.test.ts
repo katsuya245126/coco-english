@@ -2,6 +2,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+const transitionSource = readFileSync(
+  join(process.cwd(), "src/domain/flow/mission-transitions.ts"),
+  "utf8",
+);
+
 describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
   it("keeps answer evaluation free of app-owned persistence imports", () => {
     const source = readFileSync(
@@ -106,8 +111,8 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(feedbackSource).toContain(
       "It sounds like the recording stopped early. Try recording your answer again.",
     );
-    expect(shellSource).toContain('retryReason === "incomplete_recording"');
-    expect(shellSource).toContain('kind: "retryIncompleteRecording"');
+    expect(transitionSource).toContain('retryReason === "incomplete_recording"');
+    expect(transitionSource).toContain('kind: "retryIncompleteRecording"');
     expect(shellSource).toContain(
       'flow.originalFeedback?.kind === "retryIncompleteRecording"',
     );
@@ -132,8 +137,8 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
       feedbackSource.indexOf('if (outcome === "retryIncompleteRecording")'),
     );
 
-    expect(shellSource).toContain('retryReason === "unclear_meaning"');
-    expect(shellSource).toContain('kind: "retryUnclearMeaning"');
+    expect(transitionSource).toContain('retryReason === "unclear_meaning"');
+    expect(transitionSource).toContain('kind: "retryUnclearMeaning"');
     expect(shellSource).toContain('text: "Hmm... try one more time."');
     expect(shellSource).toContain(
       'feedbackVariant: "retry_unclear_meaning"',
@@ -299,12 +304,11 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
       "utf8",
     );
 
-    expect(shellSource).toContain("resolveAcceptedConversationTurn");
-    expect(shellSource).toContain("continueAcceptedConversationTurn");
-    expect(shellSource).toContain('resolution.kind === "unavailable"');
+    expect(transitionSource).toContain("resolveAcceptedConversationTurn");
+    expect(shellSource).toContain("transitionMissionFlow");
+    expect(transitionSource).toContain('resolution.kind === "unavailable"');
     expect(shellSource).toContain("Coco’s next question isn’t available yet");
     expect(shellSource).toContain("StepTurnTransition");
-    expect(shellSource).toContain("finishAcceptedOriginal");
     expect(shellSource).toContain("finishRepeatFeedback");
   });
 
@@ -314,22 +318,13 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
       "utf8",
     );
 
-    expect(shellSource).toMatch(
-      /conversationMode[\s\S]*originalFeedback\.kind === "acceptedOriginal"[\s\S]*originalFeedback\.kind === "teacherReview"[\s\S]*continueAcceptedConversationTurn/,
+    expect(transitionSource).toMatch(
+      /event\.conversationMode[\s\S]*feedback\.kind === "acceptedOriginal"[\s\S]*feedback\.kind === "teacherReview"[\s\S]*conversationTurnTransition/,
     );
-    expect(shellSource).toMatch(
-      /conversationMode[\s\S]*repeatFeedback\.kind === "repeatAccepted"[\s\S]*repeatFeedback\.kind === "repeatReview"[\s\S]*continueAcceptedConversationTurn/,
+    expect(transitionSource).toMatch(
+      /event\.conversationMode[\s\S]*repeatFeedback\.kind === "repeatAccepted"[\s\S]*repeatFeedback\.kind === "repeatReview"[\s\S]*conversationTurnTransition/,
     );
-    const reviewHandlerStart = shellSource.indexOf(
-      "async function finishTeacherReviewFeedback",
-    );
-    const reviewHandlerEnd = shellSource.indexOf(
-      "async function finishAcceptedOriginal",
-      reviewHandlerStart,
-    );
-    expect(
-      shellSource.slice(reviewHandlerStart, reviewHandlerEnd),
-    ).not.toContain("conversationMode");
+    expect(shellSource).toContain("finishOriginalFeedback");
   });
 
   it("completes once, shows the final Coco closing, then waits for Finish mission", () => {
@@ -342,18 +337,13 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
       "utf8",
     );
 
-    expect(shellSource).toContain('| "closing"');
-    expect(shellSource).toContain('resolution.kind === "closing"');
+    expect(transitionSource).toContain('| { kind: "closing"; state: FlowState }');
+    expect(transitionSource).toContain('resolution.kind === "closing"');
     expect(shellSource).toContain("completeMissionAction");
-    expect(shellSource).toContain('step: "closing"');
+    expect(transitionSource).toContain('step: "closing"');
     expect(shellSource).toContain("<StepConversationClosing");
     expect(shellSource).toContain('lineKind: "coco_dynamic_line"');
-    expect(shellSource).toContain(
-      "continueAcceptedConversationTurn(aid, upload.cocoLine ?? null)",
-    );
-    expect(shellSource).toContain(
-      "continueAcceptedConversationTurn(aid, flow.cocoLine)",
-    );
+    expect(shellSource).toContain("applyTransition(decision, aid");
     expect(shellSource).toMatch(
       /function finishConversationClosing\(\) \{\s*router\.push\(`\/student\/history\/\$\{assignmentStudentId\}`\);\s*\}/,
     );

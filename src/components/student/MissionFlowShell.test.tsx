@@ -267,6 +267,60 @@ describe("MissionFlowShell teacher-review feedback", () => {
     expect(container.textContent).toContain("Teacher review sent");
   });
 
+  it("applies the completion state only after the completion action succeeds", async () => {
+    const completion = vi.mocked(completeMissionAction);
+    completion.mockReset();
+
+    let resolveCompletion!: (result: { ok: true }) => void;
+    const pendingCompletion = new Promise<{ ok: true }>((resolve) => {
+      resolveCompletion = resolve;
+    });
+    completion.mockReturnValueOnce(pendingCompletion);
+
+    await renderMission({
+      original_answer: {
+        displayTranscript: "I like soccer.",
+        evaluation: {
+          kind: "original",
+          outcome: "accepted_original",
+        },
+      },
+    });
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="Record answer"]')
+        ?.click();
+      await flush();
+    });
+
+    const continuePractice = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Continue practice",
+    );
+    expect(continuePractice).not.toBeUndefined();
+
+    await act(async () => {
+      continuePractice?.click();
+      await flush();
+    });
+
+    expect(completion).toHaveBeenCalledWith({
+      assignmentStudentId: "assignment-student-1",
+      attemptId: "attempt-1",
+    });
+    expect(container.textContent).toContain("Nice answer!");
+    expect(container.textContent).not.toContain("You finished.");
+    expect(buttonLabels()).toContain("Continue practice");
+
+    await act(async () => {
+      resolveCompletion({ ok: true });
+      await flush();
+    });
+
+    expect(container.textContent).toContain("You finished.");
+    expect(buttonLabels()).toContain("Back to homework");
+  });
+
   it("shows Continue mission without Record again after a repeat review", async () => {
     const uploadBodies = await renderMission({
       original_answer: {
@@ -323,5 +377,68 @@ describe("MissionFlowShell teacher-review feedback", () => {
     for (const uploadBody of uploadBodies) {
       expect(uploadBody.has("status")).toBe(false);
     }
+  });
+
+  it("discards an older upload result after a newer recording starts", async () => {
+    const pendingResponses: Array<(response: unknown) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise((resolve) => {
+            pendingResponses.push(resolve);
+          }),
+      ),
+    );
+
+    await act(async () => {
+      root.render(<MissionFlowShell {...shellProps} />);
+      await flush();
+    });
+
+    const record = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Record answer"]',
+    );
+    expect(record).not.toBeNull();
+
+    await act(async () => {
+      record?.click();
+      record?.click();
+      await flush();
+    });
+    expect(pendingResponses).toHaveLength(2);
+
+    await act(async () => {
+      pendingResponses[1]?.({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          displayTranscript: "New answer.",
+          evaluation: {
+            kind: "original",
+            outcome: "accepted_original",
+          },
+        }),
+      });
+      await flush();
+    });
+    expect(container.textContent).toContain("Nice answer!");
+
+    await act(async () => {
+      pendingResponses[0]?.({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          displayTranscript: "Old answer.",
+          evaluation: {
+            kind: "original",
+            outcome: "retry_original",
+          },
+        }),
+      });
+      await flush();
+    });
+    expect(container.textContent).toContain("Nice answer!");
+    expect(container.textContent).not.toContain("Try again.");
   });
 });

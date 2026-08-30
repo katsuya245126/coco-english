@@ -14,6 +14,10 @@ const shellSource = readFileSync(
   resolve(__dirname, "../../src/components/student/MissionFlowShell.tsx"),
   "utf8",
 );
+const transitionSource = readFileSync(
+  resolve(__dirname, "../../src/domain/flow/mission-transitions.ts"),
+  "utf8",
+);
 
 describe("student mission resume state", () => {
   it("requires a complete interpreted snapshot before live work", () => {
@@ -79,7 +83,8 @@ describe("student mission resume state", () => {
     expect(pageSource).toContain("initialReview");
     expect(pageSource).toContain("createSignedUrl");
     expect(shellSource).toContain("initialReview");
-    expect(shellSource).toContain("initialReview.step");
+    expect(shellSource).toContain("reconstructMissionFlow");
+    expect(transitionSource).toContain("initialReview.step");
   });
 
   it("allows assigned and started missions to launch after their due date", () => {
@@ -89,7 +94,8 @@ describe("student mission resume state", () => {
 
   it("restores the pending Coco line for a resumed correction or repeat review (D-11.1)", () => {
     expect(pageSource).toContain("coco_line: t.coco_line");
-    expect(shellSource).toContain("cocoLine: initialReview.cocoLine");
+    expect(shellSource).toContain("initialReview");
+    expect(transitionSource).toContain("cocoLine: initialReview.cocoLine");
   });
 
   it("uses a fluid mission column without the shared white panel", () => {
