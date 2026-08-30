@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { MissionSnapshotTurn } from "@/domain/mission/schemas";
 import { SAY_IT_AGAIN_FALLBACK_LINE } from "@/domain/conversation/fallback-lines";
 import {
-  advanceConversationQuestion,
   deriveActiveStudentQuestion,
   deriveSameTurnRecoveryPrompt,
   deriveResumedDynamicPrompt,
@@ -280,34 +279,6 @@ describe("student question state", () => {
       activeTurnOrder: 1,
       recordingEnabled: true,
       line: { lineKind: "mission_prompt", turnOrder: 1 },
-    });
-  });
-
-  it("carries a returned Coco line through correction-loop advance into the next question", () => {
-    const advanced = advanceConversationQuestion({
-      turnIndex: 0,
-      pendingCocoLine: " Tell me more about soccer. ",
-    });
-    const question = deriveActiveStudentQuestion({
-      conversationMode: true,
-      turns: [opener],
-      ...advanced,
-    });
-
-    expect(advanced).toEqual({
-      turnIndex: 1,
-      dynamicPrompt: {
-        text: "Tell me more about soccer.",
-        sourceTurnOrder: 1,
-      },
-    });
-    expect(question).toEqual({
-      kind: "conversation",
-      prompt: "Tell me more about soccer.",
-      replyHintFrame: null,
-      activeTurnOrder: 2,
-      recordingEnabled: true,
-      line: { lineKind: "coco_dynamic_line", turnOrder: 1 },
     });
   });
 

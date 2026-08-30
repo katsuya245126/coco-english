@@ -269,23 +269,6 @@ export function deriveActiveStudentQuestion({
   };
 }
 
-export function advanceConversationQuestion({
-  turnIndex,
-  pendingCocoLine,
-}: {
-  turnIndex: number;
-  pendingCocoLine: string | null;
-}): {
-  turnIndex: number;
-  dynamicPrompt: DynamicConversationPrompt | null;
-} {
-  const text = pendingCocoLine?.trim();
-  const dynamicPrompt = text
-    ? { text, sourceTurnOrder: turnIndex + 1 }
-    : null;
-  return { turnIndex: turnIndex + 1, dynamicPrompt };
-}
-
 export type AcceptedConversationTurnResolution =
   | {
       kind: "next";

@@ -3,7 +3,7 @@
 /**
  * Mission flow step-state machine (FLOW-02/04/05, D-03/D-12, CHAR-01/02).
  *
- * Owns `FlowState` (turnIndex, step, hintLevel, originalTranscript) via useState.
+ * Applies the pure `FlowState` transitions via useState.
  * Shows exactly ONE step card at a time (D-12 — no scrolling thread).
  * Steps: question -> repeat -> transition -> (next turn or complete).
  * Step transitions are client state, NOT URL changes (Anti-Pattern).
@@ -46,131 +46,22 @@ import type { RepeatVoiceClip } from "@/components/student/StepImprovedRepeat";
 import type { RecorderState } from "@/components/student/VoiceRecorderControl";
 import type { PendingTurnReview } from "@/domain/flow/completion";
 import {
-  TEACHER_REVIEW_OUTCOME,
-  type StudentFacingEvaluation,
-} from "@/domain/ai/stored-evaluation";
+  reconstructMissionFlow,
+  transitionMissionFlow,
+  type FlowState,
+  type MissionFlowTransition,
+  type UploadVoiceClipPayload,
+} from "@/domain/flow/mission-transitions";
 import {
   deriveActiveStudentQuestion,
-  deriveSameTurnRecoveryPrompt,
-  resolveAcceptedConversationTurn,
   type ActiveStudentQuestion,
   type DynamicConversationPrompt,
 } from "@/domain/mission/student-question-state";
 import type { TranslatableCocoLine } from "@/domain/ai/translation-hint";
-
-// ─── Types ───
-
-export type FlowStep =
-  | "question"
-  | "cocoThinking"
-  | "aiFeedback"
-  | "repeat"
-  | "repeatFeedback"
-  | "transition"
-  | "reviewPending"
-  | "closing"
-  | "complete";
-
-type OriginalFeedback = (
-  | {
-      kind: "acceptedOriginal";
-      transcript: string | null;
-      starBand?: PronunciationStarBand | null;
-      wordsToPractice?: WordHighlight[];
-    }
-  | {
-      kind: "needsCorrection";
-      transcript: string | null;
-      improvedSentence: string;
-      starBand?: PronunciationStarBand | null;
-      wordsToPractice?: WordHighlight[];
-    }
-  | {
-      kind: "retryOriginal";
-      transcript: string | null;
-      starBand?: PronunciationStarBand | null;
-      wordsToPractice?: WordHighlight[];
-    }
-  | {
-      kind: "retryUnclearMeaning";
-      transcript: string | null;
-      starBand?: PronunciationStarBand | null;
-      wordsToPractice?: WordHighlight[];
-    }
-  | {
-      kind: "retryIncompleteRecording";
-      transcript: string | null;
-      starBand?: PronunciationStarBand | null;
-      wordsToPractice?: WordHighlight[];
-    }
-  | {
-      kind: "retryMinimalEffort";
-      transcript: string | null;
-      starBand?: PronunciationStarBand | null;
-      wordsToPractice?: WordHighlight[];
-    }
-  | {
-      kind: "teacherReview";
-      transcript: string | null;
-      starBand?: PronunciationStarBand | null;
-      wordsToPractice?: WordHighlight[];
-    }
-) & {
-  minimalEffortKind?: "dont_know" | "short_answer";
-  retryExample?: string | null;
-};
-
-export type RepeatFeedbackCompatibility =
-  | "repeatAccepted"
-  | "teacherReview"
-  | "repeatLimitReached";
-
-type RepeatFeedback =
-  | {
-      kind: "repeatAccepted";
-      transcript: string | null;
-      starBand?: PronunciationStarBand | null;
-      wordsToPractice?: WordHighlight[];
-    }
-  | {
-      kind: "repeatRetry";
-      transcript: string | null;
-      starBand?: PronunciationStarBand | null;
-      wordsToPractice?: WordHighlight[];
-    }
-  | {
-      kind: "repeatReview";
-      transcript: string | null;
-      starBand?: PronunciationStarBand | null;
-      wordsToPractice?: WordHighlight[];
-    }
-  | {
-      kind: "repeatLimitReached";
-      transcript: string | null;
-      starBand?: PronunciationStarBand | null;
-      wordsToPractice?: WordHighlight[];
-    };
-
-type FlowState = {
-  turnIndex: number;
-  step: FlowStep;
-  hintLevel: number;
-  originalTranscript: string | null;
-  repeatTranscript: string | null;
-  improvedSentence: string | null;
-  originalFeedback: OriginalFeedback | null;
-  repeatFeedback: RepeatFeedback | null;
-  // True once the student has retried a recording on the current turn — a
-  // 1-star result only forces a retry the first time, so this never traps a
-  // student who genuinely struggles with a turn (D-04 checkpoint decision).
-  hasRetriedThisTurn: boolean;
-  // Coco's dynamically-generated conversation-mode reply for the current
-  // turn's original answer (CHAT-02); null for preset missions and null
-  // until the round-trip resolves.
-  cocoLine: string | null;
-  // The real persisted/returned Coco line that prompts the next dynamic turn.
-  dynamicPrompt: DynamicConversationPrompt | null;
-};
+export type {
+  FlowStep,
+  FlowState,
+} from "@/domain/flow/mission-transitions";
 
 export type CharacterProfileLines = {
   displayName: string;
@@ -203,84 +94,6 @@ function clearAudioUrl(ref: { current: string | null }) {
   ref.current = null;
 }
 
-function initialFlowState(
-  startingTurnIndex: number,
-  initialDynamicPrompt: DynamicConversationPrompt | null,
-  initialReview: MissionFlowShellProps["initialReview"],
-): FlowState {
-  const pendingRecoveryPrompt =
-    initialReview?.step === "aiFeedback" &&
-    initialReview.outcome === "retryUnclearMeaning"
-      ? deriveSameTurnRecoveryPrompt({
-          turnIndex: startingTurnIndex,
-          pendingCocoLine: initialDynamicPrompt?.text ?? null,
-        })
-      : null;
-  const emptyState: FlowState = {
-    turnIndex: pendingRecoveryPrompt?.turnIndex ?? startingTurnIndex,
-    step: "question",
-    hintLevel: 0,
-    originalTranscript: null,
-    repeatTranscript: null,
-    improvedSentence: null,
-    originalFeedback: null,
-    repeatFeedback: null,
-    hasRetriedThisTurn: false,
-    cocoLine: null,
-    dynamicPrompt: pendingRecoveryPrompt?.dynamicPrompt ?? initialDynamicPrompt,
-  };
-
-  if (!initialReview) return emptyState;
-
-  if (initialReview.step === "aiFeedback") {
-    if (initialReview.outcome === "retryUnclearMeaning" && pendingRecoveryPrompt) {
-      return {
-        ...emptyState,
-        hasRetriedThisTurn: true,
-      };
-    }
-
-    let originalFeedback: OriginalFeedback;
-    if (initialReview.outcome === "needsCorrection") {
-      if (!initialReview.improvedSentence) return emptyState;
-      originalFeedback = {
-        kind: "needsCorrection",
-        transcript: initialReview.transcript,
-        improvedSentence: initialReview.improvedSentence,
-      };
-    } else {
-      originalFeedback = {
-        kind: initialReview.outcome,
-        transcript: initialReview.transcript,
-        minimalEffortKind: initialReview.minimalEffortKind,
-        retryExample: initialReview.retryExample,
-      };
-    }
-
-    return {
-      ...emptyState,
-      step: "aiFeedback",
-      originalTranscript: initialReview.transcript,
-      improvedSentence: initialReview.improvedSentence,
-      originalFeedback,
-      cocoLine: initialReview.cocoLine,
-    };
-  }
-
-  return {
-    ...emptyState,
-    step: "repeatFeedback",
-    originalTranscript: initialReview.originalTranscript,
-    repeatTranscript: initialReview.transcript,
-    improvedSentence: initialReview.improvedSentence,
-    repeatFeedback: {
-      kind: initialReview.outcome,
-      transcript: initialReview.transcript,
-    },
-    cocoLine: initialReview.cocoLine,
-  };
-}
-
 export function MissionFlowShell({
   assignmentStudentId,
   attemptId: initialAttemptId,
@@ -296,7 +109,11 @@ export function MissionFlowShell({
 }: MissionFlowShellProps) {
   const router = useRouter();
   const [flow, setFlow] = useState<FlowState>(() =>
-    initialFlowState(startingTurnIndex, initialDynamicPrompt, initialReview),
+    reconstructMissionFlow({
+      startingTurnIndex,
+      initialDynamicPrompt,
+      initialReview,
+    }),
   );
 
   const [attemptId, setAttemptId] = useState<string | null>(initialAttemptId);
@@ -374,22 +191,6 @@ export function MissionFlowShell({
     return null;
   }
 
-  type UploadVoiceClipPayload = {
-    /**
-     * Learner-safe text, or null when the server could not vouch for every
-     * Hangul span. Null is a successful upload — the feedback card simply
-     * hides "You said" and still shows the correction and retry guidance.
-     */
-    displayTranscript: string | null;
-    /** Server-projected, kind-discriminated evaluation (never raw evidence). */
-    evaluation?: StudentFacingEvaluation;
-    starBand?: PronunciationStarBand | null;
-    wordsToPractice?: WordHighlight[];
-    // Coco's dynamically-generated conversation-mode reply (CHAT-02); only
-    // ever present for conversation-mode original-answer uploads.
-    cocoLine?: string | null;
-  };
-
   async function uploadVoiceClip(input: {
     recording: RecordedVoiceClip | RepeatVoiceClip;
     aid: string;
@@ -454,123 +255,33 @@ export function MissionFlowShell({
     };
   }
 
-  function repeatFeedbackFromEvaluation(
-    transcript: string | null,
-    evaluation: UploadVoiceClipPayload["evaluation"],
-    starBand?: PronunciationStarBand | null,
-    wordsToPractice?: WordHighlight[],
-  ): RepeatFeedback {
-    if (evaluation?.kind === "repeat") {
-      if (evaluation.outcome === "retry_repeat") {
-        return { kind: "repeatRetry", transcript, starBand, wordsToPractice };
-      }
-      if (evaluation.outcome === TEACHER_REVIEW_OUTCOME) {
-        return { kind: "repeatReview", transcript, starBand, wordsToPractice };
-      }
-      if (evaluation.outcome === "repeat_limit_reached") {
-        return {
-          kind: "repeatLimitReached",
-          transcript,
-          starBand,
-          wordsToPractice,
-        };
-      }
-    }
-    return { kind: "repeatAccepted", transcript, starBand, wordsToPractice };
-  }
-
-  function feedbackFromEvaluation(
-    transcript: string | null,
-    evaluation: UploadVoiceClipPayload["evaluation"],
-    starBand?: PronunciationStarBand | null,
-    wordsToPractice?: WordHighlight[],
-  ): OriginalFeedback {
-    if (
-      evaluation?.kind === "original" &&
-      evaluation.outcome === "needs_correction" &&
-      evaluation.improvedSentence
-    ) {
-      return {
-        kind: "needsCorrection",
-        transcript,
-        improvedSentence: evaluation.improvedSentence,
-        starBand,
-        wordsToPractice,
-      };
-    }
-    if (
-      evaluation?.kind === "original" &&
-      evaluation.outcome === "retry_original"
-    ) {
-      if (evaluation.retryReason === "minimal_effort") {
-        return {
-          kind: "retryMinimalEffort",
-          transcript,
-          minimalEffortKind: evaluation.minimalEffortKind,
-          retryExample: evaluation.retryExample,
-          starBand,
-          wordsToPractice,
-        };
-      }
-      if (evaluation.retryReason === "unclear_meaning") {
-        return {
-          kind: "retryUnclearMeaning",
-          transcript,
-          starBand,
-          wordsToPractice,
-        };
-      }
-      if (evaluation.retryReason === "incomplete_recording") {
-        return {
-          kind: "retryIncompleteRecording",
-          transcript,
-          starBand,
-          wordsToPractice,
-        };
-      }
-      return { kind: "retryOriginal", transcript, starBand, wordsToPractice };
-    }
-    // Intentionally cross-kind: both original and repeat evaluations can
-    // route to review, and either must render the teacher-review card.
-    if (evaluation?.outcome === TEACHER_REVIEW_OUTCOME) {
-      return { kind: "teacherReview", transcript, starBand, wordsToPractice };
-    }
-    return { kind: "acceptedOriginal", transcript, starBand, wordsToPractice };
-  }
-
   function revokeAudioUrls() {
     clearAudioUrl(originalAudioUrlRef);
     clearAudioUrl(repeatAudioUrlRef);
   }
 
-  async function continueAcceptedConversationTurn(
-    aid: string,
-    pendingCocoLine: string | null,
+  async function applyTransition(
+    decision: MissionFlowTransition,
+    attemptId?: string,
+    revokeBeforeApply = false,
   ) {
-    const resolution = resolveAcceptedConversationTurn({
-      turnIndex: flow.turnIndex,
-      requiredTurns,
-      pendingCocoLine,
-    });
-
-    if (resolution.kind === "unavailable") {
+    if (decision.kind === "unavailable") {
       setActionError(
         "Coco’s next question isn’t available yet. Please return to your missions and try again.",
       );
-      setFlow((prev) => ({
-        ...prev,
-        turnIndex: prev.turnIndex + 1,
-        step: "question",
-        cocoLine: null,
-        dynamicPrompt: null,
-      }));
+      setFlow(decision.state);
       return;
     }
 
-    if (resolution.kind === "closing") {
+    if (
+      decision.kind === "complete" ||
+      decision.kind === "reviewPending" ||
+      decision.kind === "closing"
+    ) {
+      if (!attemptId) throw new Error("attempt_start_failed");
       const result = await completeMissionAction({
         assignmentStudentId,
-        attemptId: aid,
+        attemptId,
       });
       if (!result.ok) {
         setActionError(
@@ -579,28 +290,11 @@ export function MissionFlowShell({
         throw new Error("mission_complete_failed");
       }
       revokeAudioUrls();
-      setFlow((prev) => ({
-        ...prev,
-        step: "closing",
-        cocoLine: resolution.closingLine,
-      }));
-      return;
+    } else if (revokeBeforeApply) {
+      revokeAudioUrls();
     }
 
-    revokeAudioUrls();
-    setFlow({
-      turnIndex: resolution.turnIndex,
-      step: "question",
-      hintLevel: 0,
-      originalTranscript: null,
-      repeatTranscript: null,
-      improvedSentence: null,
-      originalFeedback: null,
-      repeatFeedback: null,
-      hasRetriedThisTurn: false,
-      cocoLine: null,
-      dynamicPrompt: resolution.dynamicPrompt,
-    });
+    setFlow(decision.state);
   }
 
   function finishConversationClosing() {
@@ -647,60 +341,13 @@ export function MissionFlowShell({
       // stale result so it can never overwrite fresher feedback state.
       if (token !== submissionTokenRef.current) return;
 
-      const transcript = upload.displayTranscript;
-      const originalFeedback = feedbackFromEvaluation(
-        transcript,
-        upload.evaluation,
-        upload.starBand,
-        upload.wordsToPractice,
-      );
-      const recoveryLine = upload.cocoLine ?? null;
-      const sameTurnRecovery = deriveSameTurnRecoveryPrompt({
-        turnIndex: flow.turnIndex,
-        pendingCocoLine: recoveryLine,
+      const decision = transitionMissionFlow(flow, {
+        type: "originalUploaded",
+        conversationMode,
+        requiredTurns,
+        upload,
       });
-
-      if (
-        conversationMode &&
-        originalFeedback.kind === "retryUnclearMeaning" &&
-        sameTurnRecovery
-      ) {
-        revokeAudioUrls();
-        setFlow((prev) => ({
-          ...prev,
-          turnIndex: sameTurnRecovery.turnIndex,
-          step: "question",
-          originalTranscript: null,
-          originalFeedback: null,
-          cocoLine: null,
-          dynamicPrompt: sameTurnRecovery.dynamicPrompt,
-          hasRetriedThisTurn: true,
-        }));
-        return;
-      }
-
-      if (
-        conversationMode &&
-        (originalFeedback.kind === "acceptedOriginal" ||
-          originalFeedback.kind === "teacherReview")
-      ) {
-        await continueAcceptedConversationTurn(aid, upload.cocoLine ?? null);
-        return;
-      }
-
-      setFlow((prev) => ({
-        ...prev,
-        step: "aiFeedback",
-        originalTranscript: transcript,
-        repeatTranscript: null,
-        improvedSentence:
-          originalFeedback.kind === "needsCorrection"
-            ? originalFeedback.improvedSentence
-            : null,
-        originalFeedback,
-        repeatFeedback: null,
-        cocoLine: upload.cocoLine ?? null,
-      }));
+      await applyTransition(decision, aid, decision.kind === "apply" && decision.state.step === "question");
     } catch (error) {
       // In conversation mode the step is already on cocoThinking, so the
       // recorder that would normally display this failure has unmounted —
@@ -746,135 +393,57 @@ export function MissionFlowShell({
       // stale result so it can never overwrite fresher feedback state.
       if (token !== submissionTokenRef.current) return;
 
-      const transcript = upload.displayTranscript;
-      const repeatFeedback = repeatFeedbackFromEvaluation(
-        transcript,
-        upload.evaluation,
-        upload.starBand,
-        upload.wordsToPractice,
-      );
-
-      if (
-        conversationMode &&
-        (repeatFeedback.kind === "repeatAccepted" ||
-          repeatFeedback.kind === "repeatReview" ||
-          repeatFeedback.kind === "repeatLimitReached")
-      ) {
-        await continueAcceptedConversationTurn(aid, flow.cocoLine);
-        return;
-      }
-
-      setFlow((prev) => ({
-        ...prev,
-        repeatTranscript: transcript,
-        repeatFeedback,
-        step: "repeatFeedback",
-      }));
+      const decision = transitionMissionFlow(flow, {
+        type: "repeatUploaded",
+        conversationMode,
+        requiredTurns,
+        upload,
+      });
+      await applyTransition(decision, aid, decision.kind === "apply" && decision.state.step === "question");
     } finally {
       if (token === submissionTokenRef.current) setIsSubmittingVoice(false);
     }
   }
 
-  async function finishRepeatFeedback() {
-    const aid = await ensureAttempt();
-    if (!aid) {
-      throw new Error("attempt_start_failed");
-    }
-
-    const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
+  async function applyFeedbackTransition(decision: MissionFlowTransition) {
     if (
-      isFinalTurn &&
-      (flow.repeatFeedback?.kind === "repeatAccepted" ||
-        flow.repeatFeedback?.kind === "repeatLimitReached")
+      decision.kind === "complete" ||
+      decision.kind === "reviewPending" ||
+      decision.kind === "closing"
     ) {
-      const result = await completeMissionAction({
-        assignmentStudentId,
-        attemptId: aid,
-      });
-      if (!result.ok) {
-        setActionError("Something went wrong. Try again, or ask your teacher for help.");
-        throw new Error("mission_complete_failed");
-      }
-    }
-
-    setFlow((prev) => ({
-      ...prev,
-      step: isFinalTurn ? "complete" : "transition",
-    }));
-  }
-
-  // Preset mode only — conversation-mode teacher-review turns advance
-  // through continueAcceptedConversationTurn (see handleSubmitOriginalVoice
-  // and handleSubmitRepeatVoice) and never reach this handler.
-  async function finishTeacherReviewFeedback() {
-    const aid = await ensureAttempt();
-    if (!aid) {
-      throw new Error("attempt_start_failed");
-    }
-
-    const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
-    if (isFinalTurn) {
-      const result = await completeMissionAction({
-        assignmentStudentId,
-        attemptId: aid,
-      });
-      if (!result.ok) {
-        setActionError("Something went wrong. Try again, or ask your teacher for help.");
-        throw new Error("mission_complete_failed");
-      }
-
-      setFlow((prev) => ({ ...prev, step: "reviewPending" }));
+      const aid = await ensureAttempt();
+      if (!aid) throw new Error("attempt_start_failed");
+      await applyTransition(decision, aid);
       return;
     }
-
-    setFlow((prev) => ({ ...prev, step: "transition" }));
+    await applyTransition(decision);
   }
 
-  async function finishAcceptedOriginal() {
-    const aid = await ensureAttempt();
-    if (!aid) {
-      throw new Error("attempt_start_failed");
-    }
-
-    const isFinalTurn = flow.turnIndex + 1 >= requiredTurns;
-    if (isFinalTurn) {
-      const result = await completeMissionAction({
-        assignmentStudentId,
-        attemptId: aid,
-      });
-      if (!result.ok) {
-        setActionError("Something went wrong. Try again, or ask your teacher for help.");
-        throw new Error("mission_complete_failed");
-      }
-    }
-
-    setFlow((prev) => ({
-      ...prev,
-      step: isFinalTurn ? "complete" : "transition",
-    }));
+  async function finishOriginalFeedback() {
+    await applyFeedbackTransition(
+      transitionMissionFlow(flow, {
+        type: "continueOriginal",
+        conversationMode,
+        requiredTurns,
+      }),
+    );
   }
 
-  function continueToRepeat() {
-    setFlow((prev) => ({
-      ...prev,
-      step: "repeat",
-    }));
+  async function finishRepeatFeedback() {
+    await applyFeedbackTransition(
+      transitionMissionFlow(flow, {
+        type: "continueRepeat",
+        conversationMode,
+        requiredTurns,
+      }),
+    );
   }
 
   function retryOriginal() {
     submissionTokenRef.current += 1;
     setIsSubmittingVoice(false);
     revokeAudioUrls();
-    setFlow((prev) => ({
-      ...prev,
-      step: "question",
-      originalTranscript: null,
-      repeatTranscript: null,
-      improvedSentence: null,
-      originalFeedback: null,
-      repeatFeedback: null,
-      hasRetriedThisTurn: true,
-    }));
+    setFlow((prev) => transitionMissionFlow(prev, { type: "retryOriginal" }).state);
   }
 
   // "Record again" after a needsCorrection result: the student was just shown
@@ -885,26 +454,16 @@ export function MissionFlowShell({
     submissionTokenRef.current += 1;
     setIsSubmittingVoice(false);
     revokeAudioUrls();
-    setFlow((prev) => ({
-      ...prev,
-      step: "repeat",
-      repeatTranscript: null,
-      repeatFeedback: null,
-      hasRetriedThisTurn: true,
-    }));
+    setFlow((prev) =>
+      transitionMissionFlow(prev, { type: "retryWithImprovedSentence" }).state,
+    );
   }
 
   function retryRepeat() {
     submissionTokenRef.current += 1;
     setIsSubmittingVoice(false);
     clearAudioUrl(repeatAudioUrlRef);
-    setFlow((prev) => ({
-      ...prev,
-      step: "repeat",
-      repeatTranscript: null,
-      repeatFeedback: null,
-      hasRetriedThisTurn: true,
-    }));
+    setFlow((prev) => transitionMissionFlow(prev, { type: "retryRepeat" }).state);
   }
 
   function handleRevealHint(nextLevel: number) {
@@ -918,35 +477,18 @@ export function MissionFlowShell({
       });
     }
 
-    setFlow((prev) => ({
-      ...prev,
-      hintLevel: nextLevel,
-    }));
+    setFlow((prev) =>
+      transitionMissionFlow(prev, { type: "revealHint", hintLevel: nextLevel }).state,
+    );
   }
 
-  // Preset missions only — chat missions advance directly through
-  // continueAcceptedConversationTurn (accepted or teacher-reviewed turns
-  // alike) and never reach the transition step.
+  // Preset missions only — chat missions advance directly through the pure
+  // transition module and never reach the transition step.
   function handleNextTurn() {
     revokeAudioUrls();
-    setFlow((previous) => {
-      const nextTurnIndex = previous.turnIndex + 1;
-      if (nextTurnIndex >= requiredTurns) return previous;
-
-      return {
-        turnIndex: nextTurnIndex,
-        step: "question",
-        hintLevel: 0,
-        originalTranscript: null,
-        repeatTranscript: null,
-        improvedSentence: null,
-        originalFeedback: null,
-        repeatFeedback: null,
-        hasRetriedThisTurn: false,
-        cocoLine: null,
-        dynamicPrompt: null,
-      };
-    });
+    setFlow((previous) =>
+      transitionMissionFlow(previous, { type: "nextTurn", requiredTurns }).state,
+    );
   }
 
   // ─── Render ───
@@ -1098,13 +640,9 @@ export function MissionFlowShell({
               flow.originalFeedback.starBand === 1 && !flow.hasRetriedThisTurn
             }
             onContinue={
-              flow.originalFeedback.kind === "needsCorrection"
-                ? continueToRepeat
-                : flow.originalFeedback.kind === "teacherReview"
-                  ? finishTeacherReviewFeedback
-                  : flow.originalFeedback.kind === "retryUnclearMeaning"
-                    ? undefined
-                  : finishAcceptedOriginal
+              flow.originalFeedback.kind === "retryUnclearMeaning"
+                ? undefined
+                : finishOriginalFeedback
             }
             onRetry={
               flow.originalFeedback.kind === "teacherReview"
@@ -1158,9 +696,7 @@ export function MissionFlowShell({
             onContinue={
               flow.repeatFeedback.kind === "repeatRetry"
                 ? undefined
-                : flow.repeatFeedback.kind === "repeatReview"
-                  ? finishTeacherReviewFeedback
-                  : finishRepeatFeedback
+                : finishRepeatFeedback
             }
             onRetry={
               flow.repeatFeedback.kind === "repeatReview" ||
