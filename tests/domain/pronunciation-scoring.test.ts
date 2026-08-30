@@ -475,4 +475,142 @@ describe("studentSoundProfile", () => {
       ]),
     ).toEqual([]);
   });
+
+  it("reports the most recurring differing top candidate for a gated weak sound", () => {
+    const clips = Array.from({ length: MIN_PHONEME_OBSERVATIONS }, (_, index) => ({
+      wordScores: [
+        {
+          word: "fan",
+          accuracyScore: 20,
+          errorType: "Mispronunciation",
+          phonemes: [
+            {
+              phoneme: "f",
+              accuracyScore: 20,
+              candidates:
+                index < 4
+                  ? [
+                      { phoneme: "p", score: 0.8 },
+                      { phoneme: "f", score: 0.2 },
+                    ]
+                  : [{ phoneme: "f", score: 0.9 }],
+            },
+          ],
+        },
+      ],
+      transcript: "fan",
+    }));
+
+    expect(studentSoundProfile(clips)[0]).toMatchObject({
+      label: "f",
+      candidate: {
+        label: "p",
+        ipa: "p",
+        count: 4,
+        exampleWords: ["fan"],
+      },
+    });
+  });
+
+  it("counts an expected/alternative pair once per clip while collecting unique example words", () => {
+    const clips = Array.from({ length: MIN_PHONEME_OBSERVATIONS }, (_, index) => ({
+      wordScores:
+        index === 0
+          ? [
+              {
+                word: "fan",
+                accuracyScore: 20,
+                errorType: "Mispronunciation",
+                phonemes: [
+                  {
+                    phoneme: "f",
+                    accuracyScore: 20,
+                    candidates: [{ phoneme: "p", score: 0.8 }],
+                  },
+                ],
+              },
+              {
+                word: "food",
+                accuracyScore: 20,
+                errorType: "Mispronunciation",
+                phonemes: [
+                  {
+                    phoneme: "f",
+                    accuracyScore: 20,
+                    candidates: [{ phoneme: "p", score: 0.8 }],
+                  },
+                ],
+              },
+            ]
+          : [
+              {
+                word: "fan",
+                accuracyScore: 20,
+                errorType: "Mispronunciation",
+                phonemes: [
+                  {
+                    phoneme: "f",
+                    accuracyScore: 20,
+                    candidates: [{ phoneme: "p", score: 0.8 }],
+                  },
+                ],
+              },
+            ],
+      transcript: index === 0 ? "fan food" : "fan",
+    }));
+
+    expect(studentSoundProfile(clips)[0]).toMatchObject({
+      candidate: {
+        count: MIN_PHONEME_OBSERVATIONS,
+        exampleWords: ["fan", "food"],
+      },
+    });
+  });
+
+  it("omits an alternative that only has one supporting clip", () => {
+    const clips = Array.from({ length: MIN_PHONEME_OBSERVATIONS }, (_, index) => ({
+      wordScores: [
+        {
+          word: "fan",
+          accuracyScore: 20,
+          errorType: "Mispronunciation",
+          phonemes: [
+            {
+              phoneme: "f",
+              accuracyScore: 20,
+              candidates:
+                index === 0
+                  ? [{ phoneme: "p", score: 0.8 }]
+                  : [{ phoneme: "f", score: 0.9 }],
+            },
+          ],
+        },
+      ],
+      transcript: "fan",
+    }));
+
+    expect(studentSoundProfile(clips)[0]).not.toHaveProperty("candidate");
+  });
+
+  it("omits confusion detail when weak candidates are absent or match the expected phoneme", () => {
+    const clips = Array.from({ length: MIN_PHONEME_OBSERVATIONS }, () => ({
+      wordScores: [
+        {
+          word: "fan",
+          accuracyScore: 20,
+          errorType: "Mispronunciation",
+          phonemes: [
+            {
+              phoneme: "f",
+              accuracyScore: 20,
+              candidates: [{ phoneme: "f", score: 0.9 }],
+            },
+          ],
+        },
+      ],
+      transcript: "fan",
+    }));
+
+    expect(studentSoundProfile(clips)[0]).not.toHaveProperty("candidate");
+  });
 });

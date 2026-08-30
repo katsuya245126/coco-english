@@ -32,11 +32,13 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-async function renderPanel() {
+async function renderPanel(
+  pronunciationScore: Parameters<typeof PronunciationDiagnosticPanel>[0]["pronunciationScore"] = null,
+) {
   await act(async () => {
     root.render(
       <PronunciationDiagnosticPanel
-        pronunciationScore={null}
+        pronunciationScore={pronunciationScore}
         audioClipId="clip-1"
         attemptId="attempt-1"
       />,
@@ -46,6 +48,33 @@ async function renderPanel() {
 }
 
 describe("PronunciationDiagnosticPanel", () => {
+  it("uses cautious closer-to wording only when candidate evidence exists", async () => {
+    await renderPanel({
+      starBand: 1,
+      words: [{ word: "fan", label: "Mispronounced" }],
+      soundsToWorkOn: [
+        {
+          label: "f",
+          ipa: "f",
+          exampleWord: "fan",
+          candidate: { label: "p", ipa: "p" },
+        },
+      ],
+    });
+
+    expect(container.textContent).toContain("Sounded closer to /p/");
+  });
+
+  it("does not invent a closer-to claim without candidate evidence", async () => {
+    await renderPanel({
+      starBand: 1,
+      words: [{ word: "fan", label: "Mispronounced" }],
+      soundsToWorkOn: [{ label: "f", ipa: "f", exampleWord: "fan" }],
+    });
+
+    expect(container.textContent).not.toContain("Sounded closer to");
+  });
+
   it("announces wait-and-retry copy when re-scoring is rate limited", async () => {
     mockReprocessPronunciationAction.mockResolvedValue({
       ok: false,

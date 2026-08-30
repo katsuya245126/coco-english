@@ -81,6 +81,11 @@ export function PronunciationDiagnosticPanel({
                 <span style={soundExampleStyle}>
                   as in &ldquo;{sound.exampleWord}&rdquo;
                 </span>
+                {sound.candidate && (
+                  <span style={soundCandidateStyle}>
+                    Sounded closer to /{sound.candidate.ipa}/
+                  </span>
+                )}
               </div>
             ))}
           </div>
@@ -202,6 +207,12 @@ const soundIpaStyle: React.CSSProperties = {
 const soundExampleStyle: React.CSSProperties = {
   fontSize: 13,
   color: "#78716C",
+};
+
+const soundCandidateStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: "#92400E",
+  fontWeight: 600,
 };
 
 const cleanCopyStyle: React.CSSProperties = {

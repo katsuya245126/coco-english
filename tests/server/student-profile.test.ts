@@ -41,4 +41,36 @@ describe("buildStudentSoundProfile", () => {
   it("returns [] for no rows", () => {
     expect(buildStudentSoundProfile([])).toEqual([]);
   });
+
+  it("carries stored ranked candidates into the profile evidence", () => {
+    const rows = Array.from({ length: 5 }, () => ({
+      reference_text: "fan",
+      word_scores: [
+        {
+          word: "fan",
+          accuracyScore: 20,
+          errorType: "Mispronunciation",
+          phonemes: [
+            {
+              phoneme: "f",
+              accuracyScore: 20,
+              candidates: [
+                { phoneme: "p", score: 0.8 },
+                { phoneme: "f", score: 0.2 },
+              ],
+            },
+          ],
+        },
+      ],
+    }));
+
+    expect(buildStudentSoundProfile(rows)[0]).toMatchObject({
+      candidate: {
+        label: "p",
+        ipa: "p",
+        count: 5,
+        exampleWords: ["fan"],
+      },
+    });
+  });
 });

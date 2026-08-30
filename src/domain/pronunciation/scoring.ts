@@ -14,10 +14,18 @@
 
 export type PronunciationStarBand = 1 | 2 | 3;
 
+export type PhonemeCandidate = {
+  /** Provider-ranked phoneme candidate. Candidate scores are rankings, not probabilities. */
+  phoneme: string;
+  score: number;
+};
+
 export type PhonemeScore = {
   /** ARPAbet phoneme code from Azure, e.g. "dh", "r", "ah". */
   phoneme: string;
   accuracyScore: number;
+  /** Optional provider-ranked alternatives, in provider order. */
+  candidates?: PhonemeCandidate[];
 };
 
 export type WordScore = {
@@ -211,6 +219,18 @@ function normalizePhoneme(phoneme: string): string {
   return phoneme.toLowerCase().replace(/\d+$/, "");
 }
 
+function differingTopCandidate(
+  expectedKey: string,
+  candidates: PhonemeCandidate[] | undefined,
+): PhonemeCandidate | undefined {
+  const candidate = candidates?.[0];
+  if (!candidate) return undefined;
+  const candidateKey = normalizePhoneme(candidate.phoneme);
+  return candidateKey !== "" && candidateKey !== expectedKey
+    ? candidate
+    : undefined;
+}
+
 export function phonemeLabel(phoneme: string): { label: string; ipa: string } {
   const key = normalizePhoneme(phoneme);
   return ARPABET_LABELS[key] ?? { label: key, ipa: key };
@@ -225,6 +245,11 @@ export type SoundToWorkOn = {
   exampleWord: string;
   /** Lowest observed accuracy for this sound across the student's words (0-100). */
   accuracyScore: number;
+  /** The provider's top-ranked alternative, when it differs from the expected sound. */
+  candidate?: {
+    label: string;
+    ipa: string;
+  };
 };
 
 /** Below this per-phoneme accuracy a sound counts as needing work. */
@@ -267,11 +292,15 @@ export function soundsToWorkOn(
         continue;
       }
       const { label, ipa } = phonemeLabel(phoneme.phoneme);
+      const topCandidate = differingTopCandidate(key, phoneme.candidates);
+      const candidate =
+        topCandidate ? phonemeLabel(topCandidate.phoneme) : undefined;
       worst.set(key, {
         label,
         ipa,
         exampleWord: word.word,
         accuracyScore: phoneme.accuracyScore,
+        ...(candidate ? { candidate } : {}),
       });
     }
   }
@@ -301,6 +330,17 @@ export type StudentSoundWeakness = {
   averageAccuracy: number;
   /** A real word the student said where this sound scored weakest. */
   exampleWord: string;
+  /** Most recurring provider-ranked alternative among weak observations, if any. */
+  candidate?: SoundConfusionCandidate;
+};
+
+export type SoundConfusionCandidate = {
+  label: string;
+  ipa: string;
+  /** Number of clips with a weak expected sound whose top candidate was this sound. */
+  count: number;
+  /** Words from weak observations that produced this candidate. */
+  exampleWords: string[];
 };
 
 /**
@@ -310,6 +350,7 @@ export type StudentSoundWeakness = {
  * student as weak in sounds they only "failed" once. See design doc.
  */
 export const MIN_PHONEME_OBSERVATIONS = 5;
+const MIN_RECURRING_CANDIDATE_SUPPORT = 2;
 
 type PhonemeTally = {
   weakCount: number;
@@ -319,6 +360,7 @@ type PhonemeTally = {
   exampleWord: string;
   label: string;
   ipa: string;
+  candidates: Map<string, { count: number; exampleWords: string[] }>;
 };
 
 /**
@@ -340,6 +382,7 @@ export function studentSoundProfile(
 
   for (const clip of clips) {
     const spokenWords = tokenizeWords(clip.transcript);
+    const candidatePairsSeenInClip = new Set<string>();
 
     for (const word of clip.wordScores) {
       if (!spokenWords.has(normalizeWord(word.word))) continue;
@@ -360,6 +403,7 @@ export function studentSoundProfile(
             exampleWord: word.word,
             label,
             ipa,
+            candidates: new Map(),
           };
           tallies.set(key, tally);
         }
@@ -373,6 +417,24 @@ export function studentSoundProfile(
             tally.lowestAccuracy = phoneme.accuracyScore;
             tally.exampleWord = word.word;
           }
+
+          const topCandidate = differingTopCandidate(key, phoneme.candidates);
+          if (topCandidate) {
+            const candidateKey = normalizePhoneme(topCandidate.phoneme);
+            const candidate = tally.candidates.get(candidateKey) ?? {
+              count: 0,
+              exampleWords: [],
+            };
+            const pairKey = `${key}\u0000${candidateKey}`;
+            if (!candidatePairsSeenInClip.has(pairKey)) {
+              candidate.count += 1;
+              candidatePairsSeenInClip.add(pairKey);
+            }
+            if (!candidate.exampleWords.includes(word.word)) {
+              candidate.exampleWords.push(word.word);
+            }
+            tally.candidates.set(candidateKey, candidate);
+          }
         }
       }
     }
@@ -382,14 +444,36 @@ export function studentSoundProfile(
     .filter(
       (t) => t.totalCount >= MIN_PHONEME_OBSERVATIONS && t.weakCount > 0,
     )
-    .map((t) => ({
-      label: t.label,
-      ipa: t.ipa,
-      weakCount: t.weakCount,
-      totalCount: t.totalCount,
-      averageAccuracy: Math.round(t.sumAccuracy / t.totalCount),
-      exampleWord: t.exampleWord,
-    }))
+    .map((t) => {
+      const topCandidate = [...t.candidates.entries()]
+        .filter(
+          ([, evidence]) =>
+            evidence.count >= MIN_RECURRING_CANDIDATE_SUPPORT,
+        )
+        .sort(([, a], [, b]) => b.count - a.count)[0];
+      const candidate = topCandidate
+        ? (() => {
+            const [phoneme, evidence] = topCandidate;
+            const { label, ipa } = phonemeLabel(phoneme);
+            return {
+              label,
+              ipa,
+              count: evidence.count,
+              exampleWords: evidence.exampleWords,
+            } satisfies SoundConfusionCandidate;
+          })()
+        : undefined;
+
+      return {
+        ...(candidate ? { candidate } : {}),
+        label: t.label,
+        ipa: t.ipa,
+        weakCount: t.weakCount,
+        totalCount: t.totalCount,
+        averageAccuracy: Math.round(t.sumAccuracy / t.totalCount),
+        exampleWord: t.exampleWord,
+      };
+    })
     .sort((a, b) => {
       const ratioA = a.weakCount / a.totalCount;
       const ratioB = b.weakCount / b.totalCount;

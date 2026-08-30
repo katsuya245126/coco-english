@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { StudentSoundWeakness } from "@/domain/pronunciation/scoring";
 import { requireTeacherProfile } from "@/server/auth/teacher-profile";
 import {
   getStudentProfileHeader,
@@ -92,42 +93,41 @@ export default async function StudentProfilePage({
             </div>
           ) : (
             <div style={{ display: "grid", gap: 8 }}>
-              {weaknesses.map((sound) => (
-                <article
-                  key={sound.label + sound.ipa}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 16,
-                    padding: 16,
-                    border: "1px solid #D1D5DB",
-                    borderRadius: 8,
-                    background: "#FFFFFF",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <p
-                      style={{
-                        fontSize: 18,
-                        fontWeight: 600,
-                        margin: 0,
-                        color: "#111827",
-                      }}
-                    >
-                      {sound.label}{" "}
-                      <span style={{ fontSize: 14, color: "#6B7280", fontWeight: 500 }}>
-                        /{sound.ipa}/
-                      </span>
-                    </p>
-                    <p style={{ fontSize: 14, color: "#4B5563", margin: "4px 0 0" }}>
-                      Weak in {sound.weakCount} of {sound.totalCount} words · avg{" "}
-                      {sound.averageAccuracy}/100 · e.g. &quot;{sound.exampleWord}&quot;
-                    </p>
-                  </div>
-                </article>
-              ))}
+              {weaknesses.map((sound) => {
+                if (!sound.candidate) {
+                  return (
+                    <article key={sound.label + sound.ipa} style={soundCardStyle}>
+                      <div style={soundSummaryStyle}>
+                        <SoundSummary sound={sound} />
+                      </div>
+                    </article>
+                  );
+                }
+
+                return (
+                  <details
+                    key={sound.label + sound.ipa}
+                    style={soundCardStyle}
+                  >
+                    <summary style={{ ...soundSummaryStyle, cursor: "pointer" }}>
+                      <SoundSummary sound={sound} />
+                    </summary>
+                    <div style={soundDetailStyle}>
+                      <p style={{ margin: 0, fontWeight: 600, color: "#92400E" }}>
+                        Sounded closer to /{sound.candidate.ipa}/
+                      </p>
+                      <p style={{ margin: "4px 0 0" }}>
+                        Seen in {sound.candidate.count} weak attempt
+                        {sound.candidate.count === 1 ? "" : "s"} · example
+                        {sound.candidate.exampleWords.length === 1 ? "" : "s"}:{" "}
+                        {sound.candidate.exampleWords
+                          .map((word) => `“${word}”`)
+                          .join(", ")} · Source: Mission
+                      </p>
+                    </div>
+                  </details>
+                );
+              })}
             </div>
           )}
         </section>
@@ -135,3 +135,53 @@ export default async function StudentProfilePage({
     </div>
   );
 }
+
+function SoundSummary({ sound }: { sound: StudentSoundWeakness }) {
+  return (
+    <span style={{ minWidth: 0 }}>
+      <span
+        style={{
+          display: "block",
+          fontSize: 18,
+          fontWeight: 600,
+          color: "#111827",
+        }}
+      >
+        {sound.label}{" "}
+        <span style={{ fontSize: 14, color: "#6B7280", fontWeight: 500 }}>
+          /{sound.ipa}/
+        </span>
+      </span>
+      <span
+        style={{
+          display: "block",
+          fontSize: 14,
+          color: "#4B5563",
+          marginTop: 4,
+        }}
+      >
+        Weak in {sound.weakCount} of {sound.totalCount} words · avg{" "}
+        {sound.averageAccuracy}/100 · e.g. &quot;{sound.exampleWord}&quot;
+      </span>
+    </span>
+  );
+}
+
+const soundCardStyle: React.CSSProperties = {
+  border: "1px solid #D1D5DB",
+  borderRadius: 8,
+  background: "#FFFFFF",
+  overflow: "hidden",
+};
+
+const soundSummaryStyle: React.CSSProperties = {
+  display: "block",
+  padding: 16,
+  listStylePosition: "inside",
+};
+
+const soundDetailStyle: React.CSSProperties = {
+  padding: "0 16px 16px",
+  fontSize: 14,
+  color: "#4B5563",
+};

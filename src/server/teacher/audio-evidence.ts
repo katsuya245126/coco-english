@@ -65,6 +65,10 @@ export type AttemptPronunciationScoreEvidence = {
     label: string;
     ipa: string;
     exampleWord: string;
+    candidate?: {
+      label: string;
+      ipa: string;
+    };
   }[];
 };
 
@@ -226,7 +230,12 @@ function mapPronunciationScore(
     soundsToWorkOn: soundsToWorkOn(
       wordScores,
       row.reference_text ?? undefined,
-    ).map(({ label, ipa, exampleWord }) => ({ label, ipa, exampleWord })),
+    ).map(({ label, ipa, exampleWord, candidate }) => ({
+      label,
+      ipa,
+      exampleWord,
+      ...(candidate ? { candidate } : {}),
+    })),
   };
 }
 
@@ -243,13 +252,55 @@ export function parseWordScores(raw: unknown): WordScore[] {
     const phonemes = Array.isArray(word.phonemes)
       ? word.phonemes
           .map((p) => {
-            const phoneme = p as { phoneme?: unknown; accuracyScore?: unknown };
+            const phoneme =
+              p !== null && typeof p === "object" && !Array.isArray(p)
+                ? (p as {
+                    phoneme?: unknown;
+                    accuracyScore?: unknown;
+                    candidates?: unknown;
+                  })
+                : null;
+            const candidates = Array.isArray(phoneme?.candidates)
+              ? phoneme.candidates.map((candidate) => {
+                  const value =
+                    candidate !== null &&
+                    typeof candidate === "object" &&
+                    !Array.isArray(candidate)
+                      ? (candidate as {
+                          phoneme?: unknown;
+                          score?: unknown;
+                        })
+                      : null;
+                  return {
+                    phoneme:
+                      typeof value?.phoneme === "string"
+                        ? value.phoneme
+                        : "",
+                    score:
+                      typeof value?.score === "number" ? value.score : NaN,
+                  };
+                })
+              : undefined;
+            const validCandidates =
+              candidates?.every(
+                (candidate) =>
+                  candidate.phoneme !== "" &&
+                  Number.isFinite(candidate.score),
+              )
+                ? candidates
+                : undefined;
             return {
-              phoneme: typeof phoneme.phoneme === "string" ? phoneme.phoneme : "",
+              phoneme:
+                typeof phoneme?.phoneme === "string"
+                  ? phoneme.phoneme
+                  : "",
               accuracyScore:
-                typeof phoneme.accuracyScore === "number"
+                typeof phoneme?.accuracyScore === "number"
                   ? phoneme.accuracyScore
                   : 0,
+              ...(validCandidates && validCandidates.length > 0
+                ? { candidates: validCandidates }
+                : {}),
             };
           })
           .filter((p) => p.phoneme !== "")
