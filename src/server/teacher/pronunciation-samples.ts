@@ -31,6 +31,7 @@ import {
 } from "@/server/audio/pronunciation-scorer";
 import { consumeRequestBudget } from "@/server/security/request-budget";
 import { log } from "@/server/logging/logger";
+import { MAX_PRONUNCIATION_REFERENCE_CHARS } from "@/domain/pronunciation/scoring";
 
 export const MAX_PRONUNCIATION_SAMPLE_DURATION_MS = 30_000;
 export const PRONUNCIATION_SAMPLE_DURATION_ERROR =
@@ -48,6 +49,8 @@ export type PronunciationSample = {
   automaticTranscript: string;
   teacherConfirmedText: string | null;
   provisionalResult: PronunciationScoreDetail | null;
+  confirmedByTeacherId: string | null;
+  confirmedAt: string | null;
   durationMs: number;
   byteSize: number;
   mimeType: string;
@@ -89,6 +92,33 @@ export type PronunciationSampleDeps = {
   now?: () => Date;
 };
 
+export type ConfirmPronunciationSampleInput = {
+  teacherId: string;
+  sampleId: string;
+  teacherConfirmedText: string;
+};
+
+export type ConfirmPronunciationSampleResult =
+  | { ok: true; sample: PronunciationSample }
+  | {
+      ok: false;
+      error:
+        | "not_found"
+        | "unavailable"
+        | "invalid_text"
+        | "rate_limited"
+        | "scoring_failed_retryable"
+        | "failed";
+      retryAfterSeconds?: number;
+    };
+
+export type ConfirmPronunciationSampleDeps = {
+  client?: ServiceClient;
+  scorePronunciation?: typeof scorePronunciation;
+  consumeRequestBudget?: typeof consumeRequestBudget;
+  now?: () => Date;
+};
+
 const scoreRowSchema = z.object({
   accuracyScore: z.number().finite().min(0).max(100),
   fluencyScore: z.number().finite().min(0).max(100).nullable(),
@@ -110,6 +140,8 @@ const sampleRowSchema = z.object({
   automatic_transcript: z.string(),
   teacher_confirmed_text: z.string().nullable(),
   provisional_result: z.unknown().nullable(),
+  confirmed_by_teacher_id: z.string().nullable(),
+  confirmed_at: z.string().nullable(),
   audio_expires_at: z.string(),
   created_at: z.string(),
 });
@@ -146,6 +178,8 @@ function mapSample(
     automaticTranscript: row.automatic_transcript,
     teacherConfirmedText: row.teacher_confirmed_text,
     provisionalResult: parseScore(row.provisional_result),
+    confirmedByTeacherId: row.confirmed_by_teacher_id,
+    confirmedAt: row.confirmed_at,
     durationMs: row.duration_ms,
     byteSize: row.byte_size,
     mimeType: row.mime_type,
@@ -388,6 +422,8 @@ export async function uploadPronunciationSample(
       automaticTranscript: normalized.text,
       teacherConfirmedText: null,
       provisionalResult: scoring.score,
+      confirmedByTeacherId: null,
+      confirmedAt: null,
       durationMs: Math.ceil(actualDurationMs),
       byteSize: input.file.size,
       mimeType,
@@ -410,7 +446,7 @@ export async function getPronunciationSamplesForTeacher(input: {
     .select(
       `id, student_id, object_key, mime_type, duration_ms, byte_size, status,
        automatic_transcript, teacher_confirmed_text, provisional_result,
-       audio_expires_at, created_at,
+       confirmed_by_teacher_id, confirmed_at, audio_expires_at, created_at,
        students!inner(classes!inner(teacher_id))`,
     )
     .eq("student_id", input.studentId)
@@ -428,6 +464,303 @@ export async function getPronunciationSamplesForTeacher(input: {
   return (result.data ?? [])
     .map((row) => mapSample(row, now))
     .filter((row): row is PronunciationSample => row !== null);
+}
+
+type ConfirmationBegin = {
+  outcome: "ok" | "unavailable" | "not_found";
+  sample_id?: string | null;
+  student_id?: string | null;
+  object_key?: string | null;
+  duration_ms?: number | null;
+  byte_size?: number | null;
+  mime_type?: string | null;
+  automatic_transcript?: string | null;
+  provisional_result?: unknown;
+  audio_expires_at?: string | null;
+  created_at?: string | null;
+  confirmation_token?: string | null;
+};
+
+function confirmationSample(
+  begin: ConfirmationBegin,
+  input: ConfirmPronunciationSampleInput,
+  confirmedText: string,
+  result: PronunciationScoreDetail,
+  now: Date,
+): PronunciationSample | null {
+  if (
+    typeof begin.sample_id !== "string" ||
+    typeof begin.student_id !== "string" ||
+    typeof begin.duration_ms !== "number" ||
+    typeof begin.byte_size !== "number" ||
+    typeof begin.mime_type !== "string" ||
+    typeof begin.automatic_transcript !== "string" ||
+    typeof begin.audio_expires_at !== "string" ||
+    typeof begin.created_at !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    id: begin.sample_id,
+    studentId: begin.student_id,
+    status: "confirmed",
+    automaticTranscript: begin.automatic_transcript,
+    teacherConfirmedText: confirmedText,
+    provisionalResult: result,
+    confirmedByTeacherId: input.teacherId,
+    confirmedAt: now.toISOString(),
+    durationMs: begin.duration_ms,
+    byteSize: begin.byte_size,
+    mimeType: begin.mime_type,
+    audioExpiresAt: begin.audio_expires_at,
+    audioAvailable:
+      Boolean(begin.object_key) && new Date(begin.audio_expires_at) > now,
+    createdAt: begin.created_at,
+  };
+}
+
+/**
+ * Confirm one pending sample. The database claim prevents concurrent
+ * confirmations from publishing stale provider output; only the completion
+ * RPC changes trusted wording/result/status together.
+ */
+export async function confirmPronunciationSample(
+  input: ConfirmPronunciationSampleInput,
+  deps: ConfirmPronunciationSampleDeps = {},
+): Promise<ConfirmPronunciationSampleResult> {
+  if (
+    typeof input.sampleId !== "string" ||
+    typeof input.teacherId !== "string" ||
+    !input.sampleId.trim() ||
+    !input.teacherId.trim()
+  ) {
+    return { ok: false, error: "not_found" };
+  }
+  if (typeof input.teacherConfirmedText !== "string") {
+    return { ok: false, error: "invalid_text" };
+  }
+  const confirmedText = normalizeEnglishTranscript(
+    input.teacherConfirmedText,
+  ).text;
+  if (
+    !confirmedText ||
+    confirmedText.length > MAX_PRONUNCIATION_REFERENCE_CHARS ||
+    !hasEnglishTranscript(confirmedText)
+  ) {
+    return { ok: false, error: "invalid_text" };
+  }
+
+  const supabase = deps.client ?? createSupabaseServiceClient();
+  let preflight: ConfirmationBegin | null = null;
+  try {
+    const result = await supabase.rpc(
+      "read_teacher_pronunciation_sample_confirmation",
+      {
+        p_teacher_id: input.teacherId,
+        p_sample_id: input.sampleId,
+      },
+    );
+    preflight = result.error
+      ? null
+      : (result.data?.[0] as ConfirmationBegin | undefined) ?? null;
+  } catch {
+    preflight = null;
+  }
+
+  if (!preflight) return { ok: false, error: "failed" };
+  if (preflight.outcome === "not_found") {
+    return { ok: false, error: "not_found" };
+  }
+  if (preflight.outcome === "unavailable") {
+    return { ok: false, error: "unavailable" };
+  }
+  if (
+    preflight.outcome !== "ok" ||
+    typeof preflight.sample_id !== "string" ||
+    typeof preflight.student_id !== "string" ||
+    typeof preflight.automatic_transcript !== "string" ||
+    typeof preflight.audio_expires_at !== "string" ||
+    typeof preflight.created_at !== "string" ||
+    typeof preflight.duration_ms !== "number" ||
+    typeof preflight.byte_size !== "number" ||
+    typeof preflight.mime_type !== "string"
+  ) {
+    return { ok: false, error: "failed" };
+  }
+
+  const now = deps.now?.() ?? new Date();
+  const unchanged =
+    confirmedText === normalizeEnglishTranscript(preflight.automatic_transcript).text;
+
+  // Ownership and immutable sample metadata were proved by the read-only
+  // preflight above. Edited wording needs live audio, so reject an expired or
+  // missing object before admitting paid provider work.
+  if (
+    !unchanged &&
+    (!preflight.object_key ||
+      Number.isNaN(new Date(preflight.audio_expires_at).getTime()) ||
+      new Date(preflight.audio_expires_at).getTime() <= now.getTime())
+  ) {
+    return { ok: false, error: "unavailable" };
+  }
+
+  if (!unchanged) {
+    try {
+      const budget = await (
+        deps.consumeRequestBudget ?? consumeRequestBudget
+      )({ actorId: input.teacherId, operation: "teacher_provider" });
+      if (!budget.allowed) {
+        return {
+          ok: false,
+          error: "rate_limited",
+          retryAfterSeconds: budget.retryAfterSeconds,
+        };
+      }
+    } catch {
+      return { ok: false, error: "failed" };
+    }
+  }
+
+  let begin: ConfirmationBegin | null = null;
+  try {
+    const result = await supabase.rpc(
+      "begin_teacher_pronunciation_sample_confirmation",
+      {
+        p_teacher_id: input.teacherId,
+        p_sample_id: input.sampleId,
+      },
+    );
+    begin = result.error ? null : (result.data?.[0] as ConfirmationBegin | undefined) ?? null;
+  } catch {
+    begin = null;
+  }
+
+  if (!begin) return { ok: false, error: "failed" };
+  if (begin.outcome === "not_found") {
+    return { ok: false, error: "not_found" };
+  }
+  if (begin.outcome === "unavailable") {
+    return { ok: false, error: "unavailable" };
+  }
+  const confirmationToken =
+    typeof begin.confirmation_token === "string"
+      ? begin.confirmation_token
+      : null;
+  const cleanup = async () => {
+    if (!confirmationToken) return false;
+    try {
+      const result = await supabase.rpc(
+        "clear_teacher_pronunciation_sample_confirmation",
+        {
+          p_teacher_id: input.teacherId,
+          p_sample_id: input.sampleId,
+          p_confirmation_token: confirmationToken,
+        },
+      );
+      return !result.error && result.data === "ok";
+    } catch {
+      return false;
+    }
+  };
+  const cleanupOrFailed = async (
+    error: "unavailable" | "scoring_failed_retryable",
+  ): Promise<ConfirmPronunciationSampleResult> => {
+    return (await cleanup())
+      ? { ok: false, error }
+      : { ok: false, error: "failed" };
+  };
+
+  if (
+    begin.outcome !== "ok" ||
+    typeof begin.sample_id !== "string" ||
+    typeof begin.student_id !== "string" ||
+    typeof begin.confirmation_token !== "string" ||
+    typeof begin.automatic_transcript !== "string" ||
+    !begin.audio_expires_at ||
+    !begin.created_at ||
+    typeof begin.duration_ms !== "number" ||
+    typeof begin.byte_size !== "number" ||
+    typeof begin.mime_type !== "string"
+  ) {
+    await cleanup();
+    return { ok: false, error: "failed" };
+  }
+
+  const provisional = parseScore(begin.provisional_result);
+  if (!provisional) {
+    await cleanup();
+    return { ok: false, error: "failed" };
+  }
+
+  let result = provisional;
+  if (!unchanged) {
+    if (
+      !begin.object_key ||
+      !begin.audio_expires_at ||
+      Number.isNaN(new Date(begin.audio_expires_at).getTime()) ||
+      new Date(begin.audio_expires_at).getTime() <= now.getTime()
+    ) {
+      return cleanupOrFailed("unavailable");
+    }
+
+    let file: Blob;
+    try {
+      const downloaded = await supabase.storage
+        .from(getStudentAudioBucketId())
+        .download(begin.object_key);
+      if (downloaded.error || !downloaded.data) {
+        return cleanupOrFailed("scoring_failed_retryable");
+      }
+      file = downloaded.data;
+    } catch {
+      return cleanupOrFailed("scoring_failed_retryable");
+    }
+
+    let scoring: PronunciationScoreResult;
+    try {
+      scoring = await (deps.scorePronunciation ?? scorePronunciation)({
+        file,
+        referenceText: confirmedText,
+        durationMs: begin.duration_ms,
+      });
+    } catch {
+      return cleanupOrFailed("scoring_failed_retryable");
+    }
+    if (!scoring || !scoring.ok || !scoring.score) {
+      return cleanupOrFailed("scoring_failed_retryable");
+    }
+    result = { ...scoring.score, referenceText: confirmedText };
+  }
+
+  let completed: string | null = null;
+  try {
+    const completion = await supabase.rpc(
+      "complete_teacher_pronunciation_sample_confirmation",
+      {
+        p_teacher_id: input.teacherId,
+        p_sample_id: input.sampleId,
+        p_confirmation_token: confirmationToken,
+        p_teacher_confirmed_text: confirmedText,
+        p_confirmed_result: result satisfies Json,
+      },
+    );
+    completed = completion.error ? null : completion.data;
+  } catch {
+    completed = null;
+  }
+
+  if (completed !== "ok") {
+    const cleared = await cleanup();
+    if (!cleared) return { ok: false, error: "failed" };
+    return {
+      ok: false,
+      error: completed === "not_found" ? "not_found" : "failed",
+    };
+  }
+
+  const sample = confirmationSample(begin, input, confirmedText, result, now);
+  return sample ? { ok: true, sample } : { ok: false, error: "failed" };
 }
 
 /** Create a short-lived signed URL only after the sample/class ownership query. */

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireTeacherProfile } from "@/server/auth/teacher-profile";
 import {
+  confirmPronunciationSample,
   createSignedPronunciationSampleUrlForTeacher,
   uploadPronunciationSample,
   PRONUNCIATION_SAMPLE_DURATION_ERROR,
@@ -11,6 +12,8 @@ import {
 
 const GENERIC_FAILURE =
   "We could not add this pronunciation sample. Please try again.";
+const CONFIRM_FAILURE =
+  "We could not confirm this pronunciation sample. Please try again.";
 
 export type UploadPronunciationSampleActionResult =
   | { ok: true; sample: PronunciationSample }
@@ -83,6 +86,64 @@ export async function uploadPronunciationSampleAction(
     return { ok: false, error: "retryable", message: GENERIC_FAILURE };
   } catch {
     return { ok: false, error: "retryable", message: GENERIC_FAILURE };
+  }
+}
+
+export type ConfirmPronunciationSampleActionResult =
+  | { ok: true; sample: PronunciationSample }
+  | {
+      ok: false;
+      error: "invalid_input" | "rate_limited" | "retryable" | "unavailable";
+      message: string;
+      retryAfterSeconds?: number;
+    };
+
+export async function confirmPronunciationSampleAction(
+  sampleId: string,
+  teacherConfirmedText: string,
+): Promise<ConfirmPronunciationSampleActionResult> {
+  if (!sampleId.trim() || !teacherConfirmedText.trim()) {
+    return { ok: false, error: "invalid_input", message: CONFIRM_FAILURE };
+  }
+
+  let profile;
+  try {
+    profile = await requireTeacherProfile();
+  } catch {
+    return { ok: false, error: "unavailable", message: CONFIRM_FAILURE };
+  }
+
+  try {
+    const result = await confirmPronunciationSample({
+      teacherId: profile.id,
+      sampleId,
+      teacherConfirmedText,
+    });
+
+    if (result.ok) {
+      revalidatePath(`/teacher/students/${result.sample.studentId}`);
+      return result;
+    }
+    if (result.error === "invalid_text") {
+      return { ok: false, error: "invalid_input", message: CONFIRM_FAILURE };
+    }
+    if (result.error === "rate_limited") {
+      return {
+        ok: false,
+        error: "rate_limited",
+        message: "You’ve made several AI requests. Wait a few minutes and try again.",
+        retryAfterSeconds: result.retryAfterSeconds,
+      };
+    }
+    if (
+      result.error === "not_found" ||
+      result.error === "unavailable"
+    ) {
+      return { ok: false, error: "unavailable", message: CONFIRM_FAILURE };
+    }
+    return { ok: false, error: "retryable", message: CONFIRM_FAILURE };
+  } catch {
+    return { ok: false, error: "retryable", message: CONFIRM_FAILURE };
   }
 }
 

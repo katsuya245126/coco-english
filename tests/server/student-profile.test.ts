@@ -73,4 +73,84 @@ describe("buildStudentSoundProfile", () => {
       },
     });
   });
+
+  it("counts confirmed teacher-added samples with the same observation gate as mission clips", () => {
+    const missionRows = Array.from({ length: 4 }, () => ({
+      reference_text: "fan",
+      word_scores: [
+        {
+          word: "fan",
+          accuracyScore: 20,
+          errorType: "Mispronunciation",
+          phonemes: [{ phoneme: "f", accuracyScore: 20 }],
+        },
+      ],
+    }));
+
+    expect(
+      buildStudentSoundProfile(missionRows, [
+        {
+          provisional_result: {
+            referenceText: "fan",
+            wordScores: [
+              {
+                word: "fan",
+                accuracyScore: 20,
+                errorType: "Mispronunciation",
+                phonemes: [{ phoneme: "f", accuracyScore: 20 }],
+              },
+            ],
+          },
+        },
+      ]),
+    ).toMatchObject([
+      {
+        label: "f",
+        weakCount: 5,
+        totalCount: 5,
+        evidenceSources: ["Mission", "Teacher-added pronunciation sample"],
+      },
+    ]);
+  });
+
+  it("attributes a teacher sample that contributes a strong observation to the gate", () => {
+    const missionRows = Array.from({ length: 4 }, () => ({
+      reference_text: "fan",
+      word_scores: [
+        {
+          word: "fan",
+          accuracyScore: 20,
+          errorType: "Mispronunciation",
+          phonemes: [{ phoneme: "f", accuracyScore: 20 }],
+        },
+      ],
+    }));
+
+    expect(
+      buildStudentSoundProfile(missionRows, [
+        {
+          id: "sample-strong",
+          provisional_result: {
+            referenceText: "fan",
+            wordScores: [
+              {
+                word: "fan",
+                accuracyScore: 90,
+                errorType: "None",
+                phonemes: [{ phoneme: "f", accuracyScore: 90 }],
+              },
+            ],
+          },
+        },
+      ]),
+    ).toMatchObject([
+      {
+        label: "f",
+        weakCount: 4,
+        totalCount: 5,
+        evidenceSources: ["Mission", "Teacher-added pronunciation sample"],
+        teacherSampleIds: ["sample-strong"],
+      },
+    ]);
+  });
 });

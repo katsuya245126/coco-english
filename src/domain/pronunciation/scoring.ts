@@ -90,6 +90,9 @@ export const STAR_BAND_COPY: Record<PronunciationStarBand, string> = {
   1: "Keep practicing!",
 };
 
+/** Generous ceiling for intended wording paired with a 30-second recording. */
+export const MAX_PRONUNCIATION_REFERENCE_CHARS = 500;
+
 const ERROR_TYPE_LABELS: Record<string, string> = {
   None: "Clear",
   Omission: "Skipped",
@@ -124,7 +127,7 @@ const MAX_WORDS_TO_PRACTICE = 3;
 const PRACTICE_ELIGIBLE_ERROR_TYPES = new Set(["Mispronunciation", "Monotone"]);
 
 /** Lowercase, punctuation-stripped word tokens for transcript matching. */
-function tokenizeWords(text: string): Set<string> {
+export function tokenizeWords(text: string): Set<string> {
   return new Set(
     text
       .toLowerCase()
@@ -134,7 +137,7 @@ function tokenizeWords(text: string): Set<string> {
   );
 }
 
-function normalizeWord(word: string): string {
+export function normalizeWord(word: string): string {
   return word.toLowerCase().replace(/^'+|'+$/g, "");
 }
 

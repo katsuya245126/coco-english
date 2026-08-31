@@ -2,10 +2,17 @@
 
 import type { FormEvent, ReactNode } from "react";
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
+  confirmPronunciationSampleAction,
   loadPronunciationSampleAudioUrlAction,
   uploadPronunciationSampleAction,
 } from "@/app/teacher/students/[id]/actions";
+import {
+  MAX_PRONUNCIATION_REFERENCE_CHARS,
+  soundsToWorkOn,
+  wordsToPractice,
+} from "@/domain/pronunciation/scoring";
 import type { PronunciationSample } from "@/server/teacher/pronunciation-samples";
 
 type Tab = "sounds" | "samples";
@@ -54,6 +61,64 @@ export function PronunciationSamplesPanel({
         )}
       </div>
     </div>
+  );
+}
+
+/** Load an owned teacher sample only when its source is expanded and requested. */
+export function TeacherSamplePlayback({
+  sampleId,
+  sourceLabel,
+}: {
+  sampleId: string;
+  sourceLabel: string;
+}) {
+  return (
+    <div style={{ marginTop: 12 }}>
+      <p style={{ margin: 0, fontWeight: 600 }}>{sourceLabel}</p>
+      <SampleAudioPlayback sampleId={sampleId} />
+    </div>
+  );
+}
+
+function SampleAudioPlayback({ sampleId }: { sampleId: string }) {
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function loadAudio() {
+    setError(null);
+    startTransition(async () => {
+      const result = await loadPronunciationSampleAudioUrlAction(sampleId);
+      if (result.ok) {
+        setAudioUrl(result.signedUrl);
+      } else {
+        setError("Audio is not available for this sample.");
+      }
+    });
+  }
+
+  return (
+    <>
+      {audioUrl ? (
+        <audio controls src={audioUrl} style={audioStyle}>
+          Your browser does not support audio playback.
+        </audio>
+      ) : (
+        <button
+          type="button"
+          onClick={loadAudio}
+          disabled={isPending}
+          style={secondaryButtonStyle}
+        >
+          {isPending ? "Preparing audio…" : "Play sample"}
+        </button>
+      )}
+      {error ? (
+        <p role="alert" style={messageStyle}>
+          {error}
+        </p>
+      ) : null}
+    </>
   );
 }
 
@@ -140,19 +205,28 @@ function SamplesTab({
 }
 
 function PronunciationSampleCard({ sample }: { sample: PronunciationSample }) {
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [confirmedText, setConfirmedText] = useState(
+    sample.teacherConfirmedText ?? sample.automaticTranscript,
+  );
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
   const score = sample.provisionalResult;
 
-  function loadAudio() {
+  function confirm() {
     setError(null);
+    setMessage(null);
     startTransition(async () => {
-      const result = await loadPronunciationSampleAudioUrlAction(sample.id);
+      const result = await confirmPronunciationSampleAction(
+        sample.id,
+        confirmedText,
+      );
       if (result.ok) {
-        setAudioUrl(result.signedUrl);
+        setMessage("Sample confirmed.");
+        router.refresh();
       } else {
-        setError("Audio is not available for this sample.");
+        setError(result.message);
       }
     });
   }
@@ -167,20 +241,7 @@ function PronunciationSampleCard({ sample }: { sample: PronunciationSample }) {
           <p style={dateStyle}>Added {formatDate(sample.createdAt)}</p>
         </div>
         {sample.audioAvailable ? (
-          audioUrl ? (
-            <audio controls src={audioUrl} style={audioStyle}>
-              Your browser does not support audio playback.
-            </audio>
-          ) : (
-            <button
-              type="button"
-              onClick={loadAudio}
-              disabled={isPending}
-              style={secondaryButtonStyle}
-            >
-              {isPending ? "Preparing audio…" : "Play sample"}
-            </button>
-          )
+          <SampleAudioPlayback sampleId={sample.id} />
         ) : (
           <span style={expiredStyle}>Audio expired</span>
         )}
@@ -195,19 +256,47 @@ function PronunciationSampleCard({ sample }: { sample: PronunciationSample }) {
         <span style={labelStyle}>What was the student trying to say?</span>
         <textarea
           aria-label="What was the student trying to say?"
-          defaultValue={sample.teacherConfirmedText ?? sample.automaticTranscript}
+          value={confirmedText}
+          onChange={(event) => setConfirmedText(event.currentTarget.value)}
+          maxLength={MAX_PRONUNCIATION_REFERENCE_CHARS}
+          readOnly={sample.status === "confirmed"}
           rows={2}
           style={textareaStyle}
         />
       </label>
 
+      {sample.status === "pending" ? (
+        <button
+          type="button"
+          onClick={confirm}
+          disabled={isPending}
+          style={primaryButtonStyle}
+        >
+          {isPending ? "Confirming sample…" : "Confirm sample"}
+        </button>
+      ) : (
+        <p style={confirmedStyle}>
+          Confirmed by teacher
+          {sample.confirmedAt ? ` on ${formatDate(sample.confirmedAt)}` : ""}
+        </p>
+      )}
+
       <div style={resultBlockStyle}>
-        <p style={labelStyle}>Provisional pronunciation analysis</p>
+        <p style={labelStyle}>
+          {sample.status === "confirmed"
+            ? "Confirmed pronunciation analysis"
+            : "Provisional pronunciation analysis"}
+        </p>
         {score ? (
-          <p style={resultStyle}>
-            Overall pronunciation: {Math.round(score.pronunciationScore)}/100 ·
-            star band {score.starBand}
-          </p>
+          <>
+            <p style={resultStyle}>
+              Overall pronunciation: {Math.round(score.pronunciationScore)}/100 ·
+              star band {score.starBand}
+            </p>
+            {sample.status === "confirmed" ? (
+              <ConfirmedEvidence score={score} />
+            ) : null}
+          </>
         ) : (
           <p style={resultStyle}>Pronunciation analysis is not available yet.</p>
         )}
@@ -218,12 +307,47 @@ function PronunciationSampleCard({ sample }: { sample: PronunciationSample }) {
           ? `Audio available until ${formatDate(sample.audioExpiresAt)}`
           : "The transcript and result remain available after audio expires."}
       </p>
+      {message ? <p role="status" style={successStyle}>{message}</p> : null}
       {error ? (
         <p role="alert" style={messageStyle}>
           {error}
         </p>
       ) : null}
     </article>
+  );
+}
+
+function ConfirmedEvidence({
+  score,
+}: {
+  score: NonNullable<PronunciationSample["provisionalResult"]>;
+}) {
+  const words = wordsToPractice(score.wordScores, score.referenceText);
+  const sounds = soundsToWorkOn(score.wordScores, score.referenceText);
+
+  return (
+    <div style={evidenceStyle}>
+      <p style={labelStyle}>Weak sounds and example words</p>
+      {sounds.length === 0 ? (
+        <p style={resultStyle}>No weak sounds in this sample.</p>
+      ) : (
+        <ul style={evidenceListStyle}>
+          {sounds.map((sound) => (
+            <li key={`${sound.label}-${sound.ipa}-${sound.exampleWord}`}>
+              /{sound.ipa}/ in “{sound.exampleWord}”
+              {sound.candidate
+                ? ` — Expected /${sound.ipa}/; sounded closer to /${sound.candidate.ipa}/.`
+                : ""}
+            </li>
+          ))}
+        </ul>
+      )}
+      {words.length > 0 ? (
+        <p style={resultStyle}>
+          Example words: {words.map(({ word }) => `“${word}”`).join(", ")}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -400,6 +524,29 @@ const resultBlockStyle: React.CSSProperties = {
 
 const resultStyle: React.CSSProperties = {
   margin: 0,
+  fontSize: 14,
+  color: "#4B5563",
+};
+
+const confirmedStyle: React.CSSProperties = {
+  margin: "12px 0 0",
+  fontSize: 13,
+  color: "#166534",
+};
+
+const successStyle: React.CSSProperties = {
+  margin: "12px 0 0",
+  fontSize: 14,
+  color: "#166534",
+};
+
+const evidenceStyle: React.CSSProperties = {
+  marginTop: 12,
+};
+
+const evidenceListStyle: React.CSSProperties = {
+  margin: "4px 0 8px",
+  paddingLeft: 20,
   fontSize: 14,
   color: "#4B5563",
 };
