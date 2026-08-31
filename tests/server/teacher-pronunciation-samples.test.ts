@@ -93,20 +93,17 @@ function createMockSupabase(options: {
     throw new Error(`unexpected RPC ${name} ${JSON.stringify(args)}`);
   });
 
-  const storage = {
-    from: vi.fn(() => ({
-      upload: vi.fn(async () => {
-        events.push("storage:upload");
-        return { data: { path: "sample-1" }, error: null };
-      }),
-      remove: vi.fn(async () => {
-        events.push("storage:remove");
-        return { data: [], error: null };
-      }),
-    })),
-  };
+  const upload = vi.fn(async () => {
+    events.push("storage:upload");
+    return { data: { path: "sample-1" }, error: null };
+  });
+  const remove = vi.fn(async () => {
+    events.push("storage:remove");
+    return { data: [], error: null };
+  });
+  const storage = { from: vi.fn(() => ({ upload, remove })) };
 
-  return { events, rpc, storage };
+  return { events, rpc, storage, upload };
 }
 
 function baseInput() {
@@ -358,6 +355,55 @@ describe("uploadPronunciationSample", () => {
       "storage:upload",
       "rpc:complete_teacher_pronunciation_sample",
     ]);
+  });
+
+  it("accepts audio/x-m4a as canonical audio/mp4 through the sample lifecycle", async () => {
+    const file = new Blob(["audio"], { type: "audio/x-m4a" });
+    const supabase = createMockSupabase({
+      begin: [{
+        outcome: "ok",
+        sample_id: "sample-1",
+        student_id: "student-1",
+        object_key: "pronunciation-samples/student-1/sample-1.m4a",
+      }],
+    });
+    const transcribeAudioFile = vi.fn(async () => transcription);
+
+    const result = await uploadPronunciationSample(
+      {
+        ...baseInput(),
+        file,
+        mimeType: "audio/x-m4a",
+      },
+      {
+        client: supabase as never,
+        transcodeToWav: vi.fn(async () => ({
+          ok: true as const,
+          wav: wavForDuration(3_000),
+        })),
+        transcribeAudioFile,
+        scorePronunciation: vi.fn(async () => score),
+        consumeRequestBudget: vi.fn(async () => ({ allowed: true as const })),
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      sample: { mimeType: "audio/mp4" },
+    });
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "begin_teacher_pronunciation_sample",
+      expect.objectContaining({ p_mime_type: "audio/mp4" }),
+    );
+    expect(supabase.upload).toHaveBeenCalledWith(
+      "pronunciation-samples/student-1/sample-1.m4a",
+      file,
+      expect.objectContaining({ contentType: "audio/mp4" }),
+    );
+    expect(transcribeAudioFile).toHaveBeenCalledWith({
+      file,
+      mimeType: "audio/mp4",
+    });
   });
 
   it("clears the processing row and private object after a provider failure", async () => {
