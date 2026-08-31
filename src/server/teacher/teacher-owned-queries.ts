@@ -151,6 +151,16 @@ export type TeacherOwnedAudioClipEvidenceRow = {
   attempt_turn_id: string;
   clip_kind: AudioClipKind;
   processing_status: AudioProcessingStatus;
+  object_key: string | null;
+  duration_ms: number | null;
+  audio_expires_at: string;
+  deleted_at: string | null;
+  teacher_confirmed_text: string | null;
+  teacher_confirmed_by: string | null;
+  teacher_confirmed_at: string | null;
+  clarification_started_at: string | null;
+  clarification_token: string | null;
+  pronunciation_reprocessing_started_at: string | null;
 };
 
 export type TeacherOwnedPronunciationScoreRow = {
@@ -165,6 +175,7 @@ export type TeacherOwnedAudioClipSignerRow = {
   object_key: string | null;
   processing_status: AudioProcessingStatus;
   deleted_at: string | null;
+  audio_expires_at: string;
 };
 
 const attemptTeacherPath = "assignment_students.assignments.classes.teacher_id";
@@ -375,7 +386,11 @@ export async function listOwnedAttemptClipsForTeacher(
     .from("audio_clips")
     .select(
       `
-        id, attempt_turn_id, clip_kind, processing_status,
+        id, attempt_turn_id, clip_kind, processing_status, object_key,
+        duration_ms, audio_expires_at, deleted_at,
+        teacher_confirmed_text, teacher_confirmed_by, teacher_confirmed_at,
+        clarification_started_at, clarification_token,
+        pronunciation_reprocessing_started_at,
         attempt_turns!inner(
           attempts!inner(
             assignment_students!attempts_assignment_student_id_fkey!inner(
@@ -440,6 +455,7 @@ export async function getOwnedAudioClipForTeacher(
         object_key,
         processing_status,
         deleted_at,
+        audio_expires_at,
         attempt_turns!inner(
           attempts!inner(
             assignment_students!attempts_assignment_student_id_fkey!inner(

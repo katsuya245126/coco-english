@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockRequireTeacherProfile,
+  mockClarifyMissionAudio,
   mockReprocessClipPronunciation,
   mockRevalidatePath,
 } = vi.hoisted(() => ({
   mockRequireTeacherProfile: vi.fn(),
+  mockClarifyMissionAudio: vi.fn(),
   mockReprocessClipPronunciation: vi.fn(),
   mockRevalidatePath: vi.fn(),
 }));
@@ -21,6 +23,7 @@ vi.mock("@/server/teacher/audio-evidence", () => ({
 }));
 
 vi.mock("@/server/audio/pronunciation-reprocess", () => ({
+  clarifyMissionAudio: mockClarifyMissionAudio,
   reprocessClipPronunciation: mockReprocessClipPronunciation,
 }));
 
@@ -39,14 +42,27 @@ async function reprocess(input = { audioClipId: "clip-1", attemptId: "attempt-1"
   return reprocessPronunciationAction(input);
 }
 
+async function clarify(input = {
+  audioClipId: "clip-1",
+  attemptId: "attempt-1",
+  teacherConfirmedText: "  I wake up at eight.  ",
+}) {
+  const { clarifyMissionAudioAction } = await import(
+    "@/app/teacher/evidence/[attemptId]/actions"
+  );
+  return clarifyMissionAudioAction(input);
+}
+
 describe("reprocessPronunciationAction", () => {
   beforeEach(() => {
     vi.resetModules();
     mockRequireTeacherProfile.mockReset();
+    mockClarifyMissionAudio.mockReset();
     mockReprocessClipPronunciation.mockReset();
     mockRevalidatePath.mockReset();
 
     mockRequireTeacherProfile.mockResolvedValue({ id: "teacher-1" });
+    mockClarifyMissionAudio.mockResolvedValue({ ok: true, scored: true });
     mockReprocessClipPronunciation.mockResolvedValue({ ok: true, scored: true });
   });
 
@@ -81,5 +97,79 @@ describe("reprocessPronunciationAction", () => {
 
     expect(mockRequireTeacherProfile).not.toHaveBeenCalled();
     expect(mockReprocessClipPronunciation).not.toHaveBeenCalled();
+  });
+});
+
+describe("clarifyMissionAudioAction", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    mockRequireTeacherProfile.mockReset();
+    mockClarifyMissionAudio.mockReset();
+    mockReprocessClipPronunciation.mockReset();
+    mockRevalidatePath.mockReset();
+
+    mockRequireTeacherProfile.mockResolvedValue({ id: "teacher-1" });
+    mockClarifyMissionAudio.mockResolvedValue({ ok: true, scored: true });
+    mockReprocessClipPronunciation.mockResolvedValue({ ok: true, scored: true });
+  });
+
+  it("passes the authenticated teacher and trimmed wording to the service", async () => {
+    await expect(clarify()).resolves.toEqual({ ok: true });
+
+    expect(mockRequireTeacherProfile).toHaveBeenCalledTimes(1);
+    expect(mockClarifyMissionAudio).toHaveBeenCalledWith({
+      teacherId: "teacher-1",
+      audioClipId: "clip-1",
+      teacherConfirmedText: "I wake up at eight.",
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/teacher/evidence/attempt-1");
+  });
+
+  it.each([
+    ["unauthorized", "unavailable"],
+    ["unavailable", "unavailable"],
+    ["invalid_text", "invalid_input"],
+    ["rate_limited", "rate_limited"],
+    ["failed", "retryable"],
+  ] as const)("maps %s without revalidating", async (serviceError, actionError) => {
+    mockClarifyMissionAudio.mockResolvedValue({
+      ok: false,
+      error: serviceError,
+    });
+
+    await expect(clarify()).resolves.toMatchObject({
+      ok: false,
+      error: actionError,
+      message: expect.any(String),
+    });
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects blank wording before authenticating", async () => {
+    await expect(
+      clarify({
+        audioClipId: "clip-1",
+        attemptId: "attempt-1",
+        teacherConfirmedText: "  ",
+      }),
+    ).resolves.toMatchObject({ ok: false, error: "invalid_input" });
+
+    expect(mockRequireTeacherProfile).not.toHaveBeenCalled();
+    expect(mockClarifyMissionAudio).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("maps authentication and unexpected service failures to safe retry responses", async () => {
+    mockRequireTeacherProfile.mockRejectedValueOnce(new Error("unauthenticated"));
+    await expect(clarify()).rejects.toThrow("unauthenticated");
+
+    mockRequireTeacherProfile.mockResolvedValue({ id: "teacher-1" });
+    mockClarifyMissionAudio.mockRejectedValueOnce(new Error("provider"));
+    await expect(clarify()).resolves.toMatchObject({
+      ok: false,
+      error: "retryable",
+      message: expect.any(String),
+    });
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 });

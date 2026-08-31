@@ -264,6 +264,11 @@ export type Database = {
           deleted_at: string | null;
           deleted_reason: string | null;
           pronunciation_reprocessing_started_at: string | null;
+          teacher_confirmed_text: string | null;
+          teacher_confirmed_by: string | null;
+          teacher_confirmed_at: string | null;
+          clarification_started_at: string | null;
+          clarification_token: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -280,10 +285,47 @@ export type Database = {
           deleted_at?: string | null;
           deleted_reason?: string | null;
           pronunciation_reprocessing_started_at?: string | null;
+          teacher_confirmed_text?: string | null;
+          teacher_confirmed_by?: string | null;
+          teacher_confirmed_at?: string | null;
+          clarification_started_at?: string | null;
+          clarification_token?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["audio_clips"]["Insert"]>;
+        Relationships: [];
+      };
+      pronunciation_scores: {
+        Row: {
+          id: string;
+          audio_clip_id: string;
+          provider: string;
+          reference_text: string;
+          accuracy_score: number;
+          fluency_score: number | null;
+          completeness_score: number | null;
+          pronunciation_score: number;
+          star_band: number;
+          word_scores: Json;
+          scored_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          audio_clip_id: string;
+          provider?: string;
+          reference_text: string;
+          accuracy_score: number;
+          fluency_score?: number | null;
+          completeness_score?: number | null;
+          pronunciation_score: number;
+          star_band: number;
+          word_scores?: Json;
+          scored_at?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["pronunciation_scores"]["Insert"]>;
         Relationships: [];
       };
       pronunciation_samples: {
@@ -657,6 +699,42 @@ export type Database = {
       };
       clear_pronunciation_reprocessing: {
         Args: { p_teacher_id: string; p_audio_clip_id: string };
+        Returns: "ok" | "not_found";
+      };
+      begin_teacher_mission_audio_clarification: {
+        Args: {
+          p_teacher_id: string;
+          p_audio_clip_id: string;
+          p_teacher_confirmed_text: string;
+        };
+        Returns: {
+          outcome: "ok" | "unauthorized" | "invalid_input" | "unavailable";
+          object_key: string | null;
+          duration_ms: number | null;
+          clarification_token: string | null;
+        }[];
+      };
+      complete_teacher_mission_audio_clarification: {
+        Args: {
+          p_teacher_id: string;
+          p_audio_clip_id: string;
+          p_clarification_token: string;
+          p_teacher_confirmed_text: string;
+          p_accuracy_score: number;
+          p_fluency_score: number | null;
+          p_completeness_score: number | null;
+          p_pronunciation_score: number;
+          p_star_band: number;
+          p_word_scores: Json;
+        };
+        Returns: "ok" | "not_found";
+      };
+      clear_teacher_mission_audio_clarification: {
+        Args: {
+          p_teacher_id: string;
+          p_audio_clip_id: string;
+          p_clarification_token: string;
+        };
         Returns: "ok" | "not_found";
       };
       begin_teacher_pronunciation_sample: {

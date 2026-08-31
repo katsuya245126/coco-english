@@ -18,6 +18,13 @@ const DEFAULT_BEGIN = {
   reference_text: "I wake up at seven.",
 };
 
+const DEFAULT_CLARIFICATION_BEGIN = {
+  outcome: "ok",
+  object_key: "as-1/att-1/1/original_answer-clip-1.webm",
+  duration_ms: 4200,
+  clarification_token: "clarification-token-1",
+} as const;
+
 const LIFECYCLE_ARGS = {
   p_teacher_id: "teacher-1",
   p_audio_clip_id: "clip-1",
@@ -56,6 +63,60 @@ function createMockSupabase(options: {
     }
     if (name === "clear_pronunciation_reprocessing") {
       events.push("clear");
+      if (options.clearError) return { data: null, error: new Error("clear failed") };
+      const outcome = options.clear ?? "ok";
+      if (outcome === "ok") marker = false;
+      return { data: outcome, error: null };
+    }
+    throw new Error(`unexpected rpc ${name} ${JSON.stringify(args)}`);
+  });
+
+  return {
+    events,
+    rpc,
+    markerActive: () => marker,
+    storage: {
+      from: vi.fn(() => ({
+        download: vi.fn(async () => {
+          events.push("download");
+          if (options.downloadOk === false) return { data: null, error: new Error("download failed") };
+          return { data: new Blob(["audio"], { type: "audio/webm" }), error: null };
+        }),
+      })),
+    },
+  };
+}
+
+function createClarificationMock(options: {
+  begin?: Partial<typeof DEFAULT_CLARIFICATION_BEGIN>;
+  beginError?: boolean;
+  downloadOk?: boolean;
+  complete?: "ok" | "not_found";
+  completeError?: boolean;
+  clear?: "ok" | "not_found";
+  clearError?: boolean;
+} = {}) {
+  const events: string[] = [];
+  let marker = false;
+  const begin = { ...DEFAULT_CLARIFICATION_BEGIN, ...options.begin };
+
+  const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
+    if (name === "begin_teacher_mission_audio_clarification") {
+      events.push("begin_clarification");
+      if (options.beginError) return { data: null, error: new Error("begin failed") };
+      if (marker) return { data: [{ outcome: "unavailable" }], error: null };
+      if (begin.outcome === "ok") marker = true;
+      return { data: [begin], error: null };
+    }
+    if (name === "complete_teacher_mission_audio_clarification") {
+      events.push("complete_clarification");
+      if (options.completeError) return { data: null, error: new Error("complete failed") };
+      const outcome = options.complete ?? "ok";
+      if (outcome === "ok") marker = false;
+      return { data: outcome, error: null };
+    }
+    if (name === "clear_teacher_mission_audio_clarification") {
+      events.push("clear_clarification");
       if (options.clearError) return { data: null, error: new Error("clear failed") };
       const outcome = options.clear ?? "ok";
       if (outcome === "ok") marker = false;
@@ -298,5 +359,101 @@ describe("reprocessClipPronunciation", () => {
     expect(scorer).toHaveBeenCalledWith(expect.objectContaining({
       referenceText: "I am going to the park.", durationMs: 3000,
     }));
+  });
+
+  it("clarifies wording with a tokenized claim and replaces the clip score", async () => {
+    mockSupabase = createClarificationMock();
+    const { clarifyMissionAudio } = await loadModule();
+    const scorer = vi.fn(async (input: { referenceText: string }) => {
+      expect(input.referenceText).toBe("I wake up at eight.");
+      return OK_SCORE;
+    });
+    const budget = fakeBudget(true, mockSupabase.events);
+
+    const result = await clarifyMissionAudio(
+      {
+        teacherId: "teacher-1",
+        audioClipId: "clip-1",
+        teacherConfirmedText: "  I wake up at eight.  ",
+      },
+      { scorePronunciation: scorer, consumeRequestBudget: budget },
+    );
+
+    expect(result).toEqual({ ok: true, scored: true });
+    expect(mockSupabase.events).toEqual([
+      "begin_clarification",
+      "download",
+      "budget",
+      "complete_clarification",
+    ]);
+    expect(mockSupabase.rpc).toHaveBeenNthCalledWith(
+      1,
+      "begin_teacher_mission_audio_clarification",
+      {
+        p_teacher_id: "teacher-1",
+        p_audio_clip_id: "clip-1",
+        p_teacher_confirmed_text: "I wake up at eight.",
+      },
+    );
+    expect(mockSupabase.rpc).toHaveBeenNthCalledWith(
+      2,
+      "complete_teacher_mission_audio_clarification",
+      expect.objectContaining({
+        p_teacher_id: "teacher-1",
+        p_audio_clip_id: "clip-1",
+        p_clarification_token: "clarification-token-1",
+        p_teacher_confirmed_text: "I wake up at eight.",
+      }),
+    );
+  });
+
+  it("clears only its clarification token after provider failure", async () => {
+    mockSupabase = createClarificationMock();
+    const { clarifyMissionAudio } = await loadModule();
+
+    const result = await clarifyMissionAudio(
+      {
+        teacherId: "teacher-1",
+        audioClipId: "clip-1",
+        teacherConfirmedText: "I wake up at eight.",
+      },
+      {
+        scorePronunciation: vi.fn(async () => ({
+          ok: false as const,
+          error: "provider_failed" as const,
+        })),
+        consumeRequestBudget: fakeBudget(true, mockSupabase.events),
+      },
+    );
+
+    expect(result).toEqual({ ok: false, error: "failed" });
+    expect(mockSupabase.events).toEqual([
+      "begin_clarification",
+      "download",
+      "budget",
+      "clear_clarification",
+    ]);
+    expect(mockSupabase.rpc).toHaveBeenLastCalledWith(
+      "clear_teacher_mission_audio_clarification",
+      {
+        p_teacher_id: "teacher-1",
+        p_audio_clip_id: "clip-1",
+        p_clarification_token: "clarification-token-1",
+      },
+    );
+  });
+
+  it("rejects blank clarification wording before claiming audio", async () => {
+    mockSupabase = createClarificationMock();
+    const { clarifyMissionAudio } = await loadModule();
+
+    await expect(
+      clarifyMissionAudio({
+        teacherId: "teacher-1",
+        audioClipId: "clip-1",
+        teacherConfirmedText: "   ",
+      }),
+    ).resolves.toEqual({ ok: false, error: "invalid_text" });
+    expect(mockSupabase.events).toEqual([]);
   });
 });

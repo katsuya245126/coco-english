@@ -37,6 +37,17 @@ vi.mock("@/components/teacher/SubmissionReviewControls", () => ({
 vi.mock("@/components/teacher/PronunciationDiagnosticPanel", () => ({
   PronunciationDiagnosticPanel: () => null,
 }));
+vi.mock("@/components/teacher/MissionAudioClarificationControl", () => ({
+  MissionAudioClarificationControl: (props: {
+    automaticTranscript: string | null;
+    clarificationAvailable: boolean;
+  }) =>
+    props.clarificationAvailable ? (
+      <div data-clarification="available">
+        What was the student trying to say? ({props.automaticTranscript})
+      </div>
+    ) : null,
+}));
 
 import AttemptEvidencePage from "./page";
 
@@ -77,6 +88,11 @@ const presetEvidence = {
       id: "clip-1",
       clipKind: "original_answer",
       processingStatus: "transcribed",
+      automaticTranscript: "I like apples.",
+      teacherConfirmedText: null,
+      teacherConfirmedBy: null,
+      teacherConfirmedAt: null,
+      clarificationAvailable: true,
       pronunciationScore: null,
     }],
   }],
@@ -106,6 +122,8 @@ describe("AttemptEvidencePage", () => {
     expect(html).toContain("Yes");
     expect(html).toContain("I like apples.");
     expect(html).toContain("Student answer audio audio placeholder");
+    expect(html).toContain("What was the student trying to say?");
+    expect(html).toContain('data-clarification="available"');
   });
 
   it("does not show a target-pattern requirement for conversation evidence", async () => {

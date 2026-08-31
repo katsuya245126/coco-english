@@ -5,6 +5,7 @@ import { AudioClipPlayer } from "@/components/teacher/AudioClipPlayer";
 import { SubmissionReviewControls } from "@/components/teacher/SubmissionReviewControls";
 import { changeAttemptReview } from "@/server/teacher/assignment-operations";
 import { PronunciationDiagnosticPanel } from "@/components/teacher/PronunciationDiagnosticPanel";
+import { MissionAudioClarificationControl } from "@/components/teacher/MissionAudioClarificationControl";
 import { HoverLink } from "@/components/ui/HoverLink";
 import { subtleHover } from "@/components/ui/hover-styles";
 import type {
@@ -312,6 +313,14 @@ function AudioClipList({
             pronunciationScore={clip.pronunciationScore}
             audioClipId={clip.id}
             attemptId={attemptId}
+          />
+          <MissionAudioClarificationControl
+            audioClipId={clip.id}
+            attemptId={attemptId}
+            automaticTranscript={clip.automaticTranscript}
+            teacherConfirmedText={clip.teacherConfirmedText}
+            teacherConfirmedAt={clip.teacherConfirmedAt}
+            clarificationAvailable={clip.clarificationAvailable}
           />
         </div>
       ))}

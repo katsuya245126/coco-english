@@ -44,6 +44,7 @@ import {
 
 const DEFAULT_AUDIO_BUCKET = "student-audio";
 const SIGNED_AUDIO_URL_TTL_SECONDS = 300;
+const CLARIFICATION_LEASE_MS = 5 * 60 * 1000;
 
 type AttemptStatus = Database["public"]["Enums"]["attempt_status"];
 type AudioClipKind = Database["public"]["Enums"]["audio_clip_kind"];
@@ -76,6 +77,12 @@ export type AttemptAudioClipEvidence = {
   id: string;
   clipKind: AudioClipKind;
   processingStatus: AudioProcessingStatus;
+  /** The immutable transcript captured for this particular audio clip. */
+  automaticTranscript: string | null;
+  teacherConfirmedText: string | null;
+  teacherConfirmedBy: string | null;
+  teacherConfirmedAt: string | null;
+  clarificationAvailable: boolean;
   pronunciationScore?: AttemptPronunciationScoreEvidence | null;
 };
 
@@ -319,11 +326,45 @@ export function parseWordScores(raw: unknown): WordScore[] {
 function mapClip(
   row: AudioClipEvidenceRow,
   scoresByAudioClipId: Map<string, AttemptPronunciationScoreEvidence>,
+  turnById: Map<string, AttemptTurnRow>,
+  now: Date,
 ): AttemptAudioClipEvidence {
+  const turn = turnById.get(row.attempt_turn_id);
+  const automaticTranscript =
+    row.clip_kind === "original_answer"
+      ? turn?.original_transcript ?? null
+      : row.clip_kind === "repeat_attempt"
+        ? turn?.repeat_transcript ?? null
+        : null;
+  const expiresAt = new Date(row.audio_expires_at);
+  const clarificationStartedAt = row.clarification_started_at
+    ? new Date(row.clarification_started_at)
+    : null;
+  const clarificationClaimActive =
+    row.clarification_token !== null &&
+    (clarificationStartedAt === null ||
+      Number.isNaN(clarificationStartedAt.getTime()) ||
+      clarificationStartedAt.getTime() > now.getTime() - CLARIFICATION_LEASE_MS);
+  const clarificationAvailable =
+    (row.clip_kind === "original_answer" || row.clip_kind === "repeat_attempt") &&
+    Boolean(row.object_key) &&
+    row.deleted_at === null &&
+    !Number.isNaN(expiresAt.getTime()) &&
+    expiresAt > now &&
+    (row.processing_status === "uploaded" ||
+      row.processing_status === "transcribed") &&
+    !clarificationClaimActive &&
+    row.pronunciation_reprocessing_started_at === null;
+
   return {
     id: row.id,
     clipKind: row.clip_kind,
     processingStatus: row.processing_status,
+    automaticTranscript,
+    teacherConfirmedText: row.teacher_confirmed_text,
+    teacherConfirmedBy: row.teacher_confirmed_by,
+    teacherConfirmedAt: row.teacher_confirmed_at,
+    clarificationAvailable,
     pronunciationScore: scoresByAudioClipId.get(row.id) ?? null,
   };
 }
@@ -456,6 +497,8 @@ export async function getAttemptEvidenceForTeacher(input: {
 
   const turnRows = turns.data;
   const turnIds = turnRows.map((turn) => turn.id);
+  const turnById = new Map(turnRows.map((turn) => [turn.id, turn]));
+  const now = new Date();
   const clipsByTurnId = new Map<string, AttemptAudioClipEvidence[]>();
 
   if (turnIds.length > 0) {
@@ -497,7 +540,7 @@ export async function getAttemptEvidenceForTeacher(input: {
 
     for (const clip of clipRows) {
       const existing = clipsByTurnId.get(clip.attempt_turn_id) ?? [];
-      existing.push(mapClip(clip, scoresByAudioClipId));
+      existing.push(mapClip(clip, scoresByAudioClipId, turnById, now));
       clipsByTurnId.set(clip.attempt_turn_id, existing);
     }
   }
@@ -552,11 +595,14 @@ export async function createSignedAudioUrlForTeacher(input: {
   }
 
   const ownedClip = clip.data as AudioClipSignerRow;
+  const expiresAt = new Date(ownedClip.audio_expires_at);
   if (
     !ownedClip.object_key ||
     ownedClip.deleted_at ||
-    ownedClip.processing_status === "deleted" ||
-    ownedClip.processing_status === "failed"
+    Number.isNaN(expiresAt.getTime()) ||
+    expiresAt <= new Date() ||
+    (ownedClip.processing_status !== "uploaded" &&
+      ownedClip.processing_status !== "transcribed")
   ) {
     return null;
   }

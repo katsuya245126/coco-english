@@ -103,6 +103,8 @@ function createMockSupabase(options: {
   clipObjectKey?: string | null;
   clipStatus?: string;
   clipDeletedAt?: string | null;
+  clipExpiresAt?: string;
+  clipRows?: unknown[];
   pronunciationScores?: Array<{
     audio_clip_id: string;
     star_band: number;
@@ -188,6 +190,8 @@ function createMockSupabase(options: {
                         : options.clipObjectKey,
                     processing_status: options.clipStatus ?? "transcribed",
                     deleted_at: options.clipDeletedAt ?? null,
+                    audio_expires_at:
+                      options.clipExpiresAt ?? "2099-01-01T00:00:00.000Z",
                   },
             error: null,
           };
@@ -240,18 +244,38 @@ function createMockSupabase(options: {
         }
         if (table === "audio_clips") {
           return Promise.resolve({
-            data: [
+            data: options.clipRows ?? [
               {
                 id: "clip-1",
                 attempt_turn_id: "turn-1",
                 clip_kind: "original_answer",
                 processing_status: "transcribed",
+                object_key: "as-1/attempt-1/1/original_answer-clip-1.webm",
+                duration_ms: 900,
+                audio_expires_at: "2099-01-01T00:00:00.000Z",
+                deleted_at: null,
+                teacher_confirmed_text: null,
+                teacher_confirmed_by: null,
+                teacher_confirmed_at: null,
+                clarification_started_at: null,
+                clarification_token: null,
+                pronunciation_reprocessing_started_at: null,
               },
               {
                 id: "clip-2",
                 attempt_turn_id: "turn-1",
                 clip_kind: "repeat_attempt",
                 processing_status: "transcribed",
+                object_key: "as-1/attempt-1/1/repeat_attempt-clip-2.webm",
+                duration_ms: 900,
+                audio_expires_at: "2099-01-01T00:00:00.000Z",
+                deleted_at: null,
+                teacher_confirmed_text: null,
+                teacher_confirmed_by: null,
+                teacher_confirmed_at: null,
+                clarification_started_at: null,
+                clarification_token: null,
+                pronunciation_reprocessing_started_at: null,
               },
             ],
             error: null,
@@ -776,6 +800,76 @@ describe("teacher audio evidence service", () => {
     });
   });
 
+  it("returns immutable automatic transcripts and per-clip clarification metadata", async () => {
+    mockSupabase = createMockSupabase({
+      clipRows: [
+        {
+          id: "clip-1",
+          attempt_turn_id: "turn-1",
+          clip_kind: "original_answer",
+          processing_status: "transcribed",
+          object_key: "original.webm",
+          duration_ms: 900,
+          audio_expires_at: "2099-01-01T00:00:00.000Z",
+          deleted_at: null,
+          teacher_confirmed_text: "I wake up at eight.",
+          teacher_confirmed_by: "teacher-1",
+          teacher_confirmed_at: "2026-08-31T01:00:00.000Z",
+          clarification_started_at: "2000-01-01T00:00:00.000Z",
+          clarification_token: "abandoned-token",
+          pronunciation_reprocessing_started_at: null,
+        },
+        {
+          id: "clip-2",
+          attempt_turn_id: "turn-1",
+          clip_kind: "repeat_attempt",
+          processing_status: "transcribed",
+          object_key: "repeat.webm",
+          duration_ms: 900,
+          audio_expires_at: "2020-01-01T00:00:00.000Z",
+          deleted_at: null,
+          teacher_confirmed_text: "I wake up at eight.",
+          teacher_confirmed_by: "teacher-1",
+          teacher_confirmed_at: "2026-08-31T01:00:00.000Z",
+          clarification_started_at: null,
+          clarification_token: null,
+          pronunciation_reprocessing_started_at: null,
+        },
+      ],
+    });
+    const { getAttemptEvidenceForTeacher } = await import(
+      "@/server/teacher/audio-evidence"
+    );
+
+    const evidence = await getAttemptEvidenceForTeacher({
+      teacherId: "teacher-1",
+      attemptId: "attempt-1",
+    });
+
+    expect(evidence?.turns[0]?.originalTranscript).toBe(
+      "I wake up at seven.",
+    );
+    expect(evidence?.turns[0]?.repeatTranscript).toBe(
+      "I wake up at seven.",
+    );
+    expect(evidence?.turns[0]?.audioClips).toEqual([
+      expect.objectContaining({
+        id: "clip-1",
+        automaticTranscript: "I wake up at seven.",
+        teacherConfirmedText: "I wake up at eight.",
+        teacherConfirmedBy: "teacher-1",
+        teacherConfirmedAt: "2026-08-31T01:00:00.000Z",
+        clarificationAvailable: true,
+      }),
+      expect.objectContaining({
+        id: "clip-2",
+        automaticTranscript: "I wake up at seven.",
+        teacherConfirmedText: "I wake up at eight.",
+        clarificationAvailable: false,
+      }),
+    ]);
+  });
+
   it("returns null when the teacher does not own the attempt", async () => {
     mockSupabase = createMockSupabase({ evidenceFound: false });
     const { getAttemptEvidenceForTeacher } = await import(
@@ -825,7 +919,7 @@ describe("teacher audio evidence service", () => {
     );
   });
 
-  it("does not sign missing, deleted, failed, or keyless clips", async () => {
+  it("does not sign missing, expired, unplayable, or keyless clips", async () => {
     const { createSignedAudioUrlForTeacher } = await import(
       "@/server/teacher/audio-evidence"
     );
@@ -851,6 +945,24 @@ describe("teacher audio evidence service", () => {
       createSignedAudioUrlForTeacher({
         teacherId: "teacher-1",
         audioClipId: "failed",
+      }),
+    ).resolves.toBeNull();
+
+    mockSupabase = createMockSupabase({
+      clipExpiresAt: "2000-01-01T00:00:00.000Z",
+    });
+    await expect(
+      createSignedAudioUrlForTeacher({
+        teacherId: "teacher-1",
+        audioClipId: "expired",
+      }),
+    ).resolves.toBeNull();
+
+    mockSupabase = createMockSupabase({ clipStatus: "pending_upload" });
+    await expect(
+      createSignedAudioUrlForTeacher({
+        teacherId: "teacher-1",
+        audioClipId: "pending",
       }),
     ).resolves.toBeNull();
 
