@@ -171,9 +171,13 @@ function getStudentAudioBucketId() {
   return process.env.STUDENT_AUDIO_BUCKET || DEFAULT_AUDIO_BUCKET;
 }
 
+function normalizeAudioMimeType(value: string) {
+  const normalized = value.toLowerCase().split(";")[0]?.trim() ?? "";
+  return normalized === "audio/x-m4a" ? "audio/mp4" : normalized;
+}
+
 function normalizedMimeType(input: PronunciationSampleUploadInput) {
-  const declared = (input.mimeType ?? input.file.type).toLowerCase();
-  return declared.split(";")[0]?.trim() ?? "";
+  return normalizeAudioMimeType(input.mimeType ?? input.file.type);
 }
 
 function parseScore(value: unknown): PronunciationScoreDetail | null {
@@ -212,7 +216,7 @@ function mapSample(
 }
 
 function isValidInput(input: PronunciationSampleUploadInput, mimeType: string) {
-  const fileMimeType = input.file.type.toLowerCase().split(";")[0]?.trim() ?? "";
+  const fileMimeType = normalizeAudioMimeType(input.file.type);
   return (
     input.file.size > 0 &&
     input.file.size <= MAX_AUDIO_BYTES &&

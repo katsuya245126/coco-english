@@ -9,14 +9,15 @@ const nextConfig: NextConfig = {
    * statically, so it sees index.js and package.json but never the executable —
    * which shipped a function whose ffmpeg spawn failed with ENOENT.
    *
-   * Verified against a local production-mode build: without this include the
-   * audio route's .nft.json omits the binary; with it, the executable is traced
-   * at mode 755.
+   * Verified against a local production-mode build: without these includes the
+   * affected route's .nft.json omits the binary; with them, the executable is
+   * traced at mode 755.
    * `scripts/assert-ffmpeg-traced.mjs` runs on postbuild so a silent regression
    * fails the build instead of the student's pronunciation score.
    */
   outputFileTracingIncludes: {
     "/student/missions/*/audio": ["./node_modules/ffmpeg-static/ffmpeg"],
+    "/teacher/students/*": ["./node_modules/ffmpeg-static/ffmpeg"],
   },
 };
 
