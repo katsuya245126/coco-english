@@ -9,7 +9,11 @@
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { z } from "zod";
 import { log } from "@/server/logging/logger";
-import { transcodeToWav as defaultTranscodeToWav, type TranscodeResult } from "@/server/audio/audio-transcode";
+import {
+  readPcmWavDurationMs,
+  transcodeToWav as defaultTranscodeToWav,
+  type TranscodeResult,
+} from "@/server/audio/audio-transcode";
 import {
   computeBandScore,
   scoreToStarBand,
@@ -85,60 +89,6 @@ function resolveApiKey(deps?: PronunciationScorerDeps) {
 function resolveRegion(deps?: PronunciationScorerDeps) {
   if (deps && "region" in deps) return deps.region?.trim() ?? "";
   return process.env.AZURE_SPEECH_REGION?.trim() ?? "";
-}
-
-/** Read the duration of the transcoder's 16 kHz mono 16-bit PCM WAV output. */
-function readPcmWavDurationMs(wav: Buffer): number | null {
-  if (
-    wav.length < 12 ||
-    wav.toString("ascii", 0, 4) !== "RIFF" ||
-    wav.toString("ascii", 8, 12) !== "WAVE"
-  ) {
-    return null;
-  }
-
-  let format: { sampleRate: number; blockAlign: number } | null = null;
-  let offset = 12;
-
-  while (offset + 8 <= wav.length) {
-    const chunkId = wav.toString("ascii", offset, offset + 4);
-    const chunkSize = wav.readUInt32LE(offset + 4);
-    const chunkDataOffset = offset + 8;
-
-    if (chunkId === "fmt ") {
-      if (chunkSize < 16 || chunkDataOffset + 16 > wav.length) return null;
-      const audioFormat = wav.readUInt16LE(chunkDataOffset);
-      const channels = wav.readUInt16LE(chunkDataOffset + 2);
-      const sampleRate = wav.readUInt32LE(chunkDataOffset + 4);
-      const blockAlign = wav.readUInt16LE(chunkDataOffset + 12);
-      const bitsPerSample = wav.readUInt16LE(chunkDataOffset + 14);
-      if (
-        audioFormat !== 1 ||
-        channels !== 1 ||
-        sampleRate !== 16_000 ||
-        blockAlign !== 2 ||
-        bitsPerSample !== 16
-      ) {
-        return null;
-      }
-      format = { sampleRate, blockAlign };
-    }
-
-    if (chunkId === "data") {
-      if (!format) return null;
-      const pcmByteLength = wav.length - chunkDataOffset;
-      if (pcmByteLength <= 0 || pcmByteLength % format.blockAlign !== 0) {
-        return null;
-      }
-      return (pcmByteLength / format.blockAlign / format.sampleRate) * 1_000;
-    }
-
-    const nextOffset = chunkDataOffset + chunkSize + (chunkSize % 2);
-    if (nextOffset <= offset || nextOffset > wav.length) return null;
-    offset = nextOffset;
-  }
-
-  return null;
 }
 
 const providerScoreSchema = z.number().finite().min(0).max(100);
