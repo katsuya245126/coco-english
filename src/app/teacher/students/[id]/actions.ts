@@ -5,6 +5,7 @@ import { requireTeacherProfile } from "@/server/auth/teacher-profile";
 import {
   confirmPronunciationSample,
   createSignedPronunciationSampleUrlForTeacher,
+  removePronunciationSample,
   uploadPronunciationSample,
   PRONUNCIATION_SAMPLE_DURATION_ERROR,
   type PronunciationSample,
@@ -14,6 +15,8 @@ const GENERIC_FAILURE =
   "We could not add this pronunciation sample. Please try again.";
 const CONFIRM_FAILURE =
   "We could not confirm this pronunciation sample. Please try again.";
+const REMOVE_FAILURE =
+  "We could not remove this pronunciation sample. Please try again.";
 
 export type UploadPronunciationSampleActionResult =
   | { ok: true; sample: PronunciationSample }
@@ -144,6 +147,47 @@ export async function confirmPronunciationSampleAction(
     return { ok: false, error: "retryable", message: CONFIRM_FAILURE };
   } catch {
     return { ok: false, error: "retryable", message: CONFIRM_FAILURE };
+  }
+}
+
+export type RemovePronunciationSampleActionResult =
+  | { ok: true; studentId: string }
+  | {
+      ok: false;
+      error: "invalid_input" | "retryable" | "unavailable";
+      message: string;
+    };
+
+export async function removePronunciationSampleAction(
+  sampleId: string,
+): Promise<RemovePronunciationSampleActionResult> {
+  if (typeof sampleId !== "string" || !sampleId.trim()) {
+    return { ok: false, error: "invalid_input", message: REMOVE_FAILURE };
+  }
+
+  let profile;
+  try {
+    profile = await requireTeacherProfile();
+  } catch {
+    return { ok: false, error: "unavailable", message: REMOVE_FAILURE };
+  }
+
+  try {
+    const result = await removePronunciationSample({
+      teacherId: profile.id,
+      sampleId,
+    });
+
+    if (result.ok) {
+      revalidatePath(`/teacher/students/${result.studentId}`);
+      return result;
+    }
+    if (result.error === "not_found" || result.error === "unavailable") {
+      return { ok: false, error: "unavailable", message: REMOVE_FAILURE };
+    }
+    return { ok: false, error: "retryable", message: REMOVE_FAILURE };
+  } catch {
+    return { ok: false, error: "retryable", message: REMOVE_FAILURE };
   }
 }
 

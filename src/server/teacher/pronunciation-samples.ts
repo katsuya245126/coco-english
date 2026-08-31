@@ -119,6 +119,26 @@ export type ConfirmPronunciationSampleDeps = {
   now?: () => Date;
 };
 
+export type RemovePronunciationSampleInput = {
+  teacherId: string;
+  sampleId: string;
+};
+
+export type RemovePronunciationSampleResult =
+  | { ok: true; studentId: string }
+  | {
+      ok: false;
+      error:
+        | "not_found"
+        | "unavailable"
+        | "storage_failed_retryable"
+        | "failed";
+    };
+
+export type RemovePronunciationSampleDeps = {
+  client?: ServiceClient;
+};
+
 const scoreRowSchema = z.object({
   accuracyScore: z.number().finite().min(0).max(100),
   fluencyScore: z.number().finite().min(0).max(100).nullable(),
@@ -142,6 +162,7 @@ const sampleRowSchema = z.object({
   provisional_result: z.unknown().nullable(),
   confirmed_by_teacher_id: z.string().nullable(),
   confirmed_at: z.string().nullable(),
+  deletion_started_at: z.string().nullable().optional(),
   audio_expires_at: z.string(),
   created_at: z.string(),
 });
@@ -168,6 +189,7 @@ function mapSample(
   const parsed = sampleRowSchema.safeParse(value);
   if (!parsed.success) return null;
   const row = parsed.data;
+  if (row.deletion_started_at) return null;
   const expiresAt = new Date(row.audio_expires_at);
   if (Number.isNaN(expiresAt.getTime())) return null;
 
@@ -446,11 +468,13 @@ export async function getPronunciationSamplesForTeacher(input: {
     .select(
       `id, student_id, object_key, mime_type, duration_ms, byte_size, status,
        automatic_transcript, teacher_confirmed_text, provisional_result,
-       confirmed_by_teacher_id, confirmed_at, audio_expires_at, created_at,
+       confirmed_by_teacher_id, confirmed_at, deletion_started_at,
+       audio_expires_at, created_at,
        students!inner(classes!inner(teacher_id))`,
     )
     .eq("student_id", input.studentId)
     .eq("students.classes.teacher_id", input.teacherId)
+    .is("deletion_started_at", null)
     .in("status", ["pending", "confirmed"])
     .order("created_at", { ascending: false });
 
@@ -479,6 +503,14 @@ type ConfirmationBegin = {
   audio_expires_at?: string | null;
   created_at?: string | null;
   confirmation_token?: string | null;
+};
+
+type DeletionBegin = {
+  outcome: "ok" | "unavailable" | "not_found";
+  sample_id?: string | null;
+  student_id?: string | null;
+  object_key?: string | null;
+  deletion_token?: string | null;
 };
 
 function confirmationSample(
@@ -763,51 +795,132 @@ export async function confirmPronunciationSample(
   return sample ? { ok: true, sample } : { ok: false, error: "failed" };
 }
 
-/** Create a short-lived signed URL only after the sample/class ownership query. */
+/** Remove one owned sample, deleting its private object before its row. */
+export async function removePronunciationSample(
+  input: RemovePronunciationSampleInput,
+  deps: RemovePronunciationSampleDeps = {},
+): Promise<RemovePronunciationSampleResult> {
+  if (
+    typeof input.teacherId !== "string" ||
+    typeof input.sampleId !== "string" ||
+    !input.teacherId.trim() ||
+    !input.sampleId.trim()
+  ) {
+    return { ok: false, error: "not_found" };
+  }
+
+  const supabase = deps.client ?? createSupabaseServiceClient();
+  let begin: DeletionBegin | null = null;
+  try {
+    const result = await supabase.rpc(
+      "begin_teacher_pronunciation_sample_deletion",
+      {
+        p_teacher_id: input.teacherId,
+        p_sample_id: input.sampleId,
+      },
+    );
+    begin = result.error
+      ? null
+      : (result.data?.[0] as DeletionBegin | undefined) ?? null;
+  } catch {
+    begin = null;
+  }
+
+  if (!begin) return { ok: false, error: "failed" };
+  if (begin.outcome === "not_found") {
+    return { ok: false, error: "not_found" };
+  }
+  if (begin.outcome === "unavailable") {
+    return { ok: false, error: "unavailable" };
+  }
+  if (
+    begin.outcome !== "ok" ||
+    typeof begin.sample_id !== "string" ||
+    typeof begin.student_id !== "string" ||
+    typeof begin.deletion_token !== "string"
+  ) {
+    return { ok: false, error: "failed" };
+  }
+
+  const sampleId = begin.sample_id;
+  const deletionToken = begin.deletion_token;
+
+  if (begin.object_key) {
+    try {
+      const removed = await supabase.storage
+        .from(getStudentAudioBucketId())
+        .remove([begin.object_key]);
+      if (removed.error) {
+        return { ok: false, error: "storage_failed_retryable" };
+      }
+    } catch {
+      return { ok: false, error: "storage_failed_retryable" };
+    }
+  }
+
+  let finalized: string | null = null;
+  try {
+    const result = await supabase.rpc(
+      "finalize_teacher_pronunciation_sample_deletion",
+      {
+        p_teacher_id: input.teacherId,
+        p_sample_id: sampleId,
+        p_deletion_token: deletionToken,
+      },
+    );
+    finalized = result.error ? null : result.data;
+  } catch {
+    finalized = null;
+  }
+
+  if (finalized !== "ok") {
+    return {
+      ok: false,
+      error: finalized === "not_found" ? "not_found" : "failed",
+    };
+  }
+
+  return { ok: true, studentId: begin.student_id };
+}
+
+type PlaybackBegin = {
+  outcome: "ok" | "unavailable" | "not_found";
+  object_key?: string | null;
+};
+
+/** Create a short-lived signed URL after an ownership-checked playback lease. */
 export async function createSignedPronunciationSampleUrlForTeacher(input: {
   teacherId: string;
   sampleId: string;
   now?: Date;
 }, deps: { client?: ServiceClient } = {}): Promise<{ signedUrl: string } | null> {
   const supabase = deps.client ?? createSupabaseServiceClient();
-  const result = await supabase
-    .from("pronunciation_samples")
-    .select(
-      `id, object_key, status, audio_expires_at,
-       students!inner(classes!inner(teacher_id))`,
-    )
-    .eq("id", input.sampleId)
-    .eq("students.classes.teacher_id", input.teacherId)
-    .maybeSingle();
-
+  const result = await supabase.rpc(
+    "begin_teacher_pronunciation_sample_playback",
+    {
+      p_teacher_id: input.teacherId,
+      p_sample_id: input.sampleId,
+    },
+  );
   if (result.error) {
     throw new Error(
-      `Unable to load pronunciation sample: ${result.error.message}`,
+      `Unable to begin pronunciation sample playback: ${result.error.message}`,
     );
   }
-  const row = result.data as
-    | {
-        object_key?: string | null;
-        status?: string;
-        audio_expires_at?: string;
-      }
-    | null;
-  const expiresAt = row?.audio_expires_at
-    ? new Date(row.audio_expires_at)
-    : null;
+  const begin = (result.data?.[0] as PlaybackBegin | undefined) ?? null;
+
   if (
-    !row?.object_key ||
-    (row.status !== "pending" && row.status !== "confirmed") ||
-    !expiresAt ||
-    Number.isNaN(expiresAt.getTime()) ||
-    expiresAt <= (input.now ?? new Date())
+    !begin ||
+    begin.outcome !== "ok" ||
+    typeof begin.object_key !== "string" ||
+    !begin.object_key
   ) {
     return null;
   }
 
   const signed = await supabase.storage
     .from(getStudentAudioBucketId())
-    .createSignedUrl(row.object_key, SIGNED_AUDIO_URL_TTL_SECONDS);
+    .createSignedUrl(begin.object_key, SIGNED_AUDIO_URL_TTL_SECONDS);
   if (signed.error || !signed.data?.signedUrl) {
     throw new Error(
       `Unable to create pronunciation sample URL: ${

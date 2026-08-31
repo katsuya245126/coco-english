@@ -9,6 +9,7 @@ import {
   confirmPronunciationSample,
   createSignedPronunciationSampleUrlForTeacher,
   getPronunciationSamplesForTeacher,
+  removePronunciationSample,
   uploadPronunciationSample,
 } from "@/server/teacher/pronunciation-samples";
 
@@ -137,11 +138,12 @@ function storedSample(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function createReadMock(row: unknown = storedSample()) {
+function createReadMock(row: Record<string, unknown> = storedSample()) {
   const query = {
     select: vi.fn(() => query),
     eq: vi.fn(() => query),
     in: vi.fn(() => query),
+    is: vi.fn(() => query),
     order: vi.fn(async () => ({ data: [row], error: null })),
     maybeSingle: vi.fn(async () => ({ data: row, error: null })),
   };
@@ -149,8 +151,27 @@ function createReadMock(row: unknown = storedSample()) {
     data: { signedUrl: "https://storage.example/signed-sample" },
     error: null,
   }));
+  const rpc = vi.fn(async (name: string) => {
+    if (name !== "begin_teacher_pronunciation_sample_playback") {
+      throw new Error(`unexpected RPC ${name}`);
+    }
+    const expired =
+      typeof row.audio_expires_at === "string" &&
+      new Date(row.audio_expires_at) <= new Date("2026-08-31T00:00:00.000Z");
+    return {
+      data: [{
+        outcome:
+          row.deletion_started_at || expired || !row.object_key
+            ? "not_found"
+            : "ok",
+        object_key: row.object_key ?? null,
+      }],
+      error: null,
+    };
+  });
   return {
     query,
+    rpc,
     createSignedUrl,
     from: vi.fn(() => query),
     storage: { from: vi.fn(() => ({ createSignedUrl })) },
@@ -217,6 +238,44 @@ function createConfirmationMock(options: {
     })),
   };
 
+  return { events, rpc, storage };
+}
+
+function createRemovalMock(options: {
+  begin?: unknown;
+  finalize?: unknown;
+  storageError?: boolean;
+} = {}) {
+  const events: string[] = [];
+  const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
+    events.push(`rpc:${name}`);
+    if (name === "begin_teacher_pronunciation_sample_deletion") {
+      return {
+        data: options.begin ?? [{
+          outcome: "ok",
+          sample_id: "sample-1",
+          student_id: "student-1",
+          object_key: "pronunciation-samples/student-1/sample-1.webm",
+          deletion_token: "deletion-1",
+        }],
+        error: null,
+      };
+    }
+    if (name === "finalize_teacher_pronunciation_sample_deletion") {
+      return { data: options.finalize ?? "ok", error: null };
+    }
+    throw new Error(`unexpected RPC ${name} ${JSON.stringify(args)}`);
+  });
+  const storage = {
+    from: vi.fn(() => ({
+      remove: vi.fn(async () => {
+        events.push("storage:remove");
+        return options.storageError
+          ? { data: null, error: new Error("storage unavailable") }
+          : { data: [], error: null };
+      }),
+    })),
+  };
   return { events, rpc, storage };
 }
 
@@ -360,6 +419,7 @@ describe("uploadPronunciationSample", () => {
       "pending",
       "confirmed",
     ]);
+    expect(supabase.query.is).toHaveBeenCalledWith("deletion_started_at", null);
   });
 
   it("creates a short-lived signed URL only for live owned sample audio", async () => {
@@ -376,14 +436,29 @@ describe("uploadPronunciationSample", () => {
     expect(result).toEqual({
       signedUrl: "https://storage.example/signed-sample",
     });
-    expect(supabase.query.eq).toHaveBeenCalledWith(
-      "students.classes.teacher_id",
-      "teacher-1",
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "begin_teacher_pronunciation_sample_playback",
+      { p_teacher_id: "teacher-1", p_sample_id: "sample-1" },
     );
     expect(supabase.createSignedUrl).toHaveBeenCalledWith(
       "pronunciation-samples/student-1/sample-1.webm",
       300,
     );
+  });
+
+  it("rejects playback while a deletion claim is active", async () => {
+    const supabase = createReadMock({
+      ...storedSample(),
+      deletion_started_at: "2026-08-31T00:00:00.000Z",
+    });
+
+    await expect(
+      createSignedPronunciationSampleUrlForTeacher(
+        { teacherId: "teacher-1", sampleId: "sample-1" },
+        { client: supabase as never },
+      ),
+    ).resolves.toBeNull();
+    expect(supabase.createSignedUrl).not.toHaveBeenCalled();
   });
 
   it("does not offer playback after sample audio expires", async () => {
@@ -403,6 +478,109 @@ describe("uploadPronunciationSample", () => {
 
     expect(result).toBeNull();
     expect(supabase.createSignedUrl).not.toHaveBeenCalled();
+  });
+
+  it("keeps confirmed evidence readable after expiry when audio metadata is cleared", async () => {
+    const supabase = createReadMock({
+      ...storedSample(),
+      status: "confirmed",
+      object_key: null,
+      audio_expires_at: "2026-08-30T23:59:59.000Z",
+    });
+
+    await expect(
+      getPronunciationSamplesForTeacher(
+        {
+          teacherId: "teacher-1",
+          studentId: "student-1",
+          now: new Date("2026-08-31T00:00:00.000Z"),
+        },
+        { client: supabase as never },
+      ),
+    ).resolves.toMatchObject([
+      {
+        status: "confirmed",
+        automaticTranscript: "fan",
+        provisionalResult: scoreDetail,
+        mimeType: "audio/webm",
+        durationMs: 3_000,
+        byteSize: 100,
+        audioAvailable: false,
+      },
+    ]);
+  });
+
+  it("does not map a row that still carries an active deletion claim", async () => {
+    const supabase = createReadMock({
+      ...storedSample(),
+      deletion_started_at: "2026-08-31T00:00:00.000Z",
+    });
+
+    await expect(
+      getPronunciationSamplesForTeacher(
+        { teacherId: "teacher-1", studentId: "student-1" },
+        { client: supabase as never },
+      ),
+    ).resolves.toEqual([]);
+  });
+
+  it("removes storage before finalizing an owned sample", async () => {
+    const supabase = createRemovalMock();
+
+    await expect(
+      removePronunciationSample(
+        { teacherId: "teacher-1", sampleId: "sample-1" },
+        { client: supabase as never },
+      ),
+    ).resolves.toEqual({ ok: true, studentId: "student-1" });
+
+    expect(supabase.events).toEqual([
+      "rpc:begin_teacher_pronunciation_sample_deletion",
+      "storage:remove",
+      "rpc:finalize_teacher_pronunciation_sample_deletion",
+    ]);
+  });
+
+  it("leaves a failed storage deletion retryable and does not finalize", async () => {
+    const supabase = createRemovalMock({ storageError: true });
+
+    await expect(
+      removePronunciationSample(
+        { teacherId: "teacher-1", sampleId: "sample-1" },
+        { client: supabase as never },
+      ),
+    ).resolves.toEqual({ ok: false, error: "storage_failed_retryable" });
+
+    expect(supabase.events).toEqual([
+      "rpc:begin_teacher_pronunciation_sample_deletion",
+      "storage:remove",
+    ]);
+    expect(supabase.events).not.toContain(
+      "rpc:clear_teacher_pronunciation_sample_deletion",
+    );
+    expect(supabase.events).not.toContain(
+      "rpc:finalize_teacher_pronunciation_sample_deletion",
+    );
+  });
+
+  it("leaves the deletion claim fenced when finalization fails after Storage succeeds", async () => {
+    const supabase = createRemovalMock({ finalize: "failed" });
+
+    await expect(
+      removePronunciationSample(
+        { teacherId: "teacher-1", sampleId: "sample-1" },
+        { client: supabase as never },
+      ),
+    ).resolves.toEqual({ ok: false, error: "failed" });
+
+    expect(supabase.events).toEqual([
+      "rpc:begin_teacher_pronunciation_sample_deletion",
+      "storage:remove",
+      "rpc:finalize_teacher_pronunciation_sample_deletion",
+    ]);
+    expect(supabase.events).not.toContain(
+      "rpc:clear_teacher_pronunciation_sample_deletion",
+    );
   });
 });
 

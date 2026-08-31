@@ -302,6 +302,10 @@ export type Database = {
           teacher_confirmed_text: string | null;
           confirmation_started_at: string | null;
           confirmation_token: string | null;
+          deletion_started_at: string | null;
+          deletion_token: string | null;
+          deletion_kind: "teacher" | "expiry" | null;
+          playback_lease_until: string | null;
           confirmed_by_teacher_id: string | null;
           confirmed_at: string | null;
           audio_expires_at: string;
@@ -323,6 +327,10 @@ export type Database = {
           teacher_confirmed_text?: string | null;
           confirmation_started_at?: string | null;
           confirmation_token?: string | null;
+          deletion_started_at?: string | null;
+          deletion_token?: string | null;
+          deletion_kind?: "teacher" | "expiry" | null;
+          playback_lease_until?: string | null;
           confirmed_by_teacher_id?: string | null;
           confirmed_at?: string | null;
           audio_expires_at?: string;
@@ -730,6 +738,49 @@ export type Database = {
           p_confirmation_token: string;
         };
         Returns: "ok" | "not_found";
+      };
+      begin_teacher_pronunciation_sample_deletion: {
+        Args: { p_teacher_id: string; p_sample_id: string };
+        Returns: {
+          outcome: "ok" | "unavailable" | "not_found";
+          sample_id: string | null;
+          student_id: string | null;
+          object_key: string | null;
+          deletion_token: string | null;
+        }[];
+      };
+      claim_expired_teacher_pronunciation_samples: {
+        Args: { p_limit: number };
+        Returns: {
+          teacher_id: string;
+          sample_id: string;
+          object_key: string | null;
+          deletion_token: string;
+          deletion_kind: "teacher" | "expiry";
+        }[];
+      };
+      finalize_teacher_pronunciation_sample_deletion: {
+        Args: {
+          p_teacher_id: string;
+          p_sample_id: string;
+          p_deletion_token: string;
+        };
+        Returns: "ok" | "not_found";
+      };
+      finalize_expired_teacher_pronunciation_sample_deletion: {
+        Args: {
+          p_teacher_id: string;
+          p_sample_id: string;
+          p_deletion_token: string;
+        };
+        Returns: "ok" | "not_found";
+      };
+      begin_teacher_pronunciation_sample_playback: {
+        Args: { p_teacher_id: string; p_sample_id: string };
+        Returns: {
+          outcome: "ok" | "unavailable" | "not_found";
+          object_key: string | null;
+        }[];
       };
     };
     Enums: {

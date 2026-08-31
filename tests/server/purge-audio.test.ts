@@ -18,7 +18,10 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 // This import will fail (RED) until Wave 3 creates the module.
-import { purgeExpiredAudio } from "@/server/foundation/purgeExpiredAudio";
+import {
+  purgeExpiredAudio,
+  purgeExpiredPronunciationSamples,
+} from "@/server/foundation/purgeExpiredAudio";
 
 // ---------------------------------------------------------------------------
 // Mock Supabase with call-order tracking
@@ -29,6 +32,7 @@ const callOrder: string[] = [];
 const mockRemove = vi.fn();
 const mockUpdate = vi.fn();
 const mockSelect = vi.fn();
+const mockRpc = vi.fn();
 
 function resetMocks() {
   callOrder.length = 0;
@@ -46,6 +50,7 @@ function resetMocks() {
     };
     return chain;
   });
+  mockRpc.mockResolvedValue({ data: [], error: null });
 }
 
 const mockSupabase = {
@@ -79,6 +84,7 @@ const mockSupabase = {
       remove: (keys: string[]) => mockRemove(keys),
     }),
   },
+  rpc: (name: string, args: unknown) => mockRpc(name, args),
 };
 
 beforeEach(() => {
@@ -159,6 +165,12 @@ describe("purgeExpiredAudio — Storage error resilience (PILOT-03)", () => {
     const result = await purgeExpiredAudio();
     expect(result).toMatchObject({ deletedCount: expect.any(Number) });
   });
+
+  it("keeps the mission purge result when pronunciation expiry fails", async () => {
+    mockRpc.mockRejectedValueOnce(new Error("pronunciation database unavailable"));
+
+    await expect(purgeExpiredAudio()).resolves.toEqual({ deletedCount: 3 });
+  });
 });
 
 describe("purgeExpiredAudio — select query shape (idempotency, batch cap)", () => {
@@ -174,5 +186,139 @@ describe("purgeExpiredAudio — select query shape (idempotency, batch cap)", ()
     // would never fire because our mock chain requires .limit() to resolve.
     await purgeExpiredAudio();
     expect(mockSelect).toHaveBeenCalled();
+  });
+});
+
+describe("purgeExpiredAudio — teacher pronunciation samples", () => {
+  it("claims and finalizes expired pronunciation samples through the shared claim", async () => {
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === "claim_expired_teacher_pronunciation_samples") {
+        return {
+          data: [{
+            teacher_id: "teacher-1",
+            sample_id: "sample-1",
+            object_key: "pronunciation-samples/student-1/sample-1.webm",
+            deletion_token: "deletion-1",
+            deletion_kind: "expiry",
+          }],
+          error: null,
+        };
+      }
+      if (name === "finalize_expired_teacher_pronunciation_sample_deletion") {
+        return { data: "ok", error: null };
+      }
+      return { data: [], error: null };
+    });
+
+    await expect(purgeExpiredPronunciationSamples(mockSupabase as never)).resolves.toBe(1);
+
+    expect(mockRpc).toHaveBeenCalledWith(
+      "claim_expired_teacher_pronunciation_samples",
+      { p_limit: 1000 },
+    );
+    expect(mockRpc).toHaveBeenCalledWith(
+      "finalize_expired_teacher_pronunciation_sample_deletion",
+      {
+        p_teacher_id: "teacher-1",
+        p_sample_id: "sample-1",
+        p_deletion_token: "deletion-1",
+      },
+    );
+  });
+
+  it("finalizes stale teacher-removal claims through full row deletion", async () => {
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === "claim_expired_teacher_pronunciation_samples") {
+        return {
+          data: [{
+            teacher_id: "teacher-1",
+            sample_id: "sample-1",
+            object_key: "pronunciation-samples/student-1/sample-1.webm",
+            deletion_token: "deletion-1",
+            deletion_kind: "teacher",
+          }],
+          error: null,
+        };
+      }
+      if (name === "finalize_teacher_pronunciation_sample_deletion") {
+        return { data: "ok", error: null };
+      }
+      throw new Error(`unexpected RPC ${name}`);
+    });
+
+    await expect(
+      purgeExpiredPronunciationSamples(mockSupabase as never),
+    ).resolves.toBe(1);
+
+    expect(mockRpc).toHaveBeenCalledWith(
+      "finalize_teacher_pronunciation_sample_deletion",
+      {
+        p_teacher_id: "teacher-1",
+        p_sample_id: "sample-1",
+        p_deletion_token: "deletion-1",
+      },
+    );
+    expect(mockRpc).not.toHaveBeenCalledWith(
+      "finalize_expired_teacher_pronunciation_sample_deletion",
+      expect.anything(),
+    );
+  });
+
+  it("does not finalize a pronunciation sample when Storage removal fails", async () => {
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === "claim_expired_teacher_pronunciation_samples") {
+        return {
+          data: [{
+            teacher_id: "teacher-1",
+            sample_id: "sample-1",
+            object_key: "pronunciation-samples/student-1/sample-1.webm",
+            deletion_token: "deletion-1",
+            deletion_kind: "expiry",
+          }],
+          error: null,
+        };
+      }
+      throw new Error(`unexpected RPC ${name}`);
+    });
+    mockRemove.mockImplementationOnce(async () => {
+      callOrder.push("storage.remove");
+      return { data: null, error: { message: "storage unavailable" } };
+    });
+
+    await purgeExpiredPronunciationSamples(mockSupabase as never);
+
+    expect(mockRpc).not.toHaveBeenCalledWith(
+      "finalize_expired_teacher_pronunciation_sample_deletion",
+      expect.anything(),
+    );
+    expect(mockRpc).not.toHaveBeenCalledWith(
+      "clear_expired_teacher_pronunciation_sample_deletion",
+      expect.anything(),
+    );
+  });
+
+  it("leaves the expiry claim fenced when finalization fails", async () => {
+    mockRpc.mockImplementation(async (name: string) => {
+      if (name === "claim_expired_teacher_pronunciation_samples") {
+        return {
+          data: [{
+            teacher_id: "teacher-1",
+            sample_id: "sample-1",
+            object_key: null,
+            deletion_token: "deletion-1",
+            deletion_kind: "expiry",
+          }],
+          error: null,
+        };
+      }
+      if (name === "finalize_expired_teacher_pronunciation_sample_deletion") {
+        return { data: null, error: new Error("database unavailable") };
+      }
+      throw new Error(`unexpected RPC ${name}`);
+    });
+
+    await expect(
+      purgeExpiredPronunciationSamples(mockSupabase as never),
+    ).resolves.toBe(0);
   });
 });

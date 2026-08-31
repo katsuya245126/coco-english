@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   confirmPronunciationSampleAction,
   loadPronunciationSampleAudioUrlAction,
+  removePronunciationSampleAction,
   uploadPronunciationSampleAction,
 } from "@/app/teacher/students/[id]/actions";
 import {
@@ -231,6 +232,20 @@ function PronunciationSampleCard({ sample }: { sample: PronunciationSample }) {
     });
   }
 
+  function remove() {
+    setError(null);
+    setMessage(null);
+    startTransition(async () => {
+      const result = await removePronunciationSampleAction(sample.id);
+      if (result.ok) {
+        setMessage("Sample removed.");
+        router.refresh();
+      } else {
+        setError(result.message);
+      }
+    });
+  }
+
   return (
     <article style={sampleCardStyle}>
       <div style={sampleHeaderStyle}>
@@ -281,6 +296,15 @@ function PronunciationSampleCard({ sample }: { sample: PronunciationSample }) {
         </p>
       )}
 
+      <button
+        type="button"
+        onClick={remove}
+        disabled={isPending}
+        style={secondaryButtonStyle}
+      >
+        {isPending ? "Removing sample…" : "Remove sample"}
+      </button>
+
       <div style={resultBlockStyle}>
         <p style={labelStyle}>
           {sample.status === "confirmed"
@@ -305,7 +329,7 @@ function PronunciationSampleCard({ sample }: { sample: PronunciationSample }) {
       <p style={expiryStyle}>
         {sample.audioAvailable
           ? `Audio available until ${formatDate(sample.audioExpiresAt)}`
-          : "The transcript and result remain available after audio expires."}
+          : `Audio expired on ${formatDate(sample.audioExpiresAt)}`}
       </p>
       {message ? <p role="status" style={successStyle}>{message}</p> : null}
       {error ? (

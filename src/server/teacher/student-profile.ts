@@ -197,6 +197,7 @@ export async function getStudentSoundProfile(
     )
     .eq("student_id", studentId)
     .eq("students.classes.teacher_id", teacherId)
+    .is("deletion_started_at", null)
     .eq("status", "confirmed");
 
   if (samples.error) {
