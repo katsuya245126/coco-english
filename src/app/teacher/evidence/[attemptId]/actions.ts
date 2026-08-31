@@ -4,7 +4,17 @@ import { revalidatePath } from "next/cache";
 import { requireTeacherProfile } from "@/server/auth/teacher-profile";
 import { changeAttemptReview } from "@/server/teacher/assignment-operations";
 import { createSignedAudioUrlForTeacher } from "@/server/teacher/audio-evidence";
-import { reprocessClipPronunciation } from "@/server/audio/pronunciation-reprocess";
+import {
+  clarifyMissionAudio,
+  reprocessClipPronunciation,
+} from "@/server/audio/pronunciation-reprocess";
+
+const CLARIFICATION_FAILURE =
+  "We could not save the teacher-confirmed wording. Please try again.";
+const CLARIFICATION_UNAVAILABLE =
+  "This recording is no longer available for clarification.";
+const CLARIFICATION_RATE_LIMITED =
+  "You’ve made several AI requests. Wait a few minutes and try again.";
 
 export type LoadAudioClipUrlActionResult =
   | { ok: true; signedUrl: string }
@@ -71,6 +81,65 @@ export async function reprocessPronunciationAction(input: {
   }
 
   return result;
+}
+
+export type ClarifyMissionAudioActionResult =
+  | { ok: true }
+  | {
+      ok: false;
+      error: "invalid_input" | "unavailable" | "rate_limited" | "retryable";
+      message: string;
+    };
+
+/** Save a teacher-confirmed reference and publish its replacement score. */
+export async function clarifyMissionAudioAction(input: {
+  audioClipId: string;
+  attemptId: string;
+  teacherConfirmedText: string;
+}): Promise<ClarifyMissionAudioActionResult> {
+  if (
+    typeof input?.audioClipId !== "string" ||
+    !input.audioClipId.trim() ||
+    typeof input?.attemptId !== "string" ||
+    !input.attemptId.trim() ||
+    typeof input?.teacherConfirmedText !== "string" ||
+    !input.teacherConfirmedText.trim()
+  ) {
+    return { ok: false, error: "invalid_input", message: CLARIFICATION_FAILURE };
+  }
+
+  const profile = await requireTeacherProfile();
+
+  let result;
+  try {
+    result = await clarifyMissionAudio({
+      teacherId: profile.id,
+      audioClipId: input.audioClipId,
+      teacherConfirmedText: input.teacherConfirmedText.trim(),
+    });
+  } catch {
+    return { ok: false, error: "retryable", message: CLARIFICATION_FAILURE };
+  }
+
+  if (result.ok) {
+    revalidatePath(`/teacher/evidence/${input.attemptId}`);
+    return { ok: true };
+  }
+
+  if (result.error === "invalid_text") {
+    return { ok: false, error: "invalid_input", message: CLARIFICATION_FAILURE };
+  }
+  if (result.error === "rate_limited") {
+    return {
+      ok: false,
+      error: "rate_limited",
+      message: CLARIFICATION_RATE_LIMITED,
+    };
+  }
+  if (result.error === "unauthorized" || result.error === "unavailable") {
+    return { ok: false, error: "unavailable", message: CLARIFICATION_UNAVAILABLE };
+  }
+  return { ok: false, error: "retryable", message: CLARIFICATION_FAILURE };
 }
 
 export async function markSubmissionReviewedAction(attemptId: string) {
