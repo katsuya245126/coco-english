@@ -3,7 +3,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server-auth";
 import { parseWordScores } from "@/server/teacher/audio-evidence";
 import { oneOrMany } from "@/lib/supabase/one-or-many";
 import {
+  normalizeWord,
+  phonemeLabel,
   studentSoundProfile,
+  tokenizeWords,
   type StudentClipScore,
   type StudentSoundWeakness,
 } from "@/domain/pronunciation/scoring";
@@ -15,33 +18,131 @@ const profileScoreRowSchema = z.object({
 });
 type ProfileScoreRow = z.infer<typeof profileScoreRowSchema>;
 
-/**
- * Pure mapping from stored score rows to the accumulated sound profile.
- * Only `original_answer` clips reach here (scoped by the query), so
- * `reference_text` is the student's own transcript. A null transcript scopes
- * nothing in — safer than counting against the target sentence.
- */
-export function buildStudentSoundProfile(
-  rows: ProfileScoreRow[],
-): StudentSoundWeakness[] {
-  const clips: StudentClipScore[] = rows.map((row) => ({
+const confirmedSampleProfileRowSchema = z.object({
+  id: z.string(),
+  status: z.literal("confirmed"),
+  provisional_result: z.unknown(),
+});
+
+const confirmedSampleScoreSchema = z.object({
+  referenceText: z.string(),
+  wordScores: z.array(z.unknown()),
+});
+
+export type StudentProfileEvidenceSource =
+  | "Mission"
+  | "Teacher-added pronunciation sample";
+
+export type StudentProfileWeakness = StudentSoundWeakness & {
+  /** Evidence classes contributing to this gated sound observation. */
+  evidenceSources: StudentProfileEvidenceSource[];
+  /** Confirmed teacher-added samples that contributed observations for this sound. */
+  teacherSampleIds?: string[];
+};
+
+function clipsFromMissionRows(rows: ProfileScoreRow[]): StudentClipScore[] {
+  return rows.map((row) => ({
     wordScores: parseWordScores(row.word_scores),
     transcript: row.reference_text ?? "",
   }));
-  return studentSoundProfile(clips);
+}
+
+type ConfirmedSampleProfileRow = {
+  id?: string;
+  provisional_result?: unknown;
+};
+
+function clipsFromConfirmedSamples(
+  rows: ConfirmedSampleProfileRow[],
+): Array<{ sampleId?: string; clip: StudentClipScore }> {
+  return rows.flatMap((row) => {
+    const parsed = confirmedSampleScoreSchema.safeParse(row.provisional_result);
+    return parsed.success
+      ? [{
+          sampleId: row.id,
+          clip: {
+            wordScores: parseWordScores(parsed.data.wordScores),
+            transcript: parsed.data.referenceText,
+          },
+        }]
+      : [];
+  });
+}
+
+function observedSoundKeys(clips: StudentClipScore[]) {
+  // Source labels describe every observation that contributes to the profile
+  // denominator, not only the weak observations that survive the final gate.
+  const keys = new Set<string>();
+  for (const clip of clips) {
+    const spokenWords = tokenizeWords(clip.transcript);
+    for (const word of clip.wordScores) {
+      if (!spokenWords.has(normalizeWord(word.word))) continue;
+      for (const phoneme of word.phonemes ?? []) {
+        const { label, ipa } = phonemeLabel(phoneme.phoneme);
+        keys.add(`${label}\u0000${ipa}`);
+      }
+    }
+  }
+  return keys;
+}
+
+/**
+ * Pure mapping from stored score rows to the accumulated sound profile.
+ * Mission rows are `original_answer` clips (scoped by the query), so their
+ * `reference_text` is the student's own transcript. Confirmed sample rows
+ * carry the same transcript/word-score shape inside `provisional_result`.
+ * A null transcript scopes nothing in — safer than counting against a target
+ * sentence.
+ */
+export function buildStudentSoundProfile(
+  rows: ProfileScoreRow[],
+  confirmedSamples: ConfirmedSampleProfileRow[] = [],
+): StudentProfileWeakness[] {
+  const missionClips = clipsFromMissionRows(rows);
+  const sampleClips = clipsFromConfirmedSamples(confirmedSamples);
+  const missionSoundKeys = observedSoundKeys(missionClips);
+  const sampleSoundKeys = observedSoundKeys(sampleClips.map(({ clip }) => clip));
+  const sampleIdsBySound = new Map<string, Set<string>>();
+  for (const { sampleId, clip } of sampleClips) {
+    if (!sampleId) continue;
+    for (const key of observedSoundKeys([clip])) {
+      const sampleIds = sampleIdsBySound.get(key) ?? new Set<string>();
+      sampleIds.add(sampleId);
+      sampleIdsBySound.set(key, sampleIds);
+    }
+  }
+
+  return studentSoundProfile([
+    ...missionClips,
+    ...sampleClips.map(({ clip }) => clip),
+  ]).map((sound) => {
+    const key = `${sound.label}\u0000${sound.ipa}`;
+    const evidenceSources: StudentProfileEvidenceSource[] = [];
+    if (missionSoundKeys.has(key)) evidenceSources.push("Mission");
+    if (sampleSoundKeys.has(key)) {
+      evidenceSources.push("Teacher-added pronunciation sample");
+    }
+    const teacherSampleIds = [...(sampleIdsBySound.get(key) ?? [])];
+    return {
+      ...sound,
+      evidenceSources,
+      ...(teacherSampleIds.length > 0 ? { teacherSampleIds } : {}),
+    };
+  });
 }
 
 /**
  * Load a student's accumulated weak-sound profile. Runs under RLS via the
- * authenticated server client; the reverse-join + teacher_id filter enforces
- * ownership defensively. Scopes to `original_answer` clips, whose
- * `reference_text` is the student's transcript (repeat_attempt clips'
- * reference_text is the target sentence — wrong scope for "what they said").
+ * authenticated server client; the reverse-join + teacher_id filters enforce
+ * ownership defensively. Mission evidence is scoped to `original_answer`
+ * clips, whose `reference_text` is the student's transcript (repeat_attempt
+ * clips' reference_text is the target sentence — wrong scope for "what they
+ * said"). Confirmed teacher-added rows use their stored scored reference.
  */
 export async function getStudentSoundProfile(
   studentId: string,
   teacherId: string,
-): Promise<StudentSoundWeakness[]> {
+): Promise<StudentProfileWeakness[]> {
   const supabase = await createSupabaseServerClient();
 
   const scores = await supabase
@@ -87,7 +188,36 @@ export async function getStudentSoundProfile(
       "Unable to load student pronunciation scores: unexpected row shape",
     );
   }
-  return buildStudentSoundProfile(rows.data);
+
+  const samples = await supabase
+    .from("pronunciation_samples")
+    .select(
+      `id, status, provisional_result,
+       students!inner(classes!inner(teacher_id))`,
+    )
+    .eq("student_id", studentId)
+    .eq("students.classes.teacher_id", teacherId)
+    .eq("status", "confirmed");
+
+  if (samples.error) {
+    throw new Error(
+      `Unable to load teacher pronunciation samples: ${samples.error.message}`,
+    );
+  }
+
+  const sampleRows = z
+    .array(confirmedSampleProfileRowSchema)
+    .safeParse(samples.data ?? []);
+  if (!sampleRows.success) {
+    throw new Error(
+      "Unable to load teacher pronunciation samples: unexpected row shape",
+    );
+  }
+
+  return buildStudentSoundProfile(
+    rows.data,
+    sampleRows.data,
+  );
 }
 
 export type StudentProfileHeader = {

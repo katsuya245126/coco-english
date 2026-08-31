@@ -1,13 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { StudentSoundWeakness } from "@/domain/pronunciation/scoring";
+import type { StudentProfileWeakness } from "@/server/teacher/student-profile";
 import { requireTeacherProfile } from "@/server/auth/teacher-profile";
 import {
   getStudentProfileHeader,
   getStudentSoundProfile,
 } from "@/server/teacher/student-profile";
-import { getPronunciationSamplesForTeacher } from "@/server/teacher/pronunciation-samples";
-import { PronunciationSamplesPanel } from "@/components/teacher/PronunciationSamplesPanel";
+import {
+  getPronunciationSamplesForTeacher,
+} from "@/server/teacher/pronunciation-samples";
+import {
+  PronunciationSamplesPanel,
+  TeacherSamplePlayback,
+} from "@/components/teacher/PronunciationSamplesPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +36,7 @@ export default async function StudentProfilePage({
       teacherId: teacher.id,
     }),
   ]);
+  const sampleById = new Map(samples.map((sample) => [sample.id, sample]));
 
   return (
     <div
@@ -103,7 +109,8 @@ export default async function StudentProfilePage({
             ) : (
               <div style={{ display: "grid", gap: 8 }}>
                 {weaknesses.map((sound) => {
-                  if (!sound.candidate) {
+                  const evidenceSources = sound.evidenceSources;
+                  if (!sound.candidate && evidenceSources.length === 1 && evidenceSources[0] === "Mission") {
                     return (
                       <article key={sound.label + sound.ipa} style={soundCardStyle}>
                         <div style={soundSummaryStyle}>
@@ -122,17 +129,35 @@ export default async function StudentProfilePage({
                         <SoundSummary sound={sound} />
                       </summary>
                       <div style={soundDetailStyle}>
-                        <p style={{ margin: 0, fontWeight: 600, color: "#92400E" }}>
-                          Sounded closer to /{sound.candidate.ipa}/
+                        {sound.candidate ? (
+                          <>
+                            <p style={{ margin: 0, fontWeight: 600, color: "#92400E" }}>
+                              Sounded closer to /{sound.candidate.ipa}/
+                            </p>
+                            <p style={{ margin: "4px 0 0" }}>
+                              Seen in {sound.candidate.count} weak attempt
+                              {sound.candidate.count === 1 ? "" : "s"} · example
+                              {sound.candidate.exampleWords.length === 1 ? "" : "s"}:{" "}
+                              {sound.candidate.exampleWords
+                                .map((word) => `“${word}”`)
+                                .join(", ")}
+                            </p>
+                          </>
+                        ) : null}
+                        <p style={{ margin: sound.candidate ? "4px 0 0" : 0 }}>
+                          Source: {evidenceSources.join(", ")}
                         </p>
-                        <p style={{ margin: "4px 0 0" }}>
-                          Seen in {sound.candidate.count} weak attempt
-                          {sound.candidate.count === 1 ? "" : "s"} · example
-                          {sound.candidate.exampleWords.length === 1 ? "" : "s"}:{" "}
-                          {sound.candidate.exampleWords
-                            .map((word) => `“${word}”`)
-                            .join(", ")} · Source: Mission
-                        </p>
+                        {(sound.teacherSampleIds ?? [])
+                          .filter(
+                            (sampleId) => sampleById.get(sampleId)?.audioAvailable,
+                          )
+                          .map((sampleId) => (
+                            <TeacherSamplePlayback
+                              key={sampleId}
+                              sampleId={sampleId}
+                              sourceLabel="Teacher-added pronunciation sample"
+                            />
+                          ))}
                       </div>
                     </details>
                   );
@@ -146,7 +171,7 @@ export default async function StudentProfilePage({
   );
 }
 
-function SoundSummary({ sound }: { sound: StudentSoundWeakness }) {
+function SoundSummary({ sound }: { sound: StudentProfileWeakness }) {
   return (
     <span style={{ minWidth: 0 }}>
       <span

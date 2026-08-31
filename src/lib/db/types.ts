@@ -300,6 +300,10 @@ export type Database = {
           automatic_transcript_confidence: Json | null;
           provisional_result: Json | null;
           teacher_confirmed_text: string | null;
+          confirmation_started_at: string | null;
+          confirmation_token: string | null;
+          confirmed_by_teacher_id: string | null;
+          confirmed_at: string | null;
           audio_expires_at: string;
           created_at: string;
           updated_at: string;
@@ -317,6 +321,10 @@ export type Database = {
           automatic_transcript_confidence?: Json | null;
           provisional_result?: Json | null;
           teacher_confirmed_text?: string | null;
+          confirmation_started_at?: string | null;
+          confirmation_token?: string | null;
+          confirmed_by_teacher_id?: string | null;
+          confirmed_at?: string | null;
           audio_expires_at?: string;
           created_at?: string;
           updated_at?: string;
@@ -670,6 +678,57 @@ export type Database = {
       };
       clear_teacher_pronunciation_sample: {
         Args: { p_teacher_id: string; p_sample_id: string };
+        Returns: "ok" | "not_found";
+      };
+      read_teacher_pronunciation_sample_confirmation: {
+        Args: { p_teacher_id: string; p_sample_id: string };
+        Returns: {
+          outcome: "ok" | "unavailable" | "not_found";
+          sample_id: string | null;
+          student_id: string | null;
+          object_key: string | null;
+          mime_type: string | null;
+          duration_ms: number | null;
+          byte_size: number | null;
+          automatic_transcript: string | null;
+          provisional_result: Json | null;
+          audio_expires_at: string | null;
+          created_at: string | null;
+        }[];
+      };
+      begin_teacher_pronunciation_sample_confirmation: {
+        Args: { p_teacher_id: string; p_sample_id: string };
+        Returns: {
+          outcome: "ok" | "unavailable" | "not_found";
+          sample_id: string | null;
+          student_id: string | null;
+          object_key: string | null;
+          mime_type: string | null;
+          duration_ms: number | null;
+          byte_size: number | null;
+          automatic_transcript: string | null;
+          provisional_result: Json | null;
+          audio_expires_at: string | null;
+          created_at: string | null;
+          confirmation_token: string | null;
+        }[];
+      };
+      complete_teacher_pronunciation_sample_confirmation: {
+        Args: {
+          p_teacher_id: string;
+          p_sample_id: string;
+          p_confirmation_token: string;
+          p_teacher_confirmed_text: string;
+          p_confirmed_result: Json;
+        };
+        Returns: "ok" | "not_found";
+      };
+      clear_teacher_pronunciation_sample_confirmation: {
+        Args: {
+          p_teacher_id: string;
+          p_sample_id: string;
+          p_confirmation_token: string;
+        };
         Returns: "ok" | "not_found";
       };
     };

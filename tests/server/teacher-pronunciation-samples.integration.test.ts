@@ -115,6 +115,203 @@ function beginArgs(
 }
 
 describe("teacher pronunciation sample database seam", () => {
+  it("serializes confirmation and atomically retains automatic evidence", async (context) => {
+    if (!canRunLocally) return context.skip();
+    const fixture = await createFixture();
+    let objectKey: string | null = null;
+    try {
+      const begun = await fixture.admin.rpc(
+        "begin_teacher_pronunciation_sample",
+        beginArgs(fixture),
+      );
+      expect(begun.data?.[0]?.outcome).toBe("ok");
+      const sampleId = begun.data![0]!.sample_id!;
+      objectKey = begun.data![0]!.object_key!;
+      expect(
+        (
+          await fixture.admin.rpc("complete_teacher_pronunciation_sample", {
+            p_teacher_id: fixture.ownerId,
+            p_sample_id: sampleId,
+            p_automatic_transcript: "fan",
+            p_transcription_model: "test-transcriber",
+            p_transcription_confidence: null,
+            p_provisional_result: {
+              accuracyScore: 70,
+              fluencyScore: 80,
+              completenessScore: 90,
+              pronunciationScore: 75,
+              starBand: 2,
+              referenceText: "fan",
+              wordScores: [],
+            },
+          })
+        ).data,
+      ).toBe("ok");
+
+      const [first, second] = await Promise.all([
+        fixture.admin.rpc(
+          "begin_teacher_pronunciation_sample_confirmation",
+          { p_teacher_id: fixture.ownerId, p_sample_id: sampleId },
+        ),
+        fixture.admin.rpc(
+          "begin_teacher_pronunciation_sample_confirmation",
+          { p_teacher_id: fixture.ownerId, p_sample_id: sampleId },
+        ),
+      ]);
+      expect([first.data?.[0]?.outcome, second.data?.[0]?.outcome].sort()).toEqual([
+        "ok",
+        "unavailable",
+      ]);
+      const claim = first.data?.[0]?.outcome === "ok" ? first : second;
+      const token = claim.data![0]!.confirmation_token!;
+
+      expect(
+        (
+          await fixture.admin
+            .from("pronunciation_samples")
+            .update({ confirmation_started_at: "2000-01-01T00:00:00.000Z" })
+            .eq("id", sampleId)
+        ).error,
+      ).toBeNull();
+      expect(
+        (
+          await fixture.admin.rpc(
+            "begin_teacher_pronunciation_sample_confirmation",
+            { p_teacher_id: fixture.ownerId, p_sample_id: sampleId },
+          )
+        ).data?.[0]?.outcome,
+      ).toBe("unavailable");
+
+      const confirmed = await fixture.admin.rpc(
+        "complete_teacher_pronunciation_sample_confirmation",
+        {
+          p_teacher_id: fixture.ownerId,
+          p_sample_id: sampleId,
+          p_confirmation_token: token,
+          p_teacher_confirmed_text: "pan",
+          p_confirmed_result: {
+            accuracyScore: 55,
+            fluencyScore: 60,
+            completenessScore: 70,
+            pronunciationScore: 57,
+            starBand: 1,
+            referenceText: "pan",
+            wordScores: [],
+          },
+        },
+      );
+      expect(confirmed.error).toBeNull();
+      expect(confirmed.data).toBe("ok");
+
+      const row = await fixture.admin
+        .from("pronunciation_samples")
+        .select(
+          "status, automatic_transcript, teacher_confirmed_text, provisional_result, confirmed_by_teacher_id, confirmed_at, confirmation_token",
+        )
+        .eq("id", sampleId)
+        .single();
+      expect(row.error).toBeNull();
+      expect(row.data).toMatchObject({
+        status: "confirmed",
+        automatic_transcript: "fan",
+        teacher_confirmed_text: "pan",
+        confirmed_by_teacher_id: fixture.ownerId,
+        provisional_result: { referenceText: "pan" },
+        confirmation_token: null,
+      });
+      expect(row.data?.confirmed_at).not.toBeNull();
+
+      expect(
+        (
+          await fixture.admin.rpc(
+            "read_teacher_pronunciation_sample_confirmation",
+            { p_teacher_id: fixture.otherId, p_sample_id: sampleId },
+          )
+        ).data?.[0]?.outcome,
+      ).toBe("not_found");
+      expect(
+        (
+          await fixture.admin.rpc(
+            "begin_teacher_pronunciation_sample_confirmation",
+            { p_teacher_id: fixture.otherId, p_sample_id: sampleId },
+          )
+        ).data?.[0]?.outcome,
+      ).toBe("not_found");
+    } finally {
+      if (objectKey) {
+        await fixture.admin.storage.from("student-audio").remove([objectKey]);
+      }
+      await cleanupFixture(fixture);
+    }
+  }, 30_000);
+
+  it("promotes unchanged confirmation after audio expiry", async (context) => {
+    if (!canRunLocally) return context.skip();
+    const fixture = await createFixture();
+    try {
+      const begun = await fixture.admin.rpc(
+        "begin_teacher_pronunciation_sample",
+        beginArgs(fixture),
+      );
+      const sampleId = begun.data![0]!.sample_id!;
+      expect(
+        (
+          await fixture.admin.rpc("complete_teacher_pronunciation_sample", {
+            p_teacher_id: fixture.ownerId,
+            p_sample_id: sampleId,
+            p_automatic_transcript: "fan",
+            p_transcription_model: "test",
+            p_transcription_confidence: null,
+            p_provisional_result: {
+              accuracyScore: 70,
+              fluencyScore: 80,
+              completenessScore: 90,
+              pronunciationScore: 75,
+              starBand: 2,
+              referenceText: "fan",
+              wordScores: [],
+            },
+          })
+        ).data,
+      ).toBe("ok");
+      expect(
+        (
+          await fixture.admin
+            .from("pronunciation_samples")
+            .update({ audio_expires_at: "2000-01-01T00:00:00.000Z" })
+            .eq("id", sampleId)
+        ).error,
+      ).toBeNull();
+
+      const preflight = await fixture.admin.rpc(
+        "read_teacher_pronunciation_sample_confirmation",
+        { p_teacher_id: fixture.ownerId, p_sample_id: sampleId },
+      );
+      expect(preflight.error).toBeNull();
+      expect(preflight.data?.[0]?.outcome).toBe("ok");
+
+      const claim = await fixture.admin.rpc(
+        "begin_teacher_pronunciation_sample_confirmation",
+        { p_teacher_id: fixture.ownerId, p_sample_id: sampleId },
+      );
+      expect(claim.data?.[0]?.outcome).toBe("ok");
+      const completed = await fixture.admin.rpc(
+        "complete_teacher_pronunciation_sample_confirmation",
+        {
+          p_teacher_id: fixture.ownerId,
+          p_sample_id: sampleId,
+          p_confirmation_token: claim.data![0]!.confirmation_token!,
+          p_teacher_confirmed_text: "fan",
+          p_confirmed_result: claim.data![0]!.provisional_result!,
+        },
+      );
+      expect(completed.error).toBeNull();
+      expect(completed.data).toBe("ok");
+    } finally {
+      await cleanupFixture(fixture);
+    }
+  }, 30_000);
+
   it("serializes owned begins and hides foreign sample data", async (context) => {
     if (!canRunLocally) return context.skip();
     const fixture = await createFixture();
@@ -278,6 +475,34 @@ describe("teacher pronunciation sample database seam", () => {
           p_teacher_id: fixture.ownerId,
           p_sample_id: sampleId,
         })).error,
+      ).not.toBeNull();
+      expect(
+        (
+          await owner.rpc("begin_teacher_pronunciation_sample_confirmation", {
+            p_teacher_id: fixture.ownerId,
+            p_sample_id: sampleId,
+          })
+        ).error,
+      ).not.toBeNull();
+      expect(
+        (
+          await owner.rpc("complete_teacher_pronunciation_sample_confirmation", {
+            p_teacher_id: fixture.ownerId,
+            p_sample_id: sampleId,
+            p_confirmation_token: "00000000-0000-0000-0000-000000000000",
+            p_teacher_confirmed_text: "fan",
+            p_confirmed_result: {},
+          })
+        ).error,
+      ).not.toBeNull();
+      expect(
+        (
+          await owner.rpc("clear_teacher_pronunciation_sample_confirmation", {
+            p_teacher_id: fixture.ownerId,
+            p_sample_id: sampleId,
+            p_confirmation_token: "00000000-0000-0000-0000-000000000000",
+          })
+        ).error,
       ).not.toBeNull();
       expect(
         (await owner.from("pronunciation_samples").select("id").eq("id", sampleId)).data,

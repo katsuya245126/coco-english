@@ -7,6 +7,12 @@ const sql = readFileSync(
 )
   .toLowerCase()
   .replace(/\s+/g, " ");
+const confirmationSql = readFileSync(
+  "supabase/migrations/202608310002_teacher_pronunciation_sample_confirmation.sql",
+  "utf8",
+)
+  .toLowerCase()
+  .replace(/\s+/g, " ");
 
 describe("teacher pronunciation samples migration", () => {
   it("stores samples separately from mission audio with private retention metadata", () => {
@@ -18,6 +24,60 @@ describe("teacher pronunciation samples migration", () => {
     expect(sql).toContain("audio_expires_at timestamptz not null default (now() + interval '30 days')");
     expect(sql).toContain("public.pronunciation_sample_status");
     expect(sql).toContain("duration_ms <= 30000");
+  });
+
+  it("stores separate confirmation provenance and a retryable claim", () => {
+    expect(confirmationSql).toContain(
+      "add column confirmation_started_at timestamptz",
+    );
+    expect(confirmationSql).toContain("add column confirmation_token uuid");
+    expect(confirmationSql).toContain(
+      "add column confirmed_by_teacher_id uuid references public.teacher_profiles(id)",
+    );
+    expect(confirmationSql).toContain("add column confirmed_at timestamptz");
+    expect(confirmationSql).toContain(
+      "create function public.read_teacher_pronunciation_sample_confirmation",
+    );
+    expect(confirmationSql).toContain(
+      "revoke all on function public.read_teacher_pronunciation_sample_confirmation",
+    );
+    expect(confirmationSql).toContain(
+      "grant execute on function public.read_teacher_pronunciation_sample_confirmation",
+    );
+    expect(confirmationSql).toContain(
+      "create function public.begin_teacher_pronunciation_sample_confirmation",
+    );
+    expect(confirmationSql).toContain(
+      "create function public.complete_teacher_pronunciation_sample_confirmation",
+    );
+    expect(confirmationSql).toContain(
+      "create function public.clear_teacher_pronunciation_sample_confirmation",
+    );
+    expect(confirmationSql).toContain("for update of ps");
+    expect(confirmationSql).toContain("ps.confirmation_token = p_confirmation_token");
+    expect(confirmationSql).toContain("status = 'confirmed'");
+    expect(confirmationSql).toContain("automatic_transcript");
+    expect(confirmationSql).not.toContain(
+      "create index pronunciation_samples_confirmation_idx",
+    );
+    expect(confirmationSql).not.toContain("10 minutes");
+    expect(confirmationSql).not.toContain(
+      "v_audio_expires_at <= clock_timestamp()",
+    );
+    const readStart = confirmationSql.indexOf(
+      "create function public.read_teacher_pronunciation_sample_confirmation",
+    );
+    const beginStart = confirmationSql.indexOf(
+      "create function public.begin_teacher_pronunciation_sample_confirmation",
+    );
+    expect(readStart).toBeGreaterThanOrEqual(0);
+    expect(beginStart).toBeGreaterThan(readStart);
+    expect(confirmationSql.slice(readStart, beginStart)).not.toContain(
+      "for update",
+    );
+    expect(confirmationSql.slice(readStart, beginStart)).not.toContain(
+      "update public.pronunciation_samples",
+    );
   });
 
   it("keeps ownership and publication inside service-role RPCs", () => {
@@ -32,6 +92,8 @@ describe("teacher pronunciation samples migration", () => {
     }
     expect(sql.match(/security definer/g)).toHaveLength(4);
     expect(sql.match(/set search_path = public/g)).toHaveLength(4);
+    expect(confirmationSql.match(/security definer/g)).toHaveLength(4);
+    expect(confirmationSql.match(/set search_path = public/g)).toHaveLength(4);
     expect(sql).toContain("c.teacher_id = p_teacher_id");
     expect(sql).toContain("for update of s");
     expect(sql).toContain("for update of ps");

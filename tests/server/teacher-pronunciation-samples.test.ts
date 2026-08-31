@@ -6,6 +6,7 @@ import type {
 import type { TranscriptionResult } from "@/server/audio/transcription";
 import {
   MAX_PRONUNCIATION_SAMPLE_DURATION_MS,
+  confirmPronunciationSample,
   createSignedPronunciationSampleUrlForTeacher,
   getPronunciationSamplesForTeacher,
   uploadPronunciationSample,
@@ -76,6 +77,7 @@ function createMockSupabase(options: {
           [{
             outcome: "ok",
             sample_id: "sample-1",
+            student_id: "student-1",
             object_key: "pronunciation-samples/student-1/sample-1.webm",
           }],
         error: null,
@@ -127,6 +129,8 @@ function storedSample(overrides: Record<string, unknown> = {}) {
     automatic_transcript: "fan",
     teacher_confirmed_text: null,
     provisional_result: scoreDetail,
+    confirmed_by_teacher_id: null,
+    confirmed_at: null,
     audio_expires_at: "2026-09-20T00:00:00.000Z",
     created_at: "2026-08-21T00:00:00.000Z",
     ...overrides,
@@ -151,6 +155,69 @@ function createReadMock(row: unknown = storedSample()) {
     from: vi.fn(() => query),
     storage: { from: vi.fn(() => ({ createSignedUrl })) },
   };
+}
+
+function confirmationRow(overrides: Record<string, unknown> = {}) {
+  return {
+    outcome: "ok",
+    sample_id: "sample-1",
+    student_id: "student-1",
+    object_key: "pronunciation-samples/student-1/sample-1.webm",
+    duration_ms: 3_000,
+    byte_size: 100,
+    mime_type: "audio/webm",
+    automatic_transcript: "fan",
+    provisional_result: scoreDetail,
+    audio_expires_at: "2026-09-20T00:00:00.000Z",
+    created_at: "2026-08-21T00:00:00.000Z",
+    confirmation_token: "claim-1",
+    ...overrides,
+  };
+}
+
+function createConfirmationMock(options: {
+  preflight?: unknown;
+  begin?: unknown;
+  complete?: unknown;
+  clear?: unknown;
+  clearError?: boolean;
+} = {}) {
+  const events: string[] = [];
+  const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
+    events.push(`rpc:${name}`);
+    if (name === "read_teacher_pronunciation_sample_confirmation") {
+      return {
+        data: options.preflight ?? [confirmationRow()],
+        error: null,
+      };
+    }
+    if (name === "begin_teacher_pronunciation_sample_confirmation") {
+      return {
+        data: options.begin ?? [confirmationRow()],
+        error: null,
+      };
+    }
+    if (name === "complete_teacher_pronunciation_sample_confirmation") {
+      return { data: options.complete ?? "ok", error: null };
+    }
+    if (name === "clear_teacher_pronunciation_sample_confirmation") {
+      return options.clearError
+        ? { data: null, error: new Error("clear failed") }
+        : { data: options.clear ?? "ok", error: null };
+    }
+    throw new Error(`unexpected RPC ${name} ${JSON.stringify(args)}`);
+  });
+
+  const storage = {
+    from: vi.fn(() => ({
+      download: vi.fn(async () => {
+        events.push("storage:download");
+        return { data: new Blob(["audio"], { type: "audio/webm" }), error: null };
+      }),
+    })),
+  };
+
+  return { events, rpc, storage };
 }
 
 describe("uploadPronunciationSample", () => {
@@ -336,5 +403,325 @@ describe("uploadPronunciationSample", () => {
 
     expect(result).toBeNull();
     expect(supabase.createSignedUrl).not.toHaveBeenCalled();
+  });
+});
+
+describe("confirmPronunciationSample", () => {
+  it("rejects overlong teacher wording before ownership or provider work", async () => {
+    const supabase = createConfirmationMock();
+    const scorePronunciation = vi.fn(async () => score);
+    const consumeRequestBudget = vi.fn(async () => ({ allowed: true as const }));
+
+    const result = await confirmPronunciationSample(
+      {
+        teacherId: "teacher-1",
+        sampleId: "sample-1",
+        teacherConfirmedText: "a".repeat(501),
+      },
+      {
+        client: supabase as never,
+        scorePronunciation,
+        consumeRequestBudget,
+      },
+    );
+
+    expect(result).toEqual({ ok: false, error: "invalid_text" });
+    expect(supabase.events).toEqual([]);
+    expect(scorePronunciation).not.toHaveBeenCalled();
+    expect(consumeRequestBudget).not.toHaveBeenCalled();
+  });
+
+  it("promotes unchanged provisional evidence without pronunciation provider work", async () => {
+    const supabase = createConfirmationMock();
+    const scorePronunciation = vi.fn(async () => score);
+    const consumeRequestBudget = vi.fn(async () => ({ allowed: true as const }));
+
+    const result = await confirmPronunciationSample(
+      {
+        teacherId: "teacher-1",
+        sampleId: "sample-1",
+        teacherConfirmedText: " fan ",
+      },
+      {
+        client: supabase as never,
+        scorePronunciation,
+        consumeRequestBudget,
+        now: () => new Date("2026-08-31T00:00:00.000Z"),
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      sample: {
+        id: "sample-1",
+        status: "confirmed",
+        automaticTranscript: "fan",
+        teacherConfirmedText: "fan",
+        confirmedByTeacherId: "teacher-1",
+        confirmedAt: "2026-08-31T00:00:00.000Z",
+        provisionalResult: scoreDetail,
+      },
+    });
+    expect(scorePronunciation).not.toHaveBeenCalled();
+    expect(consumeRequestBudget).not.toHaveBeenCalled();
+    expect(supabase.events).toEqual([
+      "rpc:read_teacher_pronunciation_sample_confirmation",
+      "rpc:begin_teacher_pronunciation_sample_confirmation",
+      "rpc:complete_teacher_pronunciation_sample_confirmation",
+    ]);
+    expect(supabase.rpc).toHaveBeenNthCalledWith(
+      3,
+      "complete_teacher_pronunciation_sample_confirmation",
+      expect.objectContaining({
+        p_teacher_id: "teacher-1",
+        p_sample_id: "sample-1",
+        p_confirmation_token: "claim-1",
+        p_teacher_confirmed_text: "fan",
+        p_confirmed_result: scoreDetail,
+      }),
+    );
+  });
+
+  it("reanalyzes edited wording and publishes only after successful scoring", async () => {
+    const supabase = createConfirmationMock();
+    const consumeRequestBudget = vi.fn(async () => {
+      supabase.events.push("budget");
+      return { allowed: true as const };
+    });
+    const scorePronunciation = vi.fn(async (input: { referenceText: string }) => {
+      supabase.events.push("provider:score");
+      expect(input.referenceText).toBe("pan");
+      return score;
+    });
+
+    const result = await confirmPronunciationSample(
+      {
+        teacherId: "teacher-1",
+        sampleId: "sample-1",
+        teacherConfirmedText: "pan",
+      },
+      {
+        client: supabase as never,
+        scorePronunciation: scorePronunciation as never,
+        consumeRequestBudget,
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      sample: {
+        status: "confirmed",
+        teacherConfirmedText: "pan",
+        provisionalResult: { ...scoreDetail, referenceText: "pan" },
+      },
+    });
+    expect(scorePronunciation).toHaveBeenCalledOnce();
+    expect(supabase.events).toEqual([
+      "rpc:read_teacher_pronunciation_sample_confirmation",
+      "budget",
+      "rpc:begin_teacher_pronunciation_sample_confirmation",
+      "storage:download",
+      "provider:score",
+      "rpc:complete_teacher_pronunciation_sample_confirmation",
+    ]);
+  });
+
+  it("keeps a failed reanalysis pending and clears only its claim", async () => {
+    const supabase = createConfirmationMock();
+    const consumeRequestBudget = vi.fn(async () => {
+      supabase.events.push("budget");
+      return { allowed: true as const };
+    });
+    const result = await confirmPronunciationSample(
+      {
+        teacherId: "teacher-1",
+        sampleId: "sample-1",
+        teacherConfirmedText: "pan",
+      },
+      {
+        client: supabase as never,
+        scorePronunciation: vi.fn(async () => ({
+          ok: false as const,
+          error: "provider_failed" as const,
+        })),
+        consumeRequestBudget,
+      },
+    );
+
+    expect(result).toEqual({ ok: false, error: "scoring_failed_retryable" });
+    expect(supabase.events).toEqual([
+      "rpc:read_teacher_pronunciation_sample_confirmation",
+      "budget",
+      "rpc:begin_teacher_pronunciation_sample_confirmation",
+      "storage:download",
+      "rpc:clear_teacher_pronunciation_sample_confirmation",
+    ]);
+  });
+
+  it.each([
+    { label: "clear RPC error", clearError: true },
+    { label: "unexpected clear outcome", clear: "not_found" },
+  ])("does not report retryable scoring failure when $label", async (options) => {
+    const supabase = createConfirmationMock(options);
+    const result = await confirmPronunciationSample(
+      {
+        teacherId: "teacher-1",
+        sampleId: "sample-1",
+        teacherConfirmedText: "pan",
+      },
+      {
+        client: supabase as never,
+        scorePronunciation: vi.fn(async () => ({
+          ok: false as const,
+          error: "provider_failed" as const,
+        })),
+        consumeRequestBudget: vi.fn(async () => ({ allowed: true as const })),
+      },
+    );
+
+    expect(result).toEqual({ ok: false, error: "failed" });
+    expect(supabase.events).toEqual([
+      "rpc:read_teacher_pronunciation_sample_confirmation",
+      "rpc:begin_teacher_pronunciation_sample_confirmation",
+      "storage:download",
+      "rpc:clear_teacher_pronunciation_sample_confirmation",
+    ]);
+  });
+
+  it("returns not_found for a foreign or missing sample before provider work", async () => {
+    const supabase = createConfirmationMock({
+      preflight: [{ outcome: "not_found" }],
+    });
+    const scorePronunciation = vi.fn(async () => score);
+
+    const result = await confirmPronunciationSample(
+      {
+        teacherId: "other-teacher",
+        sampleId: "sample-1",
+        teacherConfirmedText: "fan",
+      },
+      { client: supabase as never, scorePronunciation },
+    );
+
+    expect(result).toEqual({ ok: false, error: "not_found" });
+    expect(scorePronunciation).not.toHaveBeenCalled();
+    expect(supabase.events).toEqual([
+      "rpc:read_teacher_pronunciation_sample_confirmation",
+    ]);
+  });
+
+  it("admits edited provider work before claiming the row or reading audio", async () => {
+    const supabase = createConfirmationMock();
+    const consumeRequestBudget = vi.fn(async () => {
+      supabase.events.push("budget");
+      return { allowed: false as const, retryAfterSeconds: 19 };
+    });
+
+    const result = await confirmPronunciationSample(
+      {
+        teacherId: "teacher-1",
+        sampleId: "sample-1",
+        teacherConfirmedText: "pan",
+      },
+      {
+        client: supabase as never,
+        consumeRequestBudget,
+        scorePronunciation: vi.fn(async () => score),
+      },
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: "rate_limited",
+      retryAfterSeconds: 19,
+    });
+    expect(supabase.events).toEqual([
+      "rpc:read_teacher_pronunciation_sample_confirmation",
+      "budget",
+    ]);
+  });
+
+  it("promotes unchanged evidence after audio expiry without budget or provider work", async () => {
+    const expired = confirmationRow({
+      audio_expires_at: "2026-08-30T23:59:59.000Z",
+    });
+    const supabase = createConfirmationMock({
+      preflight: [expired],
+      begin: [expired],
+    });
+    const scorePronunciation = vi.fn(async () => score);
+    const consumeRequestBudget = vi.fn(async () => ({ allowed: true as const }));
+
+    const result = await confirmPronunciationSample(
+      {
+        teacherId: "teacher-1",
+        sampleId: "sample-1",
+        teacherConfirmedText: "fan",
+      },
+      {
+        client: supabase as never,
+        scorePronunciation,
+        consumeRequestBudget,
+        now: () => new Date("2026-08-31T00:00:00.000Z"),
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true, sample: { status: "confirmed" } });
+    expect(scorePronunciation).not.toHaveBeenCalled();
+    expect(consumeRequestBudget).not.toHaveBeenCalled();
+  });
+
+  it("blocks edited reanalysis after audio expiry before budget or claim work", async () => {
+    const supabase = createConfirmationMock({
+      preflight: [
+        confirmationRow({
+          audio_expires_at: "2026-08-30T23:59:59.000Z",
+        }),
+      ],
+    });
+    const consumeRequestBudget = vi.fn(async () => ({ allowed: true as const }));
+    const scorePronunciation = vi.fn(async () => score);
+
+    const result = await confirmPronunciationSample(
+      {
+        teacherId: "teacher-1",
+        sampleId: "sample-1",
+        teacherConfirmedText: "pan",
+      },
+      {
+        client: supabase as never,
+        consumeRequestBudget,
+        scorePronunciation,
+        now: () => new Date("2026-08-31T00:00:00.000Z"),
+      },
+    );
+
+    expect(result).toEqual({ ok: false, error: "unavailable" });
+    expect(consumeRequestBudget).not.toHaveBeenCalled();
+    expect(scorePronunciation).not.toHaveBeenCalled();
+    expect(supabase.events).toEqual([
+      "rpc:read_teacher_pronunciation_sample_confirmation",
+    ]);
+  });
+
+  it("keeps an active confirmation claim blocked instead of taking it over", async () => {
+    const supabase = createConfirmationMock({
+      begin: [{ outcome: "unavailable" }],
+    });
+
+    const result = await confirmPronunciationSample(
+      {
+        teacherId: "teacher-1",
+        sampleId: "sample-1",
+        teacherConfirmedText: "fan",
+      },
+      { client: supabase as never },
+    );
+
+    expect(result).toEqual({ ok: false, error: "unavailable" });
+    expect(supabase.events).toEqual([
+      "rpc:read_teacher_pronunciation_sample_confirmation",
+      "rpc:begin_teacher_pronunciation_sample_confirmation",
+    ]);
   });
 });
