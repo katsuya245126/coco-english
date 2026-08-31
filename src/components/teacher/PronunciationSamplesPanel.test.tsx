@@ -6,16 +6,19 @@ import type { PronunciationSample } from "@/server/teacher/pronunciation-samples
 
 const mocks = vi.hoisted(() => ({
   confirmPronunciationSampleAction: vi.fn(),
+  removePronunciationSampleAction: vi.fn(),
   uploadPronunciationSampleAction: vi.fn(),
   loadPronunciationSampleAudioUrlAction: vi.fn(),
+  routerRefresh: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => ({ refresh: mocks.routerRefresh }),
 }));
 
 vi.mock("@/app/teacher/students/[id]/actions", () => ({
   confirmPronunciationSampleAction: mocks.confirmPronunciationSampleAction,
+  removePronunciationSampleAction: mocks.removePronunciationSampleAction,
   uploadPronunciationSampleAction: mocks.uploadPronunciationSampleAction,
   loadPronunciationSampleAudioUrlAction:
     mocks.loadPronunciationSampleAudioUrlAction,
@@ -104,6 +107,10 @@ describe("PronunciationSamplesPanel", () => {
     mocks.confirmPronunciationSampleAction.mockResolvedValue({
       ok: true,
       sample: confirmedSample,
+    });
+    mocks.removePronunciationSampleAction.mockResolvedValue({
+      ok: true,
+      studentId: "student-1",
     });
     mocks.uploadPronunciationSampleAction.mockResolvedValue({ ok: true, sample });
     mocks.loadPronunciationSampleAudioUrlAction.mockResolvedValue({
@@ -197,6 +204,22 @@ describe("PronunciationSamplesPanel", () => {
     expect(rendered.container.textContent).not.toContain("Confirm sample");
     expect(rendered.container.textContent).not.toContain("Play sample");
     expect(rendered.container.textContent).toContain("Audio expired");
+    expect(rendered.container.textContent).toContain("Sep 20, 2026");
+  });
+
+  it("removes a sample and refreshes the student page", async () => {
+    const rendered = await renderPanel([sample]);
+    container = rendered.container;
+    root = rendered.root;
+    await act(async () => button(rendered.container, "Pronunciation samples")?.click());
+
+    await act(async () => button(rendered.container, "Remove sample")?.click());
+
+    expect(mocks.removePronunciationSampleAction).toHaveBeenCalledWith("sample-1");
+    expect(mocks.routerRefresh).toHaveBeenCalled();
+    expect(rendered.container.querySelector('[role="status"]')?.textContent).toBe(
+      "Sample removed.",
+    );
   });
 
   it("confirms pending wording through the server action", async () => {
