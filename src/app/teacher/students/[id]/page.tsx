@@ -109,8 +109,10 @@ export default async function StudentProfilePage({
             ) : (
               <div style={{ display: "grid", gap: 8 }}>
                 {weaknesses.map((sound) => {
-                  const evidenceSources = sound.evidenceSources;
-                  if (!sound.candidate && evidenceSources.length === 1 && evidenceSources[0] === "Mission") {
+                  const playableSampleIds = (sound.teacherSampleIds ?? []).filter(
+                    (sampleId) => sampleById.get(sampleId)?.audioAvailable,
+                  );
+                  if (!sound.candidate && playableSampleIds.length === 0) {
                     return (
                       <article key={sound.label + sound.ipa} style={soundCardStyle}>
                         <div style={soundSummaryStyle}>
@@ -144,20 +146,13 @@ export default async function StudentProfilePage({
                             </p>
                           </>
                         ) : null}
-                        <p style={{ margin: sound.candidate ? "4px 0 0" : 0 }}>
-                          Source: {evidenceSources.join(", ")}
-                        </p>
-                        {(sound.teacherSampleIds ?? [])
-                          .filter(
-                            (sampleId) => sampleById.get(sampleId)?.audioAvailable,
-                          )
-                          .map((sampleId) => (
-                            <TeacherSamplePlayback
-                              key={sampleId}
-                              sampleId={sampleId}
-                              sourceLabel="Teacher-added pronunciation sample"
-                            />
-                          ))}
+                        {playableSampleIds.map((sampleId) => (
+                          <TeacherSamplePlayback
+                            key={sampleId}
+                            sampleId={sampleId}
+                            sourceLabel="Listen to supporting recording"
+                          />
+                        ))}
                       </div>
                     </details>
                   );

@@ -233,6 +233,7 @@ function PronunciationSampleCard({ sample }: { sample: PronunciationSample }) {
     sample.teacherConfirmedText ?? sample.automaticTranscript,
   );
   const [isEditingWording, setIsEditingWording] = useState(false);
+  const [pendingAction, setPendingAction] = useState<"confirm" | "remove" | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const score = sample.provisionalResult;
@@ -240,16 +241,21 @@ function PronunciationSampleCard({ sample }: { sample: PronunciationSample }) {
   function confirm() {
     setError(null);
     setMessage(null);
+    setPendingAction("confirm");
     startTransition(async () => {
-      const result = await confirmPronunciationSampleAction(
-        sample.id,
-        confirmedText,
-      );
-      if (result.ok) {
-        setMessage("Sample confirmed.");
-        router.refresh();
-      } else {
-        setError(result.message);
+      try {
+        const result = await confirmPronunciationSampleAction(
+          sample.id,
+          confirmedText,
+        );
+        if (result.ok) {
+          setMessage("Sample confirmed.");
+          router.refresh();
+        } else {
+          setError(result.message);
+        }
+      } finally {
+        setPendingAction(null);
       }
     });
   }
@@ -257,13 +263,18 @@ function PronunciationSampleCard({ sample }: { sample: PronunciationSample }) {
   function remove() {
     setError(null);
     setMessage(null);
+    setPendingAction("remove");
     startTransition(async () => {
-      const result = await removePronunciationSampleAction(sample.id);
-      if (result.ok) {
-        setMessage("Sample removed.");
-        router.refresh();
-      } else {
-        setError(result.message);
+      try {
+        const result = await removePronunciationSampleAction(sample.id);
+        if (result.ok) {
+          setMessage("Sample removed.");
+          router.refresh();
+        } else {
+          setError(result.message);
+        }
+      } finally {
+        setPendingAction(null);
       }
     });
   }
@@ -360,7 +371,7 @@ function PronunciationSampleCard({ sample }: { sample: PronunciationSample }) {
             disabled={isPending}
             style={primaryButtonStyle}
           >
-            {isPending ? "Confirming sample…" : "Confirm sample"}
+            {pendingAction === "confirm" ? "Confirming sample…" : "Confirm sample"}
           </button>
         ) : (
           <p style={confirmedStyle}>
@@ -374,7 +385,7 @@ function PronunciationSampleCard({ sample }: { sample: PronunciationSample }) {
           disabled={isPending}
           style={secondaryButtonStyle}
         >
-          {isPending ? "Removing sample…" : "Remove sample"}
+          {pendingAction === "remove" ? "Removing sample…" : "Remove sample"}
         </button>
       </div>
       {message ? <p role="status" style={successStyle}>{message}</p> : null}

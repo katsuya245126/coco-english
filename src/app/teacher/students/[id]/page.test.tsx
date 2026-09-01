@@ -82,7 +82,7 @@ describe("StudentProfilePage", () => {
     expect(html).not.toContain("<details open");
     expect(html).toContain("Sounded closer to /p/");
     expect(html).toContain("Seen in 4 weak attempts");
-    expect(html).toContain("Source: Mission");
+    expect(html).not.toContain("Source:");
     expect(html).not.toContain("no consistent alternative");
   });
 
@@ -109,9 +109,39 @@ describe("StudentProfilePage", () => {
       }),
     );
 
-    expect(html).toContain("Teacher-added pronunciation sample");
+    expect(html).toContain("Listen to supporting recording");
     expect(html).toContain("Play sample");
+    expect(html).not.toContain("Source:");
+    expect(html).not.toContain("Teacher-added pronunciation sample");
     expect(html).not.toContain('src="https://signed.example/sample-1.webm"');
     expect(mocks.loadPronunciationSampleAudioUrlAction).not.toHaveBeenCalled();
+  });
+
+  it("keeps expired teacher-sample evidence non-expandable", async () => {
+    mocks.getStudentSoundProfile.mockResolvedValue([
+      {
+        label: "f",
+        ipa: "f",
+        weakCount: 4,
+        totalCount: 5,
+        averageAccuracy: 34,
+        exampleWord: "fan",
+        evidenceSources: ["Teacher-added pronunciation sample"],
+        teacherSampleIds: ["sample-1"],
+      },
+    ]);
+    mocks.getPronunciationSamplesForTeacher.mockResolvedValue([
+      { id: "sample-1", audioAvailable: false },
+    ]);
+
+    const html = renderToStaticMarkup(
+      await StudentProfilePage({
+        params: Promise.resolve({ id: "student-1" }),
+      }),
+    );
+
+    expect(html).not.toContain("<details");
+    expect(html).toContain("<article");
+    expect(html).not.toContain("Play sample");
   });
 });
