@@ -319,31 +319,6 @@ function PronunciationSampleCard({ sample }: { sample: PronunciationSample }) {
         </label>
       ) : null}
 
-      {sample.status === "pending" ? (
-        <button
-          type="button"
-          onClick={confirm}
-          disabled={isPending}
-          style={primaryButtonStyle}
-        >
-          {isPending ? "Confirming sample…" : "Confirm sample"}
-        </button>
-      ) : (
-        <p style={confirmedStyle}>
-          Confirmed by teacher
-          {sample.confirmedAt ? ` on ${formatDate(sample.confirmedAt)}` : ""}
-        </p>
-      )}
-
-      <button
-        type="button"
-        onClick={remove}
-        disabled={isPending}
-        style={secondaryButtonStyle}
-      >
-        {isPending ? "Removing sample…" : "Remove sample"}
-      </button>
-
       <div style={resultBlockStyle}>
         <p style={labelStyle}>
           {sample.status === "confirmed"
@@ -377,6 +352,31 @@ function PronunciationSampleCard({ sample }: { sample: PronunciationSample }) {
           ? `Audio available until ${formatDate(sample.audioExpiresAt)}`
           : `Audio expired on ${formatDate(sample.audioExpiresAt)}`}
       </p>
+      <div role="group" aria-label="Sample actions" style={sampleActionsStyle}>
+        {sample.status === "pending" ? (
+          <button
+            type="button"
+            onClick={confirm}
+            disabled={isPending}
+            style={primaryButtonStyle}
+          >
+            {isPending ? "Confirming sample…" : "Confirm sample"}
+          </button>
+        ) : (
+          <p style={confirmedStyle}>
+            Confirmed by teacher
+            {sample.confirmedAt ? ` on ${formatDate(sample.confirmedAt)}` : ""}
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={remove}
+          disabled={isPending}
+          style={secondaryButtonStyle}
+        >
+          {isPending ? "Removing sample…" : "Remove sample"}
+        </button>
+      </div>
       {message ? <p role="status" style={successStyle}>{message}</p> : null}
       {error ? (
         <p role="alert" style={messageStyle}>
@@ -644,4 +644,12 @@ const expiryStyle: React.CSSProperties = {
   margin: "12px 0 0",
   fontSize: 13,
   color: "#6B7280",
+};
+
+const sampleActionsStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  flexWrap: "wrap",
+  marginTop: 16,
 };

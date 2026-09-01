@@ -356,7 +356,7 @@ describe("teacher pronunciation sample database seam", () => {
     }
   }, 30_000);
 
-  it("holds a playback lease against deletion until the lease expires", async (context) => {
+  it("allows owner deletion during playback while expiry cleanup remains leased", async (context) => {
     if (!canRunLocally) return context.skip();
     const fixture = await createFixture();
     let objectKey: string | null = null;
@@ -388,12 +388,14 @@ describe("teacher pronunciation sample database seam", () => {
       expect(lease.error).toBeNull();
       expect(lease.data?.playback_lease_until).not.toBeNull();
 
-      const blockedDeletion = await fixture.admin.rpc(
-        "begin_teacher_pronunciation_sample_deletion",
-        { p_teacher_id: fixture.ownerId, p_sample_id: sample.sampleId },
-      );
-      expect(blockedDeletion.error).toBeNull();
-      expect(blockedDeletion.data?.[0]?.outcome).toBe("unavailable");
+      expect(
+        (
+          await fixture.admin
+            .from("pronunciation_samples")
+            .update({ audio_expires_at: "2000-01-01T00:00:00.000Z" })
+            .eq("id", sample.sampleId)
+        ).error,
+      ).toBeNull();
 
       const blockedExpiry = await fixture.admin.rpc(
         "claim_expired_teacher_pronunciation_samples",
@@ -402,25 +404,13 @@ describe("teacher pronunciation sample database seam", () => {
       expect(blockedExpiry.error).toBeNull();
       expect(blockedExpiry.data).toEqual([]);
 
-      expect(
-        (
-          await fixture.admin
-            .from("pronunciation_samples")
-            .update({
-              audio_expires_at: "2000-01-01T00:00:00.000Z",
-              playback_lease_until: "2000-01-01T00:00:00.000Z",
-            })
-            .eq("id", sample.sampleId)
-        ).error,
-      ).toBeNull();
-
-      const claimedAfterLease = await fixture.admin.rpc(
+      const claimedDuringPlayback = await fixture.admin.rpc(
         "begin_teacher_pronunciation_sample_deletion",
         { p_teacher_id: fixture.ownerId, p_sample_id: sample.sampleId },
       );
-      expect(claimedAfterLease.error).toBeNull();
-      expect(claimedAfterLease.data?.[0]?.outcome).toBe("ok");
-      const deletionToken = claimedAfterLease.data![0]!.deletion_token!;
+      expect(claimedDuringPlayback.error).toBeNull();
+      expect(claimedDuringPlayback.data?.[0]?.outcome).toBe("ok");
+      const deletionToken = claimedDuringPlayback.data![0]!.deletion_token!;
 
       expect(
         (

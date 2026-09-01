@@ -267,6 +267,38 @@ describe("PronunciationSamplesPanel", () => {
     expect(rendered.container.textContent).not.toContain("Play sample");
     expect(rendered.container.textContent).toContain("Audio expired");
     expect(rendered.container.textContent).toContain("Sep 20, 2026");
+
+    const card = rendered.container.querySelector("article") as HTMLElement;
+    const actions = card.querySelector('[aria-label="Sample actions"]');
+    expect(actions?.previousElementSibling?.textContent).toContain(
+      "Audio expired on Sep 20, 2026",
+    );
+    expect(
+      [...(actions?.querySelectorAll("p") ?? [])].some((paragraph) =>
+        paragraph.textContent?.startsWith("Confirmed by teacher"),
+      ),
+    ).toBe(true);
+    expect(button(card, "Remove sample")?.parentElement).toBe(actions);
+  });
+
+  it("groups pending sample actions after pronunciation analysis and expiry", async () => {
+    const rendered = await renderPanel([sample]);
+    container = rendered.container;
+    root = rendered.root;
+    await act(async () => button(rendered.container, "Pronunciation samples")?.click());
+
+    const card = rendered.container.querySelector("article") as HTMLElement;
+    const actions = card.querySelector('[aria-label="Sample actions"]');
+    const cardText = card.textContent ?? "";
+    expect(actions).not.toBeNull();
+    expect(cardText.indexOf("Provisional pronunciation analysis")).toBeLessThan(
+      cardText.indexOf("Audio available until"),
+    );
+    expect(cardText.indexOf("Audio available until")).toBeLessThan(
+      cardText.indexOf("Confirm sample"),
+    );
+    expect(button(card, "Confirm sample")?.parentElement).toBe(actions);
+    expect(button(card, "Remove sample")?.parentElement).toBe(actions);
   });
 
   it("removes a sample and refreshes the student page", async () => {
