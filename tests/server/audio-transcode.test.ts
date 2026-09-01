@@ -94,7 +94,7 @@ function captureTranscodeLogs() {
 }
 
 describe("transcodeToWav", () => {
-  it("reads decoded duration from canonical PCM WAV data and rejects truncation", async () => {
+  it("reads canonical and streamed PCM WAV duration and rejects truncation", async () => {
     const { readPcmWavDurationMs } = await import(
       "@/server/audio/audio-transcode"
     );
@@ -117,6 +117,8 @@ describe("transcodeToWav", () => {
     expect(readPcmWavDurationMs(wav)).toBe(1_000);
     wav.writeUInt32LE(dataBytes + 2, 40);
     expect(readPcmWavDurationMs(wav)).toBeNull();
+    wav.writeUInt32LE(0xffff_ffff, 40);
+    expect(readPcmWavDurationMs(wav)).toBe(1_000);
   });
 
   it("keeps ffmpeg-static externalized from the Next server bundle", () => {

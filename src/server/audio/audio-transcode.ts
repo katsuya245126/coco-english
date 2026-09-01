@@ -63,8 +63,9 @@ export function readPcmWavDurationMs(wav: Buffer): number | null {
 
     if (chunkId === "data") {
       if (!format) return null;
-      if (chunkDataOffset + chunkSize > wav.length) return null;
-      const pcmByteLength = chunkSize;
+      const pcmByteLength =
+        chunkSize === 0xffff_ffff ? wav.length - chunkDataOffset : chunkSize;
+      if (chunkDataOffset + pcmByteLength > wav.length) return null;
       if (pcmByteLength <= 0 || pcmByteLength % format.blockAlign !== 0) {
         return null;
       }
