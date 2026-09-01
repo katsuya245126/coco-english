@@ -131,14 +131,17 @@ function SamplesTab({
   samples: PronunciationSample[];
 }) {
   const [file, setFile] = useState<File | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{
+    text: string;
+    tone: "success" | "error";
+  } | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     if (!file) {
-      setMessage("Choose an audio recording first.");
+      setMessage({ text: "Choose an audio recording first.", tone: "error" });
       return;
     }
 
@@ -150,10 +153,13 @@ function SamplesTab({
       if (result.ok) {
         form.reset();
         setFile(null);
-        setMessage("Sample added. It is ready for review.");
+        setMessage({
+          text: "Sample added. It is ready for review.",
+          tone: "success",
+        });
         return;
       }
-      setMessage(result.message);
+      setMessage({ text: result.message, tone: "error" });
     });
   }
 
@@ -181,14 +187,29 @@ function SamplesTab({
           onChange={(event) => setFile(event.currentTarget.files?.[0] ?? null)}
           disabled={isPending}
         />
-        <button type="submit" disabled={isPending} style={primaryButtonStyle}>
-          {isPending ? "Adding sample…" : "Add pronunciation sample"}
+        <button
+          type="submit"
+          disabled={isPending}
+          aria-busy={isPending}
+          style={primaryButtonStyle}
+        >
+          {isPending ? (
+            <span style={pendingButtonContentStyle}>
+              <span className="spinner" aria-hidden="true" />
+              Adding sample…
+            </span>
+          ) : (
+            "Add pronunciation sample"
+          )}
         </button>
       </form>
 
       {message ? (
-        <p role="alert" style={messageStyle}>
-          {message}
+        <p
+          role={message.tone === "success" ? "status" : "alert"}
+          style={message.tone === "success" ? successStyle : messageStyle}
+        >
+          {message.text}
         </p>
       ) : null}
 
@@ -211,6 +232,7 @@ function PronunciationSampleCard({ sample }: { sample: PronunciationSample }) {
   const [confirmedText, setConfirmedText] = useState(
     sample.teacherConfirmedText ?? sample.automaticTranscript,
   );
+  const [isEditingWording, setIsEditingWording] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const score = sample.provisionalResult;
@@ -263,22 +285,39 @@ function PronunciationSampleCard({ sample }: { sample: PronunciationSample }) {
       </div>
 
       <div style={transcriptBlockStyle}>
-        <p style={labelStyle}>Automatic transcript</p>
+        <div style={transcriptHeaderStyle}>
+          <p style={labelStyle}>Automatic transcript</p>
+          {sample.status === "pending" && !isEditingWording ? (
+            <button
+              type="button"
+              onClick={() => setIsEditingWording(true)}
+              style={secondaryButtonStyle}
+            >
+              Edit wording
+            </button>
+          ) : null}
+        </div>
         <p style={transcriptStyle}>{sample.automaticTranscript}</p>
       </div>
 
-      <label style={transcriptBlockStyle}>
-        <span style={labelStyle}>What was the student trying to say?</span>
-        <textarea
-          aria-label="What was the student trying to say?"
-          value={confirmedText}
-          onChange={(event) => setConfirmedText(event.currentTarget.value)}
-          maxLength={MAX_PRONUNCIATION_REFERENCE_CHARS}
-          readOnly={sample.status === "confirmed"}
-          rows={2}
-          style={textareaStyle}
-        />
-      </label>
+      {sample.status === "confirmed" ? (
+        <div style={transcriptBlockStyle}>
+          <p style={labelStyle}>Teacher-confirmed wording</p>
+          <p style={transcriptStyle}>{confirmedText}</p>
+        </div>
+      ) : isEditingWording ? (
+        <label style={transcriptBlockStyle}>
+          <span style={labelStyle}>Teacher-confirmed wording</span>
+          <textarea
+            aria-label="Teacher-confirmed wording"
+            value={confirmedText}
+            onChange={(event) => setConfirmedText(event.currentTarget.value)}
+            maxLength={MAX_PRONUNCIATION_REFERENCE_CHARS}
+            rows={4}
+            style={textareaStyle}
+          />
+        </label>
+      ) : null}
 
       {sample.status === "pending" ? (
         <button
@@ -315,7 +354,14 @@ function PronunciationSampleCard({ sample }: { sample: PronunciationSample }) {
           <>
             <p style={resultStyle}>
               Overall pronunciation: {Math.round(score.pronunciationScore)}/100 ·
-              star band {score.starBand}
+              <span
+                role="img"
+                aria-label={`${score.starBand} of 3 stars`}
+                style={starRatingStyle}
+              >
+                {"★".repeat(score.starBand)}
+                {"☆".repeat(3 - score.starBand)}
+              </span>
             </p>
             {sample.status === "confirmed" ? (
               <ConfirmedEvidence score={score} />
@@ -446,6 +492,12 @@ const primaryButtonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
+const pendingButtonContentStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+};
+
 const secondaryButtonStyle: React.CSSProperties = {
   minHeight: 44,
   padding: "8px 14px",
@@ -522,6 +574,13 @@ const transcriptBlockStyle: React.CSSProperties = {
   marginTop: 16,
 };
 
+const transcriptHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+};
+
 const transcriptStyle: React.CSSProperties = {
   margin: 0,
   fontSize: 15,
@@ -550,6 +609,12 @@ const resultStyle: React.CSSProperties = {
   margin: 0,
   fontSize: 14,
   color: "#4B5563",
+};
+
+const starRatingStyle: React.CSSProperties = {
+  marginLeft: 4,
+  color: "#D97706",
+  letterSpacing: 2,
 };
 
 const confirmedStyle: React.CSSProperties = {

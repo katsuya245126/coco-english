@@ -146,7 +146,46 @@ describe("PronunciationSamplesPanel", () => {
     expect(rendered.container.querySelector('input[type="file"]')).not.toBeNull();
   });
 
-  it("renders the immutable transcript, editable intended wording, provisional state, and playback", async () => {
+  it("shows a spinner and busy state while a sample upload is pending", async () => {
+    let resolveUpload!: (value: { ok: true; sample: PronunciationSample }) => void;
+    mocks.uploadPronunciationSampleAction.mockImplementation(
+      () => new Promise((resolve) => {
+        resolveUpload = resolve;
+      }),
+    );
+    const rendered = await renderPanel();
+    container = rendered.container;
+    root = rendered.root;
+    await act(async () => button(rendered.container, "Pronunciation samples")?.click());
+    const input = rendered.container.querySelector('input[type="file"]') as HTMLInputElement;
+    await act(async () => {
+      Object.defineProperty(input, "files", {
+        value: [new File(["audio"], "sample.webm", { type: "audio/webm" })],
+      });
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    await act(async () => button(rendered.container, "Add pronunciation sample")?.click());
+
+    const uploadButton = rendered.container.querySelector(
+      'button[type="submit"]',
+    );
+    expect(uploadButton?.getAttribute("aria-busy")).toBe("true");
+    expect(uploadButton?.querySelector(".spinner")).not.toBeNull();
+
+    await act(async () => resolveUpload({ ok: true, sample }));
+
+    const successMessage = rendered.container.querySelector(
+      '[role="status"]',
+    ) as HTMLElement | null;
+    expect(successMessage?.textContent).toBe(
+      "Sample added. It is ready for review.",
+    );
+    expect(successMessage?.style.color).toBe("rgb(22, 101, 52)");
+    expect(rendered.container.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it("keeps the automatic transcript plain and reveals prefilled teacher wording on edit", async () => {
     const rendered = await renderPanel([sample]);
     container = rendered.container;
     root = rendered.root;
@@ -154,8 +193,24 @@ describe("PronunciationSamplesPanel", () => {
 
     expect(rendered.container.textContent).toContain("Automatic transcript");
     expect(rendered.container.textContent).toContain("fan");
+    expect(
+      [...rendered.container.querySelectorAll("p")].some(
+        (paragraph) => paragraph.textContent === "fan",
+      ),
+    ).toBe(true);
+    expect(rendered.container.querySelector("textarea")).toBeNull();
+    expect(button(rendered.container, "Edit wording")).not.toBeUndefined();
+
+    await act(async () => button(rendered.container, "Edit wording")?.click());
+
+    expect(rendered.container.textContent).toContain("Teacher-confirmed wording");
     expect(rendered.container.querySelector("textarea")?.value).toBe("fan");
+    expect(rendered.container.querySelector("textarea")?.rows).toBe(4);
     expect(rendered.container.textContent).toContain("Provisional pronunciation analysis");
+    expect(
+      rendered.container.querySelector('[aria-label="2 of 3 stars"]')?.textContent,
+    ).toBe("★★☆");
+    expect(rendered.container.textContent).not.toContain("star band 2");
     expect(rendered.container.textContent).toContain("Audio available until");
 
     await act(async () => button(rendered.container, "Play sample")?.click());
@@ -187,6 +242,11 @@ describe("PronunciationSamplesPanel", () => {
     expect(rendered.container.textContent).toContain(
       "This recording is longer than 30 seconds. Trim it, then upload it again.",
     );
+    const errorMessage = rendered.container.querySelector(
+      '[role="alert"]',
+    ) as HTMLElement | null;
+    expect(errorMessage?.style.color).toBe("rgb(180, 35, 24)");
+    expect(rendered.container.querySelector('[role="status"]')).toBeNull();
   });
 
   it("shows confirmed evidence and provenance while hiding expired playback", async () => {
@@ -201,6 +261,8 @@ describe("PronunciationSamplesPanel", () => {
     expect(rendered.container.textContent).toContain("Expected /f/; sounded closer to /p/.");
     expect(rendered.container.textContent).toContain("Example words: “pan”");
     expect(rendered.container.textContent).toContain("Confirmed by teacher");
+    expect(rendered.container.textContent).toContain("Teacher-confirmed wording");
+    expect(rendered.container.querySelector("textarea")).toBeNull();
     expect(rendered.container.textContent).not.toContain("Confirm sample");
     expect(rendered.container.textContent).not.toContain("Play sample");
     expect(rendered.container.textContent).toContain("Audio expired");
@@ -227,6 +289,7 @@ describe("PronunciationSamplesPanel", () => {
     container = rendered.container;
     root = rendered.root;
     await act(async () => button(rendered.container, "Pronunciation samples")?.click());
+    await act(async () => button(rendered.container, "Edit wording")?.click());
     const textarea = rendered.container.querySelector("textarea") as HTMLTextAreaElement;
     expect(textarea.maxLength).toBe(500);
     await act(async () => {
