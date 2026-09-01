@@ -316,6 +316,67 @@ describe("PronunciationSamplesPanel", () => {
     );
   });
 
+  it("changes only the confirm label while confirmation is pending", async () => {
+    let resolveConfirm!: (value: {
+      ok: true;
+      sample: PronunciationSample;
+    }) => void;
+    mocks.confirmPronunciationSampleAction.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveConfirm = resolve;
+        }),
+    );
+    const rendered = await renderPanel([sample]);
+    container = rendered.container;
+    root = rendered.root;
+    await act(async () => button(rendered.container, "Pronunciation samples")?.click());
+
+    const actions = rendered.container.querySelector(
+      '[aria-label="Sample actions"]',
+    ) as HTMLElement;
+    const [confirmButton, removeButton] = [
+      ...actions.querySelectorAll("button"),
+    ] as HTMLButtonElement[];
+    await act(async () => confirmButton.click());
+
+    expect(confirmButton.textContent).toBe("Confirming sample…");
+    expect(removeButton.textContent).toBe("Remove sample");
+    expect(confirmButton.disabled).toBe(true);
+    expect(removeButton.disabled).toBe(true);
+
+    await act(async () => resolveConfirm({ ok: true, sample: confirmedSample }));
+  });
+
+  it("changes only the remove label while removal is pending", async () => {
+    let resolveRemove!: (value: { ok: true; studentId: string }) => void;
+    mocks.removePronunciationSampleAction.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRemove = resolve;
+        }),
+    );
+    const rendered = await renderPanel([sample]);
+    container = rendered.container;
+    root = rendered.root;
+    await act(async () => button(rendered.container, "Pronunciation samples")?.click());
+
+    const actions = rendered.container.querySelector(
+      '[aria-label="Sample actions"]',
+    ) as HTMLElement;
+    const [confirmButton, removeButton] = [
+      ...actions.querySelectorAll("button"),
+    ] as HTMLButtonElement[];
+    await act(async () => removeButton.click());
+
+    expect(confirmButton.textContent).toBe("Confirm sample");
+    expect(removeButton.textContent).toBe("Removing sample…");
+    expect(confirmButton.disabled).toBe(true);
+    expect(removeButton.disabled).toBe(true);
+
+    await act(async () => resolveRemove({ ok: true, studentId: "student-1" }));
+  });
+
   it("confirms pending wording through the server action", async () => {
     const rendered = await renderPanel([sample]);
     container = rendered.container;
