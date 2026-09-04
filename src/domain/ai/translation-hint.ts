@@ -220,24 +220,6 @@ export function buildTranslationSegments(
   return segments;
 }
 
-export function getFirstTranslationPhraseSegmentIndex(
-  sourceText: string,
-  phrases: TranslationPhrase[],
-): number | null {
-  const index = buildTranslationSegments(sourceText, phrases).findIndex(
-    (segment) => segment.kind === "phrase",
-  );
-  return index >= 0 ? index : null;
-}
-
-export function toggleTranslationBubble(
-  currentIndex: number | null,
-  firstIndex: number | null,
-): number | null {
-  if (firstIndex === null) return null;
-  return currentIndex === null ? firstIndex : null;
-}
-
 export function clampPhrasesToPage(
   phrases: TranslationPhrase[],
   page: { start: number; end: number; text: string },

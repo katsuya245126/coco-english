@@ -42,24 +42,3 @@ export const teacherProfileSchema = z.object({
 });
 
 export type TeacherProfileInput = z.infer<typeof teacherProfileSchema>;
-
-// Class creation: name only (CLASS-01). Join code is generated server-side and
-// is never client-supplied (it is a system-owned class locator).
-export const createClassSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "Enter a class name.")
-    .max(80, "Class name is too long."),
-});
-
-// Class rename: target class id + new name. Ownership is enforced by RLS plus
-// the server-side requireTeacherProfile guard, not by trusting this input.
-export const updateClassSchema = z.object({
-  classId: z.string().uuid("Invalid class reference."),
-  name: z
-    .string()
-    .trim()
-    .min(1, "Enter a class name.")
-    .max(80, "Class name is too long."),
-});

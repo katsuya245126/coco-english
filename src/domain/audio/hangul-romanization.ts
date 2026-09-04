@@ -250,17 +250,6 @@ export function findRomanizationArtifacts(
 }
 
 /**
- * True when `text` contains no Latin letters — i.e. the learner answered
- * entirely in Korean rather than code-switching a single proper noun.
- *
- * Checked before romanization so a fully Korean answer is still rejected and
- * retried, preserving the guard added in f50ed045.
- */
-export function isEntirelyNonEnglish(text: string): boolean {
-  return HANGUL_PATTERN.test(text) && !/[A-Za-z]/u.test(text);
-}
-
-/**
  * NOTE (UAT 2026-07-24): a string heuristic that decided code-switch vs
  * "Korean answer in an English frame" was tried here and abandoned.
  * "바닐라 is good." (a Korean answer) and "I like 축구." (a valid code-switch)

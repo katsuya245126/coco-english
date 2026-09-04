@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   DIALOGUE_PAGE_PACK_WORD_LIMIT,
   DIALOGUE_PAGE_WORD_LIMIT,
-  findDialoguePageIndex,
   paginateDialogueText,
 } from "@/domain/conversation/dialogue-pagination";
 
@@ -103,14 +102,5 @@ describe("paginateDialogueText", () => {
     ]);
     const longWord = "x".repeat(200);
     expect(paginateDialogueText(longWord)[0]?.text).toBe(longWord);
-  });
-
-  it("finds and clamps the page containing a full-source offset", () => {
-    const pages = paginateDialogueText(
-      Array.from({ length: 20 }, (_, index) => `word${index + 1}`).join(" "),
-    );
-    expect(findDialoguePageIndex(pages, 0)).toBe(0);
-    expect(findDialoguePageIndex(pages, pages[1]?.start ?? 0)).toBe(1);
-    expect(findDialoguePageIndex(pages, Number.MAX_SAFE_INTEGER)).toBe(1);
   });
 });

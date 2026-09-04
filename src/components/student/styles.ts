@@ -175,12 +175,6 @@ export const recorderPanelStyle: CSSProperties = {
   boxSizing: "border-box",
 };
 
-export const recorderRecordingStyle: CSSProperties = {
-  ...recorderPanelStyle,
-  background: "#FEF2F2",
-  border: "1px solid #FCA5A5",
-};
-
 export const recorderProcessingStyle: CSSProperties = {
   ...recorderPanelStyle,
   background: "#FFFBEB",
@@ -469,10 +463,4 @@ export const mascotTranslationBubbleStyle: CSSProperties = {
   lineHeight: 1.3,
   whiteSpace: "normal",
   overflowWrap: "anywhere",
-};
-
-export const mascotSpeakerLabelStyle: CSSProperties = {
-  ...labelStyle,
-  color: "#2563EB",
-  marginBottom: 4,
 };

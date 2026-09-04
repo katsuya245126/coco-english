@@ -12,8 +12,7 @@ export const JOIN_CODE_DEFAULT_LENGTH = 6;
 // Pure, side-effect-free generator built on the Web Crypto API (available in
 // Node 20 and the browser). Modulo bias across a 31-char alphabet over a 256-value
 // byte is negligible for a non-secret classroom locator; uniqueness is guaranteed
-// at the database level by the join_code unique index, with regenerate-and-retry
-// in the class service on the rare collision.
+// at the database level by the join_code unique index.
 export function generateJoinCode(length: number = JOIN_CODE_DEFAULT_LENGTH): string {
   const bytes = crypto.getRandomValues(new Uint8Array(length));
   return Array.from(
