@@ -18,6 +18,15 @@
 - On worktree creation or takeover, verify that `TASK.md` matches the current branch and working tree. Replace, pause, or explicitly mark an inherited unrelated task inactive before reporting progress.
 - Reuse discovered specialist skills for brainstorming, planning, debugging, test-first implementation, review, verification, and handoff.
 
+### Follow-through and skill instructions
+
+- Carry authorized work through verification. Resolve routine implementation choices from repository evidence; ask only when missing information materially changes scope, behavior, safety, or acceptance criteria.
+- Follow explicit user instructions over skill guidelines. Invoke relevant available skills within the authorized scope instead of requiring the user to repeat a request with a slash command.
+- Preserve the consequential-work plan gate and explicit approval for external actions. Before requesting approval, finish the authorized investigation and prepare a concrete plan or reviewable result.
+- If a skill requires a pause, link the exact `SKILL.md`, quote the relevant rule, and explain why it applies. Do not turn advisory guidance into an additional approval gate.
+- Incorporate corrections and answer side questions while retaining the active task unless the user cancels or replaces it.
+- Report the result, verification, and remaining blockers in concise, plain language; scale detail to the request.
+
 ### Workflow phases for Codex
 
 For each normal or consequential task, read `PROJECT.md`, the active `TASK.md`, and Git status; state the desired outcome, scope, non-goals, assumptions, done checks, and verification evidence before editing. Classify the work, preserve unrelated changes, and never skip the plan-approval gate for consequential work.
@@ -52,13 +61,15 @@ Use available specialist skills for these phases when present; otherwise perform
 
 Run the narrowest relevant tests first, then typecheck, lint, and build in proportion to risk. Never claim an unrun check passed.
 
+For documentation-only changes, check the diff, referenced paths, and instruction consistency; application tests are unnecessary unless executable behavior or an explicit requirement is affected. Do not add tests that merely mirror prose or trivial implementation details.
+
 For deterministic student feedback screenshots, start the app on `http://localhost:3000`, provide `FEEDBACK_STATE_CLASS_CODE`, `FEEDBACK_STATE_STUDENT_NAME`, and `FEEDBACK_STATE_PIN`, and run `npm run test:student-feedback-states`. See `docs/testing/student-feedback-states.md`.
 
 ## Usage efficiency
 
 - Give subagents compact, task-specific prompts and the minimum history they need. Inherit full conversation history only when the task cannot be summarized safely.
 - Reuse an existing subagent for follow-up work instead of spawning a replacement for the same scope.
-- Run the narrowest relevant checks during implementation. Run the full unit suite once for the final commit state; rerun it only after the commit, working tree, environment, or relevant dependencies change.
+- Run the narrowest relevant checks during implementation. For application-code changes, run the full unit suite once on the final diff; repeat or broaden verification only for relevant changes, failures, unresolved concerns, or explicit requirements. Creating a commit alone does not invalidate checks of identical file contents.
 - Verification evidence is identified by the checked commit and clean working tree. Do not rerun an unchanged verified commit solely to create a PR or repeat a status report unless an invoked skill explicitly requires it.
 - Before formal review, check the final diff against the issue acceptance criteria and repository standards. Start formal parallel reviewers after that preflight so they normally review one final diff.
 - After formal Standards + Spec review, rerun affected tests and typecheck for accepted fixes; do not rerun review subagents for small localized fixes unless behavior or scope materially changes or the prior review missed relevant files. Use a targeted manual check instead.
