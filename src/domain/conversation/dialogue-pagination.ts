@@ -99,14 +99,3 @@ export function paginateDialogueText(sourceText: string): DialoguePage[] {
   }
   return pages;
 }
-
-export function findDialoguePageIndex(
-  pages: DialoguePage[],
-  sourceOffset: number,
-): number {
-  if (pages.length === 0) return 0;
-  const index = pages.findIndex(
-    (page) => sourceOffset >= page.start && sourceOffset < page.end,
-  );
-  return index >= 0 ? index : pages.length - 1;
-}

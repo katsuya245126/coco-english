@@ -2,9 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildTranslationSegments,
   clampPhrasesToPage,
-  getFirstTranslationPhraseSegmentIndex,
   parseTranslationHint,
-  toggleTranslationBubble,
   translationHintRequestSchema,
 } from "@/domain/ai/translation-hint";
 import { paginateDialogueText } from "@/domain/conversation/dialogue-pagination";
@@ -383,26 +381,6 @@ describe("translation hint domain contract", () => {
     expect(segments.some((segment) => segment.kind === "text" && segment.text === "?")).toBe(
       false,
     );
-  });
-
-  it("finds the first translated segment and toggles its bubble", () => {
-    const text = "Please play soccer today.";
-    const phrases = [
-      {
-        source: "play soccer",
-        start: 7,
-        end: 18,
-        translation: "축구를 하다",
-      },
-    ];
-
-    const firstIndex = getFirstTranslationPhraseSegmentIndex(text, phrases);
-    expect(firstIndex).toBe(1);
-    expect(toggleTranslationBubble(null, firstIndex)).toBe(1);
-    expect(toggleTranslationBubble(1, firstIndex)).toBeNull();
-    expect(toggleTranslationBubble(2, firstIndex)).toBeNull();
-    expect(getFirstTranslationPhraseSegmentIndex(text, [])).toBeNull();
-    expect(toggleTranslationBubble(null, null)).toBeNull();
   });
 
   it("accepts only recordable Coco prompt descriptors", () => {

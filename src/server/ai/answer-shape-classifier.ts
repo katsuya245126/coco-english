@@ -4,9 +4,14 @@
  * no wrong answer)? Decided once here so the evaluator never re-guesses it per
  * attempt. Fails safe to "open" — the lenient shape that never coerces a child.
  */
-import OpenAI from "openai";
 import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
+import {
+  hasApiKey,
+  structuredOutputCall,
+  type StructuredOutputClient,
+  type StructuredOutputDeps,
+} from "@/server/ai/structured-output";
 import { log } from "@/server/logging/logger";
 import { answerShapeSchema, type AnswerShape } from "@/domain/mission/schemas";
 
@@ -16,30 +21,13 @@ const classificationSchema = z.object({
   shapes: z.array(answerShapeSchema),
 });
 
-export type AnswerShapeClient = {
-  responses: {
-    parse(input: {
-      model: string;
-      input: Array<{ role: "system" | "user"; content: string }>;
-      text: { format: unknown };
-    }): Promise<{ output_parsed?: unknown }>;
-  };
-};
+export type AnswerShapeClient = StructuredOutputClient;
 
 export type ClassifyTurnsInput = {
   turns: Array<{ prompt: string; targetExample: string }>;
 };
 
-export type ClassifyTurnsDeps = {
-  apiKey?: string;
-  model?: string;
-  client?: AnswerShapeClient;
-};
-
-function resolveApiKey(deps?: ClassifyTurnsDeps) {
-  if (deps && "apiKey" in deps) return deps.apiKey?.trim() ?? "";
-  return process.env.OPENAI_API_KEY?.trim() ?? "";
-}
+export type ClassifyTurnsDeps = StructuredOutputDeps;
 
 function resolveModel(deps?: ClassifyTurnsDeps) {
   return (
@@ -60,12 +48,9 @@ export async function classifyTurnAnswerShapes(
   const count = input.turns.length;
   if (count === 0) return [];
 
-  const apiKey = resolveApiKey(deps);
-  if (!apiKey) return allOpen(count);
+  if (!hasApiKey(deps)) return allOpen(count);
 
   try {
-    const client =
-      deps?.client ?? (new OpenAI({ apiKey }) as AnswerShapeClient);
     const prompt = {
       instructions: [
         "Classify each ESL mission turn as 'fixed' or 'open'.",
@@ -81,21 +66,21 @@ export async function classifyTurnAnswerShapes(
         targetExample: t.targetExample,
       })),
     };
-    const response = await client.responses.parse({
+    const result = await structuredOutputCall({
+      deps,
       model: resolveModel(deps),
-      input: [
-        {
-          role: "system",
-          content:
-            "Classify children's ESL mission turns. Return only data matching the schema.",
-        },
-        { role: "user", content: JSON.stringify(prompt) },
-      ],
-      text: {
-        format: zodTextFormat(classificationSchema, "answer_shape_classification"),
-      },
+      systemMessage:
+        "Classify children's ESL mission turns. Return only data matching the schema.",
+      userContent: JSON.stringify(prompt),
+      format: zodTextFormat(classificationSchema, "answer_shape_classification"),
     });
-    const parsed = classificationSchema.safeParse(response.output_parsed);
+    if (!result.ok) {
+      if (result.error === "provider_failed") {
+        log("error", "ai.answer_shape_classification_failed", { turnCount: count });
+      }
+      return allOpen(count);
+    }
+    const parsed = classificationSchema.safeParse(result.outputParsed);
     if (!parsed.success || parsed.data.shapes.length !== count) {
       return allOpen(count);
     }

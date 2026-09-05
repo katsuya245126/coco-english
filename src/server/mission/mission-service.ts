@@ -361,13 +361,6 @@ export async function cancelMissionAssignment(input: {
   }
 }
 
-export async function deleteMission(input: {
-  teacherId: string;
-  missionId: string;
-}): Promise<void> {
-  return archiveMission(input);
-}
-
 export async function getMissionForTeacher(input: {
   teacherId: string;
   missionId: string;

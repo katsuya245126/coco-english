@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   detectHangulSpans,
   findRomanizationArtifacts,
-  isEntirelyNonEnglish,
   romanizeHangul,
   romanizeHangulRun,
 } from "@/domain/audio/hangul-romanization";
@@ -115,26 +114,6 @@ describe("detectHangulSpans", () => {
   });
 });
 
-describe("isEntirelyNonEnglish", () => {
-  it("flags an answer given entirely in Korean", () => {
-    expect(isEntirelyNonEnglish("나는 방과 후에 축구를 좋아해요.")).toBe(true);
-  });
-
-  it("does not flag a code-switched sentence with an English frame", () => {
-    expect(isEntirelyNonEnglish("I'm going to 거제도 this summer vacation.")).toBe(
-      false,
-    );
-  });
-
-  it("does not flag pure English", () => {
-    expect(isEntirelyNonEnglish("I like apples.")).toBe(false);
-  });
-
-  it("does not flag text with no Hangul at all", () => {
-    expect(isEntirelyNonEnglish("12345")).toBe(false);
-  });
-});
-
 describe("romanization exposes the phonetic cue the evaluator judges (UAT 2026-07-24)", () => {
   // There is no hardcoded loanword list. The evaluator decides whether an
   // accented-English word was mis-scripted to Hangul by sounding out the
@@ -165,7 +144,6 @@ describe("Korean answer in an English frame (UAT 2026-07-24)", () => {
       { hangul: "초콜릿", romanized: "Chokolrit" },
       { hangul: "바닐라", romanized: "Banilra" },
     ]);
-    expect(isEntirelyNonEnglish("초콜릿 is better than 바닐라.")).toBe(false);
   });
 });
 

@@ -11,7 +11,6 @@ const {
   archiveMission,
   cancelMissionAssignment,
   createMission,
-  deleteMission,
   listArchivedMissionsForTeacher,
   listMissionsForTeacher,
   mapTurn,
@@ -178,7 +177,7 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
     ).rejects.toThrow(/required turns/i);
   });
 
-  it("archives an assigned mission without calling DELETE", async () => {
+  it("archives an assigned mission with a soft update", async () => {
     const calls: Array<{ table: string; action: string; payload?: unknown; filters: Array<[string, unknown]> }> = [];
     const makeUpdateQuery = (table: string, payload: unknown) => {
       const filters: Array<[string, unknown]> = [];
@@ -207,7 +206,7 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
     };
     mockSupabase = supabase;
 
-    await deleteMission({ teacherId: "teacher-1", missionId: "mission-1" });
+    await archiveMission({ teacherId: "teacher-1", missionId: "mission-1" });
 
     expect(calls).toEqual([
       {
