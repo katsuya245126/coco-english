@@ -178,7 +178,13 @@ export async function POST(request: Request, context: RouteContext) {
   }
   const characterId = isPronunciationAssignment
     ? "pronunciation-practice"
-    : snapshot!.characterId;
+    : snapshot?.characterId;
+  if (!characterId) {
+    return NextResponse.json(
+      { ok: false, error: "not_found" },
+      { status: 404 },
+    );
+  }
   // A restarted/retried mission produces additional attempts whose
   // attempt_turns reuse the same turn_order values, so the per-turn lookups
   // below must pin to the current attempt — an assignment-wide join returns

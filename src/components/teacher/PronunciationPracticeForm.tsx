@@ -30,6 +30,14 @@ type PronunciationPracticeFormProps = {
 
 type SelectedWord = PronunciationAssignmentWordInput;
 
+function customPronunciationKey(text: string, cmuVariant: number) {
+  return `${text}:${cmuVariant}`;
+}
+
+function wordPreviewKey(word: Pick<SelectedWord, "source" | "text" | "cmuVariant">) {
+  return `${word.source}:${customPronunciationKey(word.text, word.cmuVariant)}`;
+}
+
 const SOUND_LETTERS: Record<PracticeSoundId, string[]> = {
   light_l: ["l"],
   s: ["s", "c"],
@@ -107,11 +115,20 @@ export function PronunciationPracticeForm({
     () =>
       words
         .filter((word) => word.source === "custom")
-        .map((word) => `${word.text}:${word.cmuVariant}`),
+        .map((word) => customPronunciationKey(word.text, word.cmuVariant)),
     [words],
   );
   const canAssign =
     words.length === 5 && customKeys.every((key) => previewedCustom.has(key));
+
+  function markCustomPreviewed(key: string) {
+    setPreviewedCustom((current) => {
+      if (current.has(key)) return current;
+      const next = new Set(current);
+      next.add(key);
+      return next;
+    });
+  }
 
   async function refreshSuggestions(nextSound: PracticeSoundId, nextDifficulty: PracticeDifficulty) {
     setError(null);
@@ -190,12 +207,11 @@ export function PronunciationPracticeForm({
       setError(result.error);
       return;
     }
-    const key = `${choice.word}:${choice.cmuVariant}`;
-    setPreviewedCustom((current) => new Set(current).add(key));
+    const key = customPronunciationKey(choice.word, choice.cmuVariant);
     setPreviewUrls((current) => ({ ...current, [`custom-${key}`]: result.audioUrl }));
   }
 
-  async function previewWord(word: SelectedWord, order: number) {
+  async function previewWord(word: SelectedWord) {
     setError(null);
     const result = await previewPronunciationWordAction({
       studentId,
@@ -207,14 +223,7 @@ export function PronunciationPracticeForm({
       setError(result.error);
       return;
     }
-    setPreviewUrls((current) => ({ ...current, [String(order)]: result.audioUrl }));
-    if (word.source === "custom") {
-      setPreviewedCustom((current) => {
-        const next = new Set(current);
-        next.add(`${word.text}:${word.cmuVariant}`);
-        return next;
-      });
-    }
+    setPreviewUrls((current) => ({ ...current, [wordPreviewKey(word)]: result.audioUrl }));
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -278,7 +287,7 @@ export function PronunciationPracticeForm({
               <strong>{index + 1}.</strong>
               <span style={{ fontSize: 20, minWidth: 100 }}>{highlightWord(word)}</span>
               <span style={{ color: "#6B7280", fontSize: 13 }}>{word.source}</span>
-              <button type="button" onClick={() => void previewWord(word, index + 1)} style={smallButtonStyle}>Play word</button>
+              <button type="button" onClick={() => void previewWord(word)} style={smallButtonStyle}>Play word</button>
               <button type="button" onClick={() => replaceWord(index)} style={smallButtonStyle}>Replace</button>
               {word.source === "custom" ? (
                 <>
@@ -312,7 +321,19 @@ export function PronunciationPracticeForm({
                   </label>
                 </>
               ) : null}
-              {previewUrls[String(index + 1)] ? <audio controls preload="none" src={previewUrls[String(index + 1)]} aria-label={`Play ${word.text}`} /> : null}
+              {previewUrls[wordPreviewKey(word)] ? (
+                <audio
+                  controls
+                  preload="none"
+                  src={previewUrls[wordPreviewKey(word)]}
+                  aria-label={`Play ${word.text}`}
+                  onPlaying={
+                    word.source === "custom"
+                      ? () => markCustomPreviewed(customPronunciationKey(word.text, word.cmuVariant))
+                      : undefined
+                  }
+                />
+              ) : null}
             </article>
           ))}
         </div>
@@ -329,13 +350,21 @@ export function PronunciationPracticeForm({
           {customChoices.length > 0 ? (
             <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
               {customChoices.map((choice) => {
-                const key = `${choice.word}:${choice.cmuVariant}`;
+                const key = customPronunciationKey(choice.word, choice.cmuVariant);
                 return (
                   <div key={key} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     <span>{choice.word} pronunciation {choice.cmuVariant}</span>
                     <button type="button" onClick={() => void previewCustomChoice(choice)} style={smallButtonStyle}>Play pronunciation</button>
                     <button type="button" onClick={() => chooseCustom(choice)} style={smallButtonStyle}>Use this pronunciation</button>
-                    {previewUrls[`custom-${key}`] ? <audio controls preload="none" src={previewUrls[`custom-${key}`]} aria-label={`Play ${choice.word} pronunciation ${choice.cmuVariant}`} /> : null}
+                    {previewUrls[`custom-${key}`] ? (
+                      <audio
+                        controls
+                        preload="none"
+                        src={previewUrls[`custom-${key}`]}
+                        aria-label={`Play ${choice.word} pronunciation ${choice.cmuVariant}`}
+                        onPlaying={() => markCustomPreviewed(key)}
+                      />
+                    ) : null}
                   </div>
                 );
               })}

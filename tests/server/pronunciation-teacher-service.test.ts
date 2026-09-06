@@ -118,6 +118,7 @@ describe("pronunciation teacher service", () => {
       "@/server/pronunciation/teacher-service"
     );
     const rpc = vi.fn();
+    const consumeRequestBudget = vi.fn();
     const query = {
       select: vi.fn(() => query),
       eq: vi.fn(() => query),
@@ -156,11 +157,13 @@ describe("pronunciation teacher service", () => {
       {
         supabase: { from: vi.fn(() => query), rpc } as never,
         getOrCreatePronunciationWordAudio: vi.fn(),
+        consumeRequestBudget,
       },
     );
 
     expect(result).toEqual({ ok: false, error: "invalid_word" });
     expect(rpc).not.toHaveBeenCalled();
+    expect(consumeRequestBudget).not.toHaveBeenCalled();
   });
 
   it("stops before assignment when one word audio render fails", async () => {
@@ -168,6 +171,7 @@ describe("pronunciation teacher service", () => {
       "@/server/pronunciation/teacher-service"
     );
     const rpc = vi.fn();
+    const consumeRequestBudget = vi.fn(async () => ({ allowed: true as const }));
     const query = {
       select: vi.fn(() => query),
       eq: vi.fn(() => query),
@@ -218,11 +222,234 @@ describe("pronunciation teacher service", () => {
       {
         supabase: { from: vi.fn(() => query), rpc } as never,
         getOrCreatePronunciationWordAudio: render,
+        consumeRequestBudget,
       },
     );
 
     expect(result).toEqual({ ok: false, error: "audio_failed" });
+    expect(consumeRequestBudget).toHaveBeenCalledOnce();
     expect(render).toHaveBeenCalledTimes(3);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("denies a valid preview before word audio render or signing", async () => {
+    const { previewPronunciationWord } = await import(
+      "@/server/pronunciation/teacher-service"
+    );
+    const consumeRequestBudget = vi.fn(async () => ({
+      allowed: false as const,
+      retryAfterSeconds: 37,
+    }));
+    const render = vi.fn();
+    const sign = vi.fn();
+    const query = {
+      select: vi.fn(() => query),
+      eq: vi.fn(() => query),
+      is: vi.fn(() => query),
+      maybeSingle: vi.fn(async () => ({
+        data: {
+          id: "student-1",
+          class_id: "class-1",
+          display_name: "Mina",
+          classes: { id: "class-1", name: "Class 1" },
+        },
+        error: null,
+      })),
+    };
+    const word = PRONUNCIATION_WORD_BANK.find(
+      (entry) => entry.soundId === "light_l" && entry.difficulty === "easy",
+    );
+    expect(word).toBeDefined();
+
+    const result = await previewPronunciationWord(
+      {
+        teacherId: "teacher-1",
+        studentId: "student-1",
+        soundId: "light_l",
+        difficulty: "easy",
+        word: {
+          text: word!.text,
+          source: "verified",
+          cmuVariant: word!.cmuVariant,
+          highlightStart: word!.highlightStart,
+          highlightLength: word!.highlightLength,
+        },
+      },
+      {
+        supabase: { from: vi.fn(() => query) } as never,
+        getOrCreatePronunciationWordAudio: render,
+        signPronunciationWordAudio: sign,
+        consumeRequestBudget,
+      },
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: "rate_limited",
+      retryAfterSeconds: 37,
+    });
+    expect(consumeRequestBudget).toHaveBeenCalledOnce();
+    expect(consumeRequestBudget).toHaveBeenCalledWith({
+      actorId: "teacher-1",
+      operation: "teacher_provider",
+    });
+    expect(render).not.toHaveBeenCalled();
+    expect(sign).not.toHaveBeenCalled();
+  });
+
+  it("denies a valid assignment before rendering any word or assigning", async () => {
+    const { assignPronunciationPractice } = await import(
+      "@/server/pronunciation/teacher-service"
+    );
+    const consumeRequestBudget = vi.fn(async () => ({
+      allowed: false as const,
+      retryAfterSeconds: 41,
+    }));
+    const render = vi.fn();
+    const rpc = vi.fn();
+    const query = {
+      select: vi.fn(() => query),
+      eq: vi.fn(() => query),
+      is: vi.fn(() => query),
+      maybeSingle: vi.fn(async () => ({
+        data: {
+          id: "student-1",
+          class_id: "class-1",
+          display_name: "Mina",
+          classes: { id: "class-1", name: "Class 1" },
+        },
+        error: null,
+      })),
+    };
+    const words = PRONUNCIATION_WORD_BANK.filter(
+      (word) => word.soundId === "light_l" && word.difficulty === "easy",
+    )
+      .slice(0, 5)
+      .map((word) => ({
+        text: word.text,
+        source: "verified" as const,
+        cmuVariant: word.cmuVariant,
+        highlightStart: word.highlightStart,
+        highlightLength: word.highlightLength,
+      }));
+
+    const result = await assignPronunciationPractice(
+      {
+        teacherId: "teacher-1",
+        studentId: "student-1",
+        soundId: "light_l",
+        difficulty: "easy",
+        dueAt: null,
+        words,
+      },
+      {
+        supabase: { from: vi.fn(() => query), rpc } as never,
+        getOrCreatePronunciationWordAudio: render,
+        consumeRequestBudget,
+      },
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: "rate_limited",
+      retryAfterSeconds: 41,
+    });
+    expect(consumeRequestBudget).toHaveBeenCalledOnce();
+    expect(consumeRequestBudget).toHaveBeenCalledWith({
+      actorId: "teacher-1",
+      operation: "teacher_provider",
+    });
+    expect(render).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("does not consume a budget for an unauthorized preview", async () => {
+    const { previewPronunciationWord } = await import(
+      "@/server/pronunciation/teacher-service"
+    );
+    const consumeRequestBudget = vi.fn();
+    const render = vi.fn();
+    const query = {
+      select: vi.fn(() => query),
+      eq: vi.fn(() => query),
+      is: vi.fn(() => query),
+      maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+    };
+
+    const result = await previewPronunciationWord(
+      {
+        teacherId: "teacher-1",
+        studentId: "foreign-student",
+        soundId: "light_l",
+        difficulty: "easy",
+        word: {
+          text: "lake",
+          source: "verified",
+          cmuVariant: 1,
+          highlightStart: 0,
+          highlightLength: 1,
+        },
+      },
+      {
+        supabase: { from: vi.fn(() => query) } as never,
+        getOrCreatePronunciationWordAudio: render,
+        consumeRequestBudget,
+      },
+    );
+
+    expect(result).toEqual({ ok: false, error: "not_found" });
+    expect(consumeRequestBudget).not.toHaveBeenCalled();
+    expect(render).not.toHaveBeenCalled();
+  });
+
+  it("does not consume a budget for an invalid assignment word", async () => {
+    const { assignPronunciationPractice } = await import(
+      "@/server/pronunciation/teacher-service"
+    );
+    const consumeRequestBudget = vi.fn();
+    const render = vi.fn();
+    const rpc = vi.fn();
+    const query = {
+      select: vi.fn(() => query),
+      eq: vi.fn(() => query),
+      is: vi.fn(() => query),
+      maybeSingle: vi.fn(async () => ({
+        data: {
+          id: "student-1",
+          class_id: "class-1",
+          display_name: "Mina",
+          classes: { id: "class-1", name: "Class 1" },
+        },
+        error: null,
+      })),
+    };
+    const words = Array.from({ length: 5 }, (_, index) => ({
+      text: index === 4 ? "not-in-the-bank" : "lake",
+      source: "verified" as const,
+      cmuVariant: 1,
+      highlightStart: 0,
+      highlightLength: 1,
+    }));
+
+    const result = await assignPronunciationPractice(
+      {
+        teacherId: "teacher-1",
+        studentId: "student-1",
+        soundId: "light_l",
+        difficulty: "easy",
+        dueAt: null,
+        words,
+      },
+      {
+        supabase: { from: vi.fn(() => query), rpc } as never,
+        getOrCreatePronunciationWordAudio: render,
+        consumeRequestBudget,
+      },
+    );
+
+    expect(result).toEqual({ ok: false, error: "invalid_word" });
+    expect(consumeRequestBudget).not.toHaveBeenCalled();
+    expect(render).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
   });
 });

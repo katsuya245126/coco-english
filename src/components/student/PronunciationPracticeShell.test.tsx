@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, useState, type ReactNode } from "react";
+import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -49,26 +49,17 @@ vi.mock("./CocoSpeechAudio", () => ({
   ),
 }));
 
-vi.mock("./MascotStage", () => ({
-  MascotStage: ({
-    dialogueText,
-    expression,
-    voiceControl,
-  }: {
-    dialogueText?: string | null;
-    expression?: string;
-    voiceControl?: ReactNode;
-  }) => (
-    <div data-testid="mascot-stage" data-expression={expression}>
-      <p data-testid="mascot-dialogue">{dialogueText}</p>
-      {voiceControl ? (
-        <div data-testid="mascot-dialogue-actions">
-          <span data-testid="mascot-voice-tab">{voiceControl}</span>
-        </div>
-      ) : null}
-    </div>
+/* eslint-disable @next/next/no-img-element -- the image mock needs a DOM node. */
+vi.mock("next/image", () => ({
+  default: ({
+    src,
+    alt,
+    ...props
+  }: { src: string; alt: string; [key: string]: unknown }) => (
+    <img src={src} alt={alt} {...props} />
   ),
 }));
+/* eslint-enable @next/next/no-img-element */
 
 vi.mock("@/app/student/pronunciation/[assignmentStudentId]/actions", () => ({
   completePronunciationAttemptAction: vi.fn(async () => completionState.result),
@@ -172,6 +163,18 @@ afterEach(async () => {
 });
 
 describe("PronunciationPracticeShell", () => {
+  it("uses one focused word card with a compact Coco feedback row", async () => {
+    await renderShell(page());
+
+    const card = container.querySelector('[data-testid="pronunciation-practice-card"]');
+    expect(card).not.toBeNull();
+    expect(card?.textContent).toContain("Word 1 of 5");
+    expect(card?.querySelector('[data-testid="coco-feedback"]')).not.toBeNull();
+    expect(card?.querySelector('img[src="/images/coco-happy-alpha.png"]')).not.toBeNull();
+    expect(card?.querySelector('[data-testid="mascot-stage"]')).toBeNull();
+    expect(card?.querySelector('button[aria-label="Hear the S sound"]')).not.toBeNull();
+  });
+
   it("renders five progress dots for finished, current, and upcoming words", async () => {
     const finishedWords = [
       word(1, { finished: true, passed: true, validTryCount: 1, remainingTryCount: 2 }),
@@ -202,19 +205,26 @@ describe("PronunciationPracticeShell", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[0]).toContain("/word-audio");
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ body: JSON.stringify({ wordOrder: 1 }) });
-    expect(container.querySelector('button[aria-label="Hear the s sound"]')).not.toBeNull();
-    expect(container.querySelector('button[aria-label="Hear the word"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="mascot-dialogue"]')?.textContent).toBe(
+    const wordArea = container.querySelector('[data-testid="practice-word-area"]');
+    const wordAudioButton = wordArea?.querySelector<HTMLButtonElement>(
+      'button[aria-label="Hear the word"]',
+    );
+    expect(wordAudioButton).not.toBeNull();
+    expect(wordAudioButton?.textContent).toBe("");
+    expect(wordAudioButton?.querySelector("svg")).not.toBeNull();
+    const soundAudioButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Hear the S sound"]',
+    );
+    expect(soundAudioButton?.textContent).toBe("S sound");
+    expect(container.querySelector('[data-testid="coco-feedback-message"]')?.textContent).toBe(
       "Listen, then say it!",
     );
-    expect(container.querySelector('[data-testid="mascot-stage"]')?.getAttribute("data-expression")).toBe(
-      "happy",
-    );
+    expect(container.querySelector('img[src="/images/coco-happy-alpha.png"]')).not.toBeNull();
     expect(play).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      container.querySelector<HTMLButtonElement>('button[aria-label="Hear the s sound"]')?.click();
-      container.querySelector<HTMLButtonElement>('button[aria-label="Hear the s sound"]')?.click();
+      container.querySelector<HTMLButtonElement>('button[aria-label="Hear the S sound"]')?.click();
+      container.querySelector<HTMLButtonElement>('button[aria-label="Hear the S sound"]')?.click();
       container.querySelector<HTMLButtonElement>('button[aria-label="Hear the word"]')?.click();
       container.querySelector<HTMLButtonElement>('button[aria-label="Hear the word"]')?.click();
     });
@@ -224,20 +234,12 @@ describe("PronunciationPracticeShell", () => {
     expect(container.textContent).not.toContain("transcript");
   });
 
-  it("keeps the attached practice audio controls at 44px touch targets", async () => {
+  it("keeps word and sound replay separate from compact Coco feedback audio", async () => {
     await renderShell(page());
 
-    const expectedHeight = "clamp(44px, 10vw, 48px)";
-    const tabs = container.querySelector<HTMLElement>('.pronunciation-practice-audio-tabs');
-    const wordTab = container.querySelector<HTMLButtonElement>('button[aria-label="Hear the word"]');
-    const soundTab = container.querySelector<HTMLButtonElement>('button[aria-label="Hear the s sound"]');
-
-    expect(tabs?.style.minHeight).toBe(expectedHeight);
-    expect(tabs?.style.height).toBe(expectedHeight);
-    expect(wordTab?.style.minHeight).toBe(expectedHeight);
-    expect(wordTab?.style.height).toBe(expectedHeight);
-    expect(soundTab?.style.minHeight).toBe(expectedHeight);
-    expect(soundTab?.style.height).toBe(expectedHeight);
+    expect(container.querySelector('button[aria-label="Hear the word"]')).not.toBeNull();
+    expect(container.querySelector('button[aria-label="Hear the S sound"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="coco-feedback"]')).not.toBeNull();
 
     uploadResult = {
       ...uploadResult,
@@ -252,38 +254,12 @@ describe("PronunciationPracticeShell", () => {
       await Promise.resolve();
     });
 
-    const actionContainer = container.querySelector<HTMLElement>(
-      '[data-testid="mascot-dialogue-actions"]',
-    );
-    const voiceTab = actionContainer?.querySelector<HTMLElement>(
-      '[data-testid="mascot-voice-tab"]',
-    );
-    const feedbackAudio = voiceTab?.querySelector<HTMLButtonElement>(
+    const feedbackAudio = container.querySelector<HTMLButtonElement>(
       '[data-testid="feedback-audio"]',
     );
-    const nestedTabs = voiceTab?.querySelector<HTMLElement>(
-      '.pronunciation-practice-audio-tabs',
-    );
-
-    expect(actionContainer).not.toBeNull();
-    expect(voiceTab).not.toBeNull();
     expect(feedbackAudio).not.toBeNull();
-    expect(nestedTabs).not.toBeNull();
-    expect(nestedTabs?.parentElement).toBe(voiceTab);
-    expect(
-      container.querySelector(
-        '[data-testid="mascot-dialogue-actions"] > [data-testid="mascot-voice-tab"] > .pronunciation-practice-audio-tabs',
-      ),
-    ).toBe(nestedTabs);
-    expect(feedbackAudio?.closest('[data-testid="mascot-dialogue-actions"]')).toBe(actionContainer);
-
-    const touchTargetStyle = container.querySelector<HTMLStyleElement>('style');
-    expect(touchTargetStyle?.textContent).toContain(
-      ".pronunciation-practice-audio-tabs button",
-    );
-    expect(touchTargetStyle?.textContent).toContain(
-      "min-height: clamp(44px, 10vw, 48px) !important",
-    );
+    expect(feedbackAudio?.closest('[data-testid="coco-feedback"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Word and sound audio"] [data-testid="feedback-audio"]')).toBeNull();
   });
 
   it("explains missing word audio without blocking sound practice", async () => {
@@ -299,7 +275,7 @@ describe("PronunciationPracticeShell", () => {
     expect(container.textContent).toContain(
       "Word audio isn't ready right now. You can still practice the sound.",
     );
-    expect(container.querySelector<HTMLButtonElement>('button[aria-label="Hear the s sound"]')?.disabled).toBe(false);
+    expect(container.querySelector<HTMLButtonElement>('button[aria-label="Hear the S sound"]')?.disabled).toBe(false);
     expect(container.querySelector<HTMLButtonElement>('button[aria-label="Hear the word"]')?.disabled).toBe(true);
     expect(container.querySelector('button[aria-label="Try word audio again"]')).toBeNull();
   });
@@ -510,13 +486,19 @@ describe("PronunciationPracticeShell", () => {
 
     expect(container.textContent).toContain("☆☆☆");
     expect(container.textContent).toContain("You did it!");
-    expect(container.textContent).toContain("Practice more");
+    expect(container.textContent).toContain("Good try!");
+    const differentWordRow = container.querySelector(
+      '[aria-label="Pronunciation practice result"] article',
+    );
+    expect(differentWordRow?.textContent).toContain("S sound not assessed");
+    expect(differentWordRow?.textContent).not.toContain("Practice more");
     expect(container.textContent).not.toContain("Total score");
     expect(container.querySelector('[data-testid="practice-recorder"]')).toBeNull();
     expect(container.querySelectorAll('[aria-label$="stars for the whole word"]')).toHaveLength(5);
-    expect(container.querySelector('[data-testid="mascot-stage"]')?.getAttribute("data-expression")).toBe(
-      "celebrate",
-    );
+    expect(
+      container.querySelector<HTMLElement>('[aria-label="Pronunciation practice result"] article mark')?.style.background,
+    ).toBe("rgb(254, 249, 195)");
+    expect(container.querySelector('[data-testid="completion-celebration"] img[src="/images/coco-celebrate-alpha.png"]')).not.toBeNull();
   });
 
   it.each([
@@ -569,7 +551,7 @@ describe("PronunciationPracticeShell", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(container.querySelector('[data-testid="mascot-dialogue"]')?.textContent).toBe(
+    expect(container.querySelector('[data-testid="coco-feedback-message"]')?.textContent).toBe(
       "Almost! Keep your teeth close and let air hiss — sss. Try again.",
     );
 
@@ -589,7 +571,7 @@ describe("PronunciationPracticeShell", () => {
     });
 
     expect(container.querySelector('[data-testid="try-stars"]')).toBeNull();
-    expect(container.querySelector('[data-testid="mascot-dialogue"]')?.textContent).toBe(
+    expect(container.querySelector('[data-testid="coco-feedback-message"]')?.textContent).toBe(
       "Your sss was strong!",
     );
   });
@@ -613,7 +595,7 @@ describe("PronunciationPracticeShell", () => {
     });
 
     expect(container.querySelector('[data-testid="try-stars"]')).toBeNull();
-    expect(container.querySelector('[data-testid="mascot-dialogue"]')?.textContent).toBe(
+    expect(container.querySelector('[data-testid="coco-feedback-message"]')?.textContent).toBe(
       "Let's try word-1 — listen again.",
     );
   });
@@ -636,12 +618,10 @@ describe("PronunciationPracticeShell", () => {
       await Promise.resolve();
     });
 
-    expect(container.querySelector('[data-testid="mascot-dialogue"]')?.textContent).toBe(
+    expect(container.querySelector('[data-testid="coco-feedback-message"]')?.textContent).toBe(
       "Great sss! Now say the whole word smoothly.",
     );
-    expect(container.querySelector('[data-testid="mascot-stage"]')?.getAttribute("data-expression")).toBe(
-      "encouraging",
-    );
+    expect(container.querySelector('img[src="/images/coco-encouraging-alpha.png"]')).not.toBeNull();
   });
 
   it("shows only sound-first feedback when a strong word carries a weak target sound", async () => {
@@ -655,7 +635,7 @@ describe("PronunciationPracticeShell", () => {
 
     expect(container.querySelector('[data-testid="try-stars"]')).toBeNull();
     expect(container.querySelectorAll('[aria-label*="stars for the whole word"]')).toHaveLength(0);
-    expect(container.querySelector('[data-testid="mascot-dialogue"]')?.textContent).toBe(
+    expect(container.querySelector('[data-testid="coco-feedback-message"]')?.textContent).toBe(
       "Almost! Keep your teeth close and let air hiss — sss. Try again.",
     );
     expect(container.textContent).not.toContain("sound needs work");
@@ -670,9 +650,7 @@ describe("PronunciationPracticeShell", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(container.querySelector('[data-testid="mascot-stage"]')?.getAttribute("data-expression")).toBe(
-      "encouraging",
-    );
+    expect(container.querySelector('img[src="/images/coco-encouraging-alpha.png"]')).not.toBeNull();
 
     uploadResult = { ...uploadResult, tryNumber: 2, outcome: "passed", targetSoundPassed: true, feedback: "Your sss was strong!" };
     await act(async () => {
@@ -680,9 +658,7 @@ describe("PronunciationPracticeShell", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(container.querySelector('[data-testid="mascot-stage"]')?.getAttribute("data-expression")).toBe(
-      "celebrate",
-    );
+    expect(container.querySelector('img[src="/images/coco-celebrate-alpha.png"]')).not.toBeNull();
   });
 
   it("keeps recording available after a weak try before the third", async () => {

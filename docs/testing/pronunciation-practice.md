@@ -22,7 +22,7 @@ npx vitest run \
 Then run the regression checks:
 
 ```bash
-npm test -- --run
+npm run test:agent
 npm run typecheck
 npm run lint
 npm run build
@@ -72,10 +72,29 @@ the teacher UI; starts the student flow; reloads after the first valid try to
 verify resume; completes all five words; and opens the teacher evidence. It
 seeds private test audio rows and removes them during cleanup.
 
-Azure transcription/scoring and OpenAI feedback TTS are browser route doubles.
+The entire pronunciation upload endpoint, word playback endpoint, and feedback
+TTS endpoint are browser route doubles. This browser test does not execute the
+upload service or its provider adapters.
 The five teacher word-audio cache rows are seeded so assignment creation is
 cache-first and does not call Azure TTS. No paid provider is called by the
 test.
 
 Do not use the end-to-end test as production evidence. It is synthetic test
 data and must remain environment-gated.
+
+## Server and database seam
+
+`tests/server/pronunciation-practice.integration.test.ts` exercises the actual
+start, upload, resume, and completion services against local Supabase. It checks
+cross-student rejection, private audio storage, persisted tries, and the final
+teacher-review transition. Transcription and scoring are injected doubles.
+
+With the local environment variables above loaded, run:
+
+```bash
+npx vitest run tests/server/pronunciation-practice.integration.test.ts --reporter=dot
+```
+
+The test skips without a localhost database URL and local keys. It creates and
+cleans its own records; it does not reset the database. The browser test preserves
+existing word-audio cache rows and removes only the rows it creates.

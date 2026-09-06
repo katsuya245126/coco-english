@@ -20,7 +20,7 @@ type FlowState = {
   turns: Array<Record<string, unknown>>;
   tries: PracticeTry[];
   rpcCalls: Array<{ name: string; args: Record<string, unknown> }>;
-  rpcResults: Array<Record<string, unknown>>;
+  rpcResults: unknown[];
   filters: Array<{ table: string; field: string; value: unknown }>;
 };
 
@@ -337,6 +337,33 @@ describe("pronunciation flow", () => {
       },
     });
     expect(state.rpcCalls).toHaveLength(0);
+  });
+
+  it("passes an already teacher-review attempt through for idempotent completion", async () => {
+    state.assignment = assignment("teacher_review");
+    state.attempts["attempt-1"].status = "teacher_review";
+    state.rpcResults = ["ok"];
+
+    const { completePronunciationAttempt } = await import(
+      "@/server/student-access/pronunciation-flow"
+    );
+    const result = await completePronunciationAttempt({
+      studentId: "student-1",
+      assignmentStudentId: "assignment-student-1",
+      attemptId: "attempt-1",
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(state.rpcCalls).toEqual([
+      {
+        name: "complete_pronunciation_attempt",
+        args: {
+          p_student_id: "student-1",
+          p_assignment_student_id: "assignment-student-1",
+          p_attempt_id: "attempt-1",
+        },
+      },
+    ]);
   });
 
   it("keeps an open all-finished practice on its final word for completion retry", async () => {

@@ -29,6 +29,18 @@ const confirmedSampleScoreSchema = z.object({
   wordScores: z.array(z.unknown()),
 });
 
+const pronunciationProfileRowSchema = z.object({
+  try_number: z.number(),
+  transcript: z.string().nullable(),
+  audio_clips: oneOrMany(
+    z.object({
+      pronunciation_scores: oneOrMany(
+        z.object({ word_scores: z.unknown() }),
+      ).nullable(),
+    }),
+  ).nullable(),
+});
+
 export type StudentProfileEvidenceSource =
   | "Mission"
   | "Teacher-added pronunciation sample";
@@ -45,21 +57,6 @@ function clipsFromMissionRows(rows: ProfileScoreRow[]): StudentClipScore[] {
     wordScores: parseWordScores(row.word_scores),
     transcript: row.reference_text ?? "",
   }));
-}
-
-type PronunciationProfileRow = {
-  try_number: number;
-  transcript: string | null;
-  audio_clips: {
-    pronunciation_scores:
-      | { word_scores: unknown }
-      | { word_scores: unknown }[]
-      | null;
-  } | { pronunciation_scores: { word_scores: unknown } | { word_scores: unknown }[] | null }[] | null;
-};
-
-function firstRelation<T>(value: T | T[] | null | undefined): T | null {
-  return Array.isArray(value) ? value[0] ?? null : value ?? null;
 }
 
 type ConfirmedSampleProfileRow = {
@@ -269,11 +266,19 @@ export async function getStudentSoundProfile(
     );
   }
 
+  const parsedPracticeRows = z
+    .array(pronunciationProfileRowSchema)
+    .safeParse(pronunciationTries.data ?? []);
+  if (!parsedPracticeRows.success) {
+    throw new Error(
+      "Unable to load pronunciation practice scores: unexpected row shape",
+    );
+  }
+
   const practiceRows: ProfileScoreRow[] = [];
-  for (const row of (pronunciationTries.data ?? []) as unknown as PronunciationProfileRow[]) {
+  for (const row of parsedPracticeRows.data) {
     if (row.try_number !== 1) continue;
-    const clip = firstRelation(row.audio_clips);
-    const score = firstRelation(clip?.pronunciation_scores);
+    const score = row.audio_clips?.pronunciation_scores;
     if (score) {
       practiceRows.push({
         reference_text: row.transcript,

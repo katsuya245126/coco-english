@@ -122,7 +122,8 @@ async function mockPronunciationProviders(page: Page, clipIds: string[]) {
   });
 
   // This intercept is the OpenAI TTS test double. The pronunciation upload
-  // intercept above is the Azure transcription/scoring test double.
+  // intercept above is an HTTP upload-route double; it bypasses server
+  // persistence and provider work. Word evidence is seeded below instead.
   await page.route("**/student/missions/**/tts", async (route) => {
     await route.fulfill({
       status: 200,
@@ -181,11 +182,22 @@ async function seedWordAudioCache(
       byte_size: 4,
     };
   });
-  const result = await admin
+  const existing = await admin
     .from("tts_audio_cache")
-    .upsert(rows, { onConflict: "content_hash" });
-  expect(result.error).toBeNull();
-  return rows;
+    .select("content_hash")
+    .in("content_hash", rows.map((row) => row.content_hash));
+  expect(existing.error).toBeNull();
+  const existingHashes = new Set(
+    (existing.data ?? []).map((row) => row.content_hash),
+  );
+  const missingRows = rows.filter((row) => !existingHashes.has(row.content_hash));
+  if (missingRows.length > 0) {
+    const result = await admin
+      .from("tts_audio_cache")
+      .insert(missingRows);
+    expect(result.error).toBeNull();
+  }
+  return missingRows;
 }
 
 async function seedCompletedWordEvidence(
@@ -468,7 +480,7 @@ test("teacher-to-student pronunciation practice path stays resumable and reviewa
     await expect(teacherPage.getByText("First try audio", { exact: true })).toHaveCount(5);
     await expect(teacherPage.getByText("Result audio", { exact: true })).toHaveCount(5);
     await expect(teacherPage.getByText("Request retry", { exact: true })).toHaveCount(0);
-    await expect(teacherPage.getByRole("button", { name: "Mark reviewed" })).toBeVisible();
+    await expect(teacherPage.getByRole("button", { name: "Mark as done" })).toBeVisible();
     await teacherPage.close();
   } finally {
     if (profileId) {
@@ -482,11 +494,13 @@ test("teacher-to-student pronunciation practice path stays resumable and reviewa
       const cleanup = await admin.auth.admin.deleteUser(userId);
       expect.soft(cleanup.error).toBeNull();
     }
-    const cacheCleanup = await admin
-      .from("tts_audio_cache")
-      .delete()
-      .in("content_hash", cacheRows.map((row) => row.content_hash));
-    expect.soft(cacheCleanup.error).toBeNull();
+    if (cacheRows.length > 0) {
+      const cacheCleanup = await admin
+        .from("tts_audio_cache")
+        .delete()
+        .in("content_hash", cacheRows.map((row) => row.content_hash));
+      expect.soft(cacheCleanup.error).toBeNull();
+    }
     if (audioObjectKeys.length > 0) {
       const audioCleanup = await admin.storage
         .from("student-audio")

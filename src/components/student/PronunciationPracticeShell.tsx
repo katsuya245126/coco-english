@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { PRACTICE_SOUNDS, nextPracticeWordOrder } from "@/domain/pronunciation/practice";
 import type {
   PronunciationPracticePageState,
@@ -10,26 +12,20 @@ import type {
 import type { PracticeTryOutcome } from "@/domain/pronunciation/practice";
 import { completePronunciationAttemptAction } from "@/app/student/pronunciation/[assignmentStudentId]/actions";
 import { CocoSpeechAudio } from "@/components/student/CocoSpeechAudio";
-import { MascotStage } from "@/components/student/MascotStage";
 import { VoiceRecorderControl } from "@/components/student/VoiceRecorderControl";
-import Link from "next/link";
 import {
-  bodyStyle,
-  displayTitleStyle,
-  errorTextStyle,
-  mascotHintTabStyle,
   missionContentStyle,
   missionPageStyle,
   primaryButtonStyle,
   secondaryButtonStyle,
 } from "@/components/student/styles";
+import styles from "./PronunciationPracticeShell.module.css";
 
 const backLinkStyle = {
   ...secondaryButtonStyle,
   width: 44,
   minHeight: 44,
   padding: 0,
-  marginBottom: 12,
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -37,26 +33,6 @@ const backLinkStyle = {
   fontSize: 20,
   boxSizing: "border-box",
 } as const;
-
-const PRACTICE_AUDIO_HEIGHT = "clamp(44px, 10vw, 48px)";
-const PRACTICE_AUDIO_TABS_CLASS = "pronunciation-practice-audio-tabs";
-const PRACTICE_AUDIO_TOUCH_TARGET_CSS = `
-  .pronunciation-practice-shell div:has(> span > .${PRACTICE_AUDIO_TABS_CLASS}) {
-    height: ${PRACTICE_AUDIO_HEIGHT} !important;
-    min-height: ${PRACTICE_AUDIO_HEIGHT} !important;
-  }
-  .pronunciation-practice-shell .${PRACTICE_AUDIO_TABS_CLASS} button {
-    height: ${PRACTICE_AUDIO_HEIGHT} !important;
-    min-height: ${PRACTICE_AUDIO_HEIGHT} !important;
-    min-width: 44px !important;
-  }
-`;
-
-const practiceAudioTabStyle = {
-  ...mascotHintTabStyle,
-  height: PRACTICE_AUDIO_HEIGHT,
-  minHeight: PRACTICE_AUDIO_HEIGHT,
-};
 
 type PronunciationPracticeShellProps = {
   page: PronunciationPracticePageState;
@@ -93,13 +69,7 @@ function feedbackVariantFor(result: UploadResponse & { ok: true }) {
     : FEEDBACK_VARIANTS[result.outcome];
 }
 
-/**
- * The word with its target letters marked. `targetSoundPassed` tints those
- * letters once a try has been scored: green when the target sound was clear,
- * amber and underlined when it stayed weak. Before any try it stays neutral.
- * The tint is a second signal only — Coco's message carries the verdict on
- * its own, and the underline keeps the mark readable without color.
- */
+/** The target letters carry a small visual cue alongside Coco's latest verdict. */
 function highlightedWord(
   word: PronunciationPracticeWordState,
   targetSoundPassed: boolean | null = null,
@@ -136,22 +106,19 @@ function starsFor(word: PronunciationPracticeWordState): string {
   return starsForBand(result.starBand);
 }
 
-function resultFeedback(word: PronunciationPracticeWordState): string {
-  if (word.resultTry?.outcome === "different_word") return "Good try!";
-  if (word.resultTry?.outcome === "passed") return "Good job!";
-  return "Practice more.";
-}
-
-/**
- * Coco's face for a try outcome. A passed try celebrates; anything else
- * encourages. Nothing here is sad: a weak try is "not yet", not a failure.
- */
+/** A passed try celebrates; anything else encourages another try. */
 const EXPRESSION_BY_OUTCOME: Record<PracticeTryOutcome, "celebrate" | "encouraging"> = {
   passed: "celebrate",
   target_weak: "encouraging",
   word_weak: "encouraging",
   different_word: "encouraging",
 };
+
+const SPRITE_BY_EXPRESSION = {
+  happy: "/images/coco-happy-alpha.png",
+  celebrate: "/images/coco-celebrate-alpha.png",
+  encouraging: "/images/coco-encouraging-alpha.png",
+} as const;
 
 export function PronunciationPracticeShell({ page }: PronunciationPracticeShellProps) {
   const [words, setWords] = useState(page.words);
@@ -174,17 +141,6 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
   const autoPlayedWordOrders = useRef(new Set<number>());
   const soundAudioRef = useRef<HTMLAudioElement | null>(null);
   const wordAudioRef = useRef<HTMLAudioElement | null>(null);
-  const mascotAmplitudeRef = useRef(0);
-  const [mascotPlaying, setMascotPlaying] = useState(false);
-
-  const handleMascotAmplitudeFrame = useCallback((level: number) => {
-    mascotAmplitudeRef.current = level;
-  }, []);
-
-  const handleMascotPlayingChange = useCallback((playing: boolean) => {
-    setMascotPlaying(playing);
-    if (!playing) mascotAmplitudeRef.current = 0;
-  }, []);
 
   const currentWord = words.find((word) => word.order === currentWordOrder) ?? null;
   const sound = PRACTICE_SOUNDS[page.soundId];
@@ -205,15 +161,16 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
       }))
       .then(({ response, result }) => {
         if (cancelled) return;
-        if (!response.ok || !result?.ok || !result.audioUrl) {
+        const audioUrl = result?.audioUrl;
+        if (!response.ok || !result?.ok || !audioUrl) {
           setWordAudioStatus((statuses) => ({
             ...statuses,
             [order]: result?.error === "not_found" ? "not_found" : "unavailable",
           }));
           return;
         }
-        wordAudioCache.current.set(order, result.audioUrl);
-        setWordAudioUrls((urls) => ({ ...urls, [order]: result.audioUrl! }));
+        wordAudioCache.current.set(order, audioUrl);
+        setWordAudioUrls((urls) => ({ ...urls, [order]: audioUrl }));
         setWordAudioStatus((statuses) => ({ ...statuses, [order]: "ready" }));
       })
       .catch(() => {
@@ -347,209 +304,252 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
 
   const finishedWordCount = words.filter((word) => word.finished).length;
   const showResult = readOnly || completed;
+  const feedbackExpression = lastTry
+    ? EXPRESSION_BY_OUTCOME[lastTry.outcome]
+    : "happy";
 
-  const practiceAudioTabs = currentWord ? (
-    <span
-      className={PRACTICE_AUDIO_TABS_CLASS}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        height: PRACTICE_AUDIO_HEIGHT,
-        minHeight: PRACTICE_AUDIO_HEIGHT,
-      }}
-    >
+  const soundAudioControl = currentWord ? (
+    <div className={styles.soundAudioControl}>
       <button
         type="button"
-        aria-label="Hear the word"
-        title="Hear the word"
-        disabled={currentWordAudioStatus !== "ready"}
-        style={practiceAudioTabStyle}
-        onClick={() => replay(wordAudioRef)}
-      >
-        Hear the word
-      </button>
-      <button
-        type="button"
-        aria-label={`Hear the ${sound.ipa} sound`}
-        title={`Hear the ${sound.ipa} sound`}
-        style={practiceAudioTabStyle}
+        aria-label={`Hear the ${sound.label} sound`}
+        title={`Hear the ${sound.label} sound`}
+        className={styles.soundButton}
         onClick={() => replay(soundAudioRef)}
       >
-        Hear the {sound.ipa} sound
+        {sound.label} sound
       </button>
-      {lastTry && feedbackVariant ? (
-        <CocoSpeechAudio
-          assignmentStudentId={page.assignmentStudentId}
-          label="Play Coco's message"
-          presentation="dialogue-tab"
-          line={{
-            lineKind: "coco_feedback",
-            turnOrder: currentWord.order,
-            feedbackVariant,
-          }}
-          onAmplitudeFrame={handleMascotAmplitudeFrame}
-          onPlayingChange={handleMascotPlayingChange}
-        />
-      ) : null}
-    </span>
+    </div>
+  ) : null;
+
+  const feedbackAudio = currentWord && lastTry && feedbackVariant ? (
+    <CocoSpeechAudio
+      assignmentStudentId={page.assignmentStudentId}
+      label="Play Coco's message"
+      line={{
+        lineKind: "coco_feedback",
+        turnOrder: currentWord.order,
+        feedbackVariant,
+      }}
+    />
   ) : null;
 
   return (
-    <main className="pronunciation-practice-shell" style={missionPageStyle}>
-      <style>{PRACTICE_AUDIO_TOUCH_TARGET_CSS}</style>
+    <main
+      className="pronunciation-practice-shell"
+      style={{ ...missionPageStyle, background: "#EFF6FF" }}
+    >
       <div style={missionContentStyle}>
-        {showResult ? (
-          <Link
-            href="/student/home"
-            className="student-primary-button"
-            style={backLinkStyle}
-            aria-label="Back to homework list"
-            title="Back to homework list"
-          >
-            ←
-          </Link>
-        ) : null}
-        <h1 style={{ ...displayTitleStyle, marginBottom: 4 }}>{page.title}</h1>
-        <div
-          role="group"
-          aria-label={`${finishedWordCount} of 5 words completed`}
-          style={{ display: "flex", alignItems: "center", gap: 10, margin: "12px 0 8px" }}
-        >
-          {words.map((word) => {
-            const state = word.finished
-              ? "finished"
-              : word.order === currentWordOrder
-                ? "current"
-                : "upcoming";
-            return (
-              <span
-                key={word.order}
-                data-testid={`progress-dot-${word.order}`}
-                data-state={state}
-                aria-hidden="true"
-                style={{
-                  width: 14,
-                  height: 14,
-                  flexShrink: 0,
-                  borderRadius: "50%",
-                  border: state === "current" ? "3px solid #2563EB" : "2px solid #CBD5E1",
-                  background: state === "finished" ? "#2563EB" : "#FFFFFF",
-                  boxSizing: "border-box",
-                }}
-              />
-            );
-          })}
-        </div>
-
-        {showResult ? (
-          <div aria-label="Pronunciation practice result">
-            <MascotStage
-              assignmentStudentId={page.assignmentStudentId}
-              displayName="Coco"
-              dialogueText="You did it!"
-              expression="celebrate"
-              step="question"
-              playing={mascotPlaying}
-              amplitudeRef={mascotAmplitudeRef}
-            />
-            {words.map((word) => (
-              <article key={word.order} style={{ borderTop: "1px solid #E5E7EB", padding: "14px 0" }}>
-                <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>
-                  {highlightedWord(word, word.resultTry?.targetSoundPassed ?? false)}
-                </div>
-                {/* Amber, not red: a word still worth practising is not a
-                    failure. The stars score the whole word, so they keep the
-                    neutral text color and say so in their label. */}
-                <div
-                  aria-label={`${starsFor(word).split("★").length - 1} of 3 stars for the whole word`}
-                  style={{ fontSize: 22, letterSpacing: 2, color: "#111827" }}
-                >
-                  {starsFor(word)}
-                </div>
-                <p style={{ ...bodyStyle, marginBottom: 4 }}>{resultFeedback(word)}</p>
-                <p style={{ ...bodyStyle, margin: 0, color: word.resultTry?.targetSoundPassed ? "#15803D" : "#854F0B" }}>
-                  {word.resultTry?.targetSoundPassed ? `${sound.label} sound clear` : "Practice more"}
-                </p>
-              </article>
-            ))}
-            <Link
-              href="/student/home"
-              className="student-primary-button"
-              style={{ ...primaryButtonStyle, display: "block", textAlign: "center", textDecoration: "none", marginTop: 24 }}
-            >
-              Back to homework
-            </Link>
-          </div>
-        ) : currentWord ? (
-          <>
-            <div
-              style={{
-                textAlign: "center",
-                fontSize: "clamp(40px, 14vw, 52px)",
-                lineHeight: 1.1,
-                fontWeight: 700,
-                overflowWrap: "anywhere",
-                margin: "22px 0 18px",
-              }}
-            >
-              {highlightedWord(currentWord, lastTry ? lastTry.targetSoundPassed : null)}
+        <section className={styles.card} data-testid="pronunciation-practice-card">
+          <header className={`${styles.header} ${showResult ? styles.resultHeader : ""}`}>
+            <div className={styles.headerCopy}>
+              <h1 className={styles.title}>{page.title}</h1>
             </div>
-            <MascotStage
-              assignmentStudentId={page.assignmentStudentId}
-              displayName="Coco"
-              dialogueText={lastTry?.message ?? "Listen, then say it!"}
-              expression={lastTry ? EXPRESSION_BY_OUTCOME[lastTry.outcome] : "happy"}
-              step="question"
-              playing={mascotPlaying}
-              amplitudeRef={mascotAmplitudeRef}
-              voiceControl={practiceAudioTabs}
-            />
-            <audio ref={soundAudioRef} src={sound.clip} preload="auto" />
-            {wordAudioUrls[currentWord.order] ? <audio ref={wordAudioRef} src={wordAudioUrls[currentWord.order]} preload="auto" /> : null}
-            {currentWordAudioStatus === "loading" ? (
-              <p role="status" style={bodyStyle}>Loading word audio…</p>
+            {showResult ? (
+              <Link
+                href="/student/home"
+                className={`${styles.backLink} student-secondary-button`}
+                style={backLinkStyle}
+                aria-label="Back to homework list"
+                title="Back to homework list"
+              >
+                ←
+              </Link>
             ) : null}
-            {currentWordAudioStatus === "not_found" ? (
-              <p role="status" style={bodyStyle}>
-                Word audio isn&apos;t ready right now. You can still practice the sound.
-              </p>
-            ) : null}
-            {currentWordAudioStatus === "unavailable" ? (
-              <div role="status" style={bodyStyle}>
-                <span>Word audio didn&apos;t load. Try again.</span>{" "}
-                <button
-                  type="button"
-                  aria-label="Try word audio again"
-                  style={secondaryButtonStyle}
-                  onClick={() => setWordAudioRetryCount((count) => count + 1)}
-                >
-                  Try again
-                </button>
+            <p className={styles.wordCount} aria-live="polite">
+              {currentWord ? `Word ${currentWord.order} of 5` : "5 words complete"}
+            </p>
+          </header>
+          <div
+            role="group"
+            aria-label={`${finishedWordCount} of 5 words completed`}
+            className={styles.progress}
+          >
+            {words.map((word) => {
+              const state = word.finished
+                ? "finished"
+                : word.order === currentWordOrder
+                  ? "current"
+                  : "upcoming";
+              return (
+                <span
+                  key={word.order}
+                  data-testid={`progress-dot-${word.order}`}
+                  data-state={state}
+                  aria-hidden="true"
+                  className={styles.progressDot}
+                />
+              );
+            })}
+          </div>
+
+          {showResult ? (
+            <div aria-label="Pronunciation practice result" className={styles.completion}>
+              <div className={styles.completionCelebration} data-testid="completion-celebration">
+                <Image
+                  src={SPRITE_BY_EXPRESSION.celebrate}
+                  alt=""
+                  width={76}
+                  height={76}
+                  className={styles.cocoPortrait}
+                />
+                <p className={styles.celebrationLine}>You did it!</p>
               </div>
-            ) : null}
-            {/* Reserved verdict/action space keeps the recorder and Next word
-                in one place while the stage dialogue changes. */}
-            <div aria-live="polite" style={{ minHeight: 84, marginBottom: 16 }} />
-
-            {completionError ? <p role="alert" style={errorTextStyle}>{completionError}</p> : null}
-
-            {/* Action zone. The recorder and Next word share this slot so the
-                primary action stays in one place through the whole word. */}
-            {currentWord.finished ? (
-              <button type="button" aria-label="Next word" style={primaryButtonStyle} onClick={() => void nextWord()}>
-                Next word
-              </button>
-            ) : (
-              <VoiceRecorderControl
-                key={`${currentWord.order}:${currentWord.validTryCount}`}
-                mode="practice"
-                maxSeconds={10}
-                disabled={currentWord.finished}
-                onRecorded={recordWord}
-              />
-            )}
-          </>
-        ) : null}
+              <div className={styles.resultList}>
+                {words.map((word) => {
+                  const differentWord = word.resultTry?.outcome === "different_word";
+                  return (
+                    <article key={word.order} className={styles.resultRow}>
+                      <div className={styles.resultWord}>
+                        {highlightedWord(
+                          word,
+                          differentWord ? null : word.resultTry?.targetSoundPassed ?? false,
+                        )}
+                      </div>
+                      <div className={styles.resultDetails}>
+                        <div className={styles.scoreLine}>
+                          <span className={styles.metricLabel}>Whole word</span>
+                          <span
+                            aria-label={`${starsFor(word).split("★").length - 1} of 3 stars for the whole word`}
+                            className={styles.stars}
+                          >
+                            {starsFor(word)}
+                          </span>
+                        </div>
+                        {differentWord ? (
+                          <p className={styles.soundNeedsPractice}>Good try!</p>
+                        ) : null}
+                        <p
+                          className={
+                            differentWord
+                              ? styles.soundUnassessed
+                              : word.resultTry?.targetSoundPassed
+                                ? styles.soundClear
+                                : styles.soundNeedsPractice
+                          }
+                        >
+                          <span className={styles.metricLabel}>{sound.label} sound</span>{" "}
+                          {differentWord
+                            ? "not assessed"
+                            : word.resultTry?.targetSoundPassed
+                              ? "clear"
+                              : "Practice more"}
+                        </p>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+              <Link
+                href="/student/home"
+                className={`${styles.homeButton} student-primary-button`}
+                style={{ ...primaryButtonStyle, textAlign: "center", textDecoration: "none" }}
+              >
+                Back to homework
+              </Link>
+            </div>
+          ) : currentWord ? (
+            <>
+              <div className={styles.wordArea} data-testid="practice-word-area">
+                <div className={styles.wordDisplay}>
+                  <div className={styles.word}>
+                    {highlightedWord(currentWord, lastTry ? lastTry.targetSoundPassed : null)}
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Hear the word"
+                    title="Hear the word"
+                    disabled={currentWordAudioStatus !== "ready"}
+                    className={styles.wordAudioButton}
+                    onClick={() => replay(wordAudioRef)}
+                  >
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
+                      <path d="M4 10v4h4l5 4V6l-5 4H4Z" fill="currentColor" stroke="none" />
+                      <path d="M16 9a5 5 0 0 1 0 6M18.5 6.5a8.5 8.5 0 0 1 0 11" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              {soundAudioControl}
+              <audio ref={soundAudioRef} src={sound.clip} preload="auto" />
+              {wordAudioUrls[currentWord.order] ? (
+                <audio ref={wordAudioRef} src={wordAudioUrls[currentWord.order]} preload="auto" />
+              ) : null}
+              {currentWordAudioStatus === "loading" ? (
+                <p role="status" className={styles.audioStatus}>Loading word audio…</p>
+              ) : null}
+              {currentWordAudioStatus === "not_found" ? (
+                <p role="status" className={styles.audioStatus}>
+                  Word audio isn&apos;t ready right now. You can still practice the sound.
+                </p>
+              ) : null}
+              {currentWordAudioStatus === "unavailable" ? (
+                <div role="status" className={styles.audioStatus}>
+                  <span>Word audio didn&apos;t load. Try again.</span>{" "}
+                  <button
+                    type="button"
+                    aria-label="Try word audio again"
+                    className={styles.audioRetry}
+                    onClick={() => setWordAudioRetryCount((count) => count + 1)}
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : null}
+              <div className={styles.feedback} data-testid="coco-feedback" aria-live="polite">
+                <Image
+                  src={SPRITE_BY_EXPRESSION[feedbackExpression]}
+                  alt=""
+                  width={64}
+                  height={64}
+                  className={styles.cocoPortrait}
+                />
+                <div className={styles.feedbackCopy}>
+                  <span className={styles.cocoName}>Coco</span>
+                  <p className={styles.feedbackMessage} data-testid="coco-feedback-message">
+                    {lastTry?.message ?? "Listen, then say it!"}
+                  </p>
+                  {feedbackAudio ? <div className={styles.feedbackAudio}>{feedbackAudio}</div> : null}
+                </div>
+              </div>
+              <div className={styles.actionZone}>
+                {completionError ? <p role="alert" className={styles.completionError}>{completionError}</p> : null}
+                {currentWord.finished ? (
+                  <div className={styles.nextActionPanel}>
+                    <button
+                      type="button"
+                      aria-label="Next word"
+                      className={`${styles.nextButton} student-primary-button`}
+                      style={primaryButtonStyle}
+                      onClick={() => void nextWord()}
+                    >
+                      Next word
+                    </button>
+                  </div>
+                ) : (
+                  <VoiceRecorderControl
+                    key={`${currentWord.order}:${currentWord.validTryCount}`}
+                    mode="practice"
+                    maxSeconds={10}
+                    disabled={currentWord.finished}
+                    onRecorded={recordWord}
+                  />
+                )}
+              </div>
+            </>
+          ) : null}
+        </section>
       </div>
     </main>
   );

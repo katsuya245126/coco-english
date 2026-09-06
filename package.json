@@ -8,7 +8,6 @@
   "scripts": {
     "dev": "next dev",
     "local": "bash scripts/local/dev-local.sh",
-    "uat": "node scripts/uat-worktree.mjs",
     "build": "next build",
     "postbuild": "node scripts/assert-ffmpeg-traced.mjs",
     "start": "next start",

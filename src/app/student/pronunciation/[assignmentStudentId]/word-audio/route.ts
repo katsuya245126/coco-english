@@ -9,6 +9,26 @@ const wordAudioInput = z.object({
   wordOrder: z.number().int().min(1).max(5),
 });
 
+const ownedAssignmentSchema = z.object({
+  assignments: z
+    .union([
+      z.object({
+        assignment_kind: z.string(),
+        mission_snapshot: z.unknown(),
+        canceled_at: z.string().nullable(),
+      }),
+      z.array(
+        z.object({
+          assignment_kind: z.string(),
+          mission_snapshot: z.unknown(),
+          canceled_at: z.string().nullable(),
+        }),
+      ),
+    ])
+    .nullable()
+    .transform((value) => (Array.isArray(value) ? value[0] ?? null : value)),
+});
+
 type RouteContext = {
   params: Promise<{ assignmentStudentId: string }>;
 };
@@ -44,22 +64,20 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
-  const assignment = owned.data as unknown as {
-    assignments?: {
-      assignment_kind?: string;
-      mission_snapshot?: unknown;
-      canceled_at?: string | null;
-    } | null;
-  };
+  const parsedAssignment = ownedAssignmentSchema.safeParse(owned.data);
+  if (!parsedAssignment.success || !parsedAssignment.data.assignments) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const assignment = parsedAssignment.data.assignments;
   if (
-    assignment.assignments?.assignment_kind !== "pronunciation" ||
-    assignment.assignments.canceled_at
+    assignment.assignment_kind !== "pronunciation" ||
+    assignment.canceled_at
   ) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
   const snapshot = pronunciationPracticeSnapshotSchema.safeParse(
-    assignment.assignments.mission_snapshot,
+    assignment.mission_snapshot,
   );
   const word = snapshot.success
     ? snapshot.data.words.find((candidate) => candidate.order === parsedInput.data.wordOrder)

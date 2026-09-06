@@ -143,7 +143,13 @@ function resetState(soundId: "s" | "f" = "s", firstWord = "sat") {
   mockSupabase.storage.from.mockClear();
 }
 
-function transcribed(text = "sat", confidence = { minLogprob: -0.01, tokenCount: 1 }) {
+function transcribed(
+  text = "sat",
+  confidence: { minLogprob: number; tokenCount: number } | null = {
+    minLogprob: -0.01,
+    tokenCount: 1,
+  },
+) {
   return {
     ok: true as const,
     text,
@@ -454,6 +460,117 @@ describe("uploadPronunciationTry", () => {
 
     expect(result).toMatchObject({ ok: false, error: "unclear_transcript" });
     expect(score).not.toHaveBeenCalled();
+    expect(state.operations.some((op) => op.table === "pronunciation_word_tries" && op.method === "insert")).toBe(false);
+  });
+
+  it.each([
+    ["sat", { minLogprob: -0.3, tokenCount: 1 }],
+    ["I said sat", { minLogprob: -0.3, tokenCount: 2 }],
+    ["sat", { minLogprob: -0.01, tokenCount: 0 }],
+  ] as const)("does not consume a try for unusable confidence in %s", async (text, confidence) => {
+    const transcribe = vi.fn(async () => transcribed(text, confidence));
+    const score = vi.fn(async () => scored(90, 90));
+    const { uploadPronunciationTry } = await import(
+      "@/server/student-access/pronunciation-upload"
+    );
+
+    const result = await uploadPronunciationTry(input(), {
+      consumeRequestBudget: allowBudget,
+      transcribeAudioFile: transcribe,
+      scorePronunciation: score,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "unclear_transcript",
+      retryable: true,
+    });
+    expect(score).not.toHaveBeenCalled();
+    expect(state.operations.some((op) => op.table === "pronunciation_word_tries" && op.method === "insert")).toBe(false);
+  });
+
+  it("keeps an expected transcript when the provider omits confidence", async () => {
+    const transcribe = vi.fn(async () => transcribed("sat", null));
+    const score = vi.fn(async () => scored(90, 90));
+    const { uploadPronunciationTry } = await import(
+      "@/server/student-access/pronunciation-upload"
+    );
+
+    const result = await uploadPronunciationTry(input(), {
+      consumeRequestBudget: allowBudget,
+      transcribeAudioFile: transcribe,
+      scorePronunciation: score,
+    });
+
+    expect(result).toMatchObject({ ok: true, outcome: "passed" });
+    expect(score).toHaveBeenCalledOnce();
+  });
+
+  it("keeps an unknown-confidence different transcript retryable", async () => {
+    const transcribe = vi.fn(async () => transcribed("ship", null));
+    const score = vi.fn(async () => scored(90, 90));
+    const { uploadPronunciationTry } = await import(
+      "@/server/student-access/pronunciation-upload"
+    );
+
+    const result = await uploadPronunciationTry(input(), {
+      consumeRequestBudget: allowBudget,
+      transcribeAudioFile: transcribe,
+      scorePronunciation: score,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "unclear_transcript",
+      retryable: true,
+    });
+    expect(score).not.toHaveBeenCalled();
+    expect(state.operations.some((op) => op.table === "pronunciation_word_tries" && op.method === "insert")).toBe(false);
+  });
+
+  it("does not consume a try when the scorer omits target phoneme evidence", async () => {
+    const transcribe = vi.fn(async () => transcribed());
+    const scoreResult = scored(90, 90);
+    scoreResult.score.wordScores[0]!.phonemes = [];
+    const score = vi.fn(async () => scoreResult);
+    const { uploadPronunciationTry } = await import(
+      "@/server/student-access/pronunciation-upload"
+    );
+
+    const result = await uploadPronunciationTry(input(), {
+      consumeRequestBudget: allowBudget,
+      transcribeAudioFile: transcribe,
+      scorePronunciation: score,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "scoring_failed",
+      retryable: true,
+    });
+    expect(state.operations.some((op) => op.table === "pronunciation_scores")).toBe(false);
+    expect(state.operations.some((op) => op.table === "pronunciation_word_tries" && op.method === "insert")).toBe(false);
+  });
+
+  it("does not consume a try when the target phoneme score is unusable", async () => {
+    const transcribe = vi.fn(async () => transcribed());
+    const score = vi.fn(async () => scored(90, Number.NaN));
+    const { uploadPronunciationTry } = await import(
+      "@/server/student-access/pronunciation-upload"
+    );
+
+    const result = await uploadPronunciationTry(input(), {
+      consumeRequestBudget: allowBudget,
+      transcribeAudioFile: transcribe,
+      scorePronunciation: score,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "scoring_failed",
+      retryable: true,
+    });
+    expect(state.operations.some((op) => op.table === "pronunciation_scores")).toBe(false);
     expect(state.operations.some((op) => op.table === "pronunciation_word_tries" && op.method === "insert")).toBe(false);
   });
 

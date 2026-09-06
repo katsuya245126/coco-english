@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { Json } from "@/lib/db/types";
 import {
   ALLOWED_AUDIO_MIME_TYPES,
@@ -8,6 +9,7 @@ import {
   getStudentAudioBucketId,
 } from "@/server/student-access/audio-storage";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
+import { oneOrMany } from "@/lib/supabase/one-or-many";
 import {
   gradePronunciationTry,
   pronunciationPracticeSnapshotSchema,
@@ -23,7 +25,10 @@ import {
   scorePronunciation,
   type PronunciationScoreResult,
 } from "@/server/audio/pronunciation-scorer";
-import { isLowConfidenceTranscript } from "@/domain/audio/transcript-confidence";
+import {
+  isLowConfidenceTranscript,
+  type TranscriptConfidence,
+} from "@/domain/audio/transcript-confidence";
 import { consumeRequestBudget } from "@/server/security/request-budget";
 
 export const MAX_PRONUNCIATION_DURATION_MS = 10_000;
@@ -86,14 +91,37 @@ type OwnedPractice = {
   turnTries: Map<string, Array<{ try_number: number; outcome: string }>>;
 };
 
-function one(value: unknown): Record<string, unknown> {
-  if (Array.isArray(value)) {
-    return (value[0] as Record<string, unknown> | undefined) ?? {};
-  }
-  return value && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : {};
-}
+const ownedAssignmentRowSchema = z.object({
+  id: z.string(),
+  student_id: z.string(),
+  status: z.string(),
+  assignments: oneOrMany(
+    z.object({
+      assignment_kind: z.string(),
+      mission_snapshot: z.unknown(),
+      canceled_at: z.string().nullable(),
+    }),
+  ).nullable(),
+});
+
+const attemptRowSchema = z.object({
+  status: z.string(),
+});
+
+const turnRowSchema = z.object({
+  id: z.string(),
+  turn_order: z.number(),
+});
+
+const tryRowSchema = z.object({
+  attempt_turn_id: z.string(),
+  try_number: z.number(),
+  outcome: z.string(),
+});
+
+const audioClipRowSchema = z.object({
+  id: z.string(),
+});
 
 function normalizedWord(value: string): string {
   return value.toLocaleLowerCase("en-US").replace(/[^a-z']/g, "");
@@ -106,6 +134,20 @@ function transcriptWords(value: string): string[] {
 function isSingleDifferentWord(transcript: string, expectedWord: string): boolean {
   const words = transcriptWords(transcript);
   return words.length === 1 && words[0] !== normalizedWord(expectedWord);
+}
+
+function isUnusablePracticeConfidence(
+  confidence: TranscriptConfidence | null,
+): boolean {
+  // A missing summary means the provider omitted logprobs, which the shared
+  // confidence contract treats as unknown rather than as a failed transcript.
+  if (confidence === null) return false;
+  return (
+    confidence.tokenCount <= 0 ||
+    !Number.isInteger(confidence.tokenCount) ||
+    !Number.isFinite(confidence.minLogprob) ||
+    isLowConfidenceTranscript(confidence)
+  );
 }
 
 function validInput(input: UploadPronunciationTryInput): boolean {
@@ -156,8 +198,12 @@ async function loadOwnedPractice(
     .maybeSingle();
   if (assignmentResult.error || !assignmentResult.data) return null;
 
-  const assignment = assignmentResult.data as unknown as Record<string, unknown>;
-  const assignmentDetails = one(assignment.assignments);
+  const parsedAssignment = ownedAssignmentRowSchema.safeParse(assignmentResult.data);
+  if (!parsedAssignment.success) return null;
+
+  const assignment = parsedAssignment.data;
+  const assignmentDetails = assignment.assignments;
+  if (!assignmentDetails) return null;
   if (
     assignment.status !== "started" ||
     assignmentDetails.assignment_kind !== "pronunciation" ||
@@ -181,7 +227,7 @@ async function loadOwnedPractice(
   if (
     attemptResult.error ||
     !attemptResult.data ||
-    (attemptResult.data as { status?: string }).status !== "in_progress"
+    attemptRowSchema.safeParse(attemptResult.data).data?.status !== "in_progress"
   ) {
     return null;
   }
@@ -196,10 +242,9 @@ async function loadOwnedPractice(
     .order("turn_order", { ascending: true });
   if (turnsResult.error) return null;
 
-  const turnRows = (turnsResult.data ?? []) as unknown as Array<{
-    id: string;
-    turn_order: number;
-  }>;
+  const parsedTurns = z.array(turnRowSchema).safeParse(turnsResult.data ?? []);
+  if (!parsedTurns.success) return null;
+  const turnRows = parsedTurns.data;
   const turnsByOrder = new Map(turnRows.map((turn) => [turn.turn_order, turn]));
   const currentTurn = turnsByOrder.get(input.turnOrder);
   if (!currentTurn) return null;
@@ -218,11 +263,9 @@ async function loadOwnedPractice(
     string,
     Array<{ try_number: number; outcome: string }>
   >();
-  for (const raw of (triesResult.data ?? []) as unknown as Array<{
-    attempt_turn_id: string;
-    try_number: number;
-    outcome: string;
-  }>) {
+  const parsedTries = z.array(tryRowSchema).safeParse(triesResult.data ?? []);
+  if (!parsedTries.success) return null;
+  for (const raw of parsedTries.data) {
     if (![1, 2, 3].includes(raw.try_number)) continue;
     const values = turnTries.get(raw.attempt_turn_id) ?? [];
     values.push({ try_number: raw.try_number, outcome: raw.outcome });
@@ -276,7 +319,7 @@ function scoreWordForExpected(
   const expected = normalizedWord(expectedWord);
   return result.score.wordScores.find(
     (word) => normalizedWord(word.word) === expected,
-  ) ?? result.score.wordScores[0] ?? null;
+  ) ?? null;
 }
 
 export async function uploadPronunciationTry(
@@ -335,7 +378,9 @@ export async function uploadPronunciationTry(
       .single();
     if (audioClipError || !audioClip) return failure("db_error", true);
 
-    const audioClipId = String((audioClip as { id: string }).id);
+    const parsedAudioClip = audioClipRowSchema.safeParse(audioClip);
+    if (!parsedAudioClip.success) return failure("db_error", true);
+    const audioClipId = parsedAudioClip.data.id;
     const ownedAudioClip = await supabase
       .from("audio_clips")
       .select(
@@ -425,8 +470,8 @@ export async function uploadPronunciationTry(
     const transcript = normalized.text;
     const confidence = transcription.confidence;
     if (
-      isSingleDifferentWord(transcript, word.text) &&
-      (!confidence || isLowConfidenceTranscript(confidence))
+      isUnusablePracticeConfidence(confidence) ||
+      (confidence === null && isSingleDifferentWord(transcript, word.text))
     ) {
       return failure("unclear_transcript", true);
     }
@@ -450,7 +495,7 @@ export async function uploadPronunciationTry(
         transcription_evidence: {
           model: transcription.model,
           confidence,
-        } as unknown as Json,
+        } satisfies Json,
         outcome: initialGrade.outcome,
         word_accuracy: null,
         star_band: null,
@@ -484,6 +529,18 @@ export async function uploadPronunciationTry(
     const scoreWord = scoreWordForExpected(scored, word.text);
     if (!scoreWord) return failure("scoring_failed", true);
 
+    const targetPhoneme = scoreWord.phonemes?.[word.pronunciation.targetPhoneIndex];
+    if (
+      !targetPhoneme ||
+      typeof targetPhoneme.phoneme !== "string" ||
+      targetPhoneme.phoneme.trim().length === 0 ||
+      !Number.isFinite(targetPhoneme.accuracyScore) ||
+      targetPhoneme.accuracyScore < 0 ||
+      targetPhoneme.accuracyScore > 100
+    ) {
+      return failure("scoring_failed", true);
+    }
+
     const grade = gradePronunciationTry({
       expectedWord: word.text,
       targetPhoneIndex: word.pronunciation.targetPhoneIndex,
@@ -505,7 +562,7 @@ export async function uploadPronunciationTry(
         completeness_score: scored.score.completenessScore,
         pronunciation_score: scored.score.pronunciationScore,
         star_band: grade.starBand ?? 1,
-        word_scores: scored.score.wordScores as unknown as Json,
+        word_scores: scored.score.wordScores satisfies Json,
       },
       { onConflict: "audio_clip_id" },
     );
@@ -519,7 +576,7 @@ export async function uploadPronunciationTry(
       transcription_evidence: {
         model: transcription.model,
         confidence,
-      } as unknown as Json,
+      } satisfies Json,
       outcome: grade.outcome,
       word_accuracy: scoreWord.accuracyScore,
       star_band: grade.starBand,

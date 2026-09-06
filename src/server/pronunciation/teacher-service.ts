@@ -1,5 +1,7 @@
+import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server-auth";
 import type { Json } from "@/lib/db/types";
+import { oneOrMany } from "@/lib/supabase/one-or-many";
 import {
   PRACTICE_SOUNDS,
   PRACTICE_SOUND_IDS,
@@ -12,6 +14,7 @@ import {
   type PronunciationWordBankEntry,
 } from "@/domain/pronunciation/word-bank.generated";
 import { findCustomPronunciations, type CustomPronunciation } from "@/server/pronunciation/cmudict";
+import { consumeRequestBudget } from "@/server/security/request-budget";
 import {
   getOrCreatePronunciationWordAudio,
   signPronunciationWordAudio,
@@ -47,6 +50,7 @@ export type PronunciationTeacherDeps = {
   findCustomPronunciations?: typeof findCustomPronunciations;
   getOrCreatePronunciationWordAudio?: typeof getOrCreatePronunciationWordAudio;
   signPronunciationWordAudio?: typeof signPronunciationWordAudio;
+  consumeRequestBudget?: typeof consumeRequestBudget;
   loadWordHistory?: (
     input: { teacherId: string; studentId: string },
     client: TeacherClient,
@@ -81,15 +85,60 @@ type ServiceFailure =
   | "not_found"
   | "invalid_word"
   | "audio_failed"
+  | "rate_limited"
   | "db_error";
 
-function one(value: unknown): Record<string, unknown> {
-  if (Array.isArray(value)) {
-    return (value[0] as Record<string, unknown> | undefined) ?? {};
-  }
-  return value && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : {};
+type ServiceFailureResult = {
+  ok: false;
+  error: ServiceFailure;
+  retryAfterSeconds?: number;
+};
+
+const ownedStudentRowSchema = z.object({
+  id: z.string(),
+  class_id: z.string(),
+  display_name: z.string(),
+  classes: oneOrMany(
+    z.object({ id: z.string(), name: z.string() }),
+  ).nullable(),
+});
+
+const historyRowSchema = z.object({
+  try_number: z.number(),
+  outcome: z.string(),
+  created_at: z.string(),
+  attempt_turns: oneOrMany(
+    z.object({
+      turn_order: z.number(),
+      attempts: oneOrMany(
+        z.object({
+          assignment_students: oneOrMany(
+            z.object({
+              assignments: oneOrMany(
+                z.object({
+                  assignment_kind: z.string(),
+                  mission_snapshot: z.unknown(),
+                }),
+              ).nullable(),
+            }),
+          ).nullable(),
+        }),
+      ).nullable(),
+    }),
+  ).nullable(),
+});
+
+const HISTORY_OUTCOMES = new Set<string>([
+  "passed",
+  "target_weak",
+  "word_weak",
+  "different_word",
+]);
+
+function isHistoryOutcome(
+  value: string,
+): value is PronunciationWordHistory["outcome"] {
+  return HISTORY_OUTCOMES.has(value);
 }
 
 function weaknessForSound(
@@ -194,18 +243,16 @@ async function loadOwnedStudent(
   }
   if (!result.data) return null;
 
-  const row = result.data as unknown as {
-    id: string;
-    class_id: string;
-    display_name: string;
-    classes: { id: string; name: string } | { id: string; name: string }[];
-  };
-  const klass = one(row.classes);
+  const parsed = ownedStudentRowSchema.safeParse(result.data);
+  if (!parsed.success) return null;
+
+  const row = parsed.data;
+  const klass = row.classes;
   return {
     studentId: row.id,
     classId: row.class_id,
     displayName: row.display_name,
-    className: String(klass.name ?? ""),
+    className: klass?.name ?? "",
   };
 }
 
@@ -246,27 +293,35 @@ async function loadWordHistory(
     throw new Error(`Unable to load pronunciation history: ${result.error.message}`);
   }
 
+  const parsedRows = z.array(historyRowSchema).safeParse(result.data ?? []);
+  if (!parsedRows.success) {
+    throw new Error("Unable to load pronunciation history: unexpected row shape");
+  }
+
   const rows: PronunciationWordHistory[] = [];
-  for (const raw of (result.data ?? []) as unknown as Record<string, unknown>[]) {
-    const turn = one(raw.attempt_turns);
-    const attempt = one(turn.attempts);
-    const assignmentStudent = one(attempt.assignment_students);
-    const assignment = one(assignmentStudent.assignments);
-    const snapshot = assignment.mission_snapshot;
-    const words = snapshot && typeof snapshot === "object"
-      ? (snapshot as { words?: unknown[] }).words ?? []
-      : [];
-    const word = words.find(
-      (candidate) =>
-        candidate &&
-        typeof candidate === "object" &&
-        Number((candidate as { order?: number }).order) === Number(turn.turn_order),
-    ) as { text?: string } | undefined;
-    if (!word?.text || typeof raw.outcome !== "string") continue;
+  for (const raw of parsedRows.data) {
+    const turn = raw.attempt_turns;
+    const assignment = turn?.attempts?.assignment_students?.assignments;
+    if (
+      !turn ||
+      !assignment ||
+      assignment.assignment_kind !== "pronunciation" ||
+      !isHistoryOutcome(raw.outcome)
+    ) {
+      continue;
+    }
+    const snapshot = pronunciationPracticeSnapshotSchema.safeParse(
+      assignment.mission_snapshot,
+    );
+    if (!snapshot.success) continue;
+    const word = snapshot.data.words.find(
+      (candidate) => candidate.order === turn.turn_order,
+    );
+    if (!word) continue;
     rows.push({
       word: word.text,
-      outcome: raw.outcome as PronunciationWordHistory["outcome"],
-      practicedAt: String(raw.created_at ?? ""),
+      outcome: raw.outcome,
+      practicedAt: raw.created_at,
     });
   }
   return rows;
@@ -430,6 +485,28 @@ async function renderResolvedWord(
   return { word: resolved, audio };
 }
 
+async function admitTeacherProvider(
+  teacherId: string,
+  deps: PronunciationTeacherDeps,
+): Promise<{ ok: true } | ServiceFailureResult> {
+  try {
+    const budget = await (deps.consumeRequestBudget ?? consumeRequestBudget)({
+      actorId: teacherId,
+      operation: "teacher_provider",
+    });
+    if (!budget.allowed) {
+      return {
+        ok: false,
+        error: "rate_limited",
+        retryAfterSeconds: budget.retryAfterSeconds,
+      };
+    }
+  } catch {
+    return { ok: false, error: "db_error" };
+  }
+  return { ok: true };
+}
+
 export async function lookupCustomWord(
   input: { teacherId: string; studentId: string; word: string; soundId: PracticeSoundId },
   deps: PronunciationTeacherDeps = {},
@@ -459,13 +536,16 @@ export async function previewPronunciationWord(
   deps: PronunciationTeacherDeps = {},
 ): Promise<
   | { ok: true; audioUrl: string; word: NonNullable<Awaited<ReturnType<typeof resolveWord>>> }
-  | { ok: false; error: ServiceFailure }
+  | ServiceFailureResult
 > {
   const client = deps.supabase ?? (await createSupabaseServerClient());
   if (!(await loadOwnedStudent(input.studentId, input.teacherId, client))) {
     return { ok: false, error: "not_found" };
   }
   const resolved = await resolveWord(input, deps);
+  if (!resolved) return { ok: false, error: "invalid_word" };
+  const admitted = await admitTeacherProvider(input.teacherId, deps);
+  if (!admitted.ok) return admitted;
   const rendered = await renderResolvedWord(resolved, deps);
   if (!rendered) return { ok: false, error: "invalid_word" };
   const sign = deps.signPronunciationWordAudio ?? signPronunciationWordAudio;
@@ -479,7 +559,7 @@ export async function assignPronunciationPractice(
   deps: PronunciationTeacherDeps = {},
 ): Promise<
   | { ok: true; assignmentId: string; assignmentStudentId: string }
-  | { ok: false; error: ServiceFailure }
+  | ServiceFailureResult
 > {
   if (input.words.length !== 5) return { ok: false, error: "invalid_word" };
   const client = deps.supabase ?? (await createSupabaseServerClient());
@@ -493,6 +573,9 @@ export async function assignPronunciationPractice(
     if (!item) return { ok: false, error: "invalid_word" };
     resolved.push(item);
   }
+
+  const admitted = await admitTeacherProvider(input.teacherId, deps);
+  if (!admitted.ok) return admitted;
 
   const words: Array<Record<string, unknown>> = [];
   for (let index = 0; index < resolved.length; index += 1) {
@@ -529,7 +612,7 @@ export async function assignPronunciationPractice(
   });
   const assigned = await client.rpc("assign_pronunciation_practice", {
     p_student_id: input.studentId,
-    p_pronunciation_snapshot: snapshot as unknown as Json,
+    p_pronunciation_snapshot: snapshot satisfies Json,
     p_due_at: input.dueAt,
   });
   if (assigned.error) return { ok: false, error: "db_error" };

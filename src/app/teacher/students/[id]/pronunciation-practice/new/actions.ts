@@ -23,6 +23,8 @@ import { z } from "zod";
 const genericFailure = "We could not save pronunciation practice. Please try again.";
 const lookupFailure = "We could not find a safe pronunciation for that word.";
 const previewFailure = "We could not prepare that word's audio. Please try again.";
+const providerRateLimitFailure =
+  "You’ve made several AI requests. Wait a few minutes and try again.";
 
 const studentIdSchema = z.string().trim().min(1, "Invalid student reference.");
 const soundIdSchema = z.enum(PRACTICE_SOUND_IDS);
@@ -125,7 +127,11 @@ export async function previewPronunciationWordAction(
       teacherId: teacher.id,
       ...parsed.data,
     });
-    return result.ok ? result : { ok: false, error: previewFailure };
+    if (result.ok) return result;
+    if (result.error === "rate_limited") {
+      return { ok: false, error: providerRateLimitFailure };
+    }
+    return { ok: false, error: previewFailure };
   } catch {
     return { ok: false, error: previewFailure };
   }
@@ -143,7 +149,12 @@ export async function assignPronunciationPracticeAction(
       teacherId: teacher.id,
       ...parsed.data,
     } satisfies AssignPronunciationPracticeInput);
-    if (!result.ok) return { ok: false, error: genericFailure };
+    if (!result.ok) {
+      if (result.error === "rate_limited") {
+        return { ok: false, error: providerRateLimitFailure };
+      }
+      return { ok: false, error: genericFailure };
+    }
     revalidatePath(`/teacher/students/${parsed.data.studentId}`);
     revalidatePath("/student/home");
     return result;

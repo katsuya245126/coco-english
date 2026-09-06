@@ -1,5 +1,6 @@
 /**
- * Post-build guard: assert the ffmpeg binary is traced into both audio routes.
+ * Post-build guard: assert the ffmpeg binary is traced into pronunciation
+ * audio routes and the teacher pronunciation page.
  *
  * `ffmpeg-static` builds its binary path from `__dirname` at runtime and does
  * not publish the file, so @vercel/nft cannot see it by static analysis. The
@@ -27,6 +28,20 @@ const ROUTE_TRACES = [
       "app",
       "student",
       "missions",
+      "[assignmentStudentId]",
+      "audio",
+      "route.js.nft.json",
+    ),
+  },
+  {
+    name: "student pronunciation audio route",
+    path: join(
+      process.cwd(),
+      ".next",
+      "server",
+      "app",
+      "student",
+      "pronunciation",
       "[assignmentStudentId]",
       "audio",
       "route.js.nft.json",

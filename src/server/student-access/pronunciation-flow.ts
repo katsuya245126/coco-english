@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   nextPracticeWordOrder,
   pronunciationPracticeSnapshotSchema,
@@ -6,12 +7,13 @@ import {
   type PronunciationPracticeSnapshot,
 } from "@/domain/pronunciation/practice";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
+import { oneOrMany } from "@/lib/supabase/one-or-many";
 
 type Client = ReturnType<typeof createSupabaseServiceClient>;
 
 const OPEN_STATUSES = new Set(["assigned", "started", "needs_retry"]);
 const TERMINAL_STATUSES = new Set(["completed", "teacher_review"]);
-const VALID_OUTCOMES = new Set<PracticeTryOutcome>([
+const VALID_OUTCOMES = new Set<string>([
   "passed",
   "target_weak",
   "word_weak",
@@ -72,6 +74,51 @@ export type CompletePronunciationAttemptResult =
   | { ok: true }
   | { ok: false; error: "not_found" | "not_complete" | "db_error" };
 
+const assignmentRowSchema = z.object({
+  id: z.string(),
+  student_id: z.string(),
+  status: z.string(),
+  latest_attempt_id: z.string().nullable(),
+  assignments: oneOrMany(
+    z.object({
+      title: z.string(),
+      assignment_kind: z.string(),
+      mission_snapshot: z.unknown(),
+      due_at: z.string().nullable(),
+      canceled_at: z.string().nullable(),
+    }),
+  ).nullable(),
+});
+
+const attemptRowSchema = z.object({
+  id: z.string(),
+  status: z.string(),
+});
+
+const turnRowSchema = z.object({
+  id: z.string(),
+  turn_order: z.number(),
+});
+
+const tryRowSchema = z.object({
+  id: z.string(),
+  attempt_turn_id: z.string(),
+  try_number: z.number(),
+  transcript: z.string(),
+  outcome: z.string(),
+  word_accuracy: z.number().nullable(),
+  star_band: z.number().nullable(),
+  full_word_passed: z.boolean().nullable(),
+  target_sound_accuracy: z.number().nullable(),
+  target_sound_passed: z.boolean().nullable(),
+  created_at: z.string(),
+});
+
+const startAttemptResultSchema = z.object({
+  out_attempt_id: z.string(),
+  out_created: z.boolean(),
+});
+
 type AssignmentRecord = {
   id: string;
   student_id: string;
@@ -87,28 +134,7 @@ type AssignmentRecord = {
   snapshot: PronunciationPracticeSnapshot;
 };
 
-type TryRow = {
-  id: string;
-  attempt_turn_id: string;
-  try_number: number;
-  transcript: string;
-  outcome: string;
-  word_accuracy: number | null;
-  star_band: number | null;
-  full_word_passed: boolean | null;
-  target_sound_accuracy: number | null;
-  target_sound_passed: boolean | null;
-  created_at: string;
-};
-
-function one(value: unknown): Record<string, unknown> {
-  if (Array.isArray(value)) {
-    return (value[0] as Record<string, unknown> | undefined) ?? {};
-  }
-  return value && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : {};
-}
+type TryRow = z.infer<typeof tryRowSchema>;
 
 function overdue(dueAt: string | null): boolean {
   return Boolean(dueAt && Date.parse(dueAt) < Date.now());
@@ -130,8 +156,12 @@ async function loadOwnedAssignment(
 
   if (result.error || !result.data) return null;
 
-  const raw = result.data as unknown as Record<string, unknown>;
-  const assignment = one(raw.assignments);
+  const parsedRow = assignmentRowSchema.safeParse(result.data);
+  if (!parsedRow.success) return null;
+
+  const raw = parsedRow.data;
+  const assignment = raw.assignments;
+  if (!assignment) return null;
   if (
     assignment.assignment_kind !== "pronunciation" ||
     assignment.canceled_at
@@ -184,11 +214,12 @@ async function loadOwnedAttempt(
     .maybeSingle();
 
   if (result.error || !result.data) return null;
-  return result.data as unknown as { id: string; status: string };
+  const parsed = attemptRowSchema.safeParse(result.data);
+  return parsed.success ? parsed.data : null;
 }
 
 function isOutcome(value: string): value is PracticeTryOutcome {
-  return VALID_OUTCOMES.has(value as PracticeTryOutcome);
+  return VALID_OUTCOMES.has(value);
 }
 
 function mapTry(row: TryRow): PronunciationWordTryState | null {
@@ -237,12 +268,13 @@ async function loadWords(
     .order("try_number", { ascending: true });
   if (triesResult.error) return null;
 
-  const turns = (turnsResult.data ?? []) as unknown as Array<{
-    id: string;
-    turn_order: number;
-  }>;
+  const parsedTurns = z.array(turnRowSchema).safeParse(turnsResult.data ?? []);
+  if (!parsedTurns.success) return null;
+  const turns = parsedTurns.data;
   const triesByTurn = new Map<string, PronunciationWordTryState[]>();
-  for (const raw of (triesResult.data ?? []) as unknown as TryRow[]) {
+  const parsedTries = z.array(tryRowSchema).safeParse(triesResult.data ?? []);
+  if (!parsedTries.success) return null;
+  for (const raw of parsedTries.data) {
     const mapped = mapTry(raw);
     if (!mapped) continue;
     const values = triesByTurn.get(raw.attempt_turn_id) ?? [];
@@ -285,21 +317,14 @@ export async function startOrResumePronunciationAttempt(input: {
     if (result.error) return { ok: false, error: "db_error" };
 
     const row = Array.isArray(result.data) ? result.data[0] : result.data;
-    const attemptId =
-      row && typeof row === "object" && "out_attempt_id" in row
-        ? String((row as { out_attempt_id: unknown }).out_attempt_id)
-        : "";
+    const parsedRow = startAttemptResultSchema.safeParse(row);
+    const attemptId = parsedRow.success ? parsedRow.data.out_attempt_id : "";
     if (!attemptId) return { ok: false, error: "not_found" };
 
     return {
       ok: true,
       attemptId,
-      isResume:
-        !(
-          row &&
-          typeof row === "object" &&
-          (row as { out_created?: unknown }).out_created === true
-        ),
+      isResume: parsedRow.success ? !parsedRow.data.out_created : true,
     };
   } catch {
     return { ok: false, error: "db_error" };
@@ -383,11 +408,16 @@ export async function completePronunciationAttempt(input: {
   try {
     const supabase = createSupabaseServiceClient();
     const assignment = await loadOwnedAssignment(supabase, input);
-    if (!assignment || !OPEN_STATUSES.has(assignment.status)) {
+    if (
+      !assignment ||
+      (!OPEN_STATUSES.has(assignment.status) && assignment.status !== "teacher_review")
+    ) {
       return { ok: false, error: "not_found" };
     }
     const attempt = await loadOwnedAttempt(supabase, input);
-    if (!attempt || attempt.status !== "in_progress") {
+    const alreadyTeacherReview =
+      assignment.status === "teacher_review" && attempt?.status === "teacher_review";
+    if (!attempt || (attempt.status !== "in_progress" && !alreadyTeacherReview)) {
       return { ok: false, error: "not_found" };
     }
 

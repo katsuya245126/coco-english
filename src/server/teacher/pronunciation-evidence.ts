@@ -1,16 +1,12 @@
+import { z } from "zod";
 import { selectResultTry, pronunciationPracticeSnapshotSchema, type PracticeTryOutcome } from "@/domain/pronunciation/practice";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
+import { oneOrMany } from "@/lib/supabase/one-or-many";
 import type { Database } from "@/lib/db/types";
 
 type AttemptStatus = Database["public"]["Enums"]["attempt_status"];
 
-type Relation<T> = T | T[] | null | undefined;
-
-function one<T>(value: Relation<T>): T | null {
-  return Array.isArray(value) ? value[0] ?? null : value ?? null;
-}
-
-const OUTCOMES = new Set<PracticeTryOutcome>([
+const OUTCOMES = new Set<string>([
   "passed",
   "target_weak",
   "word_weak",
@@ -64,50 +60,69 @@ export type PronunciationAttemptEvidence = {
   pronunciationWords: PronunciationWordEvidence[];
 };
 
-type RawAttempt = {
-  id: string;
-  status: string;
-  completed_at: string | null;
-  needs_review_reason: string | null;
-  assignment_students: Relation<{
-    id: string;
-    status: string;
-    dismissed_at: string | null;
-    submitted_at: string | null;
-    attempt_count: number;
-    highest_hint_level: number;
-    students: Relation<{ display_name: string }>;
-    assignments: Relation<{
-      id: string;
-      title: string;
-      assignment_kind: string;
-      mission_snapshot: unknown;
-      classes: Relation<{ id: string; name: string; teacher_id: string }>;
-    }>;
-  }>;
-  attempt_turns: Relation<{ id: string; turn_order: number }>;
-};
+const rawAttemptSchema = z.object({
+  id: z.string(),
+  status: z.enum([
+    "in_progress",
+    "completed",
+    "abandoned",
+    "needs_retry",
+    "teacher_review",
+  ]),
+  completed_at: z.string().nullable(),
+  needs_review_reason: z.string().nullable(),
+  assignment_students: oneOrMany(
+    z.object({
+      id: z.string(),
+      status: z.string(),
+      dismissed_at: z.string().nullable(),
+      submitted_at: z.string().nullable(),
+      attempt_count: z.number().default(0),
+      highest_hint_level: z.number().default(0),
+      students: oneOrMany(z.object({ display_name: z.string() })).nullable(),
+      assignments: oneOrMany(
+        z.object({
+          id: z.string(),
+          title: z.string(),
+          assignment_kind: z.string(),
+          mission_snapshot: z.unknown(),
+          classes: oneOrMany(
+            z.object({ id: z.string(), name: z.string(), teacher_id: z.string() }),
+          ).nullable(),
+        }),
+      ).nullable(),
+    }),
+  ).nullable(),
+  attempt_turns: z.array(z.object({ id: z.string(), turn_order: z.number() })),
+});
 
-type RawTry = {
-  id: string;
-  attempt_turn_id: string;
-  audio_clip_id: string;
-  try_number: number;
-  transcript: string;
-  outcome: string;
-  word_accuracy: number | null;
-  star_band: number | null;
-  full_word_passed: boolean | null;
-  target_sound_accuracy: number | null;
-  target_sound_passed: boolean | null;
-  created_at: string;
-  audio_clips: Relation<{
-    id: string;
-    processing_status: string;
-    pronunciation_scores: Relation<{ star_band: number }>;
-  }>;
-  attempt_turns: Relation<{ id: string; turn_order: number }>;
-};
+const rawTrySchema = z.object({
+  id: z.string(),
+  attempt_turn_id: z.string(),
+  audio_clip_id: z.string(),
+  try_number: z.number(),
+  transcript: z.string(),
+  outcome: z.string(),
+  word_accuracy: z.number().nullable(),
+  star_band: z.number().nullable(),
+  full_word_passed: z.boolean().nullable(),
+  target_sound_accuracy: z.number().nullable(),
+  target_sound_passed: z.boolean().nullable(),
+  created_at: z.string(),
+  audio_clips: oneOrMany(
+    z.object({
+      id: z.string(),
+      processing_status: z.string(),
+      pronunciation_scores: oneOrMany(z.object({ star_band: z.number() })).nullable(),
+    }),
+  ).nullable(),
+});
+
+type RawTry = z.infer<typeof rawTrySchema>;
+
+function isPracticeTryOutcome(value: string): value is PracticeTryOutcome {
+  return OUTCOMES.has(value);
+}
 
 function starBand(value: number | null): 1 | 2 | 3 | null {
   return value === 1 || value === 2 || value === 3 ? value : null;
@@ -119,24 +134,23 @@ function tryNumber(value: number): 1 | 2 | 3 | null {
 
 function mapTry(row: RawTry): PronunciationTryEvidence | null {
   const number = tryNumber(row.try_number);
-  if (!number || !OUTCOMES.has(row.outcome as PracticeTryOutcome)) return null;
-  const clip = one(row.audio_clips);
-  const score = one(clip?.pronunciation_scores);
+  if (!number || !isPracticeTryOutcome(row.outcome)) return null;
+  const clip = row.audio_clips;
+  const score = clip?.pronunciation_scores;
+  const scoreBand = score ? starBand(score.star_band) : null;
   return {
     id: row.id,
     audioClipId: row.audio_clip_id,
     tryNumber: number,
     transcript: row.transcript,
-    outcome: row.outcome as PracticeTryOutcome,
+    outcome: row.outcome,
     wordAccuracy: row.word_accuracy,
     starBand: starBand(row.star_band),
     fullWordPassed: row.full_word_passed,
     targetSoundAccuracy: row.target_sound_accuracy,
     targetSoundPassed: row.target_sound_passed,
     processingStatus: clip?.processing_status ?? "failed",
-    pronunciationScore: score && starBand(score.star_band) !== null
-      ? { starBand: starBand(score.star_band)! }
-      : null,
+    pronunciationScore: scoreBand === null ? null : { starBand: scoreBand },
     createdAt: row.created_at,
   };
 }
@@ -182,11 +196,13 @@ export async function getPronunciationEvidenceForTeacher(input: {
   }
   if (!attempt.data) return null;
 
-  const rawAttempt = attempt.data as unknown as RawAttempt;
-  const assignmentStudent = one(rawAttempt.assignment_students);
-  const assignment = one(assignmentStudent?.assignments);
-  const assignmentClass = one(assignment?.classes);
-  const student = one(assignmentStudent?.students);
+  const parsedAttempt = rawAttemptSchema.safeParse(attempt.data);
+  if (!parsedAttempt.success) return null;
+  const rawAttempt = parsedAttempt.data;
+  const assignmentStudent = rawAttempt.assignment_students;
+  const assignment = assignmentStudent?.assignments;
+  const assignmentClass = assignment?.classes;
+  const student = assignmentStudent?.students;
   if (!assignmentStudent || !assignment || assignment.assignment_kind !== "pronunciation") {
     return null;
   }
@@ -235,8 +251,13 @@ export async function getPronunciationEvidenceForTeacher(input: {
     throw new Error(`Unable to load pronunciation tries: ${tries.error.message}`);
   }
 
+  const parsedTries = z.array(rawTrySchema).safeParse(tries.data ?? []);
+  if (!parsedTries.success) {
+    throw new Error("Unable to load pronunciation tries: unexpected row shape");
+  }
+
   const triesByTurnId = new Map<string, PronunciationTryEvidence[]>();
-  for (const raw of (tries.data ?? []) as unknown as RawTry[]) {
+  for (const raw of parsedTries.data) {
     const mapped = mapTry(raw);
     if (!mapped) continue;
     const existing = triesByTurnId.get(raw.attempt_turn_id) ?? [];
@@ -248,9 +269,7 @@ export async function getPronunciationEvidenceForTeacher(input: {
   }
 
   const turnIdByOrder = new Map(
-    (Array.isArray(rawAttempt.attempt_turns) ? rawAttempt.attempt_turns : []).map(
-      (turn) => [turn.turn_order, turn.id] as const,
-    ),
+    rawAttempt.attempt_turns.map((turn) => [turn.turn_order, turn.id] as const),
   );
   const pronunciationWords = snapshot.data.words.map((word) => {
     const wordTries = triesByTurnId.get(turnIdByOrder.get(word.order) ?? "") ?? [];
@@ -273,7 +292,7 @@ export async function getPronunciationEvidenceForTeacher(input: {
     className: assignmentClass?.name ?? "",
     missionTitle: assignment.title,
     studentName: student?.display_name ?? "Unknown student",
-    attemptStatus: rawAttempt.status as AttemptStatus,
+    attemptStatus: rawAttempt.status,
     assignmentStudentStatus: assignmentStudent.status,
     dismissedAt: assignmentStudent.dismissed_at,
     submittedAt: assignmentStudent.submitted_at,
