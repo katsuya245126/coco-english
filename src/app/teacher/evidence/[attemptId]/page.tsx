@@ -6,6 +6,7 @@ import { SubmissionReviewControls } from "@/components/teacher/SubmissionReviewC
 import { changeAttemptReview } from "@/server/teacher/assignment-operations";
 import { PronunciationDiagnosticPanel } from "@/components/teacher/PronunciationDiagnosticPanel";
 import { MissionAudioClarificationControl } from "@/components/teacher/MissionAudioClarificationControl";
+import { PronunciationEvidence } from "@/components/teacher/PronunciationEvidence";
 import { HoverLink } from "@/components/ui/HoverLink";
 import { subtleHover } from "@/components/ui/hover-styles";
 import type {
@@ -61,6 +62,7 @@ export default async function AttemptEvidencePage({
           classId={evidence.classId}
           assignmentId={evidence.assignmentId}
           dismissed={evidence.dismissedAt != null}
+          allowRetry={evidence.assignmentKind !== "pronunciation"}
         />
 
         <section style={summaryStyle} aria-label="Attempt summary">
@@ -69,7 +71,7 @@ export default async function AttemptEvidencePage({
             <p style={valueStyle}>{evidence.studentName}</p>
           </div>
           <div>
-            <p style={labelStyle}>Mission</p>
+            <p style={labelStyle}>{evidence.assignmentKind === "pronunciation" ? "Practice" : "Mission"}</p>
             <p style={valueStyle}>{evidence.missionTitle}</p>
           </div>
           <div>
@@ -93,16 +95,20 @@ export default async function AttemptEvidencePage({
           </div>
         </section>
 
-        <section aria-label="Turn transcripts" style={turnListStyle}>
-          {evidence.turns.map((turn) => (
-            <TurnEvidenceSection
-              key={turn.id}
-              turn={turn}
-              attemptId={evidence.attemptId}
-              conversationMode={evidence.conversationMode}
-            />
-          ))}
-        </section>
+        {evidence.assignmentKind === "pronunciation" ? (
+          <PronunciationEvidence evidence={evidence} />
+        ) : (
+          <section aria-label="Turn transcripts" style={turnListStyle}>
+            {evidence.turns.map((turn) => (
+              <TurnEvidenceSection
+                key={turn.id}
+                turn={turn}
+                attemptId={evidence.attemptId}
+                conversationMode={evidence.conversationMode}
+              />
+            ))}
+          </section>
+        )}
       </main>
     </div>
   );

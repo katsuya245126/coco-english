@@ -17,7 +17,11 @@ const nextConfig: NextConfig = {
    */
   outputFileTracingIncludes: {
     "/student/missions/*/audio": ["./node_modules/ffmpeg-static/ffmpeg"],
+    "/student/pronunciation/*/audio": ["./node_modules/ffmpeg-static/ffmpeg"],
     "/teacher/students/*": ["./node_modules/ffmpeg-static/ffmpeg"],
+    "/teacher/students/*/pronunciation-practice/new": [
+      "./vendor/cmudict/cmudict-0.7b.dict",
+    ],
   },
 };
 

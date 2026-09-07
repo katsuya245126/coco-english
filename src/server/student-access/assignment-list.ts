@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { interpretMissionSnapshot } from "@/domain/mission/mission-snapshot";
+import { pronunciationPracticeSnapshotSchema } from "@/domain/pronunciation/practice";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
 export type AssignmentDisplayStatus =
@@ -23,11 +24,14 @@ export type StudentAssignmentTab = "current" | "past";
 
 export type StudentAssignmentListItem = {
   assignmentStudentId: string;
+  assignmentKind: "mission" | "pronunciation";
+  label: "Mission" | "Pronunciation";
   title: string;
   dueAt: string | null;
   completedAt: string | null;
   turnCount: number;
   completedTurnCount: number;
+  targetPattern: string;
   displayStatus: AssignmentDisplayStatus;
 };
 
@@ -47,6 +51,7 @@ const assignmentRowSchema = z.object({
   latest_attempt_id: z.string().nullable(),
   assignments: z.object({
     title: z.string(),
+    assignment_kind: z.enum(["mission", "pronunciation"]).optional(),
     mission_snapshot: z.unknown(),
     due_at: z.string().nullable(),
     canceled_at: z.string().nullable(),
@@ -54,10 +59,38 @@ const assignmentRowSchema = z.object({
   latest_attempt: z
     .object({
       completed_at: z.string().nullable(),
-      attempt_turns: z.array(z.object({ count: z.number() })).optional(),
+      attempt_turns: z
+        .array(
+          z.object({
+            count: z.number().optional(),
+            id: z.string().optional(),
+            turn_order: z.number().optional(),
+            pronunciation_word_tries: z
+              .array(z.object({ try_number: z.number(), outcome: z.string() }))
+              .optional(),
+          }),
+        )
+        .optional(),
     })
     .nullable(),
 });
+
+type AssignmentRow = z.infer<typeof assignmentRowSchema>;
+
+function completedPronunciationWords(
+  attempt: AssignmentRow["latest_attempt"],
+): number {
+  return (attempt?.attempt_turns ?? []).filter((turn) =>
+    (turn.pronunciation_word_tries ?? []).some(
+      (tryRow) => tryRow.outcome === "passed" || tryRow.try_number === 3,
+    ),
+  ).length;
+}
+
+function completedMissionTurns(attempt: AssignmentRow["latest_attempt"]): number {
+  const turns = attempt?.attempt_turns ?? [];
+  return turns[0]?.count ?? turns.length;
+}
 
 function timestamp(value: string | null): number | null {
   if (!value) return null;
@@ -81,8 +114,11 @@ export async function listStudentAssignmentPage(
     .from("assignment_students")
     .select(`
       id, status, submitted_at, latest_attempt_id,
-      assignments!inner (title, mission_snapshot, due_at, canceled_at),
-      latest_attempt:attempts!assignment_students_latest_attempt_fk (completed_at, attempt_turns(count))
+      assignments!inner (title, assignment_kind, mission_snapshot, due_at, canceled_at),
+      latest_attempt:attempts!assignment_students_latest_attempt_fk (
+        completed_at,
+        attempt_turns(id, turn_order, pronunciation_word_tries(try_number, outcome))
+      )
     `)
     .eq("student_id", studentId)
     .order("created_at", { ascending: false });
@@ -102,13 +138,33 @@ export async function listStudentAssignmentPage(
       }
       const row = parsed.data;
       if (row.assignments.canceled_at) continue;
-      const snapshotResult = interpretMissionSnapshot(row.assignments.mission_snapshot);
-      if (snapshotResult.kind === "invalid") continue;
+      const assignmentKind = row.assignments.assignment_kind === "pronunciation"
+        ? "pronunciation"
+        : "mission";
+      let turnCount: number;
+      let targetPattern = "";
+      if (assignmentKind === "pronunciation") {
+        const snapshot = pronunciationPracticeSnapshotSchema.safeParse(
+          row.assignments.mission_snapshot,
+        );
+        if (!snapshot.success) continue;
+        turnCount = snapshot.data.requiredWords;
+      } else {
+        const snapshotResult = interpretMissionSnapshot(row.assignments.mission_snapshot);
+        if (snapshotResult.kind === "invalid") continue;
+        if (input.tab === "current" && snapshotResult.kind !== "complete") continue;
+        turnCount = snapshotResult.snapshot.requiredTurns;
+        if (snapshotResult.kind === "complete") {
+          targetPattern =
+            snapshotResult.snapshot.targetPattern ??
+            snapshotResult.snapshot.turns[0]?.targetPattern ??
+            "";
+        }
+      }
       const completedAt = row.latest_attempt?.completed_at ?? row.submitted_at;
       const isStudentCompleted = STUDENT_COMPLETED_STATUSES.has(row.status);
       if (input.tab === "past" && !isStudentCompleted) continue;
-      if (input.tab === "current" && (isStudentCompleted || snapshotResult.kind !== "complete")) continue;
-      const snapshot = snapshotResult.snapshot;
+      if (input.tab === "current" && isStudentCompleted) continue;
 
       const due = timestamp(row.assignments.due_at);
       let displayStatus: AssignmentDisplayStatus;
@@ -119,11 +175,16 @@ export async function listStudentAssignmentPage(
 
       items.push({
         assignmentStudentId: row.id,
+        assignmentKind,
+        label: assignmentKind === "pronunciation" ? "Pronunciation" : "Mission",
         title: row.assignments.title,
         dueAt: row.assignments.due_at,
         completedAt,
-        turnCount: snapshot.requiredTurns,
-        completedTurnCount: row.latest_attempt?.attempt_turns?.[0]?.count ?? 0,
+        turnCount,
+        completedTurnCount: assignmentKind === "pronunciation"
+          ? completedPronunciationWords(row.latest_attempt)
+          : completedMissionTurns(row.latest_attempt),
+        targetPattern,
         displayStatus,
       });
     }

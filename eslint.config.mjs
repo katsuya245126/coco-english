@@ -16,6 +16,7 @@ const eslintConfig = [
       "supabase/.temp/**",
       "test-results/**",
       "playwright-report/**",
+      "supabase/.branches/**",
       // Sandbox/agent worktrees are gitignored, generated checkouts; never lint
       // their generated next-env.d.ts and build output.
       ".claude/**",

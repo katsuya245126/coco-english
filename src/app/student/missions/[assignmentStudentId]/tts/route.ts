@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { readStudentUnlock } from "@/app/join/actions";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { requireOwnedAssignmentStudent } from "@/server/student-access/owned-assignment";
+import {
+  pronunciationPracticeSnapshotSchema,
+  resolvePronunciationFeedbackLineText,
+} from "@/domain/pronunciation/practice";
 import { getCharacterProfile } from "@/domain/character/profile";
 import {
   DEFAULT_COCO_TTS_VOICE,
@@ -132,16 +136,55 @@ export async function POST(request: Request, context: RouteContext) {
     studentId: unlock.studentId,
     assignmentStudentId,
   });
-  if (!owned.ok || !owned.owned.snapshot) {
+  if (!owned.ok) {
     return NextResponse.json(
       { ok: false, error: "not_found" },
       { status: 404 },
     );
   }
   const snapshot = owned.owned.snapshot;
-
-  // Keep accepting characterId for client compatibility, but never trust it.
-  const characterId = snapshot.characterId;
+  const isPronunciationAssignment = owned.owned.assignmentKind === "pronunciation";
+  if (!isPronunciationAssignment && !snapshot) {
+    return NextResponse.json(
+      { ok: false, error: "not_found" },
+      { status: 404 },
+    );
+  }
+  const pronunciationSnapshotResult = isPronunciationAssignment
+    ? pronunciationPracticeSnapshotSchema.safeParse(owned.owned.rawSnapshot)
+    : null;
+  const pronunciationSnapshot = pronunciationSnapshotResult?.success
+    ? pronunciationSnapshotResult.data
+    : null;
+  const pronunciationWord = pronunciationSnapshot?.words.find(
+    (word) => word.order === parsed.data.turnOrder,
+  );
+  const pronunciationFeedbackText = resolvePronunciationFeedbackLineText(
+    parsed.data.feedbackVariant,
+    {
+      soundId: pronunciationSnapshot?.soundId,
+      word: pronunciationWord?.text,
+    },
+  );
+  if (
+    isPronunciationAssignment &&
+    (parsed.data.lineKind !== "coco_feedback" ||
+      !pronunciationFeedbackText)
+  ) {
+    return NextResponse.json(
+      { ok: false, error: "not_found" },
+      { status: 404 },
+    );
+  }
+  const characterId = isPronunciationAssignment
+    ? "pronunciation-practice"
+    : snapshot?.characterId;
+  if (!characterId) {
+    return NextResponse.json(
+      { ok: false, error: "not_found" },
+      { status: 404 },
+    );
+  }
   // A restarted/retried mission produces additional attempts whose
   // attempt_turns reuse the same turn_order values, so the per-turn lookups
   // below must pin to the current attempt — an assignment-wide join returns
@@ -149,7 +192,7 @@ export async function POST(request: Request, context: RouteContext) {
   const latestAttemptId = owned.owned.latestAttemptId;
 
   let resolvedTurn: ResolvedSnapshotTurn | null = null;
-  if (parsed.data.turnOrder) {
+  if (parsed.data.turnOrder && snapshot) {
     // Conversation-mode missions generate turns dynamically and may have zero
     // or few pre-authored snapshot turns — the dynamic-line lookup does not
     // depend on a matching snapshotTurn existing.
@@ -192,12 +235,14 @@ export async function POST(request: Request, context: RouteContext) {
     }
   }
 
-  const text = resolveLineText(
-    parsed.data.lineKind,
-    characterId,
-    resolvedTurn,
-    parsed.data.feedbackVariant,
-  );
+  const text = isPronunciationAssignment
+    ? pronunciationFeedbackText
+    : resolveLineText(
+        parsed.data.lineKind,
+        characterId,
+        resolvedTurn,
+        parsed.data.feedbackVariant,
+      );
 
   if (!text || text.trim().length === 0) {
     return NextResponse.json(

@@ -29,6 +29,18 @@ const confirmedSampleScoreSchema = z.object({
   wordScores: z.array(z.unknown()),
 });
 
+const pronunciationProfileRowSchema = z.object({
+  try_number: z.number(),
+  transcript: z.string().nullable(),
+  audio_clips: oneOrMany(
+    z.object({
+      pronunciation_scores: oneOrMany(
+        z.object({ word_scores: z.unknown() }),
+      ).nullable(),
+    }),
+  ).nullable(),
+});
+
 export type StudentProfileEvidenceSource =
   | "Mission"
   | "Teacher-added pronunciation sample";
@@ -158,6 +170,7 @@ export async function getStudentSoundProfile(
             assignment_students!attempts_assignment_student_id_fkey!inner(
               student_id,
               assignments!inner(
+                assignment_kind,
                 classes!inner(teacher_id)
               )
             )
@@ -174,6 +187,10 @@ export async function getStudentSoundProfile(
     .eq(
       "audio_clips.attempt_turns.attempts.assignment_students.assignments.classes.teacher_id",
       teacherId,
+    )
+    .eq(
+      "audio_clips.attempt_turns.attempts.assignment_students.assignments.assignment_kind",
+      "mission",
     );
 
   if (scores.error) {
@@ -215,10 +232,62 @@ export async function getStudentSoundProfile(
     );
   }
 
-  return buildStudentSoundProfile(
-    rows.data,
-    sampleRows.data,
-  );
+  const pronunciationTries = await supabase
+    .from("pronunciation_word_tries")
+    .select(
+      `
+      transcript,
+      try_number,
+      audio_clips!inner(
+        pronunciation_scores!inner(word_scores)
+      ),
+      attempt_turns!inner(
+        attempts!inner(
+          assignment_students!attempts_assignment_student_id_fkey!inner(
+            student_id,
+            assignments!inner(
+              classes!inner(teacher_id)
+            )
+          )
+        )
+      )
+    `,
+    )
+    .eq("try_number", 1)
+    .eq("attempt_turns.attempts.assignment_students.student_id", studentId)
+    .eq(
+      "attempt_turns.attempts.assignment_students.assignments.classes.teacher_id",
+      teacherId,
+    );
+
+  if (pronunciationTries.error) {
+    throw new Error(
+      `Unable to load pronunciation practice scores: ${pronunciationTries.error.message}`,
+    );
+  }
+
+  const parsedPracticeRows = z
+    .array(pronunciationProfileRowSchema)
+    .safeParse(pronunciationTries.data ?? []);
+  if (!parsedPracticeRows.success) {
+    throw new Error(
+      "Unable to load pronunciation practice scores: unexpected row shape",
+    );
+  }
+
+  const practiceRows: ProfileScoreRow[] = [];
+  for (const row of parsedPracticeRows.data) {
+    if (row.try_number !== 1) continue;
+    const score = row.audio_clips?.pronunciation_scores;
+    if (score) {
+      practiceRows.push({
+        reference_text: row.transcript,
+        word_scores: score.word_scores,
+      });
+    }
+  }
+
+  return buildStudentSoundProfile([...rows.data, ...practiceRows], sampleRows.data);
 }
 
 export type StudentProfileHeader = {

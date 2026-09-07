@@ -85,6 +85,22 @@ export type TranscodeToWavDeps = {
   timeoutMs?: number;
 };
 
+function finalizeStreamingWavHeader(wav: Buffer): void {
+  if (wav.length < 12 || wav.toString("ascii", 0, 4) !== "RIFF") return;
+
+  let offset = 12;
+  while (offset + 8 <= wav.length) {
+    const chunkId = wav.toString("ascii", offset, offset + 4);
+    if (chunkId === "data") {
+      wav.writeUInt32LE(wav.length - 8, 4);
+      wav.writeUInt32LE(wav.length - offset - 8, offset + 4);
+      return;
+    }
+    const chunkSize = wav.readUInt32LE(offset + 4);
+    offset += 8 + chunkSize + (chunkSize % 2);
+  }
+}
+
 export async function transcodeToWav(
   input: Blob,
   deps?: TranscodeToWavDeps,
@@ -190,7 +206,9 @@ export async function transcodeToWav(
           clearTimeout(timeout);
           settled = true;
           if (code === 0) {
-            resolve({ ok: true, wav: Buffer.concat(chunks) });
+            const wav = Buffer.concat(chunks);
+            finalizeStreamingWavHeader(wav);
+            resolve({ ok: true, wav });
           } else {
             // Reaching a non-zero exit proves the binary ran: this is a decode
             // fault, not a packaging one.

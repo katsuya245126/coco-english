@@ -22,6 +22,8 @@ export type TeacherReviewRow = {
   attemptId: string; assignmentStudentId: string; studentName: string;
   assignmentTitle: string; className: string; classId: string; receivedAt: string;
   firstViewedAt: string | null; needsReviewReason: string | null;
+  assignmentKind: "mission" | "pronunciation";
+  resultSummary: string | null;
 };
 
 export type TeacherActivityRow = TeacherReviewRow & {
@@ -45,6 +47,12 @@ const one = (value: RawValue | undefined): RawRow => {
   return item && typeof item === "object" ? item as RawRow : {};
 };
 
+function many(value: RawValue | undefined): RawRow[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is RawRow => Boolean(item && typeof item === "object"))
+    : [];
+}
+
 type OwnedAttemptRow = TeacherReviewRow & {
   status: AssignmentStudentStatus;
   attemptStatus: string;
@@ -58,6 +66,16 @@ function mapRow(row: RawRow): OwnedAttemptRow {
   const assignment = one(assignmentStudent.assignments);
   const klass = one(assignment.classes);
   const receipt = one(row.submission_review_receipts) ?? {};
+  const assignmentKind = assignment.assignment_kind === "pronunciation"
+    ? "pronunciation"
+    : "mission";
+  const passedWordCount = assignmentKind === "pronunciation"
+    ? many(row.attempt_turns).filter((turn) =>
+        many(turn.pronunciation_word_tries).some(
+          (tryRow) => tryRow.outcome === "passed",
+        ),
+      ).length
+    : 0;
   return {
     attemptId: String(row.id),
     assignmentStudentId: String(assignmentStudent.id),
@@ -69,6 +87,10 @@ function mapRow(row: RawRow): OwnedAttemptRow {
     firstViewedAt: receipt.first_viewed_at ? String(receipt.first_viewed_at) : null,
     reviewedAt: receipt.reviewed_at ? String(receipt.reviewed_at) : null,
     needsReviewReason: row.needs_review_reason ? String(row.needs_review_reason) : null,
+    assignmentKind,
+    resultSummary: assignmentKind === "pronunciation"
+      ? `${passedWordCount} of 5 words passed`
+      : null,
     isLatestAttempt: assignmentStudent.latest_attempt_id === row.id,
     status: assignmentStudent.status as AssignmentStudentStatus,
     attemptStatus: String(row.status),

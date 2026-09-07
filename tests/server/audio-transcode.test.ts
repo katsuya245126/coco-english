@@ -145,6 +145,35 @@ describe("transcodeToWav", () => {
     );
   });
 
+  it("replaces ffmpeg pipe sentinel sizes with the completed WAV sizes", async () => {
+    const { transcodeToWav } = await import("@/server/audio/audio-transcode");
+    const streamingWav = Buffer.alloc(48);
+    streamingWav.write("RIFF", 0, "ascii");
+    streamingWav.writeUInt32LE(0xffffffff, 4);
+    streamingWav.write("WAVEfmt ", 8, "ascii");
+    streamingWav.writeUInt32LE(16, 16);
+    streamingWav.writeUInt16LE(1, 20);
+    streamingWav.writeUInt16LE(1, 22);
+    streamingWav.writeUInt32LE(16_000, 24);
+    streamingWav.writeUInt32LE(32_000, 28);
+    streamingWav.writeUInt16LE(2, 32);
+    streamingWav.writeUInt16LE(16, 34);
+    streamingWav.write("data", 36, "ascii");
+    streamingWav.writeUInt32LE(0xffffffff, 40);
+    const spawnFn = createFakeSpawn({ chunks: [streamingWav], exitCode: 0 });
+
+    const result = await transcodeToWav(
+      new Blob(["voice"], { type: "audio/webm" }),
+      { spawn: spawnFn as never },
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.wav.readUInt32LE(4)).toBe(result.wav.length - 8);
+      expect(result.wav.readUInt32LE(40)).toBe(result.wav.length - 44);
+    }
+  });
+
   it("maps a non-zero exit code to a typed transcode_failed result", async () => {
     const { transcodeToWav } = await import("@/server/audio/audio-transcode");
     const spawnFn = createFakeSpawn({ chunks: [], exitCode: 1 });

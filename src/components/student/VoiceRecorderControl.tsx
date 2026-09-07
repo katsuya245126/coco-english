@@ -21,7 +21,7 @@ export type VoiceRecordingMetadata = {
   durationMs: number;
 };
 
-type RecorderMode = "original" | "repeat";
+type RecorderMode = "original" | "repeat" | "practice";
 export type RecorderState =
   | "ready"
   | "waiting-permission"
@@ -240,7 +240,7 @@ export function VoiceRecorderControl({
       return "Saving…";
     }
     if (state === "success") {
-      return "Saved";
+      return mode === "practice" ? "Recorded" : "Saved";
     }
     return "";
   }

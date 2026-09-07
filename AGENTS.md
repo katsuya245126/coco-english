@@ -2,49 +2,20 @@
 
 ## Start here
 
-- Read `PROJECT.md` for stable product and architecture context.
-- Read root `TASK.md` when it exists for the one active feature.
+- Consult `PROJECT.md` when product or architecture context matters; a mechanical edit needs only the affected file and applicable instructions.
+- Check root `TASK.md` when starting or resuming feature work, or when edits may overlap an active task.
 - Treat code, tests, and Git as stronger evidence than status prose.
 - Preserve unrelated working-tree changes.
 
 ## Workflow
 
-- Use the lightweight `task-workflow` and `progress` skills as the operational entrypoints for normal or consequential building, fixing, planning, or investigation.
-- Use the globally installed read-only `progress` skill when asked for feature status or the next action.
-- Tiny obvious maintenance may proceed without `TASK.md` when it has no product, architecture, security, privacy, student-data, migration, deployment, billing, or cross-system effect.
-- Require user plan approval for consequential work defined by `task-workflow`.
-- Keep one active `TASK.md` per checkout or worktree; keep completed or paused task notes in GitHub issues/PRs or ignored `docs/local/` rather than requiring archive files in the repository.
-- Commit stable product, architecture, security, and operational documentation; keep implementation plans and task-history notes local.
-- On worktree creation or takeover, verify that `TASK.md` matches the current branch and working tree. Replace, pause, or explicitly mark an inherited unrelated task inactive before reporting progress.
-- Reuse discovered specialist skills for brainstorming, planning, debugging, test-first implementation, review, verification, and handoff.
-
-### Follow-through and skill instructions
-
-- Carry authorized work through verification. Resolve routine implementation choices from repository evidence; ask only when missing information materially changes scope, behavior, safety, or acceptance criteria.
-- Follow explicit user instructions over skill guidelines. Invoke relevant available skills within the authorized scope instead of requiring the user to repeat a request with a slash command.
-- Preserve the consequential-work plan gate and explicit approval for external actions. Before requesting approval, finish the authorized investigation and prepare a concrete plan or reviewable result.
-- If a skill requires a pause, link the exact `SKILL.md`, quote the relevant rule, and explain why it applies. Do not turn advisory guidance into an additional approval gate.
-- Incorporate corrections and answer side questions while retaining the active task unless the user cancels or replaces it.
-- Report the result, verification, and remaining blockers in concise, plain language; scale detail to the request.
-
-### Workflow phases for Codex
-
-For each normal or consequential task, read `PROJECT.md`, the active `TASK.md`, and Git status; state the desired outcome, scope, non-goals, assumptions, done checks, and verification evidence before editing. Classify the work, preserve unrelated changes, and never skip the plan-approval gate for consequential work.
-
-Route the work by phase:
-
-| Phase | Action |
-| --- | --- |
-| Idea or decisions unsettled | Interview until the decision is clear; record resolved terms in `CONTEXT.md` and relevant `docs/adr/` files. |
-| Design needs runnable proof | Build the smallest throwaway prototype, keep the findings, and remove the prototype when done. |
-| Settled multi-session build | Record the spec and checks in `TASK.md`; create independent GitHub issues using `docs/agents/issue-tracker.md`, then work blockers-first. |
-| One behavior to build | Write the smallest failing test, implement the minimal change, run the narrowest check, and review the diff. |
-| Broken, flaky, or regressed behavior | Reproduce and minimize it, add a regression check, instrument only as needed, then fix the root cause. |
-| Incoming request not created by this repo's planning flow | Triage it, verify the evidence, and apply the labels in `docs/agents/triage-labels.md`. |
-| Effort too large or unclear for one session | Write a decision map in `TASK.md`, identify blockers, and return to a settled spec before implementation. |
-| Diff, branch, or PR review | Check both the requested behavior and project standards; run proportionate verification before reporting findings. |
-
-Use available specialist skills for these phases when present; otherwise perform the same work directly with the repository's files, tests, Git, and `gh` CLI. This routing is advisory and never replaces the repository's ownership, safety, verification, or plan-approval rules.
+- Use the project `task-workflow` skill for normal or consequential development; use read-only `progress` for feature status. Tiny maintenance with no product, architecture, security, privacy, student-data, migration, deployment, billing, or cross-system effect needs no task file or workflow tour.
+- Consequential work requires a concrete plan and user approval before implementation. Preserve the global rule requiring explicit approval for the exact external action and target.
+- For normal or consequential work, briefly establish outcome, scope, non-goals, assumptions, done checks, and verification evidence. Choose the reading and execution needed to meet those checks; consult [workflow phases](docs/agents/workflow-phases.md) when routing is unclear.
+- Carry authorized work through implementation, relevant verification, inspection, and fixes caused by the change. Resolve routine choices from evidence. Ask only when a missing fact materially changes scope, behavior, safety, ownership, or acceptance. A first draft is not completion; stop when the agreed checks pass or a concrete blocker needs the user.
+- Follow explicit user instructions over skill guidance. Invoke named skills yourself; if a skill requires a pause, link its `SKILL.md`, quote the rule, and explain why it applies. Advisory guidance creates no extra approval gate.
+- Keep one active `TASK.md` per checkout. On takeover, confirm it matches branch and working tree; preserve unrelated work and pause only overlapping ownership conflicts. Keep completed/paused history local in ignored `docs/local/`, or in issues/PRs when authorized; stable documentation belongs in Git.
+- Answer side questions while continuing the active task unless the user cancels or replaces it. Report result, evidence, and remaining blockers concisely.
 
 ## Safety and scope
 
@@ -70,9 +41,9 @@ For deterministic student feedback screenshots, start the app on `http://localho
 - Give subagents compact, task-specific prompts and the minimum history they need. Inherit full conversation history only when the task cannot be summarized safely.
 - Reuse an existing subagent for follow-up work instead of spawning a replacement for the same scope.
 - Run the narrowest relevant checks during implementation. For application-code changes, run the full unit suite once on the final diff; repeat or broaden verification only for relevant changes, failures, unresolved concerns, or explicit requirements. Creating a commit alone does not invalidate checks of identical file contents.
-- Verification evidence is identified by the checked commit and clean working tree. Do not rerun an unchanged verified commit solely to create a PR or repeat a status report unless an invoked skill explicitly requires it.
+- Identify verification evidence by the checked commit and working-tree state. Repeat checks on an unchanged verified commit only for new concerns or an explicit skill requirement.
 - Before formal review, check the final diff against the issue acceptance criteria and repository standards. Start formal parallel reviewers after that preflight so they normally review one final diff.
-- After formal Standards + Spec review, rerun affected tests and typecheck for accepted fixes; do not rerun review subagents for small localized fixes unless behavior or scope materially changes or the prior review missed relevant files. Use a targeted manual check instead.
+- After formal Standards + Spec review, rerun affected tests and typecheck for accepted fixes; do not rerun review subagents for small localized changes unless behavior or scope materially changes or the prior review missed relevant files. Use a targeted manual check instead.
 - Use `npm run test:agent` for full unit verification unless diagnosing a failure. Prefer non-interactive compact reporters and bounded tool output.
 - Prefer targeted `rg`, file lists, and line ranges over dumping entire large files, diffs, or test logs.
 - Usage efficiency never reduces security, authorization, privacy, data-loss prevention, accessibility, or explicitly requested verification.
@@ -83,4 +54,4 @@ For deterministic student feedback screenshots, start the app on `http://localho
 
 ## Legacy planning records
 
-The former GSD workflow has been retired in favor of the lightweight `task-workflow` and `progress` skills (see "Workflow" above). Its `.planning/` history is not an active source of truth. Do not recreate GSD state, hooks, or `.planning/`; use the issue tracker or local notes for any historical context.
+The former GSD workflow has been retired in favor of the lightweight `task-workflow` and `progress` skills (see "Workflow" above). Its `.planning/` history is not an active source of truth. Do not recreate GSD state, hooks, or `.planning/`; use the issue tracker or ignored local task notes for historical context.

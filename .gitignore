@@ -70,6 +70,7 @@ scripts/lib/attempt-report.mjs
 scripts/lib/attempt-report.test.mjs
 
 # One-off production DB management scripts — not for public repo
+scripts/dev-local.sh
 scripts/list-recent-assignments.mjs
 scripts/dry-run-cleanup-fixture-classes.mjs
 scripts/delete-fixture-classes.mjs
