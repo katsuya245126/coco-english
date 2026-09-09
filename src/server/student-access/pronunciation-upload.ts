@@ -21,14 +21,12 @@ import {
   normalizeEnglishTranscript,
   transcribeAudioFile,
 } from "@/server/audio/transcription";
+import { buildTranscriptionVocabularyHint } from "@/domain/audio/vocabulary-hint";
 import {
   scorePronunciation,
   type PronunciationScoreResult,
 } from "@/server/audio/pronunciation-scorer";
-import {
-  isLowConfidenceTranscript,
-  type TranscriptConfidence,
-} from "@/domain/audio/transcript-confidence";
+import type { TranscriptConfidence } from "@/domain/audio/transcript-confidence";
 import { consumeRequestBudget } from "@/server/security/request-budget";
 
 export const MAX_PRONUNCIATION_DURATION_MS = 10_000;
@@ -136,7 +134,7 @@ function isSingleDifferentWord(transcript: string, expectedWord: string): boolea
   return words.length === 1 && words[0] !== normalizedWord(expectedWord);
 }
 
-function isUnusablePracticeConfidence(
+function isMalformedPracticeConfidence(
   confidence: TranscriptConfidence | null,
 ): boolean {
   // A missing summary means the provider omitted logprobs, which the shared
@@ -145,8 +143,7 @@ function isUnusablePracticeConfidence(
   return (
     confidence.tokenCount <= 0 ||
     !Number.isInteger(confidence.tokenCount) ||
-    !Number.isFinite(confidence.minLogprob) ||
-    isLowConfidenceTranscript(confidence)
+    !Number.isFinite(confidence.minLogprob)
   );
 }
 
@@ -404,6 +401,9 @@ export async function uploadPronunciationTry(
     });
     const audioBlob = input.file;
     const transcribe = deps.transcribeAudioFile ?? transcribeAudioFile;
+    const transcriptionVocabularyHint = buildTranscriptionVocabularyHint({
+      targetExample: word.text,
+    });
     const [storageResult, transcription] = await Promise.all([
       supabase.storage
         .from(getStudentAudioBucketId())
@@ -413,7 +413,13 @@ export async function uploadPronunciationTry(
         })
         .catch(() => ({ error: new Error("storage upload failed") })),
       Promise.resolve().then(() =>
-        transcribe({ file: audioBlob, mimeType: input.mimeType }),
+        transcribe({
+          file: audioBlob,
+          mimeType: input.mimeType,
+          ...(transcriptionVocabularyHint
+            ? { vocabularyHint: transcriptionVocabularyHint }
+            : {}),
+        }),
       ).catch(() => ({ ok: false as const, error: "transcription_failed" as const })),
     ]);
 
@@ -470,7 +476,7 @@ export async function uploadPronunciationTry(
     const transcript = normalized.text;
     const confidence = transcription.confidence;
     if (
-      isUnusablePracticeConfidence(confidence) ||
+      isMalformedPracticeConfidence(confidence) ||
       (confidence === null && isSingleDifferentWord(transcript, word.text))
     ) {
       return failure("unclear_transcript", true);

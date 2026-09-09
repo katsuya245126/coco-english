@@ -231,7 +231,17 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
     const result = (await response.json().catch(() => null)) as UploadResponse | null;
     if (!response.ok || !result || result.ok !== true) {
       const error = result && "error" in result ? result.error : undefined;
-      throw new Error(error === "rate_limited" ? "Please wait, then try again." : "We could not save that word. Try again.");
+      const recognitionOrScoringFailure =
+        error === "transcription_failed" ||
+        error === "unclear_transcript" ||
+        error === "scoring_failed";
+      throw new Error(
+        error === "rate_limited"
+          ? "Please wait, then try again."
+          : recognitionOrScoringFailure
+            ? "We couldn't check that recording. Try again."
+            : "We could not save that word. Try again.",
+      );
     }
 
     const tryState: PronunciationWordTryState = {
