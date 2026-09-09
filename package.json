@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "local": "bash scripts/local/dev-local.sh",
+    "local:seed-teacher": "node scripts/seed-local-teacher.mjs",
     "build": "next build",
     "postbuild": "node scripts/assert-ffmpeg-traced.mjs",
     "start": "next start",
