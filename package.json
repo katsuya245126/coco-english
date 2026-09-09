@@ -31,7 +31,7 @@
     "@supabase/supabase-js": "^2.45.0",
     "ffmpeg-static": "^5.3.0",
     "microsoft-cognitiveservices-speech-sdk": "^1.51.0",
-    "next": "^15.5.22",
+    "next": "^15.5.24",
     "openai": "^6.45.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
