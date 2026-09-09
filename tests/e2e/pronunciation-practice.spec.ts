@@ -80,7 +80,12 @@ function installFakeRecorder(page: Page) {
   });
 }
 
-async function mockPronunciationProviders(page: Page, clipIds: string[]) {
+async function mockPronunciationProviders(
+  page: Page,
+  clipIds: string[],
+  options: { firstAudioError?: string } = {},
+) {
+  let firstAudioError = options.firstAudioError;
   await page.route("**/student/pronunciation/**/word-audio", async (route) => {
     await route.fulfill({
       status: 200,
@@ -94,6 +99,16 @@ async function mockPronunciationProviders(page: Page, clipIds: string[]) {
   });
 
   await page.route("**/student/pronunciation/**/audio", async (route) => {
+    if (firstAudioError) {
+      const error = firstAudioError;
+      firstAudioError = undefined;
+      await route.fulfill({
+        status: 502,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: false, error }),
+      });
+      return;
+    }
     const audioClipId = clipIds.shift();
     if (!audioClipId) {
       await route.fulfill({
@@ -301,10 +316,18 @@ async function seedCompletedWordEvidence(
   return clips.map((clip) => clip.objectKey);
 }
 
-async function recordWord(page: Page) {
+async function recordWord(
+  page: Page,
+  options: { retryMessage?: string } = {},
+) {
   await expect(page.getByRole("button", { name: "Hear the word" })).toBeEnabled();
   await page.getByRole("button", { name: "Record", exact: true }).click();
   await page.getByRole("button", { name: "Stop recording" }).click();
+  if (options.retryMessage) {
+    await expect(page.getByTestId("pronunciation-practice-card").getByRole("alert")).toHaveText(options.retryMessage);
+    await page.getByRole("button", { name: "Record again" }).click();
+    await page.getByRole("button", { name: "Stop recording" }).click();
+  }
   await expect(page.getByText("Your fff was strong!", { exact: true }).first()).toBeVisible();
 }
 
@@ -408,7 +431,9 @@ test("teacher-to-student pronunciation practice path stays resumable and reviewa
 
     await installFakeRecorder(page);
     const clipIds = entries.map(() => randomUUID());
-    await mockPronunciationProviders(page, [...clipIds]);
+    await mockPronunciationProviders(page, [...clipIds], {
+      firstAudioError: "scoring_failed",
+    });
 
     await page.goto("/join");
     await page.getByLabel(/class code/i).fill(joinCode);
@@ -425,7 +450,9 @@ test("teacher-to-student pronunciation practice path stays resumable and reviewa
 
     // One valid try is enough to prove resume state; the remaining four are
     // completed in the same run. All provider calls are browser route doubles.
-    await recordWord(page);
+    await recordWord(page, {
+      retryMessage: "We couldn't check that recording. Try again.",
+    });
     audioObjectKeys.push(
       ...(await seedCompletedWordEvidence(
         admin,

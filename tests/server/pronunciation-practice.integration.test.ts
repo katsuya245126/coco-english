@@ -179,7 +179,7 @@ function providerDoubles(snapshot: PronunciationPracticeSnapshot) {
         text: word.text,
         koreanSpans: [],
         model: "integration-double",
-        confidence: { minLogprob: -0.01, tokenCount: 1 },
+        confidence: { minLogprob: word.order === 1 ? -2.9843010902404785 : -0.01, tokenCount: 3 },
       };
     },
     scorePronunciation: async ({ referenceText }) => {
@@ -265,7 +265,7 @@ async function cleanupFixture(
 }
 
 describe("pronunciation practice server flow", () => {
-  it("persists owned tries, resumes them, and completes the practice in local Supabase", async (context) => {
+  it("persists assessed low-confidence tries, resumes them, and completes owned practice in local Supabase", async (context) => {
     if (!canRunLocally) return context.skip();
 
     const fixture = await createFixture();
@@ -440,10 +440,14 @@ describe("pronunciation practice server flow", () => {
 
       const tries = await fixture.admin
         .from("pronunciation_word_tries")
-        .select("audio_clip_id, try_number, transcript, outcome, word_accuracy, star_band, full_word_passed, target_sound_accuracy, target_sound_passed")
+        .select("audio_clip_id, try_number, transcript, transcription_evidence, outcome, word_accuracy, star_band, full_word_passed, target_sound_accuracy, target_sound_passed")
         .in("audio_clip_id", audioClipIds);
       expect(tries.error).toBeNull();
       expect(tries.data).toHaveLength(5);
+      expect(tries.data?.find((wordTry) => wordTry.audio_clip_id === firstTry.audioClipId)?.transcription_evidence).toEqual({
+        model: "integration-double",
+        confidence: { minLogprob: -2.9843010902404785, tokenCount: 3 },
+      });
       expect(tries.data?.every((wordTry) =>
         wordTry.try_number === 1 &&
         wordTry.outcome === "passed" &&

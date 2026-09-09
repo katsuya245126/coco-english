@@ -149,11 +149,12 @@ function transcribed(
     minLogprob: -0.01,
     tokenCount: 1,
   },
+  koreanSpans: ReadonlyArray<{ hangul: string; romanized: string }> = [],
 ) {
   return {
     ok: true as const,
     text,
-    koreanSpans: [],
+    koreanSpans: [...koreanSpans],
     model: "test-transcriber",
     confidence,
   };
@@ -445,9 +446,12 @@ describe("uploadPronunciationTry", () => {
     expect(state.operations.some((op) => op.table === "pronunciation_scores")).toBe(false);
   });
 
-  it("does not consume a try for an unclear different transcript", async () => {
-    const transcribe = vi.fn(async () => transcribed("ship", { minLogprob: -0.3, tokenCount: 1 }));
-    const score = vi.fn();
+  it("assesses a finite low-confidence different transcript against the expected word", async () => {
+    resetState("f", "face");
+    const transcribe = vi.fn(async () =>
+      transcribed("ship", { minLogprob: -2.9843010902404785, tokenCount: 3 }),
+    );
+    const score = vi.fn(async () => scored(90, 90, "face"));
     const { uploadPronunciationTry } = await import(
       "@/server/student-access/pronunciation-upload"
     );
@@ -458,16 +462,19 @@ describe("uploadPronunciationTry", () => {
       scorePronunciation: score,
     });
 
-    expect(result).toMatchObject({ ok: false, error: "unclear_transcript" });
-    expect(score).not.toHaveBeenCalled();
-    expect(state.operations.some((op) => op.table === "pronunciation_word_tries" && op.method === "insert")).toBe(false);
+    expect(result).toMatchObject({ ok: true, outcome: "passed", transcript: "ship" });
+    expect(score).toHaveBeenCalledWith(
+      expect.objectContaining({ referenceText: "face" }),
+    );
+    expect(state.operations.some((op) => op.table === "pronunciation_word_tries" && op.method === "insert")).toBe(true);
   });
 
   it.each([
-    ["sat", { minLogprob: -0.3, tokenCount: 1 }],
-    ["I said sat", { minLogprob: -0.3, tokenCount: 2 }],
-    ["sat", { minLogprob: -0.01, tokenCount: 0 }],
-  ] as const)("does not consume a try for unusable confidence in %s", async (text, confidence) => {
+    ["nonfinite minimum logprob", "sat", { minLogprob: Number.NaN, tokenCount: 1 }],
+    ["infinite minimum logprob", "sat", { minLogprob: Number.POSITIVE_INFINITY, tokenCount: 1 }],
+    ["zero token count", "sat", { minLogprob: -0.01, tokenCount: 0 }],
+    ["fractional token count", "sat", { minLogprob: -0.01, tokenCount: 1.5 }],
+  ] as const)("does not consume a try for malformed confidence: %s", async (_label, text, confidence) => {
     const transcribe = vi.fn(async () => transcribed(text, confidence));
     const score = vi.fn(async () => scored(90, 90));
     const { uploadPronunciationTry } = await import(
@@ -487,6 +494,97 @@ describe("uploadPronunciationTry", () => {
     });
     expect(score).not.toHaveBeenCalled();
     expect(state.operations.some((op) => op.table === "pronunciation_word_tries" && op.method === "insert")).toBe(false);
+  });
+
+  it.each([
+    ["cent", { minLogprob: -1.436754584312439, tokenCount: 3 }, []],
+    [
+      "센트",
+      { minLogprob: -2.9843010902404785, tokenCount: 3 },
+      [{ hangul: "센트", romanized: "Senteu" }],
+    ],
+  ] as const)("scores finite low-confidence cent evidence from %s", async (transcript, confidence, koreanSpans) => {
+    resetState("s", "cent");
+    const transcribe = vi.fn(async () =>
+      transcribed(transcript, confidence, koreanSpans),
+    );
+    const score = vi.fn(async () => scored(90, 90, "cent"));
+    const { uploadPronunciationTry } = await import(
+      "@/server/student-access/pronunciation-upload"
+    );
+
+    const result = await uploadPronunciationTry(input(), {
+      consumeRequestBudget: allowBudget,
+      transcribeAudioFile: transcribe,
+      scorePronunciation: score,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      outcome: "passed",
+      transcript,
+    });
+    expect(transcribe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mimeType: "audio/webm",
+        vocabularyHint: "Example answer: cent",
+      }),
+    );
+    expect(score).toHaveBeenCalledWith(
+      expect.objectContaining({ referenceText: "cent" }),
+    );
+    expect(state.operations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          table: "pronunciation_scores",
+          method: "upsert",
+        }),
+        expect.objectContaining({
+          table: "pronunciation_word_tries",
+          method: "insert",
+          value: expect.objectContaining({
+            transcript,
+            outcome: "passed",
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it("stores a weak low-confidence cent assessment as a weak try", async () => {
+    resetState("s", "cent");
+    const transcribe = vi.fn(async () =>
+      transcribed("센트", { minLogprob: -2.9843010902404785, tokenCount: 3 }, [
+        { hangul: "센트", romanized: "Senteu" },
+      ]),
+    );
+    const score = vi.fn(async () => scored(80, 49, "cent"));
+    const { uploadPronunciationTry } = await import(
+      "@/server/student-access/pronunciation-upload"
+    );
+
+    const result = await uploadPronunciationTry(input(), {
+      consumeRequestBudget: allowBudget,
+      transcribeAudioFile: transcribe,
+      scorePronunciation: score,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      outcome: "target_weak",
+      starBand: 3,
+      targetSoundAccuracy: 49,
+      targetSoundPassed: false,
+    });
+    expect(state.operations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          table: "pronunciation_word_tries",
+          method: "insert",
+          value: expect.objectContaining({ outcome: "target_weak" }),
+        }),
+      ]),
+    );
   });
 
   it("keeps an expected transcript when the provider omits confidence", async () => {
@@ -529,8 +627,14 @@ describe("uploadPronunciationTry", () => {
   });
 
   it("does not consume a try when the scorer omits target phoneme evidence", async () => {
-    const transcribe = vi.fn(async () => transcribed());
+    resetState("s", "cent");
+    const transcribe = vi.fn(async () =>
+      transcribed("센트", { minLogprob: -1.436754584312439, tokenCount: 3 }, [
+        { hangul: "센트", romanized: "Senteu" },
+      ]),
+    );
     const scoreResult = scored(90, 90);
+    scoreResult.score.wordScores[0]!.word = "cent";
     scoreResult.score.wordScores[0]!.phonemes = [];
     const score = vi.fn(async () => scoreResult);
     const { uploadPronunciationTry } = await import(
