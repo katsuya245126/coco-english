@@ -15,7 +15,7 @@ import {
   interpretMissionSnapshot,
   resolveMissionSnapshotTargetPattern,
 } from "@/domain/mission/mission-snapshot";
-import type { MissionSnapshot } from "@/domain/mission/schemas";
+import type { MissionPicture, MissionSnapshot } from "@/domain/mission/schemas";
 import {
   resolveActiveStudentQuestion,
   type StudentQuestionTurnFacts,
@@ -115,6 +115,7 @@ export type AttemptTurnEvidence = {
   replyHintFrame: string | null;
   /** 0 = student did not expand the hint; higher = leaned on it. */
   hintLevelUsed: number;
+  picture?: MissionPicture;
   audioClips: AttemptAudioClipEvidence[];
 };
 
@@ -174,6 +175,7 @@ function mapAttemptMetadata(row: AttemptOwnershipRow) {
 type AttemptMissionContext = {
   questionsByOrder: Map<number, string>;
   targetPatternsByOrder: Map<number, string>;
+  picturesByOrder: Map<number, MissionPicture>;
   conversationMode: boolean;
   snapshot: MissionSnapshot | null;
 };
@@ -190,6 +192,7 @@ function readAttemptMissionContext(
     return {
       questionsByOrder: new Map(),
       targetPatternsByOrder: new Map(),
+      picturesByOrder: new Map(),
       conversationMode: false,
       snapshot: null,
     };
@@ -202,6 +205,14 @@ function readAttemptMissionContext(
     ] as const),
   );
   const targetPatternsByOrder = new Map<number, string>();
+  const picturesByOrder = new Map<number, MissionPicture>();
+  if (snapshotResult.kind === "complete") {
+    for (const turn of snapshotResult.snapshot.turns) {
+      if (turn.picture) {
+        picturesByOrder.set(turn.turnOrder, turn.picture);
+      }
+    }
+  }
   if (
     snapshotResult.kind === "complete" &&
     !snapshotResult.snapshot.conversationMode
@@ -219,6 +230,7 @@ function readAttemptMissionContext(
   return {
     questionsByOrder,
     targetPatternsByOrder,
+    picturesByOrder,
     conversationMode:
       snapshotResult.kind === "complete" &&
       snapshotResult.snapshot.conversationMode,
@@ -477,6 +489,9 @@ function mapTurn(
     reviewReason: mapReviewReason(row),
     replyHintFrame: row.reply_hint_frame,
     hintLevelUsed: row.hint_level_used ?? 0,
+    ...(missionContext.picturesByOrder.get(row.turn_order)
+      ? { picture: missionContext.picturesByOrder.get(row.turn_order) }
+      : {}),
     audioClips: clipsByTurnId.get(row.id) ?? [],
   };
 }

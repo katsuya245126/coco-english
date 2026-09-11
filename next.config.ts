@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["ffmpeg-static"],
+  experimental: {
+    serverActions: { bodySizeLimit: "6mb" },
+  },
   /**
    * `ffmpeg-static` resolves its binary as `path.join(__dirname, "ffmpeg")` at
    * runtime, and the package does not publish the file (it is fetched by a

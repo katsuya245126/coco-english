@@ -9,6 +9,7 @@ import {
   getOwnedAssignmentStudentForTeacher,
   type TeacherOwnedQueryClient,
 } from "@/server/teacher/teacher-owned-queries";
+import type { MissionPicture } from "@/domain/mission/schemas";
 
 type Client = TeacherOwnedQueryClient;
 
@@ -34,6 +35,7 @@ export type AssignmentStudentMissionTurn = {
   prompt: string;
   targetPattern: string | null;
   targetExample: string;
+  picture?: MissionPicture;
 };
 
 export type AssignmentStudentEvidence = {
@@ -85,6 +87,28 @@ export async function getAssignmentStudentEvidenceForTeacher(
   const snapshotResult = interpretMissionSnapshot(assignment.mission_snapshot);
   const snapshot =
     snapshotResult.kind === "invalid" ? null : snapshotResult.snapshot;
+  const turns =
+    snapshotResult.kind === "complete"
+      ? snapshotResult.snapshot.turns.map((turn) => ({
+          turnOrder: turn.turnOrder,
+          prompt: turn.prompt,
+          targetPattern: snapshotResult.snapshot.conversationMode
+            ? null
+            : resolveMissionSnapshotTargetPattern(
+                snapshotResult.snapshot,
+                turn.turnOrder,
+              ),
+          targetExample: turn.targetExample,
+          ...(turn.picture ? { picture: turn.picture } : {}),
+        }))
+      : snapshotResult.kind === "legacy"
+        ? snapshotResult.snapshot.turns.map((turn) => ({
+            turnOrder: turn.turnOrder,
+            prompt: turn.prompt,
+            targetPattern: null,
+            targetExample: turn.targetExample,
+          }))
+        : [];
 
   return {
     assignmentStudentId: row.id,
@@ -99,20 +123,6 @@ export async function getAssignmentStudentEvidenceForTeacher(
     className: klass.name,
     assignmentId: assignment.id,
     dismissedAt: row.dismissed_at,
-    turns: snapshot
-      ? snapshot.turns.map((turn) => ({
-          turnOrder: turn.turnOrder,
-          prompt: turn.prompt,
-          targetPattern:
-            snapshotResult.kind === "complete" &&
-            !snapshotResult.snapshot.conversationMode
-              ? resolveMissionSnapshotTargetPattern(
-                  snapshotResult.snapshot,
-                  turn.turnOrder,
-                )
-              : null,
-          targetExample: turn.targetExample,
-        }))
-      : [],
+    turns,
   };
 }

@@ -104,6 +104,7 @@ export default async function AttemptEvidencePage({
                 key={turn.id}
                 turn={turn}
                 attemptId={evidence.attemptId}
+                assignmentId={evidence.assignmentId}
                 conversationMode={evidence.conversationMode}
               />
             ))}
@@ -117,10 +118,12 @@ export default async function AttemptEvidencePage({
 function TurnEvidenceSection({
   turn,
   attemptId,
+  assignmentId,
   conversationMode,
 }: {
   turn: AttemptTurnEvidence;
   attemptId: string;
+  assignmentId: string;
   conversationMode: boolean;
 }) {
   const originalClips = turn.audioClips.filter(
@@ -136,6 +139,14 @@ function TurnEvidenceSection({
       {turn.question && (
         <TranscriptBlock label="Question asked" transcript={turn.question} />
       )}
+      {turn.picture ? (
+        <img
+          src={`/teacher/assignments/${assignmentId}/picture/${turn.turnOrder}`}
+          alt={turn.picture.description}
+          data-picture-image="true"
+          style={pictureStyle}
+        />
+      ) : null}
       {turn.replyHintFrame && (
         <div style={transcriptBlockStyle}>
           <div style={hintHeaderStyle}>
@@ -432,6 +443,19 @@ const turnHeadingStyle: React.CSSProperties = {
   fontSize: 20,
   fontWeight: 600,
   lineHeight: 1.25,
+};
+
+const pictureStyle: React.CSSProperties = {
+  display: "block",
+  width: "100%",
+  maxWidth: 560,
+  height: 240,
+  margin: "0 0 16px",
+  objectFit: "contain",
+  objectPosition: "center",
+  border: "1px solid #D1D5DB",
+  borderRadius: 8,
+  background: "#FFFFFF",
 };
 
 const withheldNoteStyle: React.CSSProperties = {

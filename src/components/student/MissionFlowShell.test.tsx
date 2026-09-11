@@ -20,17 +20,49 @@ vi.mock("@/components/student/CocoSpeechAudio", () => ({
 }));
 
 vi.mock("@/components/student/MascotStage", () => ({
-  MascotStage: ({ dialogueText }: { dialogueText: string | null }) => (
-    <div>{dialogueText}</div>
+  MascotStage: ({
+    dialogueText,
+    picture,
+    onPictureReady,
+  }: {
+    dialogueText: string | null;
+    picture?: { src: string; alt: string } | null;
+    onPictureReady?: (ready: boolean) => void;
+  }) => (
+    <div>
+      {dialogueText}
+      {picture ? (
+        <>
+          <button
+            type="button"
+            data-picture-src={picture.src}
+            data-picture-alt={picture.alt}
+            onClick={() => onPictureReady?.(true)}
+          >
+            Load picture
+          </button>
+          <button
+            type="button"
+            aria-label="Retry picture"
+            data-picture-retry="true"
+            onClick={() => onPictureReady?.(false)}
+          >
+            Retry
+          </button>
+        </>
+      ) : null}
+    </div>
   ),
 }));
 
-vi.mock("@/components/student/VoiceRecorderControl", () => ({
+  vi.mock("@/components/student/VoiceRecorderControl", () => ({
   VoiceRecorderControl: ({
     mode,
     onRecorded,
+    disabled = false,
   }: {
     mode: "original" | "repeat";
+    disabled?: boolean;
     onRecorded: (
       blob: Blob,
       metadata: { mimeType: string; durationMs: number },
@@ -39,6 +71,7 @@ vi.mock("@/components/student/VoiceRecorderControl", () => ({
     <button
       type="button"
       aria-label={mode === "original" ? "Record answer" : "Record repeat"}
+      disabled={disabled}
       onClick={async () => {
         await onRecorded(new Blob(["voice"], { type: "audio/webm" }), {
           mimeType: "audio/webm",
@@ -66,6 +99,16 @@ const turns = [
       tier3: "I like soccer.",
     },
     answerShape: "open" as const,
+  },
+];
+
+const pictureTurns = [
+  {
+    ...turns[0],
+    picture: {
+      objectKey: "teachers/teacher-1/11111111-1111-4111-8111-111111111111.jpg",
+      description: "An orange ball under a blue chair.",
+    },
   },
 ];
 
@@ -156,6 +199,116 @@ afterEach(async () => {
 });
 
 describe("MissionFlowShell teacher-review feedback", () => {
+  it("keeps recording disabled until the active picture reports loaded", async () => {
+    await renderMission(
+      { original_answer: { displayTranscript: "I see a ball.", evaluation: {} } },
+      { ...shellProps, turns: pictureTurns },
+    );
+
+    const record = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Record answer"]',
+    );
+    expect(record?.disabled).toBe(true);
+    expect(
+      container
+        .querySelector<HTMLButtonElement>("[data-picture-src]")
+        ?.getAttribute("data-picture-src"),
+    ).toBe("/student/missions/assignment-student-1/picture/1");
+    expect(container.querySelector("[data-picture-alt]")?.getAttribute("data-picture-alt"))
+      .toBe("An orange ball under a blue chair.");
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("[data-picture-src]")?.click();
+      await flush();
+    });
+
+    expect(record?.disabled).toBe(false);
+  });
+
+  it("blocks recording again when the picture stage requests a retry", async () => {
+    await renderMission(
+      { original_answer: { displayTranscript: "I see a ball.", evaluation: {} } },
+      { ...shellProps, turns: pictureTurns },
+    );
+
+    const picture = container.querySelector<HTMLButtonElement>("[data-picture-src]");
+    expect(picture?.getAttribute("data-picture-src")).toBe(
+      "/student/missions/assignment-student-1/picture/1",
+    );
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("[data-picture-retry]")?.click();
+      await flush();
+    });
+
+    expect(container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Record answer"]',
+    )?.disabled).toBe(true);
+  });
+
+  it("blocks a resumed correction recorder until its picture loads", async () => {
+    await renderMission({}, {
+      ...shellProps,
+      turns: pictureTurns,
+      initialReview: {
+        step: "aiFeedback",
+        outcome: "needsCorrection",
+        transcript: "I like soccer.",
+        improvedSentence: "I like playing soccer.",
+        clipKind: "original_answer",
+        cocoLine: null,
+      },
+    });
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent?.trim() === "Try again")?.click();
+      await flush();
+    });
+    const recorder = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Record repeat"]',
+    );
+    expect(recorder).not.toBeNull();
+    expect(recorder?.disabled).toBe(true);
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("[data-picture-src]")?.click();
+      await flush();
+    });
+    expect(recorder?.disabled).toBe(false);
+  });
+
+  it("keeps the picture through feedback and removes it on the next text turn", async () => {
+    await renderMission({
+      original_answer: {
+        displayTranscript: "I like soccer.",
+        evaluation: { kind: "original", outcome: "accepted_original" },
+      },
+    }, {
+      ...shellProps,
+      turns: [...pictureTurns, { ...turns[0], turnOrder: 2 }],
+      requiredTurns: 2,
+    });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("[data-picture-src]")?.click();
+      await flush();
+      container.querySelector<HTMLButtonElement>('button[aria-label="Record answer"]')?.click();
+      await flush();
+    });
+    expect(container.textContent).toContain("Nice answer!");
+    expect(container.querySelector("[data-picture-src]")).not.toBeNull();
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent?.trim() === "Continue practice")?.click();
+      await flush();
+    });
+    const nextTurn = Array.from(container.querySelectorAll("button"))
+      .find((button) => button.textContent?.trim() === "Next turn");
+    if (nextTurn) {
+      await act(async () => { nextTurn.click(); await flush(); });
+    }
+    expect(container.querySelector("[data-picture-src]")).toBeNull();
+    expect(container.querySelector<HTMLButtonElement>('button[aria-label="Record answer"]')?.disabled).toBe(false);
+  });
+
   it("shows Continue mission without Record again after an original review", async () => {
     const uploadBodies = await renderMission({
       original_answer: {

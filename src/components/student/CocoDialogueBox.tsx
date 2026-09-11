@@ -15,6 +15,8 @@ import {
 import {
   mascotDialogueActionsStyle,
   mascotDialogueBoxStyle,
+  mascotCompactSpriteStyle,
+  mascotDialogueCopyStyle,
   mascotDialoguePageButtonStyle,
   mascotDialoguePageIndicatorStyle,
   mascotDialoguePagerStyle,
@@ -24,6 +26,7 @@ import {
   mascotHintSpinnerStyle,
   mascotHintTabStyle,
   mascotNameTabStyle,
+  mascotPictureDialogueCopyStyle,
   mascotPhraseButtonStyle,
   mascotTranslationBubbleStyle,
   mascotVoiceTabStyle,
@@ -36,6 +39,7 @@ type CocoDialogueBoxProps = {
   voiceControl?: ReactNode;
   translationLine?: TranslatableCocoLine | null;
   isThinking?: boolean;
+  compactSpriteSrc?: string | null;
 };
 
 type TranslationUiState =
@@ -52,6 +56,7 @@ export function CocoDialogueBox({
   voiceControl,
   translationLine,
   isThinking = false,
+  compactSpriteSrc = null,
 }: CocoDialogueBoxProps) {
   const [translationState, setTranslationState] =
     useState<TranslationUiState>({ kind: "inactive" });
@@ -254,53 +259,72 @@ export function CocoDialogueBox({
       </div>
 
       <div style={mascotDialogueBoxStyle}>
-        {currentPage ? (
-          <p
-            style={mascotDialogueTextStyle}
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            {isThinking ? (
-              <>
-                {currentPage.text.replace(/\s*\.\.\.$|\s*…$/u, "")}
-                <ThinkingDots />
-              </>
-            ) : segments
-              ? segments.map((segment) => {
-                  if (segment.kind === "text") return segment.text;
-                  const absoluteStart = currentPage.start + segment.phrase.start;
-                  const absoluteEnd = currentPage.start + segment.phrase.end;
-                  const phraseIndex = phrases.findIndex(
-                    (phrase) =>
-                      phrase.start <= absoluteStart && phrase.end >= absoluteEnd,
-                  );
-                  const isExpanded = expandedPhraseIndex === phraseIndex;
-                  return (
-                    <span
-                      key={`${absoluteStart}-${absoluteEnd}`}
-                      style={{ position: "relative", display: "inline" }}
-                    >
-                      <button
-                        type="button"
-                        aria-expanded={isExpanded}
-                        onClick={() =>
-                          setExpandedPhraseIndex(isExpanded ? null : phraseIndex)
-                        }
-                        style={mascotPhraseButtonStyle}
+        <div
+          style={
+            compactSpriteSrc
+              ? mascotPictureDialogueCopyStyle
+              : mascotDialogueCopyStyle
+          }
+          data-picture={compactSpriteSrc ? "true" : "false"}
+        >
+          {compactSpriteSrc ? (
+            <img
+              src={compactSpriteSrc}
+              alt=""
+              aria-hidden="true"
+              width={58}
+              height={58}
+              style={mascotCompactSpriteStyle}
+            />
+          ) : null}
+          {currentPage ? (
+            <p
+              style={mascotDialogueTextStyle}
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {isThinking ? (
+                <>
+                  {currentPage.text.replace(/\s*\.\.\.$|\s*…$/u, "")}
+                  <ThinkingDots />
+                </>
+              ) : segments
+                ? segments.map((segment) => {
+                    if (segment.kind === "text") return segment.text;
+                    const absoluteStart = currentPage.start + segment.phrase.start;
+                    const absoluteEnd = currentPage.start + segment.phrase.end;
+                    const phraseIndex = phrases.findIndex(
+                      (phrase) =>
+                        phrase.start <= absoluteStart && phrase.end >= absoluteEnd,
+                    );
+                    const isExpanded = expandedPhraseIndex === phraseIndex;
+                    return (
+                      <span
+                        key={`${absoluteStart}-${absoluteEnd}`}
+                        style={{ position: "relative", display: "inline" }}
                       >
-                        {segment.text}
-                      </button>
-                      {isExpanded ? (
-                        <span role="status" style={mascotTranslationBubbleStyle}>
-                          {segment.phrase.translation}
-                        </span>
-                      ) : null}
-                    </span>
-                  );
-                })
-              : currentPage.text}
-          </p>
-        ) : null}
+                        <button
+                          type="button"
+                          aria-expanded={isExpanded}
+                          onClick={() =>
+                            setExpandedPhraseIndex(isExpanded ? null : phraseIndex)
+                          }
+                          style={mascotPhraseButtonStyle}
+                        >
+                          {segment.text}
+                        </button>
+                        {isExpanded ? (
+                          <span role="status" style={mascotTranslationBubbleStyle}>
+                            {segment.phrase.translation}
+                          </span>
+                        ) : null}
+                      </span>
+                    );
+                  })
+                : currentPage.text}
+            </p>
+          ) : null}
+        </div>
       </div>
       {isHintRateLimited ? (
         <span role="status" style={mascotTranslationBubbleStyle}>

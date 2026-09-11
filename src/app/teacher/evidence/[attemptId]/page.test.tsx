@@ -95,6 +95,10 @@ const presetEvidence = {
       clarificationAvailable: true,
       pronunciationScore: null,
     }],
+    picture: {
+      objectKey: "teachers/teacher-1/picture-1.jpg",
+      description: "A child choosing an apple.",
+    },
   }],
 };
 
@@ -124,6 +128,8 @@ describe("AttemptEvidencePage", () => {
     expect(html).toContain("Student answer audio audio placeholder");
     expect(html).toContain("What was the student trying to say?");
     expect(html).toContain('data-clarification="available"');
+    expect(html).toContain("A child choosing an apple.");
+    expect(html).toContain("/teacher/assignments/assignment-1/picture/1");
   });
 
   it("does not show a target-pattern requirement for conversation evidence", async () => {

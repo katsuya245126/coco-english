@@ -265,6 +265,31 @@ describe("missionFormSchema", () => {
     }
   });
 
+  it("rejects incomplete picture metadata", () => {
+    const result = missionFormSchema.safeParse({
+      title: "Missing picture description",
+      level: "elementary",
+      requiredTurns: 1,
+      conversationMode: false,
+      turns: [
+        {
+          ...oneTurn,
+          picture: {
+            objectKey: "teachers/teacher-1/picture-1.jpg",
+            description: "  ",
+          },
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({ path: ["turns", 0, "picture", "description"] }),
+      );
+    }
+  });
+
   it("requires conversation context without requiring an opener turn pattern", () => {
     const { targetPattern: _pattern, ...opener } = oneTurn;
     const valid = missionFormSchema.safeParse({
@@ -284,6 +309,58 @@ describe("missionFormSchema", () => {
 
     expect(valid.success).toBe(true);
     expect(missingContext.success).toBe(false);
+  });
+
+  it("accepts one picture per preset turn and trims its accessibility description", () => {
+    const result = missionFormSchema.safeParse({
+      title: "Food likes",
+      level: "elementary",
+      requiredTurns: 1,
+      conversationMode: false,
+      turns: [
+        {
+          ...oneTurn,
+          picture: {
+            objectKey: "teachers/teacher-1/picture-1.jpg",
+            description: "  A child choosing an apple.  ",
+          },
+        },
+      ],
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.turns[0]?.picture).toEqual({
+        objectKey: "teachers/teacher-1/picture-1.jpg",
+        description: "A child choosing an apple.",
+      });
+    }
+  });
+
+  it("rejects picture metadata in conversation missions", () => {
+    const result = missionFormSchema.safeParse({
+      ...baseFormFields,
+      targetPattern: "I like ___",
+      requiredTurns: 3,
+      conversationMode: true,
+      turns: [
+        {
+          ...oneTurn,
+          targetPattern: undefined,
+          picture: {
+            objectKey: "teachers/teacher-1/picture-1.jpg",
+            description: "A child choosing an apple.",
+          },
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({ path: ["turns", 0, "picture"] }),
+      );
+    }
   });
 });
 
@@ -363,6 +440,37 @@ describe("missionSnapshotSchema", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it("carries picture metadata in preset snapshots and rejects it in conversation snapshots", () => {
+    const picture = {
+      objectKey: "teachers/teacher-1/picture-1.jpg",
+      description: "A child choosing an apple.",
+    };
+    const preset = missionSnapshotSchema.safeParse({
+      ...baseSnapshotFields,
+      targetPattern: undefined,
+      requiredTurns: 1,
+      conversationMode: false,
+      turns: [{ ...snapshotTurn, targetPattern: "I like ___", picture }],
+    });
+    expect(preset.success).toBe(true);
+    if (preset.success) {
+      expect(preset.data.turns[0]?.picture).toEqual(picture);
+    }
+
+    const conversation = missionSnapshotSchema.safeParse({
+      ...baseSnapshotFields,
+      requiredTurns: 3,
+      conversationMode: true,
+      turns: [{ ...snapshotTurn, picture }],
+    });
+    expect(conversation.success).toBe(false);
+    if (!conversation.success) {
+      expect(conversation.error.issues).toContainEqual(
+        expect.objectContaining({ path: ["turns", 0, "picture"] }),
+      );
+    }
   });
 
   it("rejects a conversation snapshot without mission-level context", () => {

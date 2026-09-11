@@ -38,6 +38,10 @@ const presetEvidence = {
       prompt: "What do you like?",
       targetPattern: "I like ___.",
       targetExample: "I like apples.",
+      picture: {
+        objectKey: "teachers/teacher-1/picture-1.jpg",
+        description: "A child choosing an apple.",
+      },
     },
     {
       turnOrder: 2,
@@ -67,6 +71,8 @@ describe("AssignmentStudentPage", () => {
 
     expect(html).toContain("Expected target pattern: I like ___.");
     expect(html).toContain("Expected target pattern: I will ___.");
+    expect(html).toContain("A child choosing an apple.");
+    expect(html).toContain("/teacher/assignments/assignment-1/picture/1");
     expect(html).not.toContain(">Target pattern</p>");
   });
 

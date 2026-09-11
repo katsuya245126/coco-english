@@ -74,6 +74,10 @@ const completePresetSnapshot = {
         tier2: "Choose an activity.",
         tier3: "I like soccer.",
       },
+      picture: {
+        objectKey: "teachers/teacher-1/picture-1.jpg",
+        description: "A child choosing an apple.",
+      },
     },
     {
       turnOrder: 2,
@@ -453,6 +457,10 @@ describe("teacher audio evidence service", () => {
         turnOrder: 1,
         targetPattern: "I like ___.",
         targetPatternResult: "Target pattern used",
+        picture: {
+          objectKey: "teachers/teacher-1/picture-1.jpg",
+          description: "A child choosing an apple.",
+        },
       }),
       expect.objectContaining({
         turnOrder: 2,

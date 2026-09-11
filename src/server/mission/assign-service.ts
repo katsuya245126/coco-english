@@ -40,6 +40,8 @@ type TurnRow = {
   target_example: string;
   hint_ladder: Json;
   answer_shape: string;
+  picture_object_key?: string | null;
+  picture_description?: string | null;
 };
 
 export function buildMissionSnapshot(input: {
@@ -70,6 +72,17 @@ export function buildMissionSnapshot(input: {
         targetExample: turn.target_example,
         hintLadder: turn.hint_ladder,
         answerShape: turn.answer_shape === "fixed" ? "fixed" : "open",
+        ...(typeof turn.picture_object_key === "string" &&
+        turn.picture_object_key.trim() &&
+        typeof turn.picture_description === "string" &&
+        turn.picture_description.trim()
+          ? {
+              picture: {
+                objectKey: turn.picture_object_key.trim(),
+                description: turn.picture_description.trim(),
+              },
+            }
+          : {}),
       })),
   };
 
@@ -114,7 +127,7 @@ export async function assignMissionToClass(input: {
   const turns = await supabase
     .from("mission_turn_templates")
     .select(
-      "id, turn_order, prompt, target_pattern, target_example, hint_ladder, answer_shape",
+      "id, turn_order, prompt, target_pattern, target_example, hint_ladder, answer_shape, picture_object_key, picture_description",
     )
     .eq("mission_id", input.missionId)
     .order("turn_order", { ascending: true });
