@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { readStudentUnlock } from "@/app/join/actions";
 import { requireOwnedAssignmentStudent } from "@/server/student-access/owned-assignment";
 import { createMissionImageSignedUrl } from "@/server/mission/picture-storage";
+import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
 type RouteContext = {
   params: Promise<{ assignmentStudentId: string; turnOrder: string }>;
@@ -38,7 +39,19 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
-  const signedUrl = await createMissionImageSignedUrl({ objectKey });
+  const supabase = createSupabaseServiceClient();
+  const assignment = await supabase
+    .from("classes")
+    .select("teacher_id, assignments!inner(assignment_students!inner(id, student_id))")
+    .eq("assignments.assignment_students.id", assignmentStudentId)
+    .eq("assignments.assignment_students.student_id", unlock.studentId)
+    .maybeSingle();
+  const teacherId = assignment.data?.teacher_id;
+  if (assignment.error || !teacherId) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+
+  const signedUrl = await createMissionImageSignedUrl({ objectKey, teacherId });
   if (!signedUrl) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }

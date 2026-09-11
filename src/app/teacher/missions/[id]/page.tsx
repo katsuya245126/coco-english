@@ -33,6 +33,7 @@ export default async function EditMissionPage({
           if (!turn.picture) return null;
           const signedUrl = await createMissionImageSignedUrl({
             objectKey: turn.picture.objectKey,
+            teacherId: profile.id,
           });
           return signedUrl ? [index, signedUrl] : null;
         }),

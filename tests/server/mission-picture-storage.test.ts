@@ -52,6 +52,15 @@ describe("mission picture upload boundary", () => {
     mockSupabase = createMockSupabase();
   });
 
+  it("refuses to sign a foreign image pointer even when a teacher stores it in their own mission", async () => {
+    const { createMissionImageSignedUrl } = await import("@/server/mission/picture-storage");
+    const objectKey = "teachers/teacher-b/11111111-1111-4111-8111-111111111111.png";
+    expect(await createMissionImageSignedUrl({ teacherId: "teacher-a", objectKey })).toBeNull();
+    expect(mockSupabase.createSignedUrl).not.toHaveBeenCalled();
+    expect(await createMissionImageSignedUrl({ teacherId: "teacher-b", objectKey })).toBeTruthy();
+    expect(mockSupabase.createSignedUrl).toHaveBeenCalledWith(objectKey, 300);
+  });
+
   it("validates supported images, trims the description, and generates a teacher key", async () => {
     const { uploadMissionImage } = await import(
       "@/server/mission/picture-storage"

@@ -47,6 +47,15 @@ beforeEach(() => {
     "https://storage.example/signed-picture",
   );
   mocks.requireTeacherProfile.mockResolvedValue({ id: "teacher-1" });
+  const query = {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    maybeSingle: vi.fn().mockResolvedValue({
+      data: { teacher_id: "teacher-1" },
+      error: null,
+    }),
+  };
+  mocks.createSupabaseServiceClient.mockReturnValue({ from: vi.fn(() => query) });
 });
 
 describe("student mission picture route", () => {
@@ -90,6 +99,7 @@ describe("student mission picture route", () => {
     );
     expect(mocks.createMissionImageSignedUrl).toHaveBeenCalledWith({
       objectKey: picture.objectKey,
+      teacherId: "teacher-1",
     });
   });
 
@@ -127,6 +137,7 @@ describe("teacher mission picture route", () => {
     });
     expect(mocks.createMissionImageSignedUrl).toHaveBeenCalledWith({
       objectKey: picture.objectKey,
+      teacherId: "teacher-1",
     });
   });
 
@@ -176,6 +187,7 @@ describe("teacher historical assignment picture route", () => {
     expect(maybeSingle).toHaveBeenCalledTimes(1);
     expect(mocks.createMissionImageSignedUrl).toHaveBeenCalledWith({
       objectKey: picture.objectKey,
+      teacherId: "teacher-1",
     });
   });
 

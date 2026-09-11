@@ -39,7 +39,7 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
-  const signedUrl = await createMissionImageSignedUrl({ objectKey });
+  const signedUrl = await createMissionImageSignedUrl({ objectKey, teacherId: profile.id });
   if (!signedUrl) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }

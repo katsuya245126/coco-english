@@ -148,7 +148,11 @@ export async function uploadMissionImage(
 
 export async function createMissionImageSignedUrl(input: {
   objectKey: string;
+  teacherId: string;
 }): Promise<string | null> {
+  if (!isMissionImageObjectKeyForTeacher(input.teacherId, input.objectKey)) {
+    return null;
+  }
   const supabase = createSupabaseServiceClient();
   const signed = await supabase.storage
     .from(MISSION_IMAGE_BUCKET)
