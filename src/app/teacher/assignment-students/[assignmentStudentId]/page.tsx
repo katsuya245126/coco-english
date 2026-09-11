@@ -74,6 +74,14 @@ export default async function AssignmentStudentPage({
                       Expected target pattern: {turn.targetPattern}
                     </p>
                   ) : null}
+                  {turn.picture ? (
+                    <img
+                      src={`/teacher/assignments/${evidence.assignmentId}/picture/${turn.turnOrder}`}
+                      alt={turn.picture.description}
+                      data-picture-image="true"
+                      style={pictureStyle}
+                    />
+                  ) : null}
                   <p style={turnExampleStyle}>Example answer: {turn.targetExample}</p>
                 </li>
               ))}
@@ -183,6 +191,19 @@ const turnPatternStyle: React.CSSProperties = {
   fontSize: 14,
   fontWeight: 600,
   color: "#1E3A8A",
+};
+
+const pictureStyle: React.CSSProperties = {
+  display: "block",
+  width: "100%",
+  maxWidth: 480,
+  height: 220,
+  margin: "12px 0",
+  objectFit: "contain",
+  objectPosition: "center",
+  border: "1px solid #D1D5DB",
+  borderRadius: 8,
+  background: "#FFFFFF",
 };
 
 const labelStyle: React.CSSProperties = {

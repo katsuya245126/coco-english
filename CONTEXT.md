@@ -17,6 +17,10 @@ The live student process from the start or resume of homework to its completion.
 **Preset mission**:
 A mission with an authored sequence of questions, examples, and hints.
 
+**Picture turn**:
+A preset mission turn with one teacher-uploaded picture shown only while that turn is active.
+_Avoid_: Picture mode, image mission
+
 **Multi-pattern mission**:
 A preset mission whose authored turns collectively practice more than one target pattern.
 

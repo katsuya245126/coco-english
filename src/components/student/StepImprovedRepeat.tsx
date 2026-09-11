@@ -38,6 +38,7 @@ type StepImprovedRepeatProps = {
   showCocoLine?: boolean;
   onVoiceRecorded: (recording: RepeatVoiceClip) => void | Promise<void>;
   isSubmitting: boolean;
+  recorderDisabled?: boolean;
 };
 
 export function StepImprovedRepeat({
@@ -50,6 +51,7 @@ export function StepImprovedRepeat({
   showCocoLine = true,
   onVoiceRecorded,
   isSubmitting,
+  recorderDisabled = false,
 }: StepImprovedRepeatProps) {
   return (
     <div style={stepCardStyle} aria-live="polite">
@@ -86,7 +88,7 @@ export function StepImprovedRepeat({
         <VoiceRecorderControl
           mode="repeat"
           maxSeconds={60}
-          disabled={isSubmitting}
+          disabled={isSubmitting || recorderDisabled}
           onRecorded={(blob, metadata) =>
             onVoiceRecorded({
               blob,

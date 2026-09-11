@@ -24,6 +24,19 @@ export const hintLadderSchema = z.object({
 
 export type HintLadder = z.infer<typeof hintLadderSchema>;
 
+export const missionPictureDescriptionSchema = z
+  .string()
+  .trim()
+  .min(1, "Picture description is required.")
+  .max(300, "Picture description is too long.");
+
+export const missionPictureSchema = z.object({
+  objectKey: z.string().trim().min(1).max(512),
+  description: missionPictureDescriptionSchema,
+});
+
+export type MissionPicture = z.infer<typeof missionPictureSchema>;
+
 export const missionTurnInputSchema = z.object({
   prompt: z.string().trim().min(1, "Buddy question is required."),
   targetPattern: z.string().trim().min(1).max(160).optional(),
@@ -33,6 +46,10 @@ export const missionTurnInputSchema = z.object({
     .min(1, "Example answer is required."),
   hintLadder: hintLadderSchema,
   answerShape: answerShapeSchema.default("open"),
+  picture: z.preprocess(
+    (value) => (value === null ? undefined : value),
+    missionPictureSchema.optional(),
+  ),
 });
 
 export type MissionTurnInput = z.infer<typeof missionTurnInputSchema>;
@@ -74,6 +91,15 @@ export const missionFormSchema = z
           message: "Conversation context pattern is required.",
         });
       }
+      value.turns.forEach((turn, index) => {
+        if (turn.picture) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["turns", index, "picture"],
+            message: "Conversation missions do not support pictures.",
+          });
+        }
+      });
       return;
     }
 
@@ -188,6 +214,18 @@ export const missionSnapshotSchema = z
       message: "Snapshot Coco opening line is required.",
     },
   )
+  .superRefine((value, context) => {
+    if (!value.conversationMode) return;
+    value.turns.forEach((turn, index) => {
+      if (turn.picture) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["turns", index, "picture"],
+          message: "Conversation missions do not support pictures.",
+        });
+      }
+    });
+  })
   .transform((snapshot, context): MissionSnapshot => {
     // Sole owner of the target-pattern requirement: report every missing
     // pattern as an issue and abort instead of fabricating one.

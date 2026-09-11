@@ -52,6 +52,7 @@ type StepBuddyQuestionProps = AnswerHelpProps & {
   onRecorderStateChange?: (state: RecorderState) => void;
   onVoiceRecorded: (recording: RecordedVoiceClip) => void | Promise<void>;
   isSubmitting: boolean;
+  recorderDisabled?: boolean;
 };
 
 export function StepBuddyQuestion({
@@ -68,6 +69,7 @@ export function StepBuddyQuestion({
   onRevealHint,
   onVoiceRecorded,
   isSubmitting,
+  recorderDisabled = false,
 }: StepBuddyQuestionProps) {
   const [replyHintVisible, setReplyHintVisible] = useState(false);
 
@@ -154,7 +156,7 @@ export function StepBuddyQuestion({
         <VoiceRecorderControl
           mode="original"
           maxSeconds={60}
-          disabled={isSubmitting}
+          disabled={isSubmitting || recorderDisabled}
           onStateChange={onRecorderStateChange}
           onRecorded={(blob, metadata) =>
             onVoiceRecorded({

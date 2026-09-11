@@ -10,7 +10,12 @@
  * All buddy/sentence text comes from snapshot + static profile — no AI client.
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+} from "react";
 import { useRouter } from "next/navigation";
 import type { MissionSnapshotTurn } from "@/domain/mission/schemas";
 import { describeConversationSubmissionFailure } from "@/domain/mission/conversation-submission-recovery";
@@ -132,6 +137,15 @@ export function MissionFlowShell({
   const [mascotPlaying, setMascotPlaying] = useState(false);
   const [originalRecorderState, setOriginalRecorderState] =
     useState<RecorderState>("ready");
+  const initialPictureKey =
+    !conversationMode
+      ? (turns.find((turn) => turn.turnOrder === startingTurnIndex + 1)?.picture
+          ?.objectKey ?? null)
+      : null;
+  const [pictureLoad, setPictureLoad] = useState(() => ({
+    key: initialPictureKey,
+    ready: initialPictureKey === null,
+  }));
 
   const handleMascotAmplitudeFrame = useCallback((level: number) => {
     mascotAmplitudeRef.current = level;
@@ -165,6 +179,33 @@ export function MissionFlowShell({
     turns,
     dynamicPrompt: flow.dynamicPrompt,
   });
+  const activePicture =
+    activeQuestion.kind === "preset"
+      ? (turns.find(
+          (turn) => turn.turnOrder === activeQuestion.activeTurnOrder,
+        )?.picture ?? null)
+      : null;
+  const activeTurnOrder =
+    activeQuestion.kind === "unavailable" ? null : activeQuestion.activeTurnOrder;
+  const activePictureKey = activePicture?.objectKey ?? null;
+  const studentPicture = activePicture
+    ? {
+        src: `/student/missions/${assignmentStudentId}/picture/${activeTurnOrder}`,
+        alt: activePicture.description,
+      }
+    : null;
+  const pictureReady =
+    activePictureKey === null ||
+    (pictureLoad.key === activePictureKey && pictureLoad.ready);
+
+  const handlePictureReady = useCallback((ready: boolean) => {
+    setPictureLoad({ key: activePictureKey, ready });
+  }, [activePictureKey]);
+
+  const handleBackToHomework = useCallback(() => {
+    router.push("/student/home");
+  }, [router]);
+
   // 1-based turn number for display
   const currentTurnNumber = flow.turnIndex + 1;
 
@@ -550,6 +591,9 @@ export function MissionFlowShell({
         }
         playing={mascotPlaying}
         amplitudeRef={mascotAmplitudeRef}
+        picture={studentPicture}
+        onPictureReady={handlePictureReady}
+        onBackToHomework={handleBackToHomework}
         expression={
           actionError ||
           (flow.step === "question" && originalRecorderState === "failure")
@@ -585,6 +629,7 @@ export function MissionFlowShell({
             onRevealHint={handleRevealHint}
             onVoiceRecorded={handleSubmitOriginalVoice}
             isSubmitting={isSubmittingVoice}
+            recorderDisabled={Boolean(activePicture) && !pictureReady}
           />
         )}
 
@@ -600,6 +645,7 @@ export function MissionFlowShell({
             onRecorderStateChange={setOriginalRecorderState}
             onVoiceRecorded={handleSubmitOriginalVoice}
             isSubmitting={isSubmittingVoice}
+            recorderDisabled={Boolean(activePicture) && !pictureReady}
           />
         )}
 
@@ -674,6 +720,7 @@ export function MissionFlowShell({
             showCocoLine={true}
             onVoiceRecorded={handleSubmitRepeatVoice}
             isSubmitting={isSubmittingVoice}
+            recorderDisabled={Boolean(activePicture) && !pictureReady}
           />
         )}
 

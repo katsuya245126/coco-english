@@ -1,21 +1,27 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   createMissionAction,
   generateOpenerAction,
+  uploadMissionPictureAction,
   updateMissionAction,
   type MissionActionResult,
 } from "@/app/teacher/missions/actions";
 import type {
   MissionFormInput,
   MissionLevel,
+  MissionPicture,
   MissionTurnInput,
 } from "@/domain/mission/schemas";
 import { serializeMissionTurns } from "@/domain/mission/mission-turn-serialization";
 import type { MissionWithTurns } from "@/server/mission/mission-service";
-import { createEmptyTurn, TurnEditor } from "@/components/teacher/TurnEditor";
+import {
+  createEmptyTurn,
+  TurnEditor,
+  type PendingMissionPicture,
+} from "@/components/teacher/TurnEditor";
 import { HoverButton } from "@/components/ui/HoverButton";
 import { primaryHover, secondaryHover } from "@/components/ui/hover-styles";
 
@@ -23,6 +29,7 @@ type MissionFormProps = {
   mode: "create" | "edit";
   mission?: MissionWithTurns;
   activeAssignmentCount?: number;
+  picturePreviewUrls?: Record<number, string | undefined>;
 };
 
 const levelOptions: Array<{ value: MissionLevel; label: string }> = [
@@ -35,6 +42,7 @@ export function MissionForm({
   mode,
   mission,
   activeAssignmentCount = 0,
+  picturePreviewUrls: initialPicturePreviewUrls = {},
 }: MissionFormProps) {
   const router = useRouter();
   const [title, setTitle] = useState(mission?.title ?? "");
@@ -51,7 +59,17 @@ export function MissionForm({
       targetExample: turn.targetExample,
       hintLadder: turn.hintLadder,
       answerShape: turn.answerShape,
+      picture: turn.picture,
     })) ?? [createEmptyTurn()],
+  );
+  const [pendingPictures, setPendingPictures] = useState<
+    Record<number, PendingMissionPicture | undefined>
+  >({});
+  const pendingPicturesRef = useRef(pendingPictures);
+  const [pictureDescriptionOverrides, setPictureDescriptionOverrides] =
+    useState<Record<number, string | undefined>>({});
+  const [picturePreviewUrls, setPicturePreviewUrls] = useState(
+    initialPicturePreviewUrls,
   );
   const [conversationMode, setConversationMode] = useState(
     mission?.conversationMode ?? false,
@@ -69,6 +87,18 @@ export function MissionForm({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    pendingPicturesRef.current = pendingPictures;
+  }, [pendingPictures]);
+
+  useEffect(() => {
+    return () => {
+      for (const pending of Object.values(pendingPicturesRef.current)) {
+        if (pending) URL.revokeObjectURL(pending.previewUrl);
+      }
+    };
+  }, []);
+
   async function handleGenerateOpener() {
     setOpenerError(null);
     setGeneratingOpener(true);
@@ -83,10 +113,143 @@ export function MissionForm({
     }
   }
 
+  function handlePictureFileChange(index: number, file: File | null) {
+    setPendingPictures((current) => {
+      const previous = current[index];
+      if (previous) URL.revokeObjectURL(previous.previewUrl);
+      if (!file) {
+        const next = { ...current };
+        delete next[index];
+        return next;
+      }
+      return {
+        ...current,
+        [index]: { file, previewUrl: URL.createObjectURL(file) },
+      };
+    });
+  }
+
+  function handlePictureDescriptionChange(index: number, description: string) {
+    setPictureDescriptionOverrides((current) => ({
+      ...current,
+      [index]: description,
+    }));
+    setTurns((current) =>
+      current.map((turn, turnIndex) =>
+        turnIndex === index && turn.picture
+          ? {
+              ...turn,
+              picture: { ...turn.picture, description },
+            }
+          : turn,
+      ),
+    );
+  }
+
+  function handlePictureRemove(index: number) {
+    handlePictureFileChange(index, null);
+    setPictureDescriptionOverrides((current) => {
+      const next = { ...current };
+      delete next[index];
+      return next;
+    });
+    setPicturePreviewUrls((current) => {
+      const next = { ...current };
+      delete next[index];
+      return next;
+    });
+    setTurns((current) =>
+      current.map((turn, turnIndex) =>
+        turnIndex === index ? { ...turn, picture: undefined } : turn,
+      ),
+    );
+  }
+
+  function handleRemoveTurn(index: number) {
+    const pending = pendingPictures[index];
+    if (pending) URL.revokeObjectURL(pending.previewUrl);
+    setTurns((current) => current.filter((_, turnIndex) => turnIndex !== index));
+    setPendingPictures((current) => shiftIndexedValues(current, index));
+    setPictureDescriptionOverrides((current) =>
+      shiftIndexedValues(current, index),
+    );
+    setPicturePreviewUrls((current) => shiftIndexedValues(current, index));
+  }
+
+  async function uploadPendingPictures(): Promise<MissionTurnInput[]> {
+    const nextTurns = turns.map((turn) => ({ ...turn }));
+
+    for (const [indexText, pending] of Object.entries(pendingPictures)) {
+      if (!pending) continue;
+      const index = Number(indexText);
+      const turn = nextTurns[index];
+      if (!turn) continue;
+
+      const uploadForm = new FormData();
+      uploadForm.set("file", pending.file);
+      uploadForm.set(
+        "description",
+        pictureDescriptionOverrides[index] ?? turn.picture?.description ?? "",
+      );
+      const result = await uploadMissionPictureAction(uploadForm);
+      if (!result.ok) {
+        throw new Error(result.error);
+      }
+
+      const picture: MissionPicture = {
+        objectKey: result.picture.objectKey,
+        description: result.picture.description,
+      };
+      nextTurns[index] = { ...turn, picture };
+
+      setTurns((current) =>
+        current.map((currentTurn, turnIndex) =>
+          turnIndex === index ? { ...currentTurn, picture } : currentTurn,
+        ),
+      );
+      if (pendingPicturesRef.current[index]?.previewUrl === pending.previewUrl) {
+        URL.revokeObjectURL(pending.previewUrl);
+        setPendingPictures((current) => {
+          if (current[index]?.previewUrl !== pending.previewUrl) return current;
+          const next = { ...current };
+          delete next[index];
+          return next;
+        });
+        setPictureDescriptionOverrides((current) => {
+          if (current[index] === undefined) return current;
+          const next = { ...current };
+          delete next[index];
+          return next;
+        });
+        setPicturePreviewUrls((current) => {
+          if (current[index] === undefined) return current;
+          const next = { ...current };
+          delete next[index];
+          return next;
+        });
+      }
+    }
+
+    return nextTurns;
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
+
+    let serializedTurns: MissionTurnInput[];
+    try {
+      serializedTurns = conversationMode ? turns : await uploadPendingPictures();
+    } catch (uploadError) {
+      setSubmitting(false);
+      setError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "We could not upload that picture. Please try again.",
+      );
+      return;
+    }
 
     const formData = new FormData();
     if (mode === "edit" && mission) {
@@ -105,7 +268,7 @@ export function MissionForm({
           conversationMode,
           opener,
           targetPattern: conversationContextPattern,
-          turns,
+          turns: serializedTurns,
         }),
       ),
     );
@@ -303,7 +466,17 @@ export function MissionForm({
       </section>
 
       {conversationMode ? null : (
-        <TurnEditor turns={turns} onChange={setTurns} />
+        <TurnEditor
+          turns={turns}
+          onChange={setTurns}
+          picturePreviewUrls={picturePreviewUrls}
+          pendingPictures={pendingPictures}
+          pictureDescriptionOverrides={pictureDescriptionOverrides}
+          onPictureFileChange={handlePictureFileChange}
+          onPictureDescriptionChange={handlePictureDescriptionChange}
+          onPictureRemove={handlePictureRemove}
+          onRemoveTurn={handleRemoveTurn}
+        />
       )}
 
       <div style={footerStyle}>
@@ -335,6 +508,19 @@ export function MissionForm({
       </div>
     </form>
   );
+}
+
+function shiftIndexedValues<T>(
+  values: Record<number, T | undefined>,
+  removedIndex: number,
+): Record<number, T | undefined> {
+  const next: Record<number, T | undefined> = {};
+  for (const [indexText, value] of Object.entries(values)) {
+    const index = Number(indexText);
+    if (index === removedIndex || value === undefined) continue;
+    next[index > removedIndex ? index - 1 : index] = value;
+  }
+  return next;
 }
 
 function Field(props: {

@@ -9,6 +9,7 @@ import type {
 import { createSupabaseServerClient } from "@/lib/supabase/server-auth";
 import { classifyTurnAnswerShapes } from "@/server/ai/answer-shape-classifier";
 import type { Json } from "@/lib/db/types";
+import { isMissionImageObjectKeyForTeacher } from "@/server/mission/picture-storage";
 
 export type TeacherMission = {
   id: string;
@@ -74,6 +75,8 @@ type TurnRow = {
   target_example: string;
   hint_ladder: Json;
   answer_shape: string;
+  picture_object_key?: string | null;
+  picture_description?: string | null;
 };
 
 function parseMissionInput(input: MissionFormInput): MissionFormInput {
@@ -124,6 +127,17 @@ function normalizeHintLadder(value: Json): HintLadder {
 }
 
 export function mapTurn(row: TurnRow): MissionTurn {
+  const picture =
+    typeof row.picture_object_key === "string" &&
+    row.picture_object_key.trim() &&
+    typeof row.picture_description === "string" &&
+    row.picture_description.trim()
+      ? {
+          objectKey: row.picture_object_key.trim(),
+          description: row.picture_description.trim(),
+        }
+      : undefined;
+
   return {
     id: row.id,
     turnOrder: row.turn_order,
@@ -132,6 +146,7 @@ export function mapTurn(row: TurnRow): MissionTurn {
     targetExample: row.target_example,
     hintLadder: normalizeHintLadder(row.hint_ladder),
     answerShape: row.answer_shape === "fixed" ? "fixed" : "open",
+    ...(picture ? { picture } : {}),
   };
 }
 
@@ -155,6 +170,62 @@ function toMissionInsert(input: MissionFormInput, teacherId: string) {
   };
 }
 
+function assertCreatePictureKeys(input: MissionFormInput, teacherId: string) {
+  for (const turn of input.turns) {
+    if (
+      turn.picture &&
+      !isMissionImageObjectKeyForTeacher(teacherId, turn.picture.objectKey)
+    ) {
+      throw new Error("Mission picture must be uploaded by this teacher.");
+    }
+  }
+}
+
+async function assertUpdatePictureKeys(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  input: MissionFormInput & { teacherId: string; missionId: string },
+) {
+  const pictureKeys = input.turns.flatMap((turn) =>
+    turn.picture ? [turn.picture.objectKey] : [],
+  );
+  if (pictureKeys.length === 0) return;
+
+  const ownedMission = await supabase
+    .from("missions")
+    .select("id")
+    .eq("id", input.missionId)
+    .eq("teacher_id", input.teacherId)
+    .maybeSingle();
+  if (ownedMission.error) {
+    throw new Error(`Unable to verify mission ownership: ${ownedMission.error.message}`);
+  }
+  if (!ownedMission.data) {
+    throw new Error("Mission picture mission was not found.");
+  }
+
+  const existingTurns = await supabase
+    .from("mission_turn_templates")
+    .select("picture_object_key")
+    .eq("mission_id", input.missionId);
+  if (existingTurns.error) {
+    throw new Error(`Unable to verify mission pictures: ${existingTurns.error.message}`);
+  }
+  const existingKeys = new Set(
+    (existingTurns.data ?? [])
+      .map((turn) => turn.picture_object_key)
+      .filter((key): key is string => typeof key === "string" && key.length > 0),
+  );
+
+  for (const objectKey of pictureKeys) {
+    if (
+      !existingKeys.has(objectKey) &&
+      !isMissionImageObjectKeyForTeacher(input.teacherId, objectKey)
+    ) {
+      throw new Error("Mission picture must be uploaded by this teacher.");
+    }
+  }
+}
+
 export function applyAnswerShapes(
   turns: MissionTurnInput[],
   shapes: AnswerShape[],
@@ -175,6 +246,12 @@ export function toTurnRows(
     target_example: turn.targetExample,
     hint_ladder: turn.hintLadder satisfies Json,
     answer_shape: turn.answerShape,
+    ...(turn.picture
+      ? {
+          picture_object_key: turn.picture.objectKey,
+          picture_description: turn.picture.description,
+        }
+      : {}),
   }));
 }
 
@@ -238,6 +315,7 @@ export async function createMission(
   input: MissionFormInput & { teacherId: string },
 ): Promise<TeacherMission> {
   const parsed = parseMissionInput(input);
+  assertCreatePictureKeys(parsed, input.teacherId);
   const supabase = await createSupabaseServerClient();
 
   const inserted = await supabase
@@ -273,6 +351,11 @@ export async function updateMission(
 ): Promise<TeacherMission> {
   const parsed = parseMissionInput(input);
   const supabase = await createSupabaseServerClient();
+  await assertUpdatePictureKeys(supabase, {
+    ...parsed,
+    teacherId: input.teacherId,
+    missionId: input.missionId,
+  });
 
   const updated = await supabase
     .from("missions")
@@ -388,7 +471,7 @@ export async function getMissionForTeacher(input: {
   const turns = await supabase
     .from("mission_turn_templates")
     .select(
-      "id, turn_order, prompt, target_pattern, target_example, hint_ladder, answer_shape",
+      "id, turn_order, prompt, target_pattern, target_example, hint_ladder, answer_shape, picture_object_key, picture_description",
     )
     .eq("mission_id", input.missionId)
     .order("turn_order", { ascending: true });

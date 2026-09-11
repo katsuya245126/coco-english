@@ -26,6 +26,7 @@ import {
 } from "@/server/mission/mission-service";
 import { consumeRequestBudget } from "@/server/security/request-budget";
 import { generateOpener } from "@/server/ai/opener-generator";
+import { uploadMissionImage } from "@/server/mission/picture-storage";
 
 const GENERIC_FAILURE =
   "We could not save the mission. Check the highlighted fields and try again.";
@@ -47,6 +48,9 @@ const GENERATE_OPENER_FAILURE =
 
 const PROVIDER_RATE_LIMIT_FAILURE =
   "You’ve made several AI requests. Wait a few minutes and try again.";
+
+const PICTURE_UPLOAD_FAILURE =
+  "We could not upload that picture. Use a JPEG, PNG, or WebP up to 5 MB and add a description.";
 
 /**
  * Fails closed: the admission module already denies on RPC error, and a
@@ -94,6 +98,17 @@ export type GenerateOpenerActionResult =
   | { ok: true; opener: string }
   | { ok: false; error: string };
 
+export type UploadMissionPictureActionResult =
+  | {
+      ok: true;
+      picture: {
+        objectKey: string;
+        description: string;
+        mimeType: string;
+      };
+    }
+  | { ok: false; error: string };
+
 const cancelMissionAssignmentSchema = z.object({
   missionId: z.string().uuid("Invalid mission reference."),
   assignmentId: z.string().uuid("Invalid assignment reference."),
@@ -135,6 +150,30 @@ function missionPayloadFromFormData(formData: FormData) {
       true,
     ),
   };
+}
+
+export async function uploadMissionPictureAction(
+  formData: FormData,
+): Promise<UploadMissionPictureActionResult> {
+  const profile = await requireTeacherProfile();
+  const file = formData.get("file");
+  const description = formData.get("description");
+  if (!(file instanceof Blob) || typeof description !== "string") {
+    return { ok: false, error: PICTURE_UPLOAD_FAILURE };
+  }
+
+  try {
+    const result = await uploadMissionImage({
+      teacherId: profile.id,
+      file,
+      description: description.trim(),
+    });
+    return result.ok
+      ? { ok: true, picture: result.picture }
+      : { ok: false, error: PICTURE_UPLOAD_FAILURE };
+  } catch {
+    return { ok: false, error: PICTURE_UPLOAD_FAILURE };
+  }
 }
 
 function omitUndefinedTargetPattern(input: MissionFormInput): MissionFormInput {

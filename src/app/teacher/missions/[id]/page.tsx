@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireTeacherProfile } from "@/server/auth/teacher-profile";
 import { getMissionForTeacher } from "@/server/mission/mission-service";
+import { createMissionImageSignedUrl } from "@/server/mission/picture-storage";
 import { MissionForm } from "@/components/teacher/MissionForm";
 import { HoverLink } from "@/components/ui/HoverLink";
 import { subtleHover } from "@/components/ui/hover-styles";
@@ -25,6 +26,20 @@ export default async function EditMissionPage({
     notFound();
   }
 
+  const picturePreviewUrls = Object.fromEntries(
+    (
+      await Promise.all(
+        mission.turns.map(async (turn, index) => {
+          if (!turn.picture) return null;
+          const signedUrl = await createMissionImageSignedUrl({
+            objectKey: turn.picture.objectKey,
+          });
+          return signedUrl ? [index, signedUrl] : null;
+        }),
+      )
+    ).filter((entry): entry is [string | number, string] => entry !== null),
+  );
+
   return (
     <div style={mainStyle}>
       <div style={headerStyle}>
@@ -42,6 +57,7 @@ export default async function EditMissionPage({
           mode="edit"
           mission={mission}
           activeAssignmentCount={mission.activeAssignmentCount}
+          picturePreviewUrls={picturePreviewUrls}
         />
       </div>
     </div>
@@ -80,4 +96,3 @@ const linkStyle: React.CSSProperties = {
   borderRadius: 6,
   transition: "background 0.15s ease",
 };
-

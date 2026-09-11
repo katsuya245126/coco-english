@@ -112,6 +112,24 @@ describe("mission assignment service (ASGN-01, ASGN-02, ASGN-03)", () => {
     expect(snapshot.turns[0].targetPattern).toBe("I like ___.");
   });
 
+  it("copies a picture turn's immutable metadata into the assignment snapshot", () => {
+    const snapshot = buildMissionSnapshot({
+      mission: missionRow,
+      turns: [
+        {
+          ...turnRows[0],
+          picture_object_key: "teachers/teacher-1/picture-1.jpg",
+          picture_description: "A child choosing an apple.",
+        },
+      ],
+    });
+
+    expect(snapshot.turns[0]?.picture).toEqual({
+      objectKey: "teachers/teacher-1/picture-1.jpg",
+      description: "A child choosing an apple.",
+    });
+  });
+
   it("copies distinct preset turn patterns into a future immutable snapshot", () => {
     const sourceTurns = [
       { ...turnRows[0], target_pattern: "I like ___." },

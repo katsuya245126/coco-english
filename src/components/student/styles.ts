@@ -250,11 +250,13 @@ export const resumeNoticeStyle: CSSProperties = {
 
 export const mascotStageStyle: CSSProperties & {
   "--coco-dialogue-height": string;
+  "--coco-tabs-reserve": string;
 } = {
   width: "100%",
   maxWidth: MISSION_CONTENT_MAX_WIDTH,
   height: 400,
   "--coco-dialogue-height": "clamp(144px, 44vw, 168px)",
+  "--coco-tabs-reserve": "46px",
   position: "relative",
   marginTop: 16,
   marginBottom: 22,
@@ -274,6 +276,81 @@ export const mascotBackdropStyle: CSSProperties = {
   backgroundSize: "cover",
   backgroundPosition: "center center",
   borderRadius: 8,
+};
+
+export const mascotPictureVisualStyle: CSSProperties = {
+  position: "absolute",
+  zIndex: 1,
+  inset: "0 0 calc(var(--coco-dialogue-height) + var(--coco-tabs-reserve))",
+  display: "grid",
+  placeItems: "center",
+  minHeight: 0,
+  overflow: "hidden",
+  borderRadius: "12px 12px 0 0",
+  background: "#F8FBFF",
+};
+
+export const mascotPictureImageStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  display: "block",
+  width: "100%",
+  height: "100%",
+  padding: "10px 12px",
+  objectFit: "contain",
+  objectPosition: "center",
+  boxSizing: "border-box",
+};
+
+export const mascotPictureFailureStyle: CSSProperties = {
+  display: "grid",
+  placeItems: "center",
+  width: "min(calc(100% - 32px), 360px)",
+  padding: 20,
+  boxSizing: "border-box",
+  textAlign: "center",
+  border: "1px dashed #F59E0B",
+  borderRadius: 12,
+  background: "#FFFBEB",
+};
+
+export const mascotPictureFailureTextStyle: CSSProperties = {
+  margin: 0,
+  color: "#854F0B",
+  fontSize: 15,
+  fontWeight: 700,
+};
+
+export const mascotPictureFailureActionsStyle: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  justifyContent: "center",
+  gap: 8,
+  marginTop: 14,
+};
+
+export const mascotPictureRetryButtonStyle: CSSProperties = {
+  minHeight: 42,
+  padding: "8px 13px",
+  border: "1px solid #2563EB",
+  borderRadius: 8,
+  color: "#FFFFFF",
+  background: "#2563EB",
+  fontSize: 14,
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+export const mascotPictureBackButtonStyle: CSSProperties = {
+  minHeight: 42,
+  padding: "8px 13px",
+  border: "1px solid #2563EB",
+  borderRadius: 8,
+  color: "#2563EB",
+  background: "#FFFFFF",
+  fontSize: 14,
+  fontWeight: 700,
+  cursor: "pointer",
 };
 
 export const mascotSpriteWrapStyle: CSSProperties = {
@@ -427,6 +504,30 @@ export const mascotDialogueTextStyle: CSSProperties = {
   lineHeight: 1.3,
   color: "#111827",
   margin: 0,
+  minWidth: 0,
+  overflowWrap: "anywhere",
+};
+
+export const mascotDialogueCopyStyle: CSSProperties = {
+  width: "100%",
+  minWidth: 0,
+};
+
+export const mascotPictureDialogueCopyStyle: CSSProperties = {
+  ...mascotDialogueCopyStyle,
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  height: "100%",
+};
+
+export const mascotCompactSpriteStyle: CSSProperties = {
+  flex: "0 0 58px",
+  display: "block",
+  width: 58,
+  height: 58,
+  objectFit: "contain",
+  objectPosition: "center bottom",
 };
 
 export const mascotPhraseButtonStyle: CSSProperties = {

@@ -112,6 +112,8 @@ export type Database = {
           target_example: string;
           hint_ladder: Json;
           answer_shape: "fixed" | "open";
+          picture_object_key: string | null;
+          picture_description: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -124,6 +126,8 @@ export type Database = {
           target_example: string;
           hint_ladder?: Json;
           answer_shape?: "fixed" | "open";
+          picture_object_key?: string | null;
+          picture_description?: string | null;
           created_at?: string;
           updated_at?: string;
         };

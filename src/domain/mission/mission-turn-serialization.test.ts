@@ -70,4 +70,44 @@ describe("serializeMissionTurns", () => {
 
     expect(JSON.stringify(result)).toBe(JSON.stringify(turns));
   });
+
+  it("keeps preset picture metadata in the serialized turn payload", () => {
+    const turns: MissionTurnInput[] = [
+      {
+        ...tailTurn,
+        picture: {
+          objectKey: "teachers/teacher-1/picture-1.jpg",
+          description: "A child choosing an apple.",
+        },
+      },
+    ];
+
+    expect(
+      serializeMissionTurns({
+        conversationMode: false,
+        opener: "",
+        targetPattern: "",
+        turns,
+      }),
+    ).toEqual(turns);
+  });
+
+  it("never serializes picture metadata for a conversation opener", () => {
+    const result = serializeMissionTurns({
+      conversationMode: true,
+      opener: "What do you like?",
+      targetPattern: "I like ___",
+      turns: [
+        {
+          ...tailTurn,
+          picture: {
+            objectKey: "teachers/teacher-1/picture-1.jpg",
+            description: "A child choosing an apple.",
+          },
+        },
+      ],
+    });
+
+    expect(result[0]?.picture).toBeUndefined();
+  });
 });

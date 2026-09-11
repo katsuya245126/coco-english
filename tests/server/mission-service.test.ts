@@ -468,6 +468,145 @@ describe("mission service authoring behavior (MISS-01, MISS-04)", () => {
     ).toBe("I like ___ing.");
   });
 
+  it("round-trips optional picture metadata on turn rows", () => {
+    const rows = toTurnRows("mission-1", [
+      {
+        prompt: "What do you see?",
+        targetPattern: "I see ___.",
+        targetExample: "I see an apple.",
+        hintLadder: {
+          tier1: "I see...",
+          tier2: "an apple",
+          tier3: "I see an apple.",
+        },
+        answerShape: "open",
+        picture: {
+          objectKey: "teachers/teacher-1/picture-1.jpg",
+          description: "A child choosing an apple.",
+        },
+      },
+    ]);
+
+    expect(rows[0]).toMatchObject({
+      picture_object_key: "teachers/teacher-1/picture-1.jpg",
+      picture_description: "A child choosing an apple.",
+    });
+
+    expect(
+      mapTurn({
+        id: "t1",
+        turn_order: 1,
+        prompt: "What do you see?",
+        target_pattern: "I see ___.",
+        target_example: "I see an apple.",
+        hint_ladder: {
+          tier1: "I see...",
+          tier2: "an apple",
+          tier3: "I see an apple.",
+        },
+        answer_shape: "open",
+        picture_object_key: "teachers/teacher-1/picture-1.jpg",
+        picture_description: "A child choosing an apple.",
+      } as never),
+    ).toMatchObject({
+      picture: {
+        objectKey: "teachers/teacher-1/picture-1.jpg",
+        description: "A child choosing an apple.",
+      },
+    });
+  });
+
+  it("rejects a create with a picture key that is not teacher-namespaced", async () => {
+    const turns = [
+      {
+        ...presetInput.turns[0],
+        picture: {
+          objectKey: "teachers/another-teacher/picture-1.jpg",
+          description: "A child choosing an apple.",
+        },
+      },
+      presetInput.turns[1],
+    ];
+
+    await expect(
+      createMission({ ...presetInput, turns }),
+    ).rejects.toThrow(/picture/i);
+  });
+
+  it("rejects an update when a kept picture key is not from the owned mission", async () => {
+    const existingPictureKey =
+      "teachers/teacher-1/11111111-1111-4111-8111-111111111111.jpg";
+    const update = vi.fn(() => ({
+      eq: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          select: vi.fn(() => ({
+            single: vi.fn(async () => ({
+              data: {
+                id: "mission-1",
+                title: presetInput.title,
+                target_pattern: null,
+                level: presetInput.level,
+                required_turns: 2,
+                character_id: "default-buddy",
+                conversation_mode: false,
+                require_complete_sentence_answers: true,
+                archived_at: null,
+              },
+              error: null,
+            })),
+          })),
+        })),
+      })),
+    }));
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === "missions") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  maybeSingle: vi.fn(async () => ({
+                    data: { id: "mission-1" },
+                    error: null,
+                  })),
+                })),
+              })),
+            })),
+            update,
+          };
+        }
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(async () => ({
+              data: [{ picture_object_key: existingPictureKey }],
+              error: null,
+            })),
+          })),
+        };
+      }),
+    };
+    mockSupabase = supabase;
+
+    await expect(
+      updateMission({
+        ...presetInput,
+        missionId: "mission-1",
+        turns: [
+          {
+            ...presetInput.turns[0],
+            picture: {
+              objectKey:
+                "teachers/another-teacher/22222222-2222-4222-8222-222222222222.jpg",
+              description: "A child choosing an apple.",
+            },
+          },
+          presetInput.turns[1],
+        ],
+      }),
+    ).rejects.toThrow(/picture/i);
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it("does not derive a preset turn pattern from a mission-level value", () => {
     const rows = toTurnRows("mission-1", completeInput.turns);
     expect(rows[0].target_pattern).toBeNull();

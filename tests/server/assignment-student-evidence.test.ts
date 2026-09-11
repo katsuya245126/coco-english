@@ -15,6 +15,10 @@ const snapshot = {
       targetPattern: "I like ___.",
       targetExample: "I like apples.",
       hintLadder: { tier1: "I like ...", tier2: "apples", tier3: "I like apples." },
+      picture: {
+        objectKey: "teachers/teacher-1/picture-1.jpg",
+        description: "A child choosing an apple.",
+      },
     },
     {
       turnOrder: 2,
@@ -89,7 +93,16 @@ describe("assignment student evidence", () => {
       attemptCount: 0, highestHintLabel: "No hints used", classId: "class-1",
       className: "Test class", assignmentId: "assignment-1", dismissedAt: null,
       turns: [
-        { turnOrder: 1, prompt: "What do you like?", targetPattern: "I like ___.", targetExample: "I like apples." },
+        {
+          turnOrder: 1,
+          prompt: "What do you like?",
+          targetPattern: "I like ___.",
+          targetExample: "I like apples.",
+          picture: {
+            objectKey: "teachers/teacher-1/picture-1.jpg",
+            description: "A child choosing an apple.",
+          },
+        },
         { turnOrder: 2, prompt: "What will you do?", targetPattern: "I will ___.", targetExample: "I will play soccer." },
       ],
     });
@@ -97,6 +110,10 @@ describe("assignment student evidence", () => {
       { turnOrder: 1, targetPattern: "I like ___." },
       { turnOrder: 2, targetPattern: "I will ___." },
     ]);
+    expect(result?.turns[0]?.picture).toEqual({
+      objectKey: "teachers/teacher-1/picture-1.jpg",
+      description: "A child choosing an apple.",
+    });
     expect(filters).toContainEqual(["assignments.classes.teacher_id", "teacher-1"]);
   });
 
