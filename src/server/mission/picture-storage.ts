@@ -7,7 +7,7 @@ import {
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
 export const MISSION_IMAGE_BUCKET = "mission-images";
-export const MAX_MISSION_IMAGE_BYTES = 5 * 1024 * 1024;
+export const MAX_MISSION_IMAGE_BYTES = 4 * 1024 * 1024;
 export const ALLOWED_MISSION_IMAGE_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",

@@ -50,7 +50,7 @@ const PROVIDER_RATE_LIMIT_FAILURE =
   "You’ve made several AI requests. Wait a few minutes and try again.";
 
 const PICTURE_UPLOAD_FAILURE =
-  "We could not upload that picture. Use a JPEG, PNG, or WebP up to 5 MB and add a description.";
+  "We could not upload that picture. Use a JPEG, PNG, or WebP up to 4 MB and add a description.";
 
 /**
  * Fails closed: the admission module already denies on RPC error, and a

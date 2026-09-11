@@ -139,7 +139,7 @@ describe("mission picture upload boundary", () => {
 
   it.each([
     ["image/gif", 1, "invalid_image"],
-    ["image/png", 5 * 1024 * 1024 + 1, "invalid_image"],
+    ["image/png", 4 * 1024 * 1024 + 1, "invalid_image"],
   ])("rejects unsupported or oversized image input", async (mimeType, size, error) => {
     const { uploadMissionImage } = await import(
       "@/server/mission/picture-storage"
