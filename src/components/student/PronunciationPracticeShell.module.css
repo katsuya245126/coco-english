@@ -156,6 +156,12 @@
   opacity: 0.62;
 }
 
+.tryStars {
+  font-size: 36px;
+  letter-spacing: 3px;
+  line-height: 1;
+}
+
 .soundAudioControl {
   display: flex;
   justify-content: center;

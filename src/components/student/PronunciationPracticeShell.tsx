@@ -491,6 +491,16 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
                     </svg>
                   </button>
                 </div>
+                {currentWord.finished && currentWord.resultTry && currentWord.resultTry.starBand !== null ? (
+                  <span
+                    data-testid="try-stars"
+                    role="img"
+                    aria-label={`${currentWord.resultTry.starBand} of 3 stars for the whole word`}
+                    className={styles.tryStars}
+                  >
+                    {"⭐".repeat(currentWord.resultTry.starBand)}
+                  </span>
+                ) : null}
               </div>
               {soundAudioControl}
               <audio ref={soundAudioRef} src={sound.clip} preload="auto" />
