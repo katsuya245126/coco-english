@@ -62,7 +62,6 @@ export default async function AttemptEvidencePage({
           classId={evidence.classId}
           assignmentId={evidence.assignmentId}
           dismissed={evidence.dismissedAt != null}
-          allowRetry={evidence.assignmentKind !== "pronunciation"}
         />
 
         <section style={summaryStyle} aria-label="Attempt summary">

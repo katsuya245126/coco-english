@@ -185,6 +185,124 @@ async function createFixture(kind: FixtureKind = "completed") {
   };
 }
 
+async function createPronunciationFixture(complete: boolean): Promise<Fixture> {
+  const admin = await createAdminClient();
+  const suffix = randomBytes(12).toString("hex");
+  const password = "Test-Passw0rd!";
+  const ownerUser = await admin.auth.admin.createUser({
+    email: `pronunciation-review-owner-${suffix}@example.test`,
+    password,
+    email_confirm: true,
+  });
+  const otherUser = await admin.auth.admin.createUser({
+    email: `pronunciation-review-other-${suffix}@example.test`,
+    password,
+    email_confirm: true,
+  });
+  expect(ownerUser.error).toBeNull();
+  expect(otherUser.error).toBeNull();
+
+  const owner = await admin.from("teacher_profiles").insert({
+    auth_user_id: ownerUser.data.user!.id,
+    display_name: `Owner ${suffix}`,
+  }).select("id").single();
+  const other = await admin.from("teacher_profiles").insert({
+    auth_user_id: otherUser.data.user!.id,
+    display_name: `Other ${suffix}`,
+  }).select("id").single();
+  expect(owner.error).toBeNull();
+  expect(other.error).toBeNull();
+
+  const classroom = await admin.from("classes").insert({
+    teacher_id: owner.data!.id,
+    name: `Pronunciation review class ${suffix}`,
+    join_code: `P${suffix}`.slice(0, 12),
+    data_mode: "real",
+  }).select("id").single();
+  const student = await admin.from("students").insert({
+    class_id: classroom.data!.id,
+    display_name: `Student ${suffix}`,
+  }).select("id").single();
+  const snapshot = {
+    kind: "pronunciation",
+    version: 1,
+    soundId: "f",
+    difficulty: "easy",
+    requiredWords: 5,
+    soundClipVersion: "v1",
+    words: Array.from({ length: 5 }, (_, index) => ({ order: index + 1, text: "fish" })),
+  };
+  const assignment = await admin.from("assignments").insert({
+    class_id: classroom.data!.id,
+    mission_id: null,
+    assignment_kind: "pronunciation",
+    title: `Pronunciation assignment ${suffix}`,
+    mission_snapshot: snapshot,
+    data_mode: "real",
+  }).select("id").single();
+  const assignmentStudent = await admin.from("assignment_students").insert({
+    assignment_id: assignment.data!.id,
+    student_id: student.data!.id,
+    status: "teacher_review",
+  }).select("id").single();
+  const attempt = await admin.from("attempts").insert({
+    assignment_student_id: assignmentStudent.data!.id,
+    status: "teacher_review",
+    completed_at: new Date().toISOString(),
+    needs_review_reason: "pronunciation_practice",
+  }).select("id").single();
+  const turns = await admin.from("attempt_turns").insert(
+    Array.from({ length: 5 }, (_, index) => ({
+      attempt_id: attempt.data!.id,
+      turn_order: index + 1,
+    })),
+  ).select("id, turn_order");
+  expect(turns.error).toBeNull();
+
+  const terminalTurns = complete ? turns.data ?? [] : (turns.data ?? []).slice(0, 4);
+  for (const turn of terminalTurns) {
+    const clip = await admin.from("audio_clips").insert({
+      attempt_turn_id: turn.id,
+      clip_kind: "original_answer",
+      object_key: `test/${turn.id}.webm`,
+      mime_type: "audio/webm",
+      processing_status: "transcribed",
+    }).select("id").single();
+    expect(clip.error).toBeNull();
+    const wordTry = await admin.from("pronunciation_word_tries").insert({
+      attempt_turn_id: turn.id,
+      audio_clip_id: clip.data!.id,
+      try_number: complete && turn.turn_order === 5 ? 3 : 1,
+      transcript: "fish",
+      outcome: complete && turn.turn_order === 5 ? "word_weak" : "passed",
+      word_accuracy: 90,
+      star_band: 3,
+      full_word_passed: complete && turn.turn_order !== 5,
+      target_sound_accuracy: 90,
+      target_sound_passed: true,
+    });
+    expect(wordTry.error).toBeNull();
+  }
+  const linked = await admin.from("assignment_students").update({
+    latest_attempt_id: attempt.data!.id,
+  } as never).eq("id", assignmentStudent.data!.id);
+
+  for (const result of [classroom, student, assignment, assignmentStudent, attempt, linked]) {
+    expect(result.error).toBeNull();
+  }
+
+  return {
+    admin,
+    password,
+    ownerUser: ownerUser.data.user!,
+    otherUser: otherUser.data.user!,
+    ownerId: owner.data!.id,
+    otherId: other.data!.id,
+    assignmentStudentId: assignmentStudent.data!.id,
+    attemptId: attempt.data!.id,
+  };
+}
+
 async function cleanupFixture(fixture: Fixture) {
   await fixture.admin.from("teacher_profiles").delete().in("id", [
     fixture.ownerId,
@@ -570,6 +688,59 @@ describe("teacher attempt review interface", () => {
       await cleanupFixture(fullyAnsweredMissingRepeat);
       await cleanupFixture(teacherReviewRetry);
       await cleanupFixture(mismatchedTerminal);
+    }
+  }, 30_000);
+
+  it("completes pronunciation review from terminal word evidence and retries incomplete pronunciation", async (context) => {
+    if (!canRunLocally) return context.skip();
+    const complete = await createPronunciationFixture(true);
+    const incomplete = await createPronunciationFixture(false);
+
+    try {
+      expect(await changeAttemptReview({
+        teacherId: complete.ownerId,
+        attemptId: complete.attemptId,
+        action: "mark_reviewed",
+      })).toEqual({ ok: true });
+
+      const completedAssignment = await complete.admin.from("assignment_students")
+        .select("status")
+        .eq("id", complete.assignmentStudentId)
+        .single();
+      const completedAttempt = await complete.admin.from("attempts")
+        .select("status")
+        .eq("id", complete.attemptId)
+        .single();
+      expect(completedAssignment.data?.status).toBe("completed");
+      expect(completedAttempt.data?.status).toBe("completed");
+
+      expect(await changeAttemptReview({
+        teacherId: incomplete.ownerId,
+        attemptId: incomplete.attemptId,
+        action: "mark_reviewed",
+      })).toEqual({ ok: false, error: "incomplete" });
+
+      expect(await changeAssignedHomework({
+        teacherId: incomplete.ownerId,
+        assignedHomeworkId: incomplete.assignmentStudentId,
+        action: "request_retry",
+        reasonNote: "Missing pronunciation word",
+      })).toEqual({ ok: true });
+
+      const retriedAssignment = await incomplete.admin.from("assignment_students")
+        .select("status, latest_attempt_id" as never)
+        .eq("id", incomplete.assignmentStudentId)
+        .single() as { data: { status: string; latest_attempt_id: string | null } | null };
+      const retriedAttempt = await incomplete.admin.from("attempts")
+        .select("status")
+        .eq("id", incomplete.attemptId)
+        .single();
+      expect(retriedAssignment.data?.status).toBe("needs_retry");
+      expect(retriedAssignment.data?.latest_attempt_id).toBeNull();
+      expect(retriedAttempt.data?.status).toBe("needs_retry");
+    } finally {
+      await cleanupFixture(complete);
+      await cleanupFixture(incomplete);
     }
   }, 30_000);
 });

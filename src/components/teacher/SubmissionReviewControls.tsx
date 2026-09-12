@@ -21,7 +21,6 @@ export function SubmissionReviewControls({
   classId,
   assignmentId,
   dismissed,
-  allowRetry = true,
 }: {
   attemptId: string;
   assignedHomeworkId: string;
@@ -29,7 +28,6 @@ export function SubmissionReviewControls({
   classId: string;
   assignmentId: string;
   dismissed: boolean;
-  allowRetry?: boolean;
 }) {
   const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -106,11 +104,11 @@ export function SubmissionReviewControls({
     ) : markAsDoneAction === "mark_reviewed" ? (
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <HoverButton type="button" disabled={pending} onClick={markDone} style={primaryButtonStyle} hoverStyle={primaryHover}>Mark as done</HoverButton>
-        {allowRetry && canRequestRetry && <HoverButton type="button" disabled={pending} onClick={() => dialog.current?.showModal()} style={secondaryButtonStyle} hoverStyle={secondaryHover}>Request retry</HoverButton>}
+        {canRequestRetry && <HoverButton type="button" disabled={pending} onClick={() => dialog.current?.showModal()} style={secondaryButtonStyle} hoverStyle={secondaryHover}>Request retry</HoverButton>}
       </div>
     ) : null}
     {error && <p role="alert" style={errorStyle}>{error}</p>}
-    {allowRetry && canRequestRetry && <dialog ref={dialog} aria-labelledby="retry-heading" style={dialogStyle}>
+    {canRequestRetry && <dialog ref={dialog} aria-labelledby="retry-heading" style={dialogStyle}>
       <h2 id="retry-heading" style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 600 }}>Request retry?</h2>
       <p style={{ margin: "0 0 16px", fontSize: 14, color: "#4B5563", lineHeight: 1.5 }}>The student can start a new attempt. This evidence stays available.</p>
       <label htmlFor="retry-note" style={{ display: "block", marginBottom: 6, fontSize: 14, fontWeight: 600, color: "#4B5563" }}>Note (optional)</label>

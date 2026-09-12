@@ -276,12 +276,12 @@ describe("SubmissionReviewControls source", () => {
     expect(src).toContain("changeAssignedHomeworkAction");
   });
 
-  it("can hide retry controls for pronunciation evidence", () => {
-    expect(src).toContain("allowRetry = true");
-    expect(src).toMatch(/allowRetry &&[\s\S]*Request retry/);
+  it("keeps retry controls available for every reviewable evidence kind", () => {
+    expect(src).not.toContain("allowRetry");
+    expect(src).toContain("canRequestRetry &&");
     expect(
       source("src/app/teacher/evidence/[attemptId]/page.tsx"),
-    ).toContain('allowRetry={evidence.assignmentKind !== "pronunciation"}');
+    ).not.toContain("allowRetry");
   });
 });
 
