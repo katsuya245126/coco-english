@@ -104,6 +104,30 @@ describe("SubmissionReviewControls action routing", () => {
     expect(mocks.push).not.toHaveBeenCalled();
   });
 
+  it("keeps the retry action visible after completion reports missing evidence", async () => {
+    mocks.markSubmissionReviewedAction.mockResolvedValueOnce({ ok: false, error: "incomplete" });
+    await renderControls("teacher_review");
+    await clickButton("Mark as done");
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      "Some answers are missing. Request retry is available.",
+    );
+    const retryButtons = Array.from(container.querySelectorAll("button")).filter(
+      (button) => button.textContent?.trim() === "Request retry",
+    );
+    expect(retryButtons).toHaveLength(2);
+    await act(async () => {
+      retryButtons[retryButtons.length - 1]?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(mocks.changeAssignedHomeworkAction).toHaveBeenCalledWith({
+      assignedHomeworkId: "assigned-1",
+      action: "request_retry",
+      reasonNote: undefined,
+    });
+  });
+
   it("requests retry and returns to the teacher dashboard", async () => {
     await renderControls("started");
     const retryButtons = Array.from(container.querySelectorAll("button")).filter(
