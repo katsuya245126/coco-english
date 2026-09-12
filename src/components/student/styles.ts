@@ -250,13 +250,11 @@ export const resumeNoticeStyle: CSSProperties = {
 
 export const mascotStageStyle: CSSProperties & {
   "--coco-dialogue-height": string;
-  "--coco-tabs-reserve": string;
 } = {
   width: "100%",
   maxWidth: MISSION_CONTENT_MAX_WIDTH,
   height: 400,
   "--coco-dialogue-height": "clamp(144px, 44vw, 168px)",
-  "--coco-tabs-reserve": "46px",
   position: "relative",
   marginTop: 16,
   marginBottom: 22,
@@ -281,7 +279,7 @@ export const mascotBackdropStyle: CSSProperties = {
 export const mascotPictureVisualStyle: CSSProperties = {
   position: "absolute",
   zIndex: 1,
-  inset: "0 0 calc(var(--coco-dialogue-height) + var(--coco-tabs-reserve))",
+  inset: "0 0 var(--coco-dialogue-height)",
   display: "grid",
   placeItems: "center",
   minHeight: 0,
