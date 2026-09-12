@@ -54,6 +54,32 @@ async function renderLoadedAudio() {
   return audio;
 }
 
+function feedbackAudio(playbackKey: number) {
+  return (
+    <CocoSpeechAudio
+      assignmentStudentId="assignment-student-1"
+      line={{
+        lineKind: "coco_feedback",
+        turnOrder: 1,
+        feedbackVariant: "pronunciation_target_weak",
+      }}
+      playbackKey={playbackKey}
+    />
+  );
+}
+
+async function renderFeedbackAudio(playbackKey: number) {
+  await act(async () => {
+    root.render(feedbackAudio(playbackKey));
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  const audio = container.querySelector("audio");
+  if (!audio) throw new Error("Expected signed Coco feedback audio to render.");
+  return audio;
+}
+
 describe("CocoSpeechAudio", () => {
   it("keeps replay available when opportunistic autoplay is rejected", async () => {
     const play = vi
@@ -73,6 +99,99 @@ describe("CocoSpeechAudio", () => {
     expect(button?.disabled).toBe(false);
     expect(button?.getAttribute("aria-busy")).toBe("false");
     expect(container.textContent).not.toContain("Voice unavailable");
+  });
+
+  it("replays a new identical feedback occurrence without fetching again", async () => {
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockResolvedValue(undefined);
+    const audio = await renderFeedbackAudio(1);
+
+    await act(async () => {
+      audio.dispatchEvent(new Event("canplay", { bubbles: true }));
+    });
+    audio.currentTime = 3;
+
+    await renderFeedbackAudio(2);
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(play).toHaveBeenCalledTimes(2);
+    expect(audio.currentTime).toBe(0);
+  });
+
+  it("replays only the latest occurrence after playback becomes ready", async () => {
+    let resolveFetch!: (response: Response) => void;
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockResolvedValue(undefined);
+
+    await act(async () => {
+      root.render(feedbackAudio(1));
+    });
+    await act(async () => {
+      root.render(feedbackAudio(2));
+    });
+
+    resolveFetch(
+      new Response(
+        JSON.stringify({ ok: true, audioUrl: "https://signed.test/coco.mp3" }),
+        { status: 200 },
+      ),
+    );
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const audio = container.querySelector("audio");
+    if (!audio) throw new Error("Expected signed Coco feedback audio to render.");
+    await act(async () => {
+      root.render(feedbackAudio(3));
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(play).not.toHaveBeenCalled();
+
+    await act(async () => {
+      audio.dispatchEvent(new Event("canplay", { bubbles: true }));
+    });
+
+    expect(play).toHaveBeenCalledTimes(1);
+  });
+
+  it("resets and plays the loaded audio on every manual speaker click", async () => {
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockResolvedValue(undefined);
+    const audio = await renderLoadedAudio();
+
+    await act(async () => {
+      audio.dispatchEvent(new Event("canplay", { bubbles: true }));
+    });
+    const button = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Play Coco"]',
+    );
+    expect(button?.disabled).toBe(false);
+
+    audio.currentTime = 3;
+    await act(async () => {
+      button?.click();
+    });
+    expect(audio.currentTime).toBe(0);
+
+    audio.currentTime = 3;
+    await act(async () => {
+      button?.click();
+    });
+    expect(audio.currentTime).toBe(0);
+    expect(play).toHaveBeenCalledTimes(3);
   });
 
   it("degrades to a visible status when audio playback fails", async () => {

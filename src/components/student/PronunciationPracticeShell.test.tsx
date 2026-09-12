@@ -42,8 +42,19 @@ vi.mock("./VoiceRecorderControl", () => ({
 }));
 
 vi.mock("./CocoSpeechAudio", () => ({
-  CocoSpeechAudio: ({ line }: { line: { feedbackVariant?: string } }) => (
-    <button type="button" data-testid="feedback-audio" aria-label="Play Coco">
+  CocoSpeechAudio: ({
+    line,
+    playbackKey,
+  }: {
+    line: { feedbackVariant?: string };
+    playbackKey?: number;
+  }) => (
+    <button
+      type="button"
+      data-testid="feedback-audio"
+      data-playback-key={playbackKey}
+      aria-label="Play Coco"
+    >
       {line.feedbackVariant}
     </button>
   ),
@@ -246,7 +257,7 @@ describe("PronunciationPracticeShell", () => {
       outcome: "passed",
       targetSoundAccuracy: 80,
       targetSoundPassed: true,
-      feedback: "Your sss was strong!",
+      feedback: "Good job!",
     };
     await act(async () => {
       container.querySelector<HTMLButtonElement>('[data-testid="practice-recorder"]')?.click();
@@ -260,6 +271,26 @@ describe("PronunciationPracticeShell", () => {
     expect(feedbackAudio).not.toBeNull();
     expect(feedbackAudio?.closest('[data-testid="coco-feedback"]')).not.toBeNull();
     expect(container.querySelector('[aria-label="Word and sound audio"] [data-testid="feedback-audio"]')).toBeNull();
+  });
+
+  it("advances the feedback playback key for consecutive identical results", async () => {
+    await renderShell(page());
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="practice-recorder"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="feedback-audio"]')?.getAttribute("data-playback-key")).toBe("1");
+
+    uploadResult = { ...uploadResult, tryNumber: 2 };
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="practice-recorder"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[data-testid="feedback-audio"]')?.getAttribute("data-playback-key")).toBe("2");
   });
 
   it("explains missing word audio without blocking sound practice", async () => {
@@ -336,7 +367,7 @@ describe("PronunciationPracticeShell", () => {
       outcome: "passed",
       targetSoundAccuracy: 80,
       targetSoundPassed: true,
-      feedback: "Your sss was strong!",
+      feedback: "Good job!",
       starBand: 2,
     };
     await renderShell(page());
@@ -347,7 +378,7 @@ describe("PronunciationPracticeShell", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("Your sss was strong!");
+    expect(container.textContent).toContain("Good job!");
     expect(container.querySelector('[aria-label="1 of 5 words completed"]')).not.toBeNull();
     expect(container.querySelector('button[aria-label="Next word"]')).not.toBeNull();
 
@@ -371,7 +402,7 @@ describe("PronunciationPracticeShell", () => {
       outcome: "passed",
       targetSoundAccuracy: 80,
       targetSoundPassed: true,
-      feedback: "Your sss was strong!",
+      feedback: "Good job!",
       starBand: 2,
     };
     const finishedWords = [1, 2, 3, 4].map((order) =>
@@ -393,7 +424,7 @@ describe("PronunciationPracticeShell", () => {
     const { completePronunciationAttemptAction } = await import(
       "@/app/student/pronunciation/[assignmentStudentId]/actions"
     );
-    expect(container.textContent).toContain("Your sss was strong!");
+    expect(container.textContent).toContain("Good job!");
     expect(container.textContent).toContain("word-5");
     expect(container.querySelector('button[aria-label="Next word"]')).not.toBeNull();
     expect(vi.mocked(completePronunciationAttemptAction)).not.toHaveBeenCalled();
@@ -418,7 +449,7 @@ describe("PronunciationPracticeShell", () => {
       outcome: "passed",
       targetSoundAccuracy: 80,
       targetSoundPassed: true,
-      feedback: "Your sss was strong!",
+      feedback: "Good job!",
       starBand: 2,
     };
     const finishedWords = [1, 2, 3, 4].map((order) =>
@@ -562,7 +593,7 @@ describe("PronunciationPracticeShell", () => {
       starBand: 2,
       targetSoundAccuracy: 80,
       targetSoundPassed: true,
-      feedback: "Your sss was strong!",
+      feedback: "Good job!",
     };
     await act(async () => {
       container.querySelector<HTMLButtonElement>('[data-testid="practice-recorder"]')?.click();
@@ -572,7 +603,7 @@ describe("PronunciationPracticeShell", () => {
 
     expect(container.querySelector('[data-testid="try-stars"]')).toBeNull();
     expect(container.querySelector('[data-testid="coco-feedback-message"]')?.textContent).toBe(
-      "Your sss was strong!",
+      "Good job!",
     );
   });
 
@@ -652,7 +683,7 @@ describe("PronunciationPracticeShell", () => {
     });
     expect(container.querySelector('img[src="/images/coco-encouraging-alpha.png"]')).not.toBeNull();
 
-    uploadResult = { ...uploadResult, tryNumber: 2, outcome: "passed", targetSoundPassed: true, feedback: "Your sss was strong!" };
+    uploadResult = { ...uploadResult, tryNumber: 2, outcome: "passed", targetSoundPassed: true, feedback: "Good job!" };
     await act(async () => {
       container.querySelector<HTMLButtonElement>('[data-testid="practice-recorder"]')?.click();
       await Promise.resolve();
