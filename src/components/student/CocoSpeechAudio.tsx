@@ -54,6 +54,8 @@ type CocoSpeechAudioProps = {
   onAmplitudeFrame?: (level: number) => void;
   /** MASCOT-02: fired on playing-state transitions (drives idle<->speaking). */
   onPlayingChange?: (playing: boolean) => void;
+  /** Changes when the same descriptor is shown for a new feedback occurrence. */
+  playbackKey?: number;
 };
 
 type PlaybackState =
@@ -88,10 +90,12 @@ export function CocoSpeechAudio({
   presentation = "standalone",
   onAmplitudeFrame,
   onPlayingChange,
+  playbackKey,
 }: CocoSpeechAudioProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const amplitudeFrameRef = useRef<number | null>(null);
   const autoplayedUrlRef = useRef<string | null>(null);
+  const handledPlaybackKeyRef = useRef<number | undefined>(playbackKey);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [state, setState] = useState<PlaybackState>("loading");
   // Bumping this re-runs the fetch effect so a rate-limited student can retry
@@ -105,6 +109,7 @@ export function CocoSpeechAudio({
     const controller = new AbortController();
 
     autoplayedUrlRef.current = null;
+    handledPlaybackKeyRef.current = playbackKey;
     onPlayingChange?.(false);
     setState("loading");
     setAudioUrl(null);
@@ -169,6 +174,8 @@ export function CocoSpeechAudio({
       controller.abort();
       onPlayingChange?.(false);
     };
+    // A playback occurrence must not trigger another descriptor fetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     assignmentStudentId,
     line.lineKind,
@@ -178,6 +185,26 @@ export function CocoSpeechAudio({
     onPlayingChange,
     reloadCount,
   ]);
+
+  // A new occurrence of the same line should replay the loaded audio without
+  // re-running the descriptor fetch (and its request-budget admission).
+  useEffect(() => {
+    const el = audioRef.current;
+    if (
+      handledPlaybackKeyRef.current === playbackKey ||
+      !el ||
+      !audioUrl ||
+      (state !== "ready" && state !== "playing")
+    ) {
+      return;
+    }
+    handledPlaybackKeyRef.current = playbackKey;
+    el.currentTime = 0;
+    el.play().catch(() => {
+      // Automatic replay can still be blocked; preserve the ready affordance.
+      setState((prev) => (prev === "playing" ? prev : "ready"));
+    });
+  }, [audioUrl, playbackKey, state]);
 
   useEffect(() => {
     if (state !== "playing" || !onAmplitudeFrame) return;
@@ -212,10 +239,14 @@ export function CocoSpeechAudio({
     setState((prev) => (prev === "playing" ? prev : "ready"));
 
     if (!audioUrl) return;
-    if (autoplayedUrlRef.current === audioUrl) return;
     const el = audioRef.current;
     if (!el) return;
+    const needsPlayback =
+      handledPlaybackKeyRef.current !== playbackKey ||
+      autoplayedUrlRef.current !== audioUrl;
+    if (!needsPlayback) return;
 
+    handledPlaybackKeyRef.current = playbackKey;
     autoplayedUrlRef.current = audioUrl;
     el.play().catch(() => {
       // Autoplay blocked — remain ready so the student can tap replay (D-02).

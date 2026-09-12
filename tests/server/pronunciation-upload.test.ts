@@ -681,7 +681,7 @@ describe("uploadPronunciationTry", () => {
   it.each([
     [80, 49, "target_weak", "Almost! Teeth on your lip — fff. Try again."],
     [59, 80, "word_weak", "Great fff! Now say the whole word smoothly."],
-    [60, 50, "passed", "Your fff was strong!"],
+    [60, 50, "passed", "Good job!"],
   ] as const)("returns sound-first feedback for %s", async (wordAccuracy, targetAccuracy, expected, feedback) => {
     resetState("f", "face");
     const transcribe = vi.fn(async () => transcribed("face"));

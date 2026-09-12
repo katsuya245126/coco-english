@@ -146,7 +146,7 @@ function pronunciationFeedbackForOutcome(
 
   switch (outcome) {
     case "passed":
-      return cue ? `Your ${cue} was strong!` : null;
+      return "Good job!";
     case "target_weak":
       return sound && cue
         ? `Almost! ${sound.tip} — ${cue}. Try again.`

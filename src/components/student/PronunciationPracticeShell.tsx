@@ -341,6 +341,7 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
         turnOrder: currentWord.order,
         feedbackVariant,
       }}
+      playbackKey={currentWord.validTryCount}
     />
   ) : null;
 

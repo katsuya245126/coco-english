@@ -25,7 +25,7 @@ describe("gradePronunciationTry", () => {
       starBand: 3,
       fullWordPassed: true,
       targetSoundPassed: true,
-      feedback: "Your fff was strong!",
+      feedback: "Good job!",
     });
   });
 
