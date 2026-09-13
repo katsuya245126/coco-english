@@ -381,6 +381,11 @@ describe("PronunciationPracticeShell", () => {
     expect(container.textContent).toContain("Good job!");
     expect(container.querySelector('[aria-label="1 of 5 words completed"]')).not.toBeNull();
     expect(container.querySelector('button[aria-label="Next word"]')).not.toBeNull();
+    const wordArea = container.querySelector('[data-testid="practice-word-area"]');
+    const tryStars = container.querySelector('[data-testid="try-stars"]');
+    expect(tryStars?.parentElement).toBe(wordArea);
+    expect(tryStars?.previousElementSibling).toBe(wordArea?.firstElementChild);
+    expect(container.querySelector('[data-testid="coco-feedback"] [data-testid="try-stars"]')).toBeNull();
 
     await act(async () => {
       container.querySelector<HTMLButtonElement>('button[aria-label="Next word"]')?.click();
@@ -557,6 +562,13 @@ describe("PronunciationPracticeShell", () => {
 
     expect(container.textContent).toContain("Good try! Let's do the next word.");
     expect(container.querySelector('[data-testid="feedback-audio"]')?.textContent).toBe(expectedVariant);
+    const tryStars = container.querySelector('[data-testid="try-stars"]');
+    if (outcome === "different_word") {
+      expect(tryStars).toBeNull();
+    } else {
+      expect(tryStars?.getAttribute("aria-label")).toBe("1 of 3 stars for the whole word");
+      expect(tryStars?.textContent).toBe("⭐");
+    }
   });
 
   it("does not show stars for a weak scored try", async () => {
@@ -572,6 +584,15 @@ describe("PronunciationPracticeShell", () => {
 
     expect(container.querySelector('[data-testid="try-stars"]')).toBeNull();
     expect(container.textContent).not.toContain("whole word");
+
+    uploadResult = { ...uploadResult, tryNumber: 2 };
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="practice-recorder"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[data-testid="try-stars"]')).toBeNull();
   });
 
   it("replaces sound-first dialogue with each successive try", async () => {
@@ -601,7 +622,10 @@ describe("PronunciationPracticeShell", () => {
       await Promise.resolve();
     });
 
-    expect(container.querySelector('[data-testid="try-stars"]')).toBeNull();
+    expect(container.querySelector('[data-testid="try-stars"]')?.getAttribute("aria-label")).toBe(
+      "2 of 3 stars for the whole word",
+    );
+    expect(container.querySelector('[data-testid="try-stars"]')?.textContent).toBe("⭐⭐");
     expect(container.querySelector('[data-testid="coco-feedback-message"]')?.textContent).toBe(
       "Good job!",
     );
