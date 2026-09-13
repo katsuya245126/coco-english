@@ -186,6 +186,42 @@ describe("PronunciationPracticeShell", () => {
     expect(card?.querySelector('button[aria-label="Hear the S sound"]')).not.toBeNull();
   });
 
+  it("styles target letters by pronunciation assessment", async () => {
+    await renderShell(page());
+
+    let targetLetters = container.querySelector<HTMLElement>('[data-testid="practice-word-area"] mark');
+    expect(targetLetters?.style.background).toBe("rgb(254, 249, 195)");
+    expect(targetLetters?.style.color).toBe("rgb(17, 24, 39)");
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="practice-recorder"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    targetLetters = container.querySelector<HTMLElement>('[data-testid="practice-word-area"] mark');
+    expect(targetLetters?.style.color).toBe("rgb(185, 28, 28)");
+    expect(targetLetters?.style.textDecoration).toBe("underline");
+
+    uploadResult = {
+      ...uploadResult,
+      tryNumber: 2,
+      outcome: "passed",
+      targetSoundAccuracy: 80,
+      targetSoundPassed: true,
+      feedback: "Good job!",
+    };
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="practice-recorder"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    targetLetters = container.querySelector<HTMLElement>('[data-testid="practice-word-area"] mark');
+    expect(targetLetters?.style.background).toBe("transparent");
+    expect(targetLetters?.style.color).toBe("rgb(21, 128, 61)");
+  });
+
   it("renders five progress dots for finished, current, and upcoming words", async () => {
     const finishedWords = [
       word(1, { finished: true, passed: true, validTryCount: 1, remainingTryCount: 2 }),
@@ -653,6 +689,9 @@ describe("PronunciationPracticeShell", () => {
     expect(container.querySelector('[data-testid="coco-feedback-message"]')?.textContent).toBe(
       "Let's try word-1 — listen again.",
     );
+    const targetLetters = container.querySelector<HTMLElement>('[data-testid="practice-word-area"] mark');
+    expect(targetLetters?.style.background).toBe("rgb(254, 249, 195)");
+    expect(targetLetters?.style.color).toBe("rgb(17, 24, 39)");
   });
 
   it("praises a clear sound before asking for a smoother whole word", async () => {
