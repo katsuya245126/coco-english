@@ -81,7 +81,7 @@ function highlightedWord(
       ? { background: "#FEF9C3", color: "#111827" }
       : targetSoundPassed
         ? { background: "transparent", color: "#15803D" }
-        : { background: "transparent", color: "#854F0B", textDecoration: "underline" };
+        : { background: "transparent", color: "#B91C1C", textDecoration: "underline" };
   return (
     <span aria-label={word.text}>
       {word.text.slice(0, start)}
@@ -464,7 +464,12 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
               <div className={styles.wordArea} data-testid="practice-word-area">
                 <div className={styles.wordDisplay}>
                   <div className={styles.word}>
-                    {highlightedWord(currentWord, lastTry ? lastTry.targetSoundPassed : null)}
+                    {highlightedWord(
+                      currentWord,
+                      lastTry?.outcome === "different_word"
+                        ? null
+                        : lastTry?.targetSoundPassed ?? null,
+                    )}
                   </div>
                   <button
                     type="button"
