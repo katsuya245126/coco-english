@@ -232,7 +232,6 @@ export default async function MissionPage({ params }: MissionPageProps) {
             displayName: characterProfile.displayName,
             questionIntro: characterProfile.questionIntro,
             questionLabel: characterProfile.questionLabel,
-            turnTransition: characterProfile.turnTransition,
             completionHeading: characterProfile.completionHeading,
             completionBody: characterProfile.completionBody(snapshot.requiredTurns),
             resumeNotice: characterProfile.resumeNotice,

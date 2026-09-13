@@ -308,7 +308,6 @@ describe("student mission flow AI routing stays app-owned (D-06, D-07)", () => {
     expect(shellSource).toContain("transitionMissionFlow");
     expect(transitionSource).toContain('resolution.kind === "unavailable"');
     expect(shellSource).toContain("Coco’s next question isn’t available yet");
-    expect(shellSource).toContain("StepTurnTransition");
     expect(shellSource).toContain("finishRepeatFeedback");
   });
 

@@ -271,15 +271,9 @@ describe("mission flow transitions", () => {
       state: { step: "repeatFeedback", repeatFeedback: { kind: "repeatAccepted" } },
     });
 
-    const completion = transitionMissionFlow(repeatFeedback.state, {
+    const nextTurn = transitionMissionFlow(repeatFeedback.state, {
       type: "continueRepeat",
       ...presetContext,
-    });
-    expect(completion).toMatchObject({ kind: "apply", state: { step: "transition" } });
-
-    const nextTurn = transitionMissionFlow(completion.state, {
-      type: "nextTurn",
-      requiredTurns: 2,
     });
     expect(nextTurn).toEqual({
       kind: "apply",
@@ -323,6 +317,50 @@ describe("mission flow transitions", () => {
       state: { ...state, step: "reviewPending" },
     });
   });
+
+  it.each(["acceptedOriginal", "teacherReview"] as const)(
+    "opens the next clean Preset question after a non-final %s original",
+    (kind) => {
+      const state = {
+        ...emptyState(),
+        step: "aiFeedback" as const,
+        originalTranscript: "Maybe.",
+        originalFeedback: { kind, transcript: "Maybe." },
+      };
+
+      expect(
+        transitionMissionFlow(state, {
+          type: "continueOriginal",
+          ...presetContext,
+        }),
+      ).toEqual({
+        kind: "apply",
+        state: { ...emptyState(), turnIndex: 1 },
+      });
+    },
+  );
+
+  it.each(["repeatReview", "repeatLimitReached"] as const)(
+    "opens the next clean Preset question after a non-final %s repeat",
+    (kind) => {
+      const state = {
+        ...emptyState(),
+        step: "repeatFeedback" as const,
+        repeatTranscript: "I like playing soccer.",
+        repeatFeedback: { kind, transcript: "I like playing soccer." },
+      };
+
+      expect(
+        transitionMissionFlow(state, {
+          type: "continueRepeat",
+          ...presetContext,
+        }),
+      ).toEqual({
+        kind: "apply",
+        state: { ...emptyState(), turnIndex: 1 },
+      });
+    },
+  );
 
   it("advances accepted and reviewed Conversation turns without a transition card", () => {
     const accepted = transitionMissionFlow(emptyState(), {

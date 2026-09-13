@@ -16,7 +16,6 @@ export type FlowStep =
   | "aiFeedback"
   | "repeat"
   | "repeatFeedback"
-  | "transition"
   | "reviewPending"
   | "closing"
   | "complete";
@@ -146,8 +145,7 @@ export type MissionFlowEvent =
   | (MissionFlowContext & { type: "continueRepeat" })
   | { type: "retryOriginal" }
   | { type: "retryWithImprovedSentence" | "retryRepeat" }
-  | { type: "revealHint"; hintLevel: number }
-  | { type: "nextTurn"; requiredTurns: number };
+  | { type: "revealHint"; hintLevel: number };
 
 export type CompletionDecision =
   | { kind: "complete"; state: FlowState }
@@ -511,7 +509,10 @@ export function transitionMissionFlow(
           feedback.kind === "teacherReview" ? "reviewPending" : "complete",
         );
       }
-      return { kind: "apply", state: { ...state, step: "transition" } };
+      return {
+        kind: "apply",
+        state: emptyFlowState(state.turnIndex + 1, null),
+      };
     }
 
     case "continueRepeat": {
@@ -535,7 +536,10 @@ export function transitionMissionFlow(
           feedback.kind === "repeatReview" ? "reviewPending" : "complete",
         );
       }
-      return { kind: "apply", state: { ...state, step: "transition" } };
+      return {
+        kind: "apply",
+        state: emptyFlowState(state.turnIndex + 1, null),
+      };
     }
 
     case "retryOriginal":
@@ -572,12 +576,5 @@ export function transitionMissionFlow(
         state: { ...state, hintLevel: event.hintLevel },
       };
 
-    case "nextTurn": {
-      const nextTurnIndex = state.turnIndex + 1;
-      if (nextTurnIndex >= event.requiredTurns) {
-        return { kind: "apply", state };
-      }
-      return { kind: "apply", state: emptyFlowState(nextTurnIndex, null) };
-    }
   }
 }
