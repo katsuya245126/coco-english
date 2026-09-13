@@ -5,7 +5,7 @@
  *
  * Applies the pure `FlowState` transitions via useState.
  * Shows exactly ONE step card at a time (D-12 — no scrolling thread).
- * Steps: question -> repeat -> transition -> (next turn or complete).
+ * Steps: question -> repeat -> (next turn or complete).
  * Step transitions are client state, NOT URL changes (Anti-Pattern).
  * All buddy/sentence text comes from snapshot + static profile — no AI client.
  */
@@ -37,7 +37,6 @@ import {
 import { StepBuddyQuestion } from "@/components/student/StepBuddyQuestion";
 import { StepImprovedRepeat } from "@/components/student/StepImprovedRepeat";
 import { StepAiEvaluationFeedback } from "@/components/student/StepAiEvaluationFeedback";
-import { StepTurnTransition } from "@/components/student/StepTurnTransition";
 import { StepConversationClosing } from "@/components/student/StepConversationClosing";
 import { StepMissionComplete } from "@/components/student/StepMissionComplete";
 import { MascotStage } from "@/components/student/MascotStage";
@@ -72,7 +71,6 @@ export type CharacterProfileLines = {
   displayName: string;
   questionIntro: string;
   questionLabel: string;
-  turnTransition: string;
   completionHeading: string;
   completionBody: string;
   resumeNotice: string;
@@ -213,7 +211,6 @@ export function MissionFlowShell({
     flow,
     activeQuestion,
     actionError,
-    turnTransition: characterProfile.turnTransition,
     completionHeading: characterProfile.completionHeading,
   });
 
@@ -457,7 +454,11 @@ export function MissionFlowShell({
       await applyTransition(decision, aid);
       return;
     }
-    await applyTransition(decision);
+    await applyTransition(
+      decision,
+      undefined,
+      decision.kind === "apply" && decision.state.step === "question",
+    );
   }
 
   async function finishOriginalFeedback() {
@@ -520,15 +521,6 @@ export function MissionFlowShell({
 
     setFlow((prev) =>
       transitionMissionFlow(prev, { type: "revealHint", hintLevel: nextLevel }).state,
-    );
-  }
-
-  // Preset missions only — chat missions advance directly through the pure
-  // transition module and never reach the transition step.
-  function handleNextTurn() {
-    revokeAudioUrls();
-    setFlow((previous) =>
-      transitionMissionFlow(previous, { type: "nextTurn", requiredTurns }).state,
     );
   }
 
@@ -755,17 +747,6 @@ export function MissionFlowShell({
           />
         )}
 
-        {flow.step === "transition" && (
-          <StepTurnTransition
-            assignmentStudentId={assignmentStudentId}
-            transitionMessage={characterProfile.turnTransition}
-            onAmplitudeFrame={handleMascotAmplitudeFrame}
-            onPlayingChange={handleMascotPlayingChange}
-            showCocoLine={false}
-            onNextTurn={handleNextTurn}
-          />
-        )}
-
         {flow.step === "closing" && (
           <StepConversationClosing onFinish={finishConversationClosing} />
         )}
@@ -830,13 +811,11 @@ function getMascotDialogue({
   flow,
   activeQuestion,
   actionError,
-  turnTransition,
   completionHeading,
 }: {
   flow: FlowState;
   activeQuestion: ActiveStudentQuestion;
   actionError?: string | null;
-  turnTransition: string;
   completionHeading: string;
 }): { text: string | null; line: CocoSpeechLine | null } {
   if (actionError) {
@@ -982,13 +961,6 @@ function getMascotDialogue({
     return {
       text: "Your teacher will check this answer.",
       line: { lineKind: "coco_feedback", feedbackVariant: "repeat_check" },
-    };
-  }
-
-  if (flow.step === "transition") {
-    return {
-      text: turnTransition,
-      line: { lineKind: "coco_transition" },
     };
   }
 

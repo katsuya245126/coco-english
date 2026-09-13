@@ -123,7 +123,6 @@ const shellProps = {
     displayName: "Coco",
     questionIntro: "Answer Coco",
     questionLabel: "Question",
-    turnTransition: "Next question",
     completionHeading: "Nice work!",
     completionBody: "You finished.",
     resumeNotice: "Welcome back!",
@@ -300,11 +299,7 @@ describe("MissionFlowShell teacher-review feedback", () => {
         .find((button) => button.textContent?.trim() === "Continue practice")?.click();
       await flush();
     });
-    const nextTurn = Array.from(container.querySelectorAll("button"))
-      .find((button) => button.textContent?.trim() === "Next turn");
-    if (nextTurn) {
-      await act(async () => { nextTurn.click(); await flush(); });
-    }
+    expect(buttonLabels()).not.toContain("Next turn");
     expect(container.querySelector("[data-picture-src]")).toBeNull();
     expect(container.querySelector<HTMLButtonElement>('button[aria-label="Record answer"]')?.disabled).toBe(false);
   });

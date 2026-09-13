@@ -311,15 +311,12 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     );
   });
 
-  it("wires CocoSpeechAudio into the buddy question, improved repeat, transition, and completion steps", () => {
+  it("wires CocoSpeechAudio into the buddy question, improved repeat, and completion steps", () => {
     const questionSource = readSource(
       "src/components/student/StepBuddyQuestion.tsx",
     );
     const repeatSource = readSource(
       "src/components/student/StepImprovedRepeat.tsx",
-    );
-    const transitionSource = readSource(
-      "src/components/student/StepTurnTransition.tsx",
     );
     const completeSource = readSource(
       "src/components/student/StepMissionComplete.tsx",
@@ -327,7 +324,6 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
 
     expect(questionSource).toContain("CocoSpeechAudio");
     expect(repeatSource).toContain("CocoSpeechAudio");
-    expect(transitionSource).toContain("CocoSpeechAudio");
     expect(completeSource).toContain("CocoSpeechAudio");
   });
 

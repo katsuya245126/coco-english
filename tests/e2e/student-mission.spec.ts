@@ -3,7 +3,7 @@
  *
  * Drives the happy path: reach the mission flow for a seeded assigned
  * student, complete the full per-turn cycle (answer -> improved sentence
- * -> repeat -> transition -> complete), and assert "Mission complete!"
+ * -> repeat -> next question -> complete), and assert "Mission complete!"
  * then return to homework.
  *
  * Runs through test:e2e:local, which provides a reset local Supabase instance.
@@ -376,13 +376,11 @@ test("multi-pattern preset: wrong pattern repeats and active pattern completes",
     await expect(page.getByText("Good repeat.")).toBeVisible();
     await page.getByRole("button", { name: "Continue mission" }).click();
 
-    // Transition screen
+    // Turn 2 opens immediately after continuing the completed turn.
     await expect(
       page.getByText("Good job! Ready for the next one?"),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Next turn" }).click();
-
-    // Turn 2: new question
+    ).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Next turn" })).toHaveCount(0);
     await expect(
       page.getByText("What color are apples?"),
     ).toBeVisible();

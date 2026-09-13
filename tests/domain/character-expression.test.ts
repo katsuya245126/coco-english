@@ -22,7 +22,6 @@ const allSteps: FlowStep[] = [
   "aiFeedback",
   "repeat",
   "repeatFeedback",
-  "transition",
   "reviewPending",
   "closing",
   "complete",
