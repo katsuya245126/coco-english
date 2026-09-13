@@ -73,6 +73,35 @@ async function renderForm() {
   });
 }
 
+describe("MissionForm turn editor", () => {
+  it("keeps one Add turn button below the final turn and appends a blank turn", async () => {
+    await renderForm();
+
+    const addTurnButtons = Array.from(container.querySelectorAll("button")).filter(
+      (button) => button.textContent?.trim() === "Add turn",
+    );
+    const finalTurnField = container.querySelector("#turn-0-picture-file");
+
+    expect(addTurnButtons).toHaveLength(1);
+    expect(finalTurnField).not.toBeNull();
+    const addTurnButton = addTurnButtons[0];
+    if (!finalTurnField || !addTurnButton) {
+      throw new Error("Expected the turn editor Add turn control and final field");
+    }
+    expect(
+      finalTurnField.compareDocumentPosition(addTurnButton) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+    await act(async () => {
+      addTurnButton.click();
+      await flushForm();
+    });
+
+    expect(container.querySelector<HTMLInputElement>("#turn-1-prompt")?.value).toBe("");
+  });
+});
+
 describe("MissionForm picture turns", () => {
   it("offers a native picture control with privacy guidance and preview actions", async () => {
     await renderForm();

@@ -76,14 +76,6 @@ export function TurnEditor({
     <section style={panelStyle}>
       <div style={sectionHeaderStyle}>
         <h2 style={headingStyle}>Turns</h2>
-        <HoverButton
-          type="button"
-          onClick={() => onChange([...turns, createEmptyTurn()])}
-          style={secondaryButtonStyle}
-          hoverStyle={secondaryHover}
-        >
-          Add turn
-        </HoverButton>
       </div>
 
       {errors.turns ? (
@@ -194,6 +186,15 @@ export function TurnEditor({
           );
         })}
       </div>
+
+      <HoverButton
+        type="button"
+        onClick={() => onChange([...turns, createEmptyTurn()])}
+        style={secondaryButtonStyle}
+        hoverStyle={secondaryHover}
+      >
+        Add turn
+      </HoverButton>
     </section>
   );
 }
