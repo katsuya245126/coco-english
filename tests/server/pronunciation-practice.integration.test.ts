@@ -677,4 +677,108 @@ describe("pronunciation practice server flow", () => {
       await cleanupFixture(fixture, objectKeys, attemptId);
     }
   }, 30_000);
+
+  it("starts a fresh pronunciation attempt after a teacher requests retry", async (context) => {
+    if (!canRunLocally) return context.skip();
+
+    const fixture = await createFixture();
+    let oldAttemptId: string | null = null;
+    let newAttemptId: string | null = null;
+
+    try {
+      const started = await startOrResumePronunciationAttempt({
+        studentId: fixture.ownerStudentId,
+        assignmentStudentId: fixture.assignmentStudentId,
+      });
+      expect(started).toMatchObject({ ok: true, isResume: false });
+      if (!started.ok) throw new Error("attempt did not start");
+      oldAttemptId = started.attemptId;
+
+      const retry = await fixture.admin.rpc("request_submission_retry", {
+        p_teacher_id: fixture.teacherId,
+        p_attempt_id: oldAttemptId,
+        p_reason_note: "Please try the pronunciation again",
+      });
+      expect(retry.error).toBeNull();
+      expect(retry.data).toBe("ok");
+
+      const retryState = await Promise.all([
+        fixture.admin
+          .from("assignment_students")
+          .select("status, attempt_count, latest_attempt_id")
+          .eq("id", fixture.assignmentStudentId)
+          .single(),
+        fixture.admin
+          .from("attempts")
+          .select("status")
+          .eq("id", oldAttemptId)
+          .single(),
+      ]);
+      expect(retryState[0].error).toBeNull();
+      expect(retryState[0].data).toEqual({
+        status: "needs_retry",
+        attempt_count: 1,
+        latest_attempt_id: null,
+      });
+      expect(retryState[1].error).toBeNull();
+      expect(retryState[1].data).toEqual({ status: "needs_retry" });
+
+      const restarted = await startOrResumePronunciationAttempt({
+        studentId: fixture.ownerStudentId,
+        assignmentStudentId: fixture.assignmentStudentId,
+      });
+      expect(restarted).toMatchObject({ ok: true, isResume: false });
+      if (!restarted.ok) throw new Error("retry attempt did not start");
+      newAttemptId = restarted.attemptId;
+      expect(newAttemptId).not.toBe(oldAttemptId);
+
+      const turns = await fixture.admin
+        .from("attempt_turns")
+        .select("turn_order")
+        .eq("attempt_id", newAttemptId)
+        .order("turn_order", { ascending: true });
+      expect(turns.error).toBeNull();
+      expect(turns.data?.map((turn) => turn.turn_order)).toEqual([1, 2, 3, 4, 5]);
+
+      const restartedState = await fixture.admin
+        .from("assignment_students")
+        .select("status, attempt_count, latest_attempt_id")
+        .eq("id", fixture.assignmentStudentId)
+        .single();
+      expect(restartedState.error).toBeNull();
+      expect(restartedState.data).toEqual({
+        status: "started",
+        attempt_count: 2,
+        latest_attempt_id: newAttemptId,
+      });
+
+      const resumed = await startOrResumePronunciationAttempt({
+        studentId: fixture.ownerStudentId,
+        assignmentStudentId: fixture.assignmentStudentId,
+      });
+      expect(resumed).toEqual({ ok: true, attemptId: newAttemptId, isResume: true });
+
+      const attempts = await fixture.admin
+        .from("attempts")
+        .select("id, status")
+        .eq("assignment_student_id", fixture.assignmentStudentId)
+        .order("created_at", { ascending: true });
+      expect(attempts.error).toBeNull();
+      expect(attempts.data).toEqual([
+        { id: oldAttemptId, status: "needs_retry" },
+        { id: newAttemptId, status: "in_progress" },
+      ]);
+
+      const events = await fixture.admin
+        .from("assignment_status_events")
+        .select("reason_code")
+        .eq("assignment_student_id", fixture.assignmentStudentId);
+      expect(events.error).toBeNull();
+      expect(events.data).toEqual(expect.arrayContaining([
+        { reason_code: "reopened_by_teacher" },
+      ]));
+    } finally {
+      await cleanupFixture(fixture, [], newAttemptId ?? oldAttemptId);
+    }
+  }, 30_000);
 });
