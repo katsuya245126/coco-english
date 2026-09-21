@@ -631,6 +631,8 @@ describe("uploadPronunciationSample", () => {
 });
 
 describe("confirmPronunciationSample", () => {
+  const liveConfirmationNow = () => new Date("2026-08-31T00:00:00.000Z");
+
   it("rejects overlong teacher wording before ownership or provider work", async () => {
     const supabase = createConfirmationMock();
     const scorePronunciation = vi.fn(async () => score);
@@ -728,6 +730,7 @@ describe("confirmPronunciationSample", () => {
         client: supabase as never,
         scorePronunciation: scorePronunciation as never,
         consumeRequestBudget,
+        now: liveConfirmationNow,
       },
     );
 
@@ -769,6 +772,7 @@ describe("confirmPronunciationSample", () => {
           error: "provider_failed" as const,
         })),
         consumeRequestBudget,
+        now: liveConfirmationNow,
       },
     );
 
@@ -800,6 +804,7 @@ describe("confirmPronunciationSample", () => {
           error: "provider_failed" as const,
         })),
         consumeRequestBudget: vi.fn(async () => ({ allowed: true as const })),
+        now: liveConfirmationNow,
       },
     );
 
@@ -851,6 +856,7 @@ describe("confirmPronunciationSample", () => {
         client: supabase as never,
         consumeRequestBudget,
         scorePronunciation: vi.fn(async () => score),
+        now: liveConfirmationNow,
       },
     );
 
