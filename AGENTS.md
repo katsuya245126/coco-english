@@ -32,7 +32,12 @@
 
 Run the narrowest relevant tests first, then typecheck, lint, and build in proportion to risk. Never claim an unrun check passed.
 
-For documentation-only changes, check the diff, referenced paths, and instruction consistency; application tests are unnecessary unless executable behavior or an explicit requirement is affected. Do not add tests that merely mirror prose or trivial implementation details.
+For documentation-only changes, check the diff, referenced paths, and instruction consistency; application tests are unnecessary unless executable behavior or an explicit requirement is affected.
+
+- Tautological tests and change-detector tests are harmful: test observable behavior, not prose, implementation details, or the mere presence of a change.
+- Add a regression test for a bug fix only when it closes a genuine gap in behavior testing. Write the test before the fix; never write unit tests after writing code.
+- Prefer E2E tests as the sole testing mechanism for complex features. End E2E tests with a verifiable, repeatable artifact.
+- If isolated testing is necessary, first enumerate the ways the system could fail, then write the test and code.
 
 For deterministic student feedback screenshots, start the app on `http://localhost:3000`, provide `FEEDBACK_STATE_CLASS_CODE`, `FEEDBACK_STATE_STUDENT_NAME`, and `FEEDBACK_STATE_PIN`, and run `npm run test:student-feedback-states`. See `docs/testing/student-feedback-states.md`.
 
@@ -40,7 +45,7 @@ For deterministic student feedback screenshots, start the app on `http://localho
 
 - Give subagents compact, task-specific prompts and the minimum history they need. Inherit full conversation history only when the task cannot be summarized safely.
 - Reuse an existing subagent for follow-up work instead of spawning a replacement for the same scope.
-- Run the narrowest relevant checks during implementation. For application-code changes, run the full unit suite once on the final diff; repeat or broaden verification only for relevant changes, failures, unresolved concerns, or explicit requirements. Creating a commit alone does not invalidate checks of identical file contents.
+- Run the narrowest relevant checks during implementation. Prefer E2E verification on the final diff; run the full unit suite only when relevant to the change or explicitly required. Repeat or broaden verification only for relevant changes, failures, unresolved concerns, or explicit requirements. Creating a commit alone does not invalidate checks of identical file contents.
 - Identify verification evidence by the checked commit and working-tree state. Repeat checks on an unchanged verified commit only for new concerns or an explicit skill requirement.
 - Before formal review, check the final diff against the issue acceptance criteria and repository standards. Start formal parallel reviewers after that preflight so they normally review one final diff.
 - After formal Standards + Spec review, rerun affected tests and typecheck for accepted fixes; do not rerun review subagents for small localized changes unless behavior or scope materially changes or the prior review missed relevant files. Use a targeted manual check instead.
