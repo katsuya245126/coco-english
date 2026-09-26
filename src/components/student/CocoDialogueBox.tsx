@@ -1,13 +1,14 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   buildTranslationSegments,
   clampPhrasesToPage,
   parseTranslationHint,
   type TranslatableCocoLine,
   type TranslationPhrase,
+  type TranslationSegment,
 } from "@/domain/ai/translation-hint";
 import {
   paginateDialogueText,
@@ -31,7 +32,9 @@ import {
   mascotStatusTextStyle,
   mascotToolButtonPressedStyle,
   mascotToolButtonStyle,
+  mascotTranslationAnchorStyle,
   mascotTranslationBubbleStyle,
+  mascotDialogueHintTextStyle,
 } from "@/components/student/styles";
 
 type CocoDialogueBoxProps = {
@@ -214,6 +217,95 @@ export function CocoDialogueBox({
   const segments = currentPage && translationVisible
     ? buildTranslationSegments(currentPage.text, pagePhrases)
     : null;
+  const expandedPhraseRef = useRef<HTMLSpanElement>(null);
+  const translationBubbleRef = useRef<HTMLSpanElement>(null);
+  // The bubble hangs from a zero-width marker after the phrase; place it just
+  // under the phrase's last line, kept inside the text column.
+  useLayoutEffect(() => {
+    const phrase = expandedPhraseRef.current;
+    const bubble = translationBubbleRef.current;
+    const text = bubble?.closest("p");
+    if (!phrase || !bubble || !text) return;
+    const position = () => {
+      const lastLine = [...phrase.getClientRects()].at(-1);
+      const marker = bubble.parentElement?.getBoundingClientRect();
+      if (!lastLine || !marker) return;
+      const column = text.getBoundingClientRect();
+      bubble.style.maxWidth = `${column.width}px`;
+      const left = Math.max(
+        column.left,
+        Math.min(lastLine.left, column.right - bubble.offsetWidth),
+      );
+      bubble.style.marginLeft = `${left - marker.left}px`;
+      bubble.style.marginTop = `${lastLine.bottom - marker.top + 4}px`;
+    };
+    position();
+    window.addEventListener("resize", position);
+    return () => window.removeEventListener("resize", position);
+  });
+  const expandedPhrase =
+    segments && expandedPhraseIndex !== null ? phrases[expandedPhraseIndex] : null;
+  // Only while the phrase is on the visible page.
+  const expandedTranslation =
+    expandedPhrase &&
+    currentPage &&
+    pagePhrases.some(
+      (phrase) =>
+        currentPage.start + phrase.start >= expandedPhrase.start &&
+        currentPage.start + phrase.end <= expandedPhrase.end,
+    )
+      ? expandedPhrase.translation
+      : null;
+  const phraseIndexOf = (pagePhrase: { start: number; end: number }) => {
+    const absoluteStart = (currentPage?.start ?? 0) + pagePhrase.start;
+    const absoluteEnd = (currentPage?.start ?? 0) + pagePhrase.end;
+    return phrases.findIndex(
+      (phrase) => phrase.start <= absoluteStart && phrase.end >= absoluteEnd,
+    );
+  };
+  function renderSegments(pageSegments: TranslationSegment[]) {
+    return pageSegments.map((segment, index) => {
+      if (segment.kind === "text") return segment.text;
+      const phraseIndex = phraseIndexOf(segment.phrase);
+      const isExpanded = expandedPhraseIndex === phraseIndex;
+      const open = () => setExpandedPhraseIndex(phraseIndex);
+      // A span, not a <button>: buttons render as atomic boxes that cannot
+      // wrap across lines with the sentence.
+      return (
+        <Fragment key={index}>
+          <span
+            ref={isExpanded ? expandedPhraseRef : undefined}
+            role="button"
+            tabIndex={0}
+            aria-expanded={isExpanded}
+            onClick={open}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              open();
+            }}
+            style={mascotPhraseButtonStyle}
+          >
+            {segment.text}
+          </span>
+          {isExpanded && expandedTranslation ? (
+            // Zero-width and top-aligned: it makes only this line taller, so
+            // the bubble has room under the phrase without breaking the
+            // sentence or covering the next line.
+            <span style={mascotTranslationAnchorStyle}>
+              <span
+                ref={translationBubbleRef}
+                role="status"
+                style={mascotTranslationBubbleStyle}
+              >
+                {expandedTranslation}
+              </span>
+            </span>
+          ) : null}
+        </Fragment>
+      );
+    });
+  }
   const isHintLoading = translationState.kind === "loading";
   const isHintRateLimited = translationState.kind === "rate_limited";
   // The button shows `한국어` in every state so its width never jumps, but a
@@ -252,7 +344,9 @@ export function CocoDialogueBox({
           ) : null}
           {currentPage ? (
             <p
-              style={mascotDialogueTextStyle}
+              style={
+                segments ? mascotDialogueHintTextStyle : mascotDialogueTextStyle
+              }
               aria-live="polite"
               aria-atomic="true"
             >
@@ -262,38 +356,7 @@ export function CocoDialogueBox({
                   <ThinkingDots />
                 </>
               ) : segments
-                ? segments.map((segment) => {
-                    if (segment.kind === "text") return segment.text;
-                    const absoluteStart = currentPage.start + segment.phrase.start;
-                    const absoluteEnd = currentPage.start + segment.phrase.end;
-                    const phraseIndex = phrases.findIndex(
-                      (phrase) =>
-                        phrase.start <= absoluteStart && phrase.end >= absoluteEnd,
-                    );
-                    const isExpanded = expandedPhraseIndex === phraseIndex;
-                    return (
-                      <span
-                        key={`${absoluteStart}-${absoluteEnd}`}
-                        style={{ position: "relative", display: "inline" }}
-                      >
-                        <button
-                          type="button"
-                          aria-expanded={isExpanded}
-                          onClick={() =>
-                            setExpandedPhraseIndex(isExpanded ? null : phraseIndex)
-                          }
-                          style={mascotPhraseButtonStyle}
-                        >
-                          {segment.text}
-                        </button>
-                        {isExpanded ? (
-                          <span role="status" style={mascotTranslationBubbleStyle}>
-                            {segment.phrase.translation}
-                          </span>
-                        ) : null}
-                      </span>
-                    );
-                  })
+                ? renderSegments(segments)
                 : currentPage.text}
             </p>
           ) : null}

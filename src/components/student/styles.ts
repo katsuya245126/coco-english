@@ -545,30 +545,33 @@ export const mascotCompactSpriteStyle: CSSProperties = {
 };
 
 export const mascotPhraseButtonStyle: CSSProperties = {
-  display: "inline",
-  minHeight: "auto",
-  padding: "2px 3px",
-  margin: 0,
+  padding: "0 3px",
   border: `2px solid ${INK}`,
   borderRadius: 6,
   background: "#FFE89A",
-  color: "inherit",
-  font: "inherit",
-  whiteSpace: "normal",
+  boxDecorationBreak: "clone",
+  WebkitBoxDecorationBreak: "clone",
   cursor: "pointer",
 };
 
+// Extra leading so phrase highlights on neighbouring lines never touch.
+export const mascotDialogueHintTextStyle: CSSProperties = {
+  ...mascotDialogueTextStyle,
+  lineHeight: 1.9,
+};
+
+export const mascotTranslationAnchorStyle: CSSProperties = {
+  display: "inline-block",
+  width: 0,
+  verticalAlign: "top",
+  lineHeight: 0,
+};
+
 export const mascotTranslationBubbleStyle: CSSProperties = {
-  position: "absolute",
-  left: "50%",
-  top: "calc(100% + 6px)",
-  transform: "translateX(-50%)",
-  zIndex: 5,
-  // max-content: an absolutely-positioned bubble otherwise shrinks to its
-  // anchor phrase's width, rendering Korean one character per line.
+  display: "block",
   width: "max-content",
-  maxWidth: "min(260px, calc(100vw - 32px))",
   boxSizing: "border-box",
+  marginBottom: 6,
   padding: "6px 12px",
   borderRadius: 12,
   background: INK,
