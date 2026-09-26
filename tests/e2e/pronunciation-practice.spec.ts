@@ -505,8 +505,10 @@ test("teacher-to-student pronunciation practice path stays resumable and reviewa
     await teacherPage.getByText("F Sound Practice", { exact: true }).click();
     await expect(teacherPage.getByRole("heading", { name: /Word 1:/ })).toBeVisible();
     await expect(teacherPage.getByText("First try audio", { exact: true })).toHaveCount(5);
-    await expect(teacherPage.getByText("Result audio", { exact: true })).toHaveCount(5);
-    await expect(teacherPage.getByText("Request retry", { exact: true })).toHaveCount(0);
+    // Every word passed on its only try, so the result recording is the first
+    // try and the view shows it once.
+    await expect(teacherPage.getByText("Result audio", { exact: true })).toHaveCount(0);
+    await expect(teacherPage.getByRole("button", { name: "Request retry" })).toBeVisible();
     await expect(teacherPage.getByRole("button", { name: "Mark as done" })).toBeVisible();
     await teacherPage.close();
   } finally {
