@@ -1,7 +1,8 @@
 import { requireTeacherProfile } from "@/server/auth/teacher-profile";
-import { listNeedsReviewForTeacher } from "@/server/teacher/assignment-operations";
+import { listIncompleteForTeacher, listNeedsReviewForTeacher } from "@/server/teacher/assignment-operations";
 import { TeacherReviewTable } from "@/components/teacher/TeacherQueueViews";
-import { paginateTeacherReviewRows } from "@/domain/teacher/review-pagination";
+import { countIncompleteItems } from "@/domain/teacher/assignment-operations";
+import { filterTeacherReviewRows, paginateTeacherReviewRows } from "@/domain/teacher/review-pagination";
 
 export const dynamic = "force-dynamic";
 export default async function TeacherHome({
@@ -13,20 +14,22 @@ export default async function TeacherHome({
     requireTeacherProfile(),
     searchParams,
   ]);
-  let rows = await listNeedsReviewForTeacher({ teacherId: profile.id });
-  if (query.class) rows = rows.filter((row) => row.className === query.class);
-  if (query.filter === "unread")
-    rows = rows.filter((row) => row.firstViewedAt === null);
-  if (query.filter === "flagged")
-    rows = rows.filter((row) => row.needsReviewReason !== null);
+  const [allRows, incomplete] = await Promise.all([
+    listNeedsReviewForTeacher({ teacherId: profile.id }),
+    listIncompleteForTeacher({ teacherId: profile.id }),
+  ]);
+  const { rows, counts } = filterTeacherReviewRows(allRows, { className: query.class, filter: query.filter });
   const paginated = paginateTeacherReviewRows(rows, Number(query.page), 10);
   return (
     <TeacherReviewTable
       rows={paginated.rows}
-      classes={[...new Set(rows.map((row) => row.className))]}
+      classes={[...new Set(allRows.map((row) => row.className))]}
       page={paginated.page}
       totalPages={paginated.totalPages}
       query={{ className: query.class, filter: query.filter }}
+      counts={counts}
+      incomplete={{ count: incomplete.itemCount, missed: countIncompleteItems(incomplete.groups.filter((group) => group.urgency === "missed")) }}
+      newestHref={rows[0] && `/teacher/evidence/${rows[0].attemptId}`}
     />
   );
 }

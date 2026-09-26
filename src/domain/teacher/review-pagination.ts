@@ -25,3 +25,18 @@ export function buildTeacherReviewPageHref(
   params.set("page", String(page));
   return `/teacher?${params.toString()}`;
 }
+
+type FilterableReviewRow = { className: string; firstViewedAt: string | null; needsReviewReason: string | null };
+
+// Counts describe the chosen class before the unread/flagged filter, so the
+// filter tiles keep showing every bucket while one of them is selected.
+export function filterTeacherReviewRows<T extends FilterableReviewRow>(
+  rows: T[],
+  query: { className?: string; filter?: string },
+) {
+  const classRows = query.className ? rows.filter((row) => row.className === query.className) : rows;
+  const unread = classRows.filter((row) => row.firstViewedAt === null);
+  const flagged = classRows.filter((row) => row.needsReviewReason !== null);
+  const filtered = query.filter === "unread" ? unread : query.filter === "flagged" ? flagged : classRows;
+  return { rows: filtered, counts: { total: classRows.length, unread: unread.length, flagged: flagged.length } };
+}

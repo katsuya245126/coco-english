@@ -21,19 +21,61 @@ function Filters({ classes, extra, scoped }: { classes?: string[]; extra?: strin
   return <nav className="filters" aria-label="Queue filters">{!scoped && <Link href="?">All classes</Link>}{!scoped && classes?.map((name) => <Link key={name} href={`?class=${encodeURIComponent(name)}`}>{name}</Link>)}{extra?.map((name) => <Link key={name} href={`?filter=${name.toLowerCase()}`}>{name}</Link>)}</nav>;
 }
 
+const tileHref = (filter: string | undefined, className?: string) => {
+  const params = new URLSearchParams();
+  if (className) params.set("class", className);
+  if (filter) params.set("filter", filter);
+  return params.size ? `?${params}` : "?";
+};
+
+// Same student, same pastel on every row.
+const avatarTone = (name: string) => [...name].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 4;
+
+type ReviewCounts = { total: number; unread: number; flagged: number };
+
 // `scoped` renders the table for a single class workspace: no cross-class copy,
-// no Class column, and only the Unread/Flagged filters (the class is already
-// fixed by the surrounding page, so All-classes / per-class filters make no
-// sense here). The default (unscoped) form is the global /teacher inbox.
-export function TeacherReviewTable({ rows, classes, page = 1, totalPages = 1, query = {}, scoped = false }: { rows: TeacherReviewRow[]; classes: string[]; page?: number; totalPages?: number; query?: { className?: string; filter?: string }; scoped?: boolean }) {
-  return <section><div className="heading"><h1>Needs review</h1><p>{scoped ? "Submissions for this class that need your review, newest first." : "Submissions from all your classes, newest first."}</p></div><Filters classes={classes} extra={["Unread", "Flagged"]} scoped={scoped}/><div className={scoped ? "review-head scoped" : "review-head"}><span>Student</span>{!scoped && <span>Class</span>}<span>Submission</span><span>Status</span><span>Received</span></div><div className="queue">
-    {rows.map((row) => <Link className={row.firstViewedAt === null ? "review-row unread" : "review-row"} data-scoped={scoped ? "true" : "false"} href={`/teacher/evidence/${row.attemptId}`} key={row.attemptId}><strong>{row.studentName}</strong>{!scoped && <span><i>{row.className}</i></span>}<span><b>{row.assignmentTitle}</b><small>{row.resultSummary ?? (row.needsReviewReason ? "Flagged for teacher review" : "Conversation recap available")}</small></span><span><em>{row.needsReviewReason ? "Flagged" : "Completed"}</em></span><time>{relativeTime(row.receivedAt)}</time></Link>)}
-    {rows.length === 0 && <p className="empty">Nothing needs review right now.</p>}
-  </div>{totalPages > 1 && <nav className="pagination" aria-label="Needs review pages">
-    {page > 1 ? <Link href={buildTeacherReviewPageHref(page - 1, query)}>Previous</Link> : <span aria-disabled="true">Previous</span>}
-    <strong>Page {page} of {totalPages}</strong>
-    {page < totalPages ? <Link href={buildTeacherReviewPageHref(page + 1, query)}>Next</Link> : <span aria-disabled="true">Next</span>}
-  </nav>}</section>;
+// no class chips or Incomplete tile (the class is already fixed by the
+// surrounding page). The default (unscoped) form is the global /teacher inbox.
+export function TeacherReviewTable({ rows, classes, page = 1, totalPages = 1, query = {}, counts, incomplete, newestHref, scoped = false }: { rows: TeacherReviewRow[]; classes: string[]; page?: number; totalPages?: number; query?: { className?: string; filter?: string }; counts: ReviewCounts; incomplete?: { count: number; missed: number }; newestHref?: string; scoped?: boolean }) {
+  const Heading = scoped ? "h2" : "h1";
+  const active = query.filter === "unread" || query.filter === "flagged" ? query.filter : undefined;
+  const tiles = [
+    { label: "Needs review", count: counts.total, filter: undefined },
+    { label: "Not opened yet", count: counts.unread, filter: "unread" },
+    { label: "Flagged by Coco", count: counts.flagged, filter: "flagged" },
+  ];
+  return <section className="review-queue">
+    <div className="heading"><div><Heading>Needs review</Heading><p>{scoped ? "Submissions for this class, newest first." : `${counts.total} ${counts.total === 1 ? "submission" : "submissions"} across your classes. ${counts.unread} not opened yet.`}</p></div>
+      {!scoped && newestHref && <Link className="primary-button" href={newestHref}>Open newest <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></Link>}
+    </div>
+    <nav className={scoped ? "review-tiles scoped" : "review-tiles"} aria-label="Review filters">
+      {tiles.map((tile) => <Link key={tile.label} className={active === tile.filter ? "tile active" : "tile"} aria-current={active === tile.filter ? "true" : undefined} href={tileHref(tile.filter, query.className)}><span>{tile.label}</span><b>{tile.count}</b></Link>)}
+      {!scoped && incomplete && <Link className="tile" href="/teacher/incomplete"><span>Incomplete{incomplete.missed > 0 && ` · ${incomplete.missed} missed`}</span><b>{incomplete.count}</b></Link>}
+    </nav>
+    <div className="review-card">
+      {!scoped && classes.length > 1 && <nav className="class-chips" aria-label="Class filter">
+        <Link className={query.className ? "chip" : "chip active"} aria-current={query.className ? undefined : "true"} href={tileHref(active)}>All classes</Link>
+        {classes.map((name) => <Link key={name} className={query.className === name ? "chip active" : "chip"} aria-current={query.className === name ? "true" : undefined} href={tileHref(active, name)}>{name}</Link>)}
+      </nav>}
+      <div className="review-head" aria-hidden="true"><span/><span>Student</span><span>Submission</span><span>Status</span><span>Received</span><span/></div>
+      <div className="queue">
+        {rows.map((row) => <Link className={row.firstViewedAt === null ? "review-row unread" : "review-row"} href={`/teacher/evidence/${row.attemptId}`} key={row.attemptId}>
+          <span className={`avatar tone-${avatarTone(row.studentName)}`} aria-hidden="true">{row.studentName.trim().charAt(0).toUpperCase()}</span>
+          <span className="who"><strong>{row.firstViewedAt === null && <span className="new-dot"><span className="sr-only">New: </span></span>}<span>{row.studentName}</span></strong>{!scoped && <small>{row.className}</small>}</span>
+          <span className="what"><b>{row.assignmentTitle}</b><small>{row.resultSummary ?? (row.needsReviewReason ? "Flagged for teacher review" : "Conversation recap available")}</small></span>
+          <span><em className={row.needsReviewReason ? "tag flag" : "tag done"}>{row.needsReviewReason ? "Flagged" : "Completed"}</em></span>
+          <time>{relativeTime(row.receivedAt)}</time>
+          <svg className="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </Link>)}
+        {rows.length === 0 && <p className="empty">Nothing needs review right now.</p>}
+      </div>
+      {totalPages > 1 && <nav className="pagination" aria-label="Needs review pages">
+        {page > 1 ? <Link href={buildTeacherReviewPageHref(page - 1, query)}>Previous</Link> : <span aria-disabled="true">Previous</span>}
+        <strong>Page {page} of {totalPages}</strong>
+        {page < totalPages ? <Link href={buildTeacherReviewPageHref(page + 1, query)}>Next</Link> : <span aria-disabled="true">Next</span>}
+      </nav>}
+    </div>
+  </section>;
 }
 
 function IncompleteSection({ title, subtitle, groups }: { title: "Missed" | "Due soon"; subtitle: string; groups: IncompleteAssignmentGroup[] }) {

@@ -13,6 +13,6 @@ export function ClassWorkspaceTabs({ classId, needsReviewCount }: { classId: str
     { href: `${base}/manage`, label: "Class settings" },
   ];
   return <nav aria-label="Class workspace" className="class-workspace-tabs">
-    {tabs.map((tab) => <Link className={pathname === tab.href ? "active" : undefined} href={tab.href} key={tab.href}>{tab.label}{tab.count !== undefined && <span>{tab.count}</span>}</Link>)}
+    {tabs.map((tab) => <Link className={pathname === tab.href ? "active" : undefined} aria-current={pathname === tab.href ? "page" : undefined} href={tab.href} key={tab.href}>{tab.label}{tab.count ? <span>{tab.count}</span> : null}</Link>)}
   </nav>;
 }
