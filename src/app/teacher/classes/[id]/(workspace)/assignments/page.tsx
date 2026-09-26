@@ -11,6 +11,18 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(value));
 }
 
+const DAY_MS = 86_400_000;
+
+// Past-due work that still has unfinished students is the teacher's cue to chase it.
+function dueTag(dueAt: string | null, progress: AssignmentProgress | undefined, now = Date.now()) {
+  const due = dueAt ? new Date(dueAt).getTime() : Number.NaN;
+  if (Number.isNaN(due)) return { tone: "ok", label: formatDate(dueAt) };
+  const unfinished = progress ? progress.completed < progress.total : false;
+  if (due < now) return unfinished ? { tone: "late", label: `Past due · ${formatDate(dueAt)}` } : { tone: "ok", label: `Was due ${formatDate(dueAt)}` };
+  if (due - now <= 3 * DAY_MS) return { tone: "soon", label: `Due soon · ${formatDate(dueAt)}` };
+  return { tone: "ok", label: `Due ${formatDate(dueAt)}` };
+}
+
 function breakdown(progress: AssignmentProgress) {
   const parts = [
     progress.teacherReview > 0 ? `${progress.teacherReview} awaiting review` : null,
@@ -32,6 +44,10 @@ function AssignmentProgressSummary({ progress }: { progress: AssignmentProgress 
   </div>;
 }
 
+function DueTag({ tone, label }: { tone: string; label: string }) {
+  return <span className={`due-tag ${tone}`}>{label}</span>;
+}
+
 export default async function ClassAssignmentsPage({ params }: { params: Promise<{ id: string }> }) {
   const [{ id: classId }, profile] = await Promise.all([params, requireTeacherProfile()]);
   await getOwnedClass(classId);
@@ -44,7 +60,7 @@ export default async function ClassAssignmentsPage({ params }: { params: Promise
   const assignments = result.data ?? [];
 
   return <section className="class-review-section">
-    <div className="class-section-heading"><div><h2>Assignments</h2><p>Newest homework, due dates, and student progress for this class.</p></div><span>{assignments.length}</span></div>
-    {assignments.length === 0 ? <div className="class-empty"><strong>No assignments yet</strong><p>Assign a mission to this class to see student homework here.</p></div> : <div className="class-card-grid">{assignments.map((assignment) => <article className="class-assignment-card" key={assignment.id}><div>{assignment.assignment_kind === "pronunciation" && <><small>Pronunciation</small>{" "}</>}<strong>{assignment.title}</strong><p>{formatDate(assignment.due_at)}</p><AssignmentProgressSummary progress={progressByAssignment.get(assignment.id)}/></div><Link href={`/teacher/classes/${classId}/review/${assignment.id}`}>View results →</Link></article>)}</div>}
+    <div className="class-section-heading"><div><h2>Assignments</h2><p>Due dates and student progress for this class.</p></div><span>{assignments.length}</span></div>
+    {assignments.length === 0 ? <div className="class-empty"><strong>No assignments yet</strong><p>Assign a mission to this class to see student homework here.</p></div> : <div className="class-card-list">{assignments.map((assignment) => <article className="class-assignment-card" key={assignment.id}><div className="assignment-title"><strong>{assignment.title}</strong><DueTag {...dueTag(assignment.due_at, progressByAssignment.get(assignment.id))}/><p>{assignment.assignment_kind === "pronunciation" ? "Pronunciation practice" : "Conversation mission"}</p></div><AssignmentProgressSummary progress={progressByAssignment.get(assignment.id)}/><Link className="ghost-button" href={`/teacher/classes/${classId}/review/${assignment.id}`}>View results</Link></article>)}</div>}
   </section>;
 }

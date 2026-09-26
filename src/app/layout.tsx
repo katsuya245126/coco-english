@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import "./globals.css";
-import { Baloo_2, Inter, Jua } from "next/font/google";
+import { Baloo_2, DM_Sans, Inter, Jua } from "next/font/google";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 // Student "sticker book" faces; Jua is the Hangul fallback for Baloo 2.
 const baloo = Baloo_2({subsets:['latin'],variable:'--font-baloo'});
 const jua = Jua({weight:'400',preload:false,variable:'--font-jua'});
+// Teacher workspace face.
+const dmSans = DM_Sans({subsets:['latin'],preload:false,variable:'--font-teacher'});
 
 export const metadata: Metadata = {
   title: "Coco English",
@@ -22,7 +24,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${baloo.variable} ${jua.variable}`}
+      className={`${inter.variable} ${baloo.variable} ${jua.variable} ${dmSans.variable}`}
       suppressHydrationWarning
     >
       <head>

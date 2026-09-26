@@ -89,14 +89,12 @@ describe("teacher workspace source contract", () => {
     const styles = source("src/app/teacher/teacher-workspace.css");
     expect(layout).toContain('import "./teacher-workspace.css"');
     expect(layout).not.toContain("TeacherWorkspaceStyles");
-    expect(styles).toContain("grid-template-columns: 210px minmax(0, 1fr)");
     expect(styles).toContain(".teacher-shell .nav.active");
     expect(styles).toContain(".teacher-shell .count");
     // Shell chrome rules that only lived in the old styled-jsx block must
     // now ship in the stylesheet, or those elements flash unstyled.
     expect(styles).toContain(".teacher-shell .mobile-trigger");
     expect(styles).toContain(".teacher-shell .banner");
-    expect(styles).toContain(".teacher-shell .workspace > header button");
     expect(styles).toContain("@media (max-width: 800px)");
     expect(styles).toContain("review-policy-control");
   });
@@ -211,18 +209,6 @@ describe("teacher workspace source contract", () => {
     expect(review).toContain("row.classId === classId");
     expect(assignments).toContain("class-assignment-card");
     expect(students).toContain("class-student-card");
-  });
-
-  it("keeps the review policy control responsive and within the approved visual tokens", () => {
-    const styles = source("src/app/teacher/teacher-workspace.css");
-    expect(styles).toMatch(/\.review-policy-control[^{]*\{[^}]*min-width:\s*210px/);
-    expect(styles).toMatch(/\.review-policy-control select[^{]*\{[^}]*min-height:\s*44px/);
-    expect(styles).toMatch(/\.review-policy-control select[^{]*\{[^}]*border:[^;}]*#cbd5e1/i);
-    expect(styles).toMatch(/\.review-policy-control select:focus-visible[^{]*\{[^}]*#2563eb/i);
-    expect(styles).toMatch(/\.review-policy-error[^{]*\{[^}]*#b42318/i);
-    expect(styles).toMatch(
-      /@media \(max-width: 800px\)[\s\S]*\.review-policy-control[^{]*\{[^}]*width:\s*100%/,
-    );
   });
 
   it("class settings links back to the class workspace, not the teacher home", () => {

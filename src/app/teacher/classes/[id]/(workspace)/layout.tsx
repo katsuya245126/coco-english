@@ -15,10 +15,9 @@ export default async function ClassWorkspaceLayout({ children, params }: { child
   return <section className="class-review-workspace">
     <div className="class-review-header">
       <div>
-        <p className="class-review-eyebrow">Class</p>
+        <p className="class-review-eyebrow">Class · {roster.length} active student{roster.length === 1 ? "" : "s"}</p>
         <h1>{ownedClass.name}</h1>
-        <p>{roster.length} active student{roster.length === 1 ? "" : "s"}</p>
-        {ownedClass.join_code && <p className="class-review-joincode">Class code <code>{ownedClass.join_code}</code></p>}
+        {ownedClass.join_code && <p className="class-review-joincode">Join code <code>{ownedClass.join_code}</code></p>}
       </div>
       <ClassReviewPolicyControl classId={classId} value={ownedClass.review_policy}/>
     </div>

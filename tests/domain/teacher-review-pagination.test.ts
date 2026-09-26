@@ -1,8 +1,31 @@
 import { describe, expect, it } from "vitest";
 import {
   buildTeacherReviewPageHref,
+  filterTeacherReviewRows,
   paginateTeacherReviewRows,
 } from "@/domain/teacher/review-pagination";
+
+describe("teacher review filters", () => {
+  const rows = [
+    { className: "A", firstViewedAt: null, needsReviewReason: null },
+    { className: "A", firstViewedAt: "2026-09-27", needsReviewReason: "low_confidence" },
+    { className: "A", firstViewedAt: null, needsReviewReason: "low_confidence" },
+    { className: "B", firstViewedAt: null, needsReviewReason: null },
+  ];
+
+  it("counts the class's rows before the unread/flagged filter narrows them", () => {
+    const result = filterTeacherReviewRows(rows, { className: "A", filter: "unread" });
+    expect(result.rows).toEqual([rows[0], rows[2]]);
+    expect(result.counts).toEqual({ total: 3, unread: 2, flagged: 2 });
+  });
+
+  it("keeps every class and treats unknown filters as no filter", () => {
+    const result = filterTeacherReviewRows(rows, { filter: "bogus" });
+    expect(result.rows).toEqual(rows);
+    expect(result.counts).toEqual({ total: 4, unread: 3, flagged: 2 });
+    expect(filterTeacherReviewRows(rows, { filter: "flagged" }).rows).toEqual([rows[1], rows[2]]);
+  });
+});
 
 describe("teacher review pagination", () => {
   it("shows ten rows per page and clamps the requested page", () => {
