@@ -60,16 +60,16 @@ export const headingStyle: CSSProperties = {
 export const bodyStyle: CSSProperties = {
   fontSize: 16,
   lineHeight: 1.5,
-  color: "#4B5563",
+  color: "var(--st-muted, #4B5563)",
   margin: "0 0 16px",
 };
 
 export const labelStyle: CSSProperties = {
   display: "block",
   fontSize: 14,
-  fontWeight: 600,
+  fontWeight: "var(--st-label-weight, 600)",
   lineHeight: 1.4,
-  color: "#111827",
+  color: "var(--st-ink, #111827)",
   marginBottom: 8,
 };
 
@@ -78,8 +78,10 @@ export const inputStyle: CSSProperties = {
   minHeight: 44,
   padding: "10px 12px",
   fontSize: 16,
-  border: "1px solid #D1D5DB",
-  borderRadius: 6,
+  color: "var(--st-ink, inherit)",
+  background: "var(--st-card, #FFFFFF)",
+  border: "var(--st-input-border, 1px solid #D1D5DB)",
+  borderRadius: "var(--st-radius-input, 6px)",
   boxSizing: "border-box",
 };
 

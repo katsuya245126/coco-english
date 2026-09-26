@@ -24,7 +24,7 @@ export default async function ProfilePage() {
         style={{
           fontSize: 16,
           lineHeight: 1.5,
-          color: "#4B5563",
+          color: "var(--st-muted)",
           margin: "0 0 8px",
         }}
       >

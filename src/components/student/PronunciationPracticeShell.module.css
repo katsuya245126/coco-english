@@ -2,10 +2,10 @@
   box-sizing: border-box;
   width: 100%;
   padding: clamp(18px, 5vw, 32px);
-  border: 1px solid #bfdbfe;
-  border-radius: 16px;
-  background: #ffffff;
-  box-shadow: 0 8px 24px rgb(37 99 235 / 10%);
+  border: var(--st-border);
+  border-radius: var(--st-radius-card);
+  background: var(--st-card);
+  box-shadow: var(--st-shadow);
 }
 
 .header {
@@ -39,9 +39,9 @@
 
 .title {
   margin: 0;
-  color: #111827;
+  color: var(--st-ink);
   font-size: clamp(22px, 5.5vw, 30px);
-  font-weight: 700;
+  font-weight: 800;
   line-height: 1.2;
   overflow-wrap: anywhere;
 }
@@ -49,7 +49,7 @@
 .wordCount {
   flex: 0 0 auto;
   margin: 4px 0 0;
-  color: #111827;
+  color: var(--st-ink);
   font-size: 14px;
   font-weight: 700;
   line-height: 1.35;
@@ -74,20 +74,18 @@
 .progressDot {
   box-sizing: border-box;
   width: 100%;
-  height: 8px;
-  border: 1px solid #bfdbfe;
+  height: 14px;
+  border: 2px solid var(--st-ink);
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--st-card);
 }
 
 .progressDot[data-state="current"] {
-  border: 2px solid #2563eb;
-  background: #eff6ff;
+  background: var(--st-yellow);
 }
 
 .progressDot[data-state="finished"] {
-  border-color: #2563eb;
-  background: #2563eb;
+  background: var(--st-mint);
 }
 
 .wordArea {
@@ -111,7 +109,7 @@
 .word {
   max-width: 100%;
   min-width: 0;
-  color: #111827;
+  color: var(--st-ink);
   flex: 0 1 auto;
   font-size: clamp(44px, 14vw, 64px);
   font-weight: 800;
@@ -129,16 +127,16 @@
   min-width: 48px;
   min-height: 48px;
   padding: 0;
-  border: 1px solid #2563eb;
+  border: var(--st-border);
   border-radius: 999px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--st-yellow);
+  color: var(--st-ink);
   cursor: pointer;
 }
 
 .wordAudioButton:hover:not(:disabled),
 .soundButton:hover:not(:disabled) {
-  background: #dbeafe;
+  background: var(--st-yellow-soft);
 }
 
 .wordAudioButton:focus-visible,
@@ -147,7 +145,7 @@
 .nextButton:focus-visible,
 .homeButton:focus-visible,
 .backLink:focus-visible {
-  outline: 3px solid #93c5fd;
+  outline: 3px solid var(--st-accent);
   outline-offset: 2px;
 }
 
@@ -174,12 +172,12 @@
   min-height: 44px;
   max-width: 100%;
   padding: 10px 16px;
-  border: 1px solid #2563eb;
-  border-radius: 10px;
-  background: #eff6ff;
-  color: #2563eb;
-  font-size: 15px;
-  font-weight: 700;
+  border: var(--st-border);
+  border-radius: var(--st-radius-button);
+  background: var(--st-card);
+  color: var(--st-ink);
+  font-size: 16px;
+  font-weight: 800;
   line-height: 1.2;
   cursor: pointer;
   overflow-wrap: anywhere;
@@ -196,10 +194,10 @@
 .audioRetry {
   min-height: 44px;
   padding: 8px 12px;
-  border: 1px solid #2563eb;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #2563eb;
+  border: 2px solid var(--st-ink);
+  border-radius: 10px;
+  background: var(--st-card);
+  color: var(--st-ink);
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
@@ -214,9 +212,9 @@
   box-sizing: border-box;
   margin-top: 18px;
   padding: 12px 14px;
-  border: 1px solid #bfdbfe;
-  border-radius: 12px;
-  background: #eff6ff;
+  border: var(--st-border);
+  border-radius: var(--st-radius-card);
+  background: var(--st-sky-soft);
 }
 
 .cocoPortrait {
@@ -234,15 +232,16 @@
 .cocoName {
   display: block;
   margin: 0 0 3px;
-  color: #2563eb;
-  font-size: 12px;
+  color: var(--st-ink);
+  font-size: 14px;
   font-weight: 800;
 }
 
 .feedbackMessage {
   margin: 0;
-  color: #111827;
-  font-size: 16px;
+  color: var(--st-ink);
+  font-size: 18px;
+  font-weight: 700;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
@@ -273,8 +272,8 @@
 .nextActionPanel {
   box-sizing: border-box;
   padding: 16px;
-  border-radius: 8px;
-  background: #f9fafb;
+  border-radius: var(--st-radius-card);
+  background: transparent;
 }
 
 .completionCelebration {
@@ -303,14 +302,14 @@
   gap: 14px;
   align-items: center;
   padding: 12px;
-  border: 1px solid #bfdbfe;
-  border-radius: 10px;
-  background: #ffffff;
+  border: 2px solid var(--st-ink);
+  border-radius: 14px;
+  background: var(--st-card);
 }
 
 .resultWord {
   min-width: 0;
-  color: #111827;
+  color: var(--st-ink);
   font-size: clamp(20px, 5vw, 26px);
   font-weight: 700;
   overflow-wrap: anywhere;
@@ -328,13 +327,13 @@
 }
 
 .metricLabel {
-  color: #111827;
+  color: var(--st-ink);
   font-size: 13px;
   font-weight: 700;
 }
 
 .stars {
-  color: #111827;
+  color: var(--st-ink);
   font-size: 20px;
   letter-spacing: 2px;
   line-height: 1;
@@ -359,7 +358,7 @@
 
 .soundUnassessed {
   margin: 6px 0 0;
-  color: #111827;
+  color: var(--st-ink);
   font-size: 14px;
   line-height: 1.35;
   overflow-wrap: anywhere;

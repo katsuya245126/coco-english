@@ -10,14 +10,10 @@ export default function LoginPage() {
       title="Log in"
       footer={
         <div style={{ display: "grid", gap: 8 }}>
-          <Link href="/" style={{ color: "#4B5563" }}>
-            Back to role choice
-          </Link>
+          <Link href="/">Back to role choice</Link>
           <span>
             Need an account?{" "}
-            <Link href="/auth/signup" style={{ color: "#4B5563" }}>
-              Create teacher account
-            </Link>
+            <Link href="/auth/signup">Create teacher account</Link>
           </span>
         </div>
       }

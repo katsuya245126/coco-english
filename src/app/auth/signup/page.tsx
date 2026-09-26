@@ -12,9 +12,7 @@ export default function SignupPage() {
       footer={
         <span>
           Already have an account?{" "}
-          <Link href="/auth/login" style={{ color: "#4B5563" }}>
-            Log in
-          </Link>
+          <Link href="/auth/login">Log in</Link>
         </span>
       }
     >

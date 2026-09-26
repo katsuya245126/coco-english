@@ -347,8 +347,8 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
 
   return (
     <main
-      className="pronunciation-practice-shell"
-      style={{ ...missionPageStyle, background: "#EFF6FF" }}
+      className="pronunciation-practice-shell sticker-theme"
+      style={missionPageStyle}
     >
       <div style={missionContentStyle}>
         <section className={styles.card} data-testid="pronunciation-practice-card">

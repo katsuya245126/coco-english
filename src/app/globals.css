@@ -164,6 +164,9 @@ html {
     --st-button-weight: 800;
     --st-progress-height: 14px;
     --st-progress-border: 2px solid #1B1B3A;
+    --st-label-weight: 700;
+    --st-input-border: 2px solid #1B1B3A;
+    --st-radius-input: 12px;
     background: var(--st-bg);
     color: var(--st-ink);
     font-family: var(--st-font);
@@ -171,6 +174,11 @@ html {
 
 .sticker-theme :lang(ko), .sticker-theme [lang="ko"] {
     font-family: var(--font-jua), sans-serif;
+}
+
+.sticker-theme input:focus-visible {
+    outline: 3px solid var(--st-accent);
+    outline-offset: 2px;
 }
 
 /* Sticker pager: a plain bounce instead of the blue halo. */
