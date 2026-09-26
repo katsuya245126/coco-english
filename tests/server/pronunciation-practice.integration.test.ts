@@ -781,4 +781,95 @@ describe("pronunciation practice server flow", () => {
       await cleanupFixture(fixture, [], newAttemptId ?? oldAttemptId);
     }
   }, 30_000);
+
+  it("reopens a retry attempt after the due date has passed", async (context) => {
+    if (!canRunLocally) return context.skip();
+
+    const fixture = await createFixture();
+    let oldAttemptId: string | null = null;
+    let newAttemptId: string | null = null;
+
+    try {
+      const started = await startOrResumePronunciationAttempt({
+        studentId: fixture.ownerStudentId,
+        assignmentStudentId: fixture.assignmentStudentId,
+      });
+      if (!started.ok) throw new Error("attempt did not start");
+      oldAttemptId = started.attemptId;
+
+      const retry = await fixture.admin.rpc("request_submission_retry", {
+        p_teacher_id: fixture.teacherId,
+        p_attempt_id: oldAttemptId,
+        p_reason_note: "",
+      });
+      expect(retry.data).toBe("ok");
+
+      const pastDue = await fixture.admin
+        .from("assignments")
+        .update({ due_at: new Date(Date.now() - 86_400_000).toISOString() })
+        .eq("id", fixture.assignmentId);
+      expect(pastDue.error).toBeNull();
+
+      const firstOpen = await getPronunciationPracticePage({
+        studentId: fixture.ownerStudentId,
+        assignmentStudentId: fixture.assignmentStudentId,
+      });
+      expect(firstOpen).toMatchObject({ ok: true, page: { readOnly: false } });
+      if (!firstOpen.ok) throw new Error("retry did not open");
+      newAttemptId = firstOpen.page.attemptId;
+
+      const reopened = await getPronunciationPracticePage({
+        studentId: fixture.ownerStudentId,
+        assignmentStudentId: fixture.assignmentStudentId,
+      });
+      expect(reopened).toMatchObject({
+        ok: true,
+        page: { attemptId: newAttemptId, readOnly: false, isResume: true },
+      });
+    } finally {
+      await cleanupFixture(fixture, [], newAttemptId ?? oldAttemptId);
+    }
+  }, 30_000);
+
+  it("starts missed pronunciation practice late", async (context) => {
+    if (!canRunLocally) return context.skip();
+
+    const fixture = await createFixture();
+    let attemptId: string | null = null;
+
+    try {
+      const missed = await fixture.admin
+        .from("assignments")
+        .update({ due_at: new Date(Date.now() - 86_400_000).toISOString() })
+        .eq("id", fixture.assignmentId);
+      expect(missed.error).toBeNull();
+      const marked = await fixture.admin
+        .from("assignment_students")
+        .update({ status: "missed" })
+        .eq("id", fixture.assignmentStudentId);
+      expect(marked.error).toBeNull();
+
+      const opened = await getPronunciationPracticePage({
+        studentId: fixture.ownerStudentId,
+        assignmentStudentId: fixture.assignmentStudentId,
+      });
+      expect(opened).toMatchObject({
+        ok: true,
+        page: { readOnly: false, isResume: false },
+      });
+      if (!opened.ok) throw new Error("late practice did not open");
+      attemptId = opened.page.attemptId;
+
+      const events = await fixture.admin
+        .from("assignment_status_events")
+        .select("reason_code")
+        .eq("assignment_student_id", fixture.assignmentStudentId);
+      expect(events.error).toBeNull();
+      expect(events.data).toEqual(expect.arrayContaining([
+        { reason_code: "late_pronunciation_practice_started" },
+      ]));
+    } finally {
+      await cleanupFixture(fixture, [], attemptId);
+    }
+  }, 30_000);
 });
