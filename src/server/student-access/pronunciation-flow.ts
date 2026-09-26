@@ -11,7 +11,7 @@ import { oneOrMany } from "@/lib/supabase/one-or-many";
 
 type Client = ReturnType<typeof createSupabaseServiceClient>;
 
-const OPEN_STATUSES = new Set(["assigned", "started", "needs_retry"]);
+const OPEN_STATUSES = new Set(["assigned", "started", "missed", "needs_retry"]);
 const TERMINAL_STATUSES = new Set(["completed", "teacher_review"]);
 const VALID_OUTCOMES = new Set<string>([
   "passed",
@@ -136,10 +136,6 @@ type AssignmentRecord = {
 
 type TryRow = z.infer<typeof tryRowSchema>;
 
-function overdue(dueAt: string | null): boolean {
-  return Boolean(dueAt && Date.parse(dueAt) < Date.now());
-}
-
 async function loadOwnedAssignment(
   supabase: Client,
   input: { studentId: string; assignmentStudentId: string },
@@ -194,9 +190,10 @@ async function loadOwnedAssignment(
   };
 }
 
+// Late work stays open, matching missions: the homework list offers overdue
+// cards, and a teacher retry becomes 'started' after the due date.
 function canStart(row: AssignmentRecord): boolean {
-  if (!OPEN_STATUSES.has(row.status)) return false;
-  return row.status === "needs_retry" || !overdue(row.assignments.due_at);
+  return OPEN_STATUSES.has(row.status);
 }
 
 async function loadOwnedAttempt(
