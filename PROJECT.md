@@ -6,7 +6,6 @@ Coco English is a teacher-linked AI speaking-homework app for elementary-level E
 
 ## Architecture
 
-- Next.js App Router, React, and TypeScript.
 - Supabase Postgres, Auth, Storage, and row-level security.
 - Teacher email/password authentication.
 - Student class-code, name, and PIN access.
@@ -29,17 +28,8 @@ Coco English is a teacher-linked AI speaking-homework app for elementary-level E
 
 ## Verification
 
-Use the narrowest relevant checks first, then proportionate broader checks:
-
-```bash
-npm test -- --run
-npm run typecheck
-npm run lint
-npm run build
-```
-
 For deterministic student feedback screenshots, start the app on `http://localhost:3000`, provide the three `FEEDBACK_STATE_*` variables without committing reusable access values, and run `npm run test:student-feedback-states`. See `docs/testing/student-feedback-states.md`.
 
 ## Active Work
 
-Read root `TASK.md` when it exists. Keep completed or paused task notes in GitHub issues/PRs or ignored `docs/local/`; stable architecture decisions may live in `docs/adr/`. The legacy GSD workflow has been retired (replaced by the `task-workflow`/`progress` skills); its `.planning/` history is not an active source of truth.
+Read root `TASK.md` when it exists. Keep completed or paused task notes in GitHub issues/PRs or ignored `docs/local/`; stable architecture decisions may live in `docs/adr/`.

@@ -14,3 +14,9 @@ Read this table when routing development work. Repository ownership, permission,
 | Diff, branch, or PR review | Check both the requested behavior and project standards; run proportionate verification before reporting findings. |
 
 For status or the next action, use the available read-only `progress` skill. If a specialist is unavailable, perform the equivalent workflow directly.
+
+## Review and verification evidence
+
+- Identify verification evidence by the checked commit and working-tree state. Repeat checks on an unchanged verified commit only for new concerns or an explicit skill requirement.
+- Before formal review, check the final diff against the issue acceptance criteria and repository standards. Start formal parallel reviewers after that preflight so they normally review one final diff.
+- After formal Standards + Spec review, rerun affected tests and typecheck for accepted fixes; do not rerun review subagents for small localized changes unless behavior or scope materially changes or the prior review missed relevant files. Use a targeted manual check instead.
