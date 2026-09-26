@@ -60,7 +60,7 @@ describe("CocoDialogueBox", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(container.querySelector('[role="status"]')?.textContent).toBe("게임");
-    expect(container.querySelector('button[aria-expanded="true"]')?.textContent)
+    expect(container.querySelector('[role="button"][aria-expanded="true"]')?.textContent)
       .toBe("games");
 
     await act(async () => {
@@ -69,7 +69,7 @@ describe("CocoDialogueBox", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(container.querySelector('[role="status"]')).toBeNull();
-    expect(container.querySelector('button[aria-expanded]')).toBeNull();
+    expect(container.querySelector('[role="button"][aria-expanded]')).toBeNull();
     expect(container.textContent).toContain(
       "What games do you play after school?",
     );
@@ -80,7 +80,7 @@ describe("CocoDialogueBox", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(container.querySelector('[role="status"]')?.textContent).toBe("게임");
-    expect(container.querySelector('button[aria-expanded="true"]')?.textContent)
+    expect(container.querySelector('[role="button"][aria-expanded="true"]')?.textContent)
       .toBe("games");
   });
 
