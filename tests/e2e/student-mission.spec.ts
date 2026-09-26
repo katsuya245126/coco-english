@@ -10,7 +10,12 @@
  */
 
 import { expect, test } from "@playwright/test";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  installFakeRecorder,
+  mockAudioResponses,
+  submitVoiceRecording,
+  type MockAudioResponse,
+} from "./mission-fixtures";
 
 test.use({
   launchOptions: {
@@ -22,15 +27,6 @@ test.use({
 });
 test.describe.configure({ timeout: 60_000 });
 
-async function submitVoiceRecording(page: import("@playwright/test").Page) {
-  await page.getByRole("button", { name: "Record", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "Stop recording" }),
-  ).toBeVisible();
-  await page.waitForTimeout(200);
-  await page.getByRole("button", { name: "Stop recording" }).click();
-}
-
 async function revealHint(
   page: import("@playwright/test").Page,
   hintText: string,
@@ -39,127 +35,6 @@ async function revealHint(
     await page.getByRole("button", { name: "💡 Hint" }).click();
     await expect(page.getByText(hintText)).toBeVisible({ timeout: 500 });
   }).toPass();
-}
-
-async function installFakeRecorder(page: import("@playwright/test").Page) {
-  await page.addInitScript(() => {
-    class FakeMediaRecorder {
-      state = "inactive";
-      mimeType = "audio/webm";
-      ondataavailable: ((event: { data: Blob }) => void) | null = null;
-      onstop: (() => void) | null = null;
-      onerror: (() => void) | null = null;
-
-      static isTypeSupported() {
-        return true;
-      }
-
-      constructor(_stream: MediaStream, options?: { mimeType?: string }) {
-        this.mimeType = options?.mimeType ?? "audio/webm";
-      }
-
-      start() {
-        this.state = "recording";
-      }
-
-      stop() {
-        if (this.state === "inactive") return;
-        this.state = "inactive";
-        this.ondataavailable?.({
-          data: new Blob(["fake-audio"], { type: this.mimeType }),
-        });
-        this.onstop?.();
-      }
-    }
-
-    Object.defineProperty(window, "MediaRecorder", {
-      configurable: true,
-      value: FakeMediaRecorder,
-    });
-  });
-}
-
-type MockAudioResponse = {
-  turnOrder: number;
-  clipKind: "original_answer" | "repeat_attempt";
-  displayTranscript: string;
-  evaluation:
-    | {
-        kind: "original";
-        outcome: "needs_correction" | "accepted_original";
-        improvedSentence: string | null;
-      }
-    | { kind: "repeat"; outcome: "accepted_repeat" };
-};
-
-async function mockAudioResponses(
-  page: import("@playwright/test").Page,
-  admin: SupabaseClient,
-  assignmentStudentId: string,
-  responses: MockAudioResponse[],
-) {
-  await page.route("**/student/missions/**/audio", async (route) => {
-    const response = responses.shift();
-    if (!response) {
-      await route.fulfill({
-        status: 500,
-        contentType: "application/json",
-        body: JSON.stringify({ ok: false, error: "unexpected_audio_call" }),
-      });
-      return;
-    }
-
-    const { data: attempt } = await admin
-      .from("attempts")
-      .select("id")
-      .eq("assignment_student_id", assignmentStudentId)
-      .eq("status", "in_progress")
-      .single();
-    if (!attempt) {
-      await route.fulfill({ status: 500, body: "mock_attempt_missing" });
-      return;
-    }
-
-    const evaluation = {
-      version: "ai-eval-v1",
-      outcome: response.evaluation.outcome,
-      requireRepeat:
-        response.evaluation.kind === "original" &&
-        response.evaluation.outcome === "needs_correction",
-    };
-    const mutation =
-      response.clipKind === "original_answer"
-        ? admin.from("attempt_turns").upsert({
-            attempt_id: attempt.id,
-            turn_order: response.turnOrder,
-            original_transcript: response.displayTranscript,
-            improved_sentence:
-              response.evaluation.kind === "original"
-                ? response.evaluation.improvedSentence
-                : null,
-            evaluation,
-          })
-        : admin
-            .from("attempt_turns")
-            .update({
-              repeat_transcript: response.displayTranscript,
-              repeat_accepted: true,
-              evaluation,
-            })
-            .eq("attempt_id", attempt.id)
-            .eq("turn_order", response.turnOrder);
-    const { error } = await mutation;
-    if (error) {
-      await route.fulfill({ status: 500, body: "mock_persistence_failed" });
-      return;
-    }
-
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ ok: true, ...response }),
-    });
-  });
 }
 
 test("multi-pattern preset: wrong pattern repeats and active pattern completes", async ({
