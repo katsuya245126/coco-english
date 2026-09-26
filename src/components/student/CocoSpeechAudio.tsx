@@ -270,7 +270,11 @@ export function CocoSpeechAudio({
   const isPlaying = state === "playing";
 
   return (
-    <span style={containerStyle}>
+    <span
+      style={
+        presentation === "dialogue-tab" ? dialogueTabContainerStyle : containerStyle
+      }
+    >
       <button
         type="button"
         aria-label="Play Coco"
@@ -284,10 +288,15 @@ export function CocoSpeechAudio({
             ? dialogueTabButtonStyle
             : null),
           ...(isError ? errorButtonStyle : null),
-          ...(isPlaying ? playingButtonStyle : null),
+          ...(isPlaying
+            ? presentation === "dialogue-tab"
+              ? dialogueTabPlayingButtonStyle
+              : playingButtonStyle
+            : null),
         }}
       >
         <SpeakerIcon state={state} />
+        {presentation === "dialogue-tab" ? "Hear it" : null}
       </button>
 
       {/*
@@ -436,12 +445,29 @@ const buttonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
+// "Hear it" tile in the tool row under Coco's speech bubble.
+const dialogueTabContainerStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+  minWidth: 0,
+};
+
 const dialogueTabButtonStyle: React.CSSProperties = {
-  minWidth: "clamp(38px, 10vw, 44px)",
-  minHeight: "clamp(38px, 10vw, 44px)",
-  border: 0,
-  borderRadius: 0,
-  background: "transparent",
+  width: "100%",
+  height: 52,
+  gap: 6,
+  border: "3px solid #1B1B3A",
+  borderRadius: 14,
+  background: "#7CC4FF",
+  color: "#1B1B3A",
+  fontSize: 17,
+  fontWeight: 700,
+};
+
+const dialogueTabPlayingButtonStyle: React.CSSProperties = {
+  background: "#1B1B3A",
+  color: "#FFF4DE",
 };
 
 const playingButtonStyle: React.CSSProperties = {

@@ -42,11 +42,11 @@ html {
 }
 
 .student-primary-button:hover {
-    background: #1D4ED8 !important;
+    background: var(--st-primary-hover, #1D4ED8) !important;
 }
 
 .student-primary-button:active {
-    background: #1E40AF !important;
+    background: var(--st-primary-active, #1E40AF) !important;
 }
 
 .student-secondary-button:hover {
@@ -64,13 +64,13 @@ html {
    blue tint instead. Press feedback is primary because students are on
    touchscreens, where :hover never fires. */
 .student-tinted-button:active:not(:disabled) {
-    background: #DBEAFE !important;
+    background: var(--st-tint-active, #DBEAFE) !important;
     transform: scale(0.96);
 }
 
 @media (hover: hover) {
     .student-tinted-button:hover:not(:disabled) {
-        background: #EFF6FF;
+        background: var(--st-tint-hover, #EFF6FF);
     }
 }
 
@@ -123,5 +123,74 @@ html {
         animation: none;
         box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15),
                     0 2px 8px rgba(37, 99, 235, 0.4);
+    }
+}
+
+/* "Sticker book" student theme (B1). Shared inline tokens in
+   components/student/styles.ts read these variables and fall back to the
+   original values, so only screens wrapped in .sticker-theme change. */
+.sticker-theme {
+    --st-bg: #FFF4DE;
+    --st-ink: #1B1B3A;
+    --st-muted: #4A4A66;
+    --st-ko: #3F4AA8;
+    --st-accent: #FF8A3D;
+    --st-sky: #7CC4FF;
+    --st-yellow: #FFD24A;
+    --st-yellow-soft: #FFE89A;
+    --st-mint: #9BE3B0;
+    --st-font: var(--font-baloo), var(--font-jua), sans-serif;
+    --st-border: 3px solid #1B1B3A;
+    --st-shadow: 5px 5px 0 #1B1B3A;
+    --st-radius-card: 22px;
+    --st-radius-button: 14px;
+    --st-primary-bg: #FF8A3D;
+    --st-primary-fg: #1B1B3A;
+    --st-primary-hover: #F57A2A;
+    --st-primary-active: #E86C1C;
+    --st-secondary-bg: #FFFFFF;
+    --st-secondary-fg: #1B1B3A;
+    --st-tint-bg: #FFFFFF;
+    --st-tint-hover: #FFF4DE;
+    --st-tint-active: #FFE89A;
+    --st-card: #FFFFFF;
+    --st-sky-soft: #E3F2FF;
+    --st-mint-soft: #E4F8EA;
+    --st-dashed-border: 3px dashed #1B1B3A;
+    --st-panel-bg: transparent;
+    --st-title-weight: 800;
+    --st-button-height: 52px;
+    --st-button-size: 18px;
+    --st-button-weight: 800;
+    --st-progress-height: 14px;
+    --st-progress-border: 2px solid #1B1B3A;
+    background: var(--st-bg);
+    color: var(--st-ink);
+    font-family: var(--st-font);
+}
+
+.sticker-theme :lang(ko), .sticker-theme [lang="ko"] {
+    font-family: var(--font-jua), sans-serif;
+}
+
+/* Sticker pager: a plain bounce instead of the blue halo. */
+@keyframes sticker-pager-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.sticker-theme .student-pager-pulse:not(:disabled) {
+    animation: sticker-pager-pulse 1.4s ease-in-out infinite;
+}
+
+/* The shorthand above resets play-state, so re-pause on press here. */
+.sticker-theme .student-pager-pulse:active:not(:disabled) {
+    animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sticker-theme .student-pager-pulse:not(:disabled) {
+        animation: none;
+        box-shadow: 3px 3px 0 #1B1B3A;
     }
 }

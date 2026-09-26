@@ -30,7 +30,7 @@ export default async function StudentHomePage({ searchParams }: { searchParams: 
   const currentCount = tab === "current" ? page.total : (await listStudentAssignmentPage(unlock.studentId, { tab: "current", page: 1, pageSize: 1 })).total;
 
   return (
-    <main className="student-home-page">
+    <main className="student-home-page sticker-theme">
       <div className="student-home-phone">
         <StudentHomeShell
           className={unlock.className}
