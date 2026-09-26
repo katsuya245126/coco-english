@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { inputStyle, labelStyle, primaryButtonStyle } from "@/components/student/styles";
 import {
   teacherProfileSchema,
   type TeacherProfileInput,
@@ -12,23 +13,7 @@ import {
   type AuthActionResult,
 } from "@/app/teacher/actions";
 
-const fieldStyle = {
-  display: "block",
-  width: "100%",
-  boxSizing: "border-box" as const,
-  padding: "8px 12px",
-  border: "1px solid #D1D5DB",
-  borderRadius: 6,
-  fontSize: 16,
-};
-
-const labelStyle = {
-  display: "block",
-  fontSize: 14,
-  fontWeight: 600,
-  lineHeight: 1.4,
-  margin: "16px 0 4px",
-};
+const fieldLabelStyle = { ...labelStyle, marginTop: 16 };
 
 const errorStyle = { color: "#B42318", fontSize: 14, marginTop: 4 };
 
@@ -49,12 +34,12 @@ export function ProfileForm({ defaultName }: { defaultName?: string }) {
 
   return (
     <form action={formAction} noValidate>
-      <label style={labelStyle} htmlFor="profile-display-name">
+      <label style={fieldLabelStyle} htmlFor="profile-display-name">
         Display name
       </label>
       <input
         id="profile-display-name"
-        style={fieldStyle}
+        style={inputStyle}
         aria-invalid={Boolean(errors.displayName)}
         {...register("displayName")}
       />
@@ -71,16 +56,10 @@ export function ProfileForm({ defaultName }: { defaultName?: string }) {
       <button
         type="submit"
         disabled={pending}
+        className="student-primary-button"
         style={{
+          ...primaryButtonStyle,
           marginTop: 24,
-          width: "100%",
-          padding: "10px 16px",
-          background: "#2563EB",
-          color: "#FFFFFF",
-          border: "none",
-          borderRadius: 6,
-          fontSize: 16,
-          fontWeight: 600,
           cursor: pending ? "default" : "pointer",
         }}
       >

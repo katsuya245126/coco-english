@@ -40,9 +40,9 @@ export function RememberedClassBanner({ onUse }: RememberedClassBannerProps) {
         alignItems: "center",
         justifyContent: "space-between",
         gap: 12,
-        background: "#F7F8FA",
-        border: "1px solid #E5E7EB",
-        borderRadius: 12,
+        background: "var(--st-yellow-soft, #F7F8FA)",
+        border: "var(--st-border, 1px solid #E5E7EB)",
+        borderRadius: "var(--st-radius-button, 12px)",
         padding: 14,
         marginBottom: 16,
       }}
@@ -50,7 +50,7 @@ export function RememberedClassBanner({ onUse }: RememberedClassBannerProps) {
       <strong
         style={{
           minWidth: 0,
-          color: "#111827",
+          color: "var(--st-ink, #111827)",
           overflowWrap: "anywhere",
         }}
       >

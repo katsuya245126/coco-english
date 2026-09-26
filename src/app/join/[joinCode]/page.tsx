@@ -1,10 +1,9 @@
 import { JoinForm } from "@/components/student/JoinForm";
+import { JoinShell } from "@/components/student/JoinShell";
 import { resolveClassByJoinCode } from "@/server/student-access/class-lookup";
 import {
   bodyStyle,
   displayTitleStyle,
-  pageStyle,
-  panelStyle,
 } from "@/components/student/styles";
 
 // Verbatim UI-SPEC generic mismatch copy (D-16). An unknown/archived code shows
@@ -24,26 +23,24 @@ export default async function JoinByCodePage({
   const context = await resolveClassByJoinCode(joinCode);
 
   return (
-    <main style={pageStyle}>
-      <div style={panelStyle}>
-        {context ? (
-          <JoinForm
-            initialClass={{
-              classId: context.classId,
-              className: context.className,
-              joinCode: context.joinCode,
-            }}
-          />
-        ) : (
-          <div>
-            <h1 style={displayTitleStyle}>Join class</h1>
-            <p role="alert" style={bodyStyle}>
-              {GENERIC_MISMATCH_COPY}
-            </p>
-            <JoinForm showRemembered />
-          </div>
-        )}
-      </div>
-    </main>
+    <JoinShell>
+      {context ? (
+        <JoinForm
+          initialClass={{
+            classId: context.classId,
+            className: context.className,
+            joinCode: context.joinCode,
+          }}
+        />
+      ) : (
+        <div>
+          <h1 style={displayTitleStyle}>Join class</h1>
+          <p role="alert" style={bodyStyle}>
+            {GENERIC_MISMATCH_COPY}
+          </p>
+          <JoinForm showRemembered />
+        </div>
+      )}
+    </JoinShell>
   );
 }
