@@ -64,19 +64,16 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     const dialogueSource = readSource(
       "src/components/student/CocoDialogueBox.tsx",
     );
-    const stylesSource = readSource("src/components/student/styles.ts");
 
     expect(stageSource).toContain("<CocoDialogueBox");
     expect(stageSource).toContain("SPRITE_BY_EXPRESSION");
     expect(stageSource).toContain("updateSpeakingVisual");
     expect(dialogueSource).toContain("displayName");
-    // Visible label is a constant Korean glyph; the state-dependent English
+    // Visible label is a constant Korean word; the state-dependent English
     // wording lives on aria-label/title instead.
-    expect(dialogueSource).toContain("<span>한</span>");
+    expect(dialogueSource).toContain('<span lang="ko">한국어</span>');
     expect(dialogueSource).toContain("aria-label={hintLabel}");
     expect(dialogueSource).toContain("voiceControl");
-    expect(stylesSource).toContain('color: "#2563EB"');
-    expect(stylesSource).toContain("minHeight: 44");
   });
 
   it("shows the dynamic-reply wait state inside Coco's dialogue box", () => {
@@ -157,9 +154,9 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(dialogueSource).toContain("aria-busy={isHintLoading}");
     expect(dialogueSource).not.toContain('"Hint…"');
     expect(dialogueSource).toContain("aria-label={hintLabel}");
-    // The visible label is always 한 so the tab never resizes; the error and
+    // The visible label is always 한국어 so the tab never resizes; the error and
     // loading wording is carried by the accessible label only.
-    expect(dialogueSource).toContain("<span>한</span>");
+    expect(dialogueSource).toContain('<span lang="ko">한국어</span>');
     expect(dialogueSource).toContain("hintAccessibleLabel");
     expect(dialogueSource).not.toMatch(/>\s*Hint\s*</);
     expect(dialogueSource).not.toContain("Translation unavailable");
@@ -217,7 +214,7 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     );
   });
 
-  it("uses an icon-only dialogue-tab replay without changing standalone TTS", () => {
+  it("uses a dialogue-tab replay without changing standalone TTS", () => {
     const audioSource = readSource("src/components/student/CocoSpeechAudio.tsx");
     const shellSource = readSource("src/components/student/MissionFlowShell.tsx");
 
@@ -236,79 +233,6 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(dialogueSource).toContain("activeRequestRef.current?.abort()");
     expect(dialogueSource).toContain("signal: controller.signal");
     expect(dialogueSource).toContain("AbortError");
-  });
-
-  it("attaches Coco and grouped actions to one shared chatbox border", () => {
-    const dialogueSource = readSource(
-      "src/components/student/CocoDialogueBox.tsx",
-    );
-    const stylesSource = readSource("src/components/student/styles.ts");
-
-    expect(dialogueSource).toContain("mascotDialogueShellStyle");
-    expect(dialogueSource).toContain("mascotDialogueActionsStyle");
-    expect(stylesSource).toContain("top: -46");
-    expect(stylesSource).toContain("height: 48");
-    expect(stylesSource).toContain('border: "2px solid #2563EB"');
-    expect(stylesSource).toContain('borderBottomColor: "transparent"');
-    expect(stylesSource).toContain('backgroundClip: "padding-box"');
-    expect(stylesSource).not.toContain('padding: "52px 16px 8px"');
-  });
-
-  it("fluidly compacts attached dialogue controls while preserving desktop caps", () => {
-    const stylesSource = readSource("src/components/student/styles.ts");
-    const audioSource = readSource(
-      "src/components/student/CocoSpeechAudio.tsx",
-    );
-
-    expect(stylesSource).toMatch(
-      /mascotDialogueTabsStyle[\s\S]*alignItems: "flex-end"/,
-    );
-    expect(stylesSource).toContain(
-      'height: "clamp(40px, 10vw, 48px)"',
-    );
-    expect(stylesSource).toContain(
-      'height: "clamp(32px, 8.5vw, 38px)"',
-    );
-    expect(stylesSource).toContain(
-      'minWidth: "clamp(64px, 17vw, 76px)"',
-    );
-    expect(stylesSource).toContain(
-      'padding: "0 clamp(8px, 2.5vw, 12px)"',
-    );
-    expect(stylesSource).toContain(
-      'fontSize: "clamp(13px, 3.3vw, 14px)"',
-    );
-    expect(stylesSource).toContain(
-      'minHeight: "clamp(38px, 10vw, 44px)"',
-    );
-    expect(stylesSource).toContain(
-      'minWidth: "clamp(38px, 10vw, 44px)"',
-    );
-    expect(audioSource).toMatch(
-      /const buttonStyle:[\s\S]*minWidth: 44,[\s\S]*minHeight: 44/,
-    );
-    expect(audioSource).toMatch(
-      /const dialogueTabButtonStyle:[\s\S]*minWidth: "clamp\(38px, 10vw, 44px\)"[\s\S]*minHeight: "clamp\(38px, 10vw, 44px\)"/,
-    );
-  });
-
-  it("caps Coco's frame while giving the chatbox face clearance", () => {
-    const stageSource = readSource("src/components/student/MascotStage.tsx");
-    const stylesSource = readSource("src/components/student/styles.ts");
-
-    expect(stageSource).toContain("SPRITE_BY_EXPRESSION");
-    expect(stageSource).toContain("mascotSpriteWrapStyle");
-    expect(stylesSource).toContain("height: 400");
-    expect(stylesSource).toContain(
-      'bottom: "calc(var(--coco-dialogue-height) - 10px)"',
-    );
-    expect(stylesSource).toContain("height: 180");
-    expect(stylesSource).toContain(
-      'left: "max(24px, calc((100% - 226px) / 2))"',
-    );
-    expect(stylesSource).toContain(
-      'width: "min(226px, calc(100% - 48px))"',
-    );
   });
 
   it("wires CocoSpeechAudio into the buddy question, improved repeat, and completion steps", () => {
@@ -350,7 +274,7 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
       "src/components/student/CocoDialogueBox.tsx",
     );
 
-    expect(dialogueSource).toContain("<span>한</span>");
+    expect(dialogueSource).toContain('<span lang="ko">한국어</span>');
     expect(questionSource).toContain("replyHintFrame");
     expect(questionSource).toContain('"Show hint"');
     expect(questionSource).toContain('"Hide hint"');
@@ -496,41 +420,13 @@ describe("Coco voice line integration in mission step cards (D-06..D-11)", () =>
     expect(repeatSource).not.toContain("We heard:");
   });
 
-  it("keeps the mascot dialogue box at a stable height without scrolling", () => {
-    const stylesSource = readSource("src/components/student/styles.ts");
-
-    // The height is responsive since 6d54e7b6 — clamp(144px, 44vw, 168px) via
-    // --coco-dialogue-height — and the shell now sits flush at bottom: 0.
-    // Stability means "no scrolling", not "one fixed pixel count".
-    expect(stylesSource).toContain(
-      '"--coco-dialogue-height": "clamp(144px, 44vw, 168px)"',
-    );
-    expect(stylesSource).toContain('height: "var(--coco-dialogue-height)"');
-    expect(stylesSource).not.toContain('overflowY: "auto"');
-    expect(stylesSource).not.toContain("minHeight: 64");
-  });
-
   it("contains normalized mascot art and attaches it to the dialogue box", () => {
     const stageSource = readSource("src/components/student/MascotStage.tsx");
-    const stylesSource = readSource("src/components/student/styles.ts");
 
     expect(stageSource).toContain('thinking: "coco-thinking-alpha.png"');
     expect(stageSource).toContain('sad: "coco-sad-alpha.png"');
     expect(stageSource).toContain('objectFit: "contain"');
     expect(stageSource).toContain('objectPosition: "center bottom"');
-    expect(stylesSource).toContain(
-      'left: "max(24px, calc((100% - 226px) / 2))"',
-    );
-    expect(stylesSource).toContain(
-      'width: "min(226px, calc(100% - 48px))"',
-    );
-    // The normalized visible boundary is bottom-aligned and overlaps the
-    // chatbox by 10px, so every expression meets it without a gap.
-    expect(stylesSource).toContain("height: 400");
-    expect(stylesSource).toContain(
-      'bottom: "calc(var(--coco-dialogue-height) - 10px)"',
-    );
-    expect(stylesSource).toContain("height: 180");
   });
 
   it("never routes the <audio> element into a Web Audio graph (replay must stay audible)", () => {

@@ -2,6 +2,10 @@ import type { CSSProperties } from "react";
 
 // Shared mobile-first student styles (UI-SPEC: max content width 420px, 24px
 // page padding, 44px minimum controls, accent #2563EB, neutral palette).
+//
+// Values written as var(--st-*, original) opt into the "sticker book" theme
+// only under .sticker-theme (globals.css); every other screen keeps the
+// original fallback.
 
 export const pageStyle: CSSProperties = {
   minHeight: "100vh",
@@ -16,6 +20,7 @@ export const MISSION_CONTENT_MAX_WIDTH = 640;
 
 export const missionPageStyle: CSSProperties = {
   ...pageStyle,
+  background: "var(--st-bg, #F7F8FA)",
   padding: "clamp(16px, 3vw, 32px)",
 };
 
@@ -38,9 +43,9 @@ export const panelStyle: CSSProperties = {
 
 export const displayTitleStyle: CSSProperties = {
   fontSize: 28,
-  fontWeight: 600,
+  fontWeight: "var(--st-title-weight, 600)",
   lineHeight: 1.2,
-  color: "#111827",
+  color: "var(--st-ink, #111827)",
   margin: "0 0 8px",
 };
 
@@ -80,27 +85,27 @@ export const inputStyle: CSSProperties = {
 
 export const primaryButtonStyle: CSSProperties = {
   width: "100%",
-  minHeight: 44,
+  minHeight: "var(--st-button-height, 44px)",
   padding: "12px 16px",
-  background: "#2563EB",
-  color: "#FFFFFF",
-  border: "none",
-  borderRadius: 6,
-  fontSize: 16,
-  fontWeight: 600,
+  background: "var(--st-primary-bg, #2563EB)",
+  color: "var(--st-primary-fg, #FFFFFF)",
+  border: "var(--st-border, none)",
+  borderRadius: "var(--st-radius-button, 6px)",
+  fontSize: "var(--st-button-size, 16px)",
+  fontWeight: "var(--st-button-weight, 600)",
   cursor: "pointer",
 };
 
 export const secondaryButtonStyle: CSSProperties = {
   width: "100%",
-  minHeight: 44,
+  minHeight: "var(--st-button-height, 44px)",
   padding: "12px 16px",
-  background: "none",
-  color: "#2563EB",
-  border: "1px solid #2563EB",
-  borderRadius: 6,
-  fontSize: 16,
-  fontWeight: 600,
+  background: "var(--st-secondary-bg, none)",
+  color: "var(--st-secondary-fg, #2563EB)",
+  border: "var(--st-border, 1px solid #2563EB)",
+  borderRadius: "var(--st-radius-button, 6px)",
+  fontSize: "var(--st-button-size, 16px)",
+  fontWeight: "var(--st-button-weight, 600)",
   cursor: "pointer",
 };
 
@@ -114,33 +119,34 @@ export const errorTextStyle: CSSProperties = {
 // ─── Phase 4: Step card + buddy + improved sentence + hint tokens ───
 
 export const stepCardStyle: CSSProperties = {
-  background: "#FFFFFF",
-  border: "1px solid #D1D5DB",
-  borderRadius: 8,
+  background: "var(--st-card, #FFFFFF)",
+  border: "var(--st-border, 1px solid #D1D5DB)",
+  borderRadius: "var(--st-radius-card, 8px)",
+  boxShadow: "var(--st-shadow, none)",
   padding: 24,
   boxSizing: "border-box",
 };
 
 export const buddyCardStyle: CSSProperties = {
-  background: "#EFF6FF",
-  border: "1px solid #BFDBFE",
-  borderRadius: 8,
+  background: "var(--st-sky-soft, #EFF6FF)",
+  border: "var(--st-border, 1px solid #BFDBFE)",
+  borderRadius: "var(--st-radius-card, 8px)",
   padding: 16,
   boxSizing: "border-box",
 };
 
 export const improvedSentenceCardStyle: CSSProperties = {
-  background: "#EFF6FF",
-  border: "1px solid #BFDBFE",
-  borderRadius: 8,
+  background: "var(--st-sky-soft, #EFF6FF)",
+  border: "var(--st-border, 1px solid #BFDBFE)",
+  borderRadius: "var(--st-radius-card, 8px)",
   padding: 16,
   boxSizing: "border-box",
 };
 
 export const hintCardStyle: CSSProperties = {
-  background: "#F9FAFB",
-  border: "none",
-  borderRadius: 8,
+  background: "var(--st-yellow-soft, #F9FAFB)",
+  border: "var(--st-dashed-border, none)",
+  borderRadius: "var(--st-radius-button, 8px)",
   padding: 12,
   boxSizing: "border-box",
 };
@@ -153,14 +159,14 @@ export const hintCardStyle: CSSProperties = {
  * `.student-tinted-button` class in globals.css for press feedback.
  */
 export const tintedHintButtonStyle: CSSProperties = {
-  background: "#DBEAFE",
-  border: "1px solid #93C5FD",
-  borderRadius: 999,
-  padding: "8px 12px",
-  minHeight: 40,
-  fontSize: 15,
-  fontWeight: 600,
-  color: "#1E40AF",
+  background: "var(--st-yellow, #DBEAFE)",
+  border: "var(--st-border, 1px solid #93C5FD)",
+  borderRadius: "var(--st-radius-button, 999px)",
+  padding: "8px 14px",
+  minHeight: "var(--st-button-height, 40px)",
+  fontSize: "var(--st-button-size, 15px)",
+  fontWeight: "var(--st-button-weight, 600)",
+  color: "var(--st-ink, #1E40AF)",
   cursor: "pointer",
   textAlign: "center",
 };
@@ -168,9 +174,9 @@ export const tintedHintButtonStyle: CSSProperties = {
 // ─── Phase 5: Voice recorder tokens ───
 
 export const recorderPanelStyle: CSSProperties = {
-  background: "#F9FAFB",
+  background: "var(--st-panel-bg, #F9FAFB)",
   border: "none",
-  borderRadius: 8,
+  borderRadius: "var(--st-radius-card, 8px)",
   padding: 16,
   boxSizing: "border-box",
 };
@@ -196,25 +202,28 @@ export const recorderErrorStyle: CSSProperties = {
 // ─── Phase 6: AI evaluation feedback tokens ───
 
 export const evaluationSuccessStyle: CSSProperties = {
-  background: "#F0FDF4",
-  border: "1px solid #BBF7D0",
-  borderRadius: 8,
+  background: "var(--st-mint-soft, #F0FDF4)",
+  border: "var(--st-border, 1px solid #BBF7D0)",
+  borderRadius: "var(--st-radius-card, 8px)",
+  boxShadow: "var(--st-shadow, none)",
   padding: 16,
   boxSizing: "border-box",
 };
 
 export const evaluationReviewStyle: CSSProperties = {
-  background: "#FFFBEB",
-  border: "1px solid #FDE68A",
-  borderRadius: 8,
+  background: "var(--st-yellow-soft, #FFFBEB)",
+  border: "var(--st-border, 1px solid #FDE68A)",
+  borderRadius: "var(--st-radius-card, 8px)",
+  boxShadow: "var(--st-shadow, none)",
   padding: 16,
   boxSizing: "border-box",
 };
 
 export const evaluationErrorStyle: CSSProperties = {
-  background: "#FFFBEB",
-  border: "1px solid #FDE68A",
-  borderRadius: 8,
+  background: "var(--st-yellow-soft, #FFFBEB)",
+  border: "var(--st-border, 1px solid #FDE68A)",
+  borderRadius: "var(--st-radius-card, 8px)",
+  boxShadow: "var(--st-shadow, none)",
   padding: 16,
   boxSizing: "border-box",
 };
@@ -222,8 +231,10 @@ export const evaluationErrorStyle: CSSProperties = {
 // ─── Phase 4: Progress bar tokens ───
 
 export const progressTrackStyle: CSSProperties = {
-  height: 4,
-  background: "#E5E7EB",
+  height: "var(--st-progress-height, 4px)",
+  background: "var(--st-card, #E5E7EB)",
+  border: "var(--st-progress-border, none)",
+  boxSizing: "border-box",
   borderRadius: 9999,
   width: "100%",
   overflow: "hidden",
@@ -231,7 +242,7 @@ export const progressTrackStyle: CSSProperties = {
 
 export const progressFillStyle: CSSProperties = {
   height: "100%",
-  background: "#2563EB",
+  background: "var(--st-accent, #2563EB)",
   borderRadius: 9999,
   transition: "width 0.3s ease",
 };
@@ -239,30 +250,48 @@ export const progressFillStyle: CSSProperties = {
 // ─── Phase 4: Resume notice ───
 
 export const resumeNoticeStyle: CSSProperties = {
-  background: "#F7F8FA",
-  border: "1px solid #E5E7EB",
-  borderRadius: 8,
+  background: "var(--st-yellow-soft, #F7F8FA)",
+  border: "var(--st-border, 1px solid #E5E7EB)",
+  borderRadius: "var(--st-radius-button, 8px)",
   padding: 12,
   boxSizing: "border-box",
 };
 
-// ─── Phase 10: Mascot stage tokens ───
+// ─── Phase 10: Mascot stage tokens ("sticker book" B1 layout) ───
+// The stage stacks a bordered scene card (backdrop + Coco, or the mission
+// picture) over an in-flow speech bubble and a tool row. Only the mission
+// flow renders it, and always inside .sticker-theme.
 
-export const mascotStageStyle: CSSProperties & {
-  "--coco-dialogue-height": string;
-} = {
+const INK = "#1B1B3A";
+const stickerBorder = `3px solid ${INK}`;
+const stickerShadow = `5px 5px 0 ${INK}`;
+
+export const mascotStageStyle: CSSProperties = {
   width: "100%",
   maxWidth: MISSION_CONTENT_MAX_WIDTH,
-  height: 400,
-  "--coco-dialogue-height": "clamp(144px, 44vw, 168px)",
-  position: "relative",
+  display: "flex",
+  flexDirection: "column",
+  gap: 14,
   marginTop: 16,
-  marginBottom: 22,
   marginLeft: "auto",
   marginRight: "auto",
-  overflow: "visible",
-  borderRadius: 8,
   boxSizing: "border-box",
+};
+
+export const mascotSceneStyle: CSSProperties = {
+  position: "relative",
+  height: 200,
+  flexShrink: 0,
+  overflow: "hidden",
+  border: stickerBorder,
+  borderRadius: 22,
+  boxShadow: stickerShadow,
+  background: "#F8FBFF",
+};
+
+export const mascotPictureSceneStyle: CSSProperties = {
+  ...mascotSceneStyle,
+  height: 240,
 };
 
 export const mascotBackdropStyle: CSSProperties = {
@@ -273,19 +302,15 @@ export const mascotBackdropStyle: CSSProperties = {
     "image-set(url(/images/backgrounds/default-classroom-background-640.webp) 1x, url(/images/backgrounds/default-classroom-background-1280.webp) 2x)",
   backgroundSize: "cover",
   backgroundPosition: "center center",
-  borderRadius: 8,
 };
 
 export const mascotPictureVisualStyle: CSSProperties = {
   position: "absolute",
-  zIndex: 1,
-  inset: "0 0 var(--coco-dialogue-height)",
+  inset: 0,
   display: "grid",
   placeItems: "center",
   minHeight: 0,
   overflow: "hidden",
-  borderRadius: "12px 12px 0 0",
-  background: "#F8FBFF",
 };
 
 export const mascotPictureImageStyle: CSSProperties = {
@@ -328,23 +353,23 @@ export const mascotPictureFailureActionsStyle: CSSProperties = {
 };
 
 export const mascotPictureRetryButtonStyle: CSSProperties = {
-  minHeight: 42,
+  minHeight: 44,
   padding: "8px 13px",
-  border: "1px solid #2563EB",
-  borderRadius: 8,
-  color: "#FFFFFF",
-  background: "#2563EB",
+  border: stickerBorder,
+  borderRadius: 14,
+  color: INK,
+  background: "#FF8A3D",
   fontSize: 14,
   fontWeight: 700,
   cursor: "pointer",
 };
 
 export const mascotPictureBackButtonStyle: CSSProperties = {
-  minHeight: 42,
+  minHeight: 44,
   padding: "8px 13px",
-  border: "1px solid #2563EB",
-  borderRadius: 8,
-  color: "#2563EB",
+  border: stickerBorder,
+  borderRadius: 14,
+  color: INK,
   background: "#FFFFFF",
   fontSize: 14,
   fontWeight: 700,
@@ -353,131 +378,132 @@ export const mascotPictureBackButtonStyle: CSSProperties = {
 
 export const mascotSpriteWrapStyle: CSSProperties = {
   position: "absolute",
-  // Cap Coco's centered frame at 226px on desktop while keeping a 24px safety
-  // inset when the stage is too narrow. Normalized sprites are bottom-aligned
-  // and overlap the main chatbox by 10px so their visible edges stay attached.
-  left: "max(24px, calc((100% - 226px) / 2))",
-  width: "min(226px, calc(100% - 48px))",
-  bottom: "calc(var(--coco-dialogue-height) - 10px)",
-  height: 180,
+  // Coco stands in the scene, cropped at the waist by the card edge.
+  left: "calc(50% - 113px)",
+  width: 226,
+  bottom: -70,
+  height: 270,
   transformOrigin: "bottom center",
 };
 
 export const mascotDialogueShellStyle: CSSProperties = {
-  position: "absolute",
-  left: 0,
-  right: 0,
-  bottom: 0,
-  height: "var(--coco-dialogue-height)",
-  overflow: "visible",
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
 };
 
 export const mascotDialogueBoxStyle: CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  background: "#FFFFFF",
-  border: "2px solid #2563EB",
-  borderRadius: 8,
-  padding: 22,
-  boxSizing: "border-box",
-  overflow: "visible",
-};
-
-export const mascotDialogueTabsStyle: CSSProperties = {
-  position: "absolute",
-  left: 8,
-  right: 8,
-  top: -46,
-  height: 48,
-  zIndex: 2,
+  position: "relative",
   display: "flex",
-  alignItems: "flex-end",
-  pointerEvents: "none",
+  flexDirection: "column",
+  gap: 8,
+  padding: "18px 18px 10px",
+  background: "#FFFFFF",
+  border: stickerBorder,
+  borderRadius: 22,
+  boxShadow: stickerShadow,
+  boxSizing: "border-box",
 };
 
-const mascotAttachedTabStyle: CSSProperties = {
-  height: "clamp(40px, 10vw, 48px)",
-  boxSizing: "border-box",
-  border: "2px solid #2563EB",
-  borderBottomColor: "transparent",
-  borderRadius: "12px 12px 0 0",
-  backgroundClip: "padding-box",
-  pointerEvents: "auto",
+// Speech-bubble tail pointing up at Coco.
+export const mascotDialogueTailStyle: CSSProperties = {
+  position: "absolute",
+  top: -14,
+  left: "50%",
+  marginLeft: -12,
+  width: 20,
+  height: 20,
+  background: "#FFFFFF",
+  borderTop: stickerBorder,
+  borderLeft: stickerBorder,
+  transform: "rotate(45deg)",
 };
 
 export const mascotNameTabStyle: CSSProperties = {
-  ...mascotAttachedTabStyle,
-  height: "clamp(32px, 8.5vw, 38px)",
-  minWidth: "clamp(64px, 17vw, 76px)",
-  padding: "0 clamp(8px, 2.5vw, 12px)",
+  position: "absolute",
+  top: -16,
+  left: 16,
+  padding: "0 12px",
+  border: `2px solid ${INK}`,
+  borderRadius: 999,
+  background: "#FF8A3D",
+  color: INK,
+  fontSize: 14,
+  fontWeight: 800,
+  lineHeight: "26px",
+  transform: "rotate(-3deg)",
+};
+
+export const mascotDialogueToolsStyle: CSSProperties = {
+  display: "grid",
+  gridAutoColumns: "minmax(0, 1fr)",
+  gridAutoFlow: "column",
+  gap: 10,
+};
+
+export const mascotToolButtonStyle: CSSProperties = {
+  width: "100%",
+  height: 52,
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  background: "#2563EB",
-  color: "#FFFFFF",
-  fontSize: "clamp(13px, 3.3vw, 14px)",
-  fontWeight: 700,
-};
-
-export const mascotDialogueActionsStyle: CSSProperties = {
-  ...mascotAttachedTabStyle,
-  marginLeft: "auto",
-  display: "flex",
-  alignItems: "center",
-  overflow: "hidden",
-  background: "#FFFFFF",
-};
-
-export const mascotHintTabStyle: CSSProperties = {
-  ...mascotAttachedTabStyle,
-  minHeight: "clamp(38px, 10vw, 44px)",
-  padding: "0 clamp(8px, 2.5vw, 12px)",
-  border: 0,
-  borderRight: "1px solid #BFDBFE",
-  borderRadius: 0,
-  display: "inline-flex",
-  alignItems: "center",
   gap: 6,
-  background: "transparent",
-  color: "#2563EB",
-  fontSize: "clamp(13px, 3.3vw, 14px)",
+  padding: "0 8px",
+  border: stickerBorder,
+  borderRadius: 14,
+  background: "#FFFFFF",
+  color: INK,
+  fontSize: 17,
   fontWeight: 700,
   cursor: "pointer",
+};
+
+export const mascotToolButtonPressedStyle: CSSProperties = {
+  background: INK,
+  color: "#FFF4DE",
 };
 
 export const mascotDialoguePagerStyle: CSSProperties = {
-  position: "absolute",
-  left: 8,
-  right: 8,
-  bottom: -22,
-  zIndex: 4,
-  display: "grid",
-  gridTemplateColumns: "44px 1fr 44px",
+  display: "flex",
   alignItems: "center",
-  pointerEvents: "none",
+  justifyContent: "flex-end",
+  gap: 6,
 };
 
-export const mascotDialoguePageButtonStyle: CSSProperties = {
+export const mascotDialoguePrevButtonStyle: CSSProperties = {
   width: 44,
   height: 44,
-  border: "2px solid #2563EB",
-  borderRadius: "50%",
-  background: "#2563EB",
-  color: "#FFFFFF",
-  fontSize: 24,
-  fontWeight: 700,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 0,
+  border: 0,
+  borderRadius: 12,
+  background: "transparent",
+  color: INK,
   cursor: "pointer",
-  pointerEvents: "auto",
-  boxShadow: "0 2px 6px rgba(37, 99, 235, 0.35)",
+};
+
+export const mascotDialogueNextButtonStyle: CSSProperties = {
+  height: 44,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 2,
+  padding: "0 12px 0 16px",
+  border: `2.5px solid ${INK}`,
+  borderRadius: 999,
+  background: "#FF8A3D",
+  color: INK,
+  fontSize: 16,
+  fontWeight: 800,
+  cursor: "pointer",
 };
 
 export const mascotDialoguePageIndicatorStyle: CSSProperties = {
-  justifySelf: "center",
-  padding: "3px 8px",
-  borderRadius: 999,
-  background: "#FFFFFF",
-  color: "#4B5563",
-  fontSize: 13,
+  minWidth: 40,
+  textAlign: "center",
+  color: INK,
+  fontSize: 15,
   fontWeight: 700,
 };
 
@@ -487,20 +513,11 @@ export const mascotHintSpinnerStyle: CSSProperties = {
   flexShrink: 0,
 };
 
-export const mascotVoiceTabStyle: CSSProperties = {
-  minHeight: "clamp(38px, 10vw, 44px)",
-  minWidth: "clamp(38px, 10vw, 44px)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  pointerEvents: "auto",
-};
-
 export const mascotDialogueTextStyle: CSSProperties = {
-  fontSize: 18,
-  fontWeight: 600,
-  lineHeight: 1.3,
-  color: "#111827",
+  fontSize: 22,
+  fontWeight: 700,
+  lineHeight: 1.25,
+  color: INK,
   margin: 0,
   minWidth: 0,
   overflowWrap: "anywhere",
@@ -516,7 +533,6 @@ export const mascotPictureDialogueCopyStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 12,
-  height: "100%",
 };
 
 export const mascotCompactSpriteStyle: CSSProperties = {
@@ -533,9 +549,9 @@ export const mascotPhraseButtonStyle: CSSProperties = {
   minHeight: "auto",
   padding: "2px 3px",
   margin: 0,
-  border: "1px solid #93C5FD",
+  border: `2px solid ${INK}`,
   borderRadius: 6,
-  background: "#EFF6FF",
+  background: "#FFE89A",
   color: "inherit",
   font: "inherit",
   whiteSpace: "normal",
@@ -553,13 +569,21 @@ export const mascotTranslationBubbleStyle: CSSProperties = {
   width: "max-content",
   maxWidth: "min(260px, calc(100vw - 32px))",
   boxSizing: "border-box",
-  padding: "6px 10px",
-  borderRadius: 8,
-  background: "#1E3A8A",
-  color: "#FFFFFF",
-  fontSize: 15,
-  fontWeight: 600,
-  lineHeight: 1.3,
+  padding: "6px 12px",
+  borderRadius: 12,
+  background: INK,
+  color: "#FFF4DE",
+  fontFamily: "var(--font-jua), sans-serif",
+  fontSize: 17,
+  fontWeight: 400,
+  lineHeight: 1.35,
   whiteSpace: "normal",
   overflowWrap: "anywhere",
+};
+
+export const mascotStatusTextStyle: CSSProperties = {
+  margin: 0,
+  color: "#4A4A66",
+  fontSize: 15,
+  fontWeight: 600,
 };

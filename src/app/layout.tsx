@@ -2,9 +2,12 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import "./globals.css";
-import { Inter } from "next/font/google";
+import { Baloo_2, Inter, Jua } from "next/font/google";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
+// Student "sticker book" faces; Jua is the Hangul fallback for Baloo 2.
+const baloo = Baloo_2({subsets:['latin'],variable:'--font-baloo'});
+const jua = Jua({weight:'400',preload:false,variable:'--font-jua'});
 
 export const metadata: Metadata = {
   title: "Coco English",
@@ -19,7 +22,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
-      className={inter.variable}
+      className={`${inter.variable} ${baloo.variable} ${jua.variable}`}
       suppressHydrationWarning
     >
       <head>

@@ -219,7 +219,7 @@ export default async function MissionPage({ params }: MissionPageProps) {
   after(() => warmEvaluators(snapshot.level));
 
   return (
-    <main style={missionPageStyle}>
+    <main className="sticker-theme" style={missionPageStyle}>
       <div style={missionContentStyle}>
         <MissionFlowShell
           assignmentStudentId={assignmentStudentId}

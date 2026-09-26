@@ -13,23 +13,25 @@ import {
   paginateDialogueText,
 } from "@/domain/conversation/dialogue-pagination";
 import {
-  mascotDialogueActionsStyle,
   mascotDialogueBoxStyle,
   mascotCompactSpriteStyle,
   mascotDialogueCopyStyle,
-  mascotDialoguePageButtonStyle,
+  mascotDialogueNextButtonStyle,
   mascotDialoguePageIndicatorStyle,
   mascotDialoguePagerStyle,
+  mascotDialoguePrevButtonStyle,
   mascotDialogueShellStyle,
+  mascotDialogueTailStyle,
   mascotDialogueTextStyle,
-  mascotDialogueTabsStyle,
+  mascotDialogueToolsStyle,
   mascotHintSpinnerStyle,
-  mascotHintTabStyle,
   mascotNameTabStyle,
   mascotPictureDialogueCopyStyle,
   mascotPhraseButtonStyle,
+  mascotStatusTextStyle,
+  mascotToolButtonPressedStyle,
+  mascotToolButtonStyle,
   mascotTranslationBubbleStyle,
-  mascotVoiceTabStyle,
 } from "@/components/student/styles";
 
 type CocoDialogueBoxProps = {
@@ -214,7 +216,7 @@ export function CocoDialogueBox({
     : null;
   const isHintLoading = translationState.kind === "loading";
   const isHintRateLimited = translationState.kind === "rate_limited";
-  // The tab shows a bare `한` in every state so its width never jumps, but a
+  // The button shows `한국어` in every state so its width never jumps, but a
   // lone glyph is a poor accessible name — aria-label/title stay English and
   // keep carrying the error distinction.
   const hintAccessibleLabel = isHintRateLimited
@@ -223,42 +225,13 @@ export function CocoDialogueBox({
       ? "Retry hint"
       : "Hint";
   const hintLabel = isHintLoading ? "Loading hint" : hintAccessibleLabel;
+  const hasTranslation = Boolean(translationLine && dialogueText);
 
   return (
     <div style={mascotDialogueShellStyle}>
-      <div style={mascotDialogueTabsStyle}>
-        <span style={mascotNameTabStyle}>{displayName}</span>
-        {translationLine && dialogueText ? (
-          <div style={mascotDialogueActionsStyle}>
-            <button
-              type="button"
-              className="student-tinted-button"
-              aria-label={hintLabel}
-              title={hintLabel}
-              aria-pressed={translationVisible}
-              aria-busy={isHintLoading}
-              disabled={isHintLoading}
-              onClick={loadTranslationHint}
-              style={{
-                ...mascotHintTabStyle,
-                ...(voiceControl ? null : { borderRight: 0 }),
-              }}
-            >
-              <span>한</span>
-              {isHintLoading ? <HintSpinner /> : null}
-            </button>
-            {voiceControl ? (
-              <span style={mascotVoiceTabStyle}>{voiceControl}</span>
-            ) : null}
-          </div>
-        ) : voiceControl ? (
-          <div style={mascotDialogueActionsStyle}>
-            <span style={mascotVoiceTabStyle}>{voiceControl}</span>
-          </div>
-        ) : null}
-      </div>
-
       <div style={mascotDialogueBoxStyle}>
+        <span aria-hidden="true" style={mascotDialogueTailStyle} />
+        <span style={mascotNameTabStyle}>{displayName}</span>
         <div
           style={
             compactSpriteSrc
@@ -325,54 +298,79 @@ export function CocoDialogueBox({
             </p>
           ) : null}
         </div>
+        {pages.length > 1 ? (
+          <nav aria-label="Dialogue pages" style={mascotDialoguePagerStyle}>
+            <button
+              type="button"
+              className="student-tinted-button"
+              aria-label="Previous dialogue page"
+              disabled={safePageIndex === 0}
+              onClick={() => {
+                setPagerUsed(true);
+                setCurrentPageIndex((index) => Math.max(0, index - 1));
+              }}
+              style={{
+                ...mascotDialoguePrevButtonStyle,
+                opacity: safePageIndex === 0 ? 0.3 : 1,
+              }}
+            >
+              <ChevronIcon direction="left" />
+            </button>
+            <span style={mascotDialoguePageIndicatorStyle}>
+              {safePageIndex + 1} / {pages.length}
+            </span>
+            <button
+              type="button"
+              className={
+                pagerUsed
+                  ? "student-tinted-button"
+                  : "student-tinted-button student-pager-pulse"
+              }
+              aria-label="Next dialogue page"
+              disabled={safePageIndex === pages.length - 1}
+              onClick={() => {
+                setPagerUsed(true);
+                setCurrentPageIndex((index) => Math.min(pages.length - 1, index + 1));
+              }}
+              style={{
+                ...mascotDialogueNextButtonStyle,
+                opacity: safePageIndex === pages.length - 1 ? 0.35 : 1,
+              }}
+            >
+              Next
+              <ChevronIcon direction="right" />
+            </button>
+          </nav>
+        ) : null}
       </div>
-      {isHintRateLimited ? (
-        <span role="status" style={mascotTranslationBubbleStyle}>
-          Please wait a few minutes, then retry the hint.
-        </span>
+      {hasTranslation || voiceControl ? (
+        <div style={mascotDialogueToolsStyle}>
+          {voiceControl}
+          {hasTranslation ? (
+            <button
+              type="button"
+              className="student-tinted-button"
+              aria-label={hintLabel}
+              title={hintLabel}
+              aria-pressed={translationVisible}
+              aria-busy={isHintLoading}
+              disabled={isHintLoading}
+              onClick={loadTranslationHint}
+              style={{
+                ...mascotToolButtonStyle,
+                ...(translationVisible ? mascotToolButtonPressedStyle : null),
+              }}
+            >
+              <span lang="ko">한국어</span>
+              {isHintLoading ? <HintSpinner /> : null}
+            </button>
+          ) : null}
+        </div>
       ) : null}
-      {pages.length > 1 ? (
-        <nav aria-label="Dialogue pages" style={mascotDialoguePagerStyle}>
-          <button
-            type="button"
-            className="student-tinted-button"
-            aria-label="Previous dialogue page"
-            disabled={safePageIndex === 0}
-            onClick={() => {
-              setPagerUsed(true);
-              setCurrentPageIndex((index) => Math.max(0, index - 1));
-            }}
-            style={{
-              ...mascotDialoguePageButtonStyle,
-              opacity: safePageIndex === 0 ? 0.35 : 1,
-            }}
-          >
-            ‹
-          </button>
-          <span style={mascotDialoguePageIndicatorStyle}>
-            {safePageIndex + 1} / {pages.length}
-          </span>
-          <button
-            type="button"
-            className={
-              pagerUsed
-                ? "student-tinted-button"
-                : "student-tinted-button student-pager-pulse"
-            }
-            aria-label="Next dialogue page"
-            disabled={safePageIndex === pages.length - 1}
-            onClick={() => {
-              setPagerUsed(true);
-              setCurrentPageIndex((index) => Math.min(pages.length - 1, index + 1));
-            }}
-            style={{
-              ...mascotDialoguePageButtonStyle,
-              opacity: safePageIndex === pages.length - 1 ? 0.35 : 1,
-            }}
-          >
-            ›
-          </button>
-        </nav>
+      {isHintRateLimited ? (
+        <p role="status" style={mascotStatusTextStyle}>
+          Please wait a few minutes, then retry the hint.
+        </p>
       ) : null}
     </div>
   );
@@ -387,6 +385,24 @@ function firstPhraseIndexOnPage(
     (phrase) => phrase.start < page.end && phrase.end > page.start,
   );
   return index >= 0 ? index : null;
+}
+
+function ChevronIcon({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={3}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={direction === "left" ? "M15 18l-6-6 6-6" : "M9 18l6-6-6-6"} />
+    </svg>
+  );
 }
 
 function ThinkingDots() {

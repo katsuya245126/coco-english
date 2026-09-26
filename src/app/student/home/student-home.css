@@ -1,47 +1,54 @@
-/* Student home styles — moved from the runtime <style jsx global> block in
-   StudentHomeStyles.tsx so the page is styled from first paint (no hydration
-   FOUC). Imported by src/app/student/home/page.tsx. */
-.student-home-page { min-height: 100dvh; padding: 24px; display: flex; justify-content: center; background: #f1f5f9; color: #0f172a; font-family: Inter, ui-sans-serif, system-ui, sans-serif; box-sizing: border-box; }
+/* Student home — "sticker book" B1. Tokens come from .sticker-theme in
+   globals.css. Imported by src/app/student/home/page.tsx (real stylesheet, so
+   the page is styled from first paint). */
+.student-home-page { min-height: 100dvh; padding: 24px; display: flex; justify-content: center; box-sizing: border-box; }
 .student-home-page * { box-sizing: border-box; }
-.student-home-phone { width: 100%; max-width: 430px; align-self: flex-start; overflow: hidden; border: 1px solid #dbe2ea; border-radius: 24px; background: #f8fafc; box-shadow: 0 14px 38px #0f172a24; }
-.student-home-header { padding: 22px 20px 0; border-bottom: 1px solid #e2e8f0; background: #fff; }
-.student-home-greeting { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.student-home-greeting h1 { margin: 0; color: #172554; font-size: 21px; line-height: 1.25; }
-.student-home-greeting p { margin: 4px 0 0; color: #64748b; font-size: 12px; }
-.student-home-avatar { width: 42px; height: 42px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 50%; background: #dbeafe; font-size: 22px; }
-.student-home-tabs { display: flex; gap: 22px; margin-top: 18px; }
-.student-home-tabs a { padding: 9px 1px 10px; border-bottom: 2px solid transparent; color: #64748b; font-size: 13px; text-decoration: none; }
-.student-home-tabs a:hover, .student-home-tabs a[aria-current="page"] { border-color: #2563eb; color: #1d4ed8; }
-.student-home-tabs a[aria-current="page"] { font-weight: 800; }
-.student-home-list { padding: 16px; }
-.student-home-section-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.student-home-section-title strong { font-size: 13px; }
-.student-home-section-title span { color: #64748b; font-size: 11px; }
-.student-mission-card { display: block; margin-bottom: 10px; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; color: inherit; text-decoration: none; transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
-.student-mission-card:hover { border-color: #93c5fd; box-shadow: 0 7px 20px #0f172a12; transform: translateY(-1px); }
-.student-mission-card:active { border-color: #2563eb; box-shadow: 0 3px 12px #0f172a12; transform: translateY(0); }
-.student-mission-card:focus-visible, .student-home-tabs a:focus-visible, .student-home-pager a:focus-visible, .student-switch-class:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
-.student-mission-card.past, .student-mission-card.waiting { background: #fff; }
-.student-mission-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.student-mission-top h2 { margin: 0 0 4px; color: #0f172a; font-size: 15px; line-height: 1.3; }
-.student-mission-top p, .student-mission-meta, .student-mission-past-meta { margin: 0; color: #64748b; font-size: 11px; line-height: 1.4; }
-.student-mission-badge { padding: 4px 8px; flex: 0 0 auto; border-radius: 999px; font-size: 10px; font-weight: 800; white-space: nowrap; }
-.student-mission-badge.start { background: #dbeafe; color: #1d4ed8; }.student-mission-badge.continue { background: #fef3c7; color: #92400e; }.student-mission-badge.retry, .student-mission-badge.late, .student-mission-badge.late_start { background: #fee2e2; color: #991b1b; }.student-mission-badge.review { background: #ede9fe; color: #6d28d9; }.student-mission-badge.done { background: #dcfce7; color: #166534; }
-.student-mission-progress { height: 5px; margin: 12px 0 7px; overflow: hidden; border-radius: 4px; background: #e2e8f0; }
-.student-mission-progress span { display: block; height: 100%; border-radius: inherit; background: #60a5fa; }
-.student-mission-meta, .student-mission-past-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 9px; }
-.student-mission-action { display: block; margin-top: 11px; padding: 9px; border-radius: 8px; background: #2563eb; color: #fff; text-align: center; font-size: 12px; font-weight: 800; }
-.student-mission-card:active .student-mission-action { background: #1e40af; }
-.student-mission-past-meta a { color: #2563eb; font-weight: 800; text-decoration: none; }
-.student-home-empty { margin-bottom: 14px; padding: 28px 18px; border: 1px dashed #cbd5e1; border-radius: 12px; background: #fff; text-align: center; }
-.student-home-empty > div { font-size: 28px; }.student-home-empty h2 { margin: 8px 0 4px; font-size: 15px; }.student-home-empty p { margin: 0; color: #64748b; font-size: 12px; }
-.student-home-pager { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 18px 0 4px; }
-.student-home-pager a, .student-home-pager span { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; color: #475569; font-size: 11px; text-decoration: none; }
-.student-home-pager a:hover { border-color: #93c5fd; color: #1d4ed8; }
-.student-home-pager a:active { border-color: #2563eb; background: #dbeafe; color: #1e40af; }
-.student-home-pager a[aria-current="page"] { border-color: #172554; background: #172554; color: #fff; }.student-home-pager span { color: #cbd5e1; }
-.student-switch-class { width: 100%; min-height: 42px; border: 1px solid #bfdbfe; border-radius: 8px; background: #fff; color: #2563eb; font-weight: 700; cursor: pointer; }
-.student-switch-class:hover { background: #eff6ff; border-color: #93c5fd; }
-.student-switch-class:active { background: #dbeafe; border-color: #2563eb; color: #1e40af; }
-@media (max-width: 430px) { .student-home-page { padding: 0; background: #f8fafc; }.student-home-phone { min-height: 100dvh; border: 0; border-radius: 0; box-shadow: none; } }
+.student-home-phone { width: 100%; max-width: 430px; align-self: flex-start; }
+.student-home-shell { display: flex; flex-direction: column; gap: 20px; padding: 24px 20px; }
+.student-home-header { display: flex; flex-direction: column; gap: 20px; }
+/* The right column is reserved for Coco so a long name wraps instead of running under the sprite. */
+.student-home-greeting { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 118px; min-height: 156px; overflow: hidden; border: var(--st-border); border-radius: var(--st-radius-card); background: var(--st-sky); box-shadow: var(--st-shadow); }
+.student-home-greeting > div:first-child { min-width: 0; display: flex; flex-direction: column; gap: 4px; padding: 16px 0 16px 18px; }
+.student-home-hi { display: block; margin-bottom: 4px; font-size: 20px; font-weight: 700; line-height: 1; }
+.student-home-greeting h1 { margin: 0; font-size: 34px; font-weight: 800; line-height: 1.05; overflow-wrap: anywhere; }
+.student-home-greeting p { margin: 0; font-size: 16px; font-weight: 600; }
+.student-home-count { align-self: flex-start; margin-top: 4px; padding: 1px 12px; border: 2px solid var(--st-ink); border-radius: 999px; background: var(--st-bg); font-size: 15px; font-weight: 600; }
+.student-home-coco { position: relative; }
+.student-home-coco img { position: absolute; right: -10px; bottom: -64px; width: auto; height: 200px; }
+.student-home-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.student-home-tabs a { height: 48px; display: flex; align-items: center; justify-content: center; border: var(--st-border); border-radius: var(--st-radius-button); background: #fff; font-size: 17px; font-weight: 700; text-decoration: none; }
+.student-home-tabs a[aria-current="page"] { background: var(--st-ink); color: var(--st-bg); }
+.student-home-list { display: flex; flex-direction: column; gap: 16px; }
+.student-home-section-title { display: flex; align-items: baseline; justify-content: space-between; }
+.student-home-section-title strong { font-size: 18px; font-weight: 800; }
+.student-home-section-title span { color: var(--st-muted); font-size: 14px; font-weight: 600; }
+.student-mission-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: var(--st-border); border-radius: 20px; background: #fff; box-shadow: var(--st-shadow); color: inherit; text-decoration: none; transition: transform 120ms ease, box-shadow 120ms ease; }
+.student-mission-card:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 var(--st-ink); }
+@media (hover: hover) { a.student-mission-card:hover { transform: translate(-1px, -1px); box-shadow: 6px 6px 0 var(--st-ink); } }
+.student-mission-card:focus-visible, .student-home-tabs a:focus-visible, .student-home-pager a:focus-visible, .student-switch-class:focus-visible { outline: 3px solid var(--st-accent); outline-offset: 3px; }
+.student-mission-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.student-mission-top small { color: var(--st-muted); font-size: 14px; font-weight: 700; }
+.student-mission-top h2 { margin: 0; font-size: 22px; font-weight: 800; line-height: 1.1; overflow-wrap: anywhere; }
+.student-mission-meta, .student-mission-past-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0; color: var(--st-muted); font-size: 15px; line-height: 1.3; }
+.student-mission-badge { flex: 0 0 auto; padding: 0 10px; border: 2px solid var(--st-ink); border-radius: 999px; font-size: 14px; font-weight: 800; white-space: nowrap; transform: rotate(4deg); }
+.student-mission-badge.start, .student-mission-badge.late_start { background: var(--st-accent); }
+.student-mission-badge.continue { background: var(--st-yellow); }
+.student-mission-badge.retry, .student-mission-badge.late { background: #FF9C9C; }
+.student-mission-badge.review { background: var(--st-sky); }
+.student-mission-badge.done { background: var(--st-mint); transform: rotate(-4deg); }
+.student-mission-progress { height: 14px; overflow: hidden; border: 2px solid var(--st-ink); border-radius: 999px; background: #fff; }
+.student-mission-progress span { display: block; height: 100%; background: var(--st-mint); }
+.student-mission-action { height: 54px; display: flex; align-items: center; justify-content: center; border: var(--st-border); border-radius: var(--st-radius-button); background: var(--st-accent); font-size: 19px; font-weight: 800; }
+.student-mission-past-meta a { min-height: 44px; display: inline-flex; align-items: center; color: var(--st-ink); font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
+.student-home-empty { padding: 28px 18px; border: 3px dashed var(--st-ink); border-radius: var(--st-radius-card); background: #fff; text-align: center; }
+.student-home-empty > div { font-size: 32px; }
+.student-home-empty h2 { margin: 8px 0 4px; font-size: 20px; font-weight: 800; }
+.student-home-empty p { margin: 0; color: var(--st-muted); font-size: 15px; }
+.student-home-pager { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.student-home-pager a, .student-home-pager span { width: 44px; height: 44px; display: grid; place-items: center; border: var(--st-border); border-radius: 12px; background: #fff; font-size: 17px; font-weight: 700; text-decoration: none; }
+.student-home-pager a[aria-current="page"] { background: var(--st-ink); color: var(--st-bg); }
+.student-home-pager span { opacity: 0.3; }
+.student-switch-class { width: 100%; height: 48px; margin-top: 8px; border: var(--st-border); border-radius: var(--st-radius-button); background: #fff; color: var(--st-ink); font-size: 17px; font-weight: 700; cursor: pointer; }
+.student-switch-class:active { background: var(--st-yellow-soft); }
+@media (max-width: 430px) { .student-home-page { padding: 0; } }
 @media (prefers-reduced-motion: reduce) { .student-home-page * { transition-duration: .01ms !important; } }

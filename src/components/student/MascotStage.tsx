@@ -32,7 +32,9 @@ import {
   mascotPictureFailureTextStyle,
   mascotPictureImageStyle,
   mascotPictureRetryButtonStyle,
+  mascotPictureSceneStyle,
   mascotPictureVisualStyle,
+  mascotSceneStyle,
   mascotSpriteWrapStyle,
   mascotStageStyle,
 } from "@/components/student/styles";
@@ -266,69 +268,71 @@ export function MascotStage({
 
   return (
     <div style={mascotStageStyle} data-picture-stage={picture ? "true" : "false"}>
-      {picture ? (
-        <div style={mascotPictureVisualStyle} data-picture-region="true">
-          {pictureFailed ? (
-            <div style={mascotPictureFailureStyle} role="alert">
-              <div>
-                <p style={mascotPictureFailureTextStyle}>
-                  The picture couldn&apos;t load.
-                </p>
-                <div style={mascotPictureFailureActionsStyle}>
-                  <button
-                    type="button"
-                    aria-label="Retry picture"
-                    style={mascotPictureRetryButtonStyle}
-                    onClick={retryPicture}
-                  >
-                    Retry
-                  </button>
-                  <button
-                    type="button"
-                    style={mascotPictureBackButtonStyle}
-                    onClick={onBackToHomework}
-                  >
-                    Back to homework
-                  </button>
+      <div style={picture ? mascotPictureSceneStyle : mascotSceneStyle}>
+        {picture ? (
+          <div style={mascotPictureVisualStyle} data-picture-region="true">
+            {pictureFailed ? (
+              <div style={mascotPictureFailureStyle} role="alert">
+                <div>
+                  <p style={mascotPictureFailureTextStyle}>
+                    The picture couldn&apos;t load.
+                  </p>
+                  <div style={mascotPictureFailureActionsStyle}>
+                    <button
+                      type="button"
+                      aria-label="Retry picture"
+                      style={mascotPictureRetryButtonStyle}
+                      onClick={retryPicture}
+                    >
+                      Retry
+                    </button>
+                    <button
+                      type="button"
+                      style={mascotPictureBackButtonStyle}
+                      onClick={onBackToHomework}
+                    >
+                      Back to homework
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : (
-            <img
-              key={`${picture.src}-${currentPictureState?.requestKey ?? 0}`}
-              ref={pictureImageRef}
-              src={pictureRequestSrc(
-                picture.src,
-                currentPictureState?.requestKey ?? 0,
-              )}
-              alt={picture.alt}
-              data-picture-image="true"
-              onLoad={handlePictureLoad}
-              onError={handlePictureError}
-              style={mascotPictureImageStyle}
-            />
-          )}
-        </div>
-      ) : (
-        <>
-          <div style={mascotBackdropStyle} />
-          <div
-            style={{
-              ...mascotSpriteWrapStyle,
-              transform: `scale(${scale})`,
-            }}
-          >
-            <Image
-              src={`/images/${spriteFile}`}
-              alt=""
-              fill
-              priority
-              sizes="(max-width: 420px) 100vw, 420px"
-              style={{ objectFit: "contain", objectPosition: "center bottom" }}
-            />
+            ) : (
+              <img
+                key={`${picture.src}-${currentPictureState?.requestKey ?? 0}`}
+                ref={pictureImageRef}
+                src={pictureRequestSrc(
+                  picture.src,
+                  currentPictureState?.requestKey ?? 0,
+                )}
+                alt={picture.alt}
+                data-picture-image="true"
+                onLoad={handlePictureLoad}
+                onError={handlePictureError}
+                style={mascotPictureImageStyle}
+              />
+            )}
           </div>
-        </>
-      )}
+        ) : (
+          <>
+            <div style={mascotBackdropStyle} />
+            <div
+              style={{
+                ...mascotSpriteWrapStyle,
+                transform: `scale(${scale})`,
+              }}
+            >
+              <Image
+                src={`/images/${spriteFile}`}
+                alt=""
+                fill
+                priority
+                sizes="226px"
+                style={{ objectFit: "contain", objectPosition: "center bottom" }}
+              />
+            </div>
+          </>
+        )}
+      </div>
       <CocoDialogueBox
         assignmentStudentId={assignmentStudentId}
         displayName={displayName}
