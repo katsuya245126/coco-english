@@ -14,6 +14,7 @@ import {
 /** A pronunciation_scores row projected for profile aggregation. */
 const profileScoreRowSchema = z.object({
   reference_text: z.string().nullable(),
+  teacher_marked_no_speech: z.boolean().optional(),
   word_scores: z.unknown(),
 });
 type ProfileScoreRow = z.infer<typeof profileScoreRowSchema>;
@@ -34,6 +35,7 @@ const pronunciationProfileRowSchema = z.object({
   transcript: z.string().nullable(),
   audio_clips: oneOrMany(
     z.object({
+      teacher_marked_no_speech: z.boolean().optional(),
       pronunciation_scores: oneOrMany(
         z.object({ word_scores: z.unknown() }),
       ).nullable(),
@@ -53,10 +55,12 @@ export type StudentProfileWeakness = StudentSoundWeakness & {
 };
 
 function clipsFromMissionRows(rows: ProfileScoreRow[]): StudentClipScore[] {
-  return rows.map((row) => ({
-    wordScores: parseWordScores(row.word_scores),
-    transcript: row.reference_text ?? "",
-  }));
+  return rows
+    .filter((row) => !row.teacher_marked_no_speech)
+    .map((row) => ({
+      wordScores: parseWordScores(row.word_scores),
+      transcript: row.reference_text ?? "",
+    }));
 }
 
 type ConfirmedSampleProfileRow = {
@@ -165,6 +169,7 @@ export async function getStudentSoundProfile(
       word_scores,
       audio_clips!inner(
         clip_kind,
+        teacher_marked_no_speech,
         attempt_turns!inner(
           attempts!inner(
             assignment_students!attempts_assignment_student_id_fkey!inner(
@@ -191,7 +196,8 @@ export async function getStudentSoundProfile(
     .eq(
       "audio_clips.attempt_turns.attempts.assignment_students.assignments.assignment_kind",
       "mission",
-    );
+    )
+    .eq("audio_clips.teacher_marked_no_speech", false);
 
   if (scores.error) {
     throw new Error(
@@ -239,6 +245,7 @@ export async function getStudentSoundProfile(
       transcript,
       try_number,
       audio_clips!inner(
+        teacher_marked_no_speech,
         pronunciation_scores!inner(word_scores)
       ),
       attempt_turns!inner(
@@ -258,7 +265,8 @@ export async function getStudentSoundProfile(
     .eq(
       "attempt_turns.attempts.assignment_students.assignments.classes.teacher_id",
       teacherId,
-    );
+    )
+    .eq("audio_clips.teacher_marked_no_speech", false);
 
   if (pronunciationTries.error) {
     throw new Error(
@@ -278,6 +286,7 @@ export async function getStudentSoundProfile(
   const practiceRows: ProfileScoreRow[] = [];
   for (const row of parsedPracticeRows.data) {
     if (row.try_number !== 1) continue;
+    if (row.audio_clips?.teacher_marked_no_speech) continue;
     const score = row.audio_clips?.pronunciation_scores;
     if (score) {
       practiceRows.push({

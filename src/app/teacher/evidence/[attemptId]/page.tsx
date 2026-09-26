@@ -329,6 +329,7 @@ function AudioClipList({
             pronunciationScore={clip.pronunciationScore}
             audioClipId={clip.id}
             attemptId={attemptId}
+            studentSaidNothing={clip.teacherMarkedNoSpeech}
           />
           <MissionAudioClarificationControl
             audioClipId={clip.id}
@@ -336,6 +337,8 @@ function AudioClipList({
             automaticTranscript={clip.automaticTranscript}
             teacherConfirmedText={clip.teacherConfirmedText}
             teacherConfirmedAt={clip.teacherConfirmedAt}
+            studentSaidNothing={clip.teacherMarkedNoSpeech}
+            teacherMarkedNoSpeechAt={clip.teacherMarkedNoSpeechAt}
             clarificationAvailable={clip.clarificationAvailable}
           />
         </div>

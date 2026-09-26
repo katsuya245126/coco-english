@@ -273,6 +273,9 @@ export type Database = {
           teacher_confirmed_text: string | null;
           teacher_confirmed_by: string | null;
           teacher_confirmed_at: string | null;
+          teacher_marked_no_speech: boolean;
+          teacher_marked_no_speech_by: string | null;
+          teacher_marked_no_speech_at: string | null;
           clarification_started_at: string | null;
           clarification_token: string | null;
           created_at: string;
@@ -294,6 +297,9 @@ export type Database = {
           teacher_confirmed_text?: string | null;
           teacher_confirmed_by?: string | null;
           teacher_confirmed_at?: string | null;
+          teacher_marked_no_speech?: boolean;
+          teacher_marked_no_speech_by?: string | null;
+          teacher_marked_no_speech_at?: string | null;
           clarification_started_at?: string | null;
           clarification_token?: string | null;
           created_at?: string;
@@ -807,6 +813,10 @@ export type Database = {
           p_clarification_token: string;
         };
         Returns: "ok" | "not_found";
+      };
+      mark_teacher_mission_audio_no_speech: {
+        Args: { p_teacher_id: string; p_audio_clip_id: string };
+        Returns: "ok" | "unauthorized" | "unavailable";
       };
       begin_teacher_pronunciation_sample: {
         Args: {

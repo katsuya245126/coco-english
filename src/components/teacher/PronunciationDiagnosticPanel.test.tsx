@@ -34,6 +34,7 @@ afterEach(async () => {
 
 async function renderPanel(
   pronunciationScore: Parameters<typeof PronunciationDiagnosticPanel>[0]["pronunciationScore"] = null,
+  studentSaidNothing = false,
 ) {
   await act(async () => {
     root.render(
@@ -41,6 +42,7 @@ async function renderPanel(
         pronunciationScore={pronunciationScore}
         audioClipId="clip-1"
         attemptId="attempt-1"
+        studentSaidNothing={studentSaidNothing}
       />,
     );
   });
@@ -107,5 +109,15 @@ describe("PronunciationDiagnosticPanel", () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toBe(
       "Re-scoring didn't work this time. Please try again in a moment.",
     );
+  });
+
+  it("does not offer pronunciation scoring for a marked no-speech clip", async () => {
+    await renderPanel(null, true);
+
+    expect(container.textContent).toContain(
+      "Marked as no speech. This clip is excluded from pronunciation evidence.",
+    );
+    expect(container.textContent).not.toContain("Re-score pronunciation");
+    expect(container.querySelector("button")).toBeNull();
   });
 });

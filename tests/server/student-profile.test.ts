@@ -44,6 +44,25 @@ describe("buildStudentSoundProfile", () => {
     expect(buildStudentSoundProfile(rows)).toEqual([]);
   });
 
+  it("excludes mission score rows explicitly marked as no speech", () => {
+    const rows = [
+      {
+        reference_text: "red",
+        teacher_marked_no_speech: true,
+        word_scores: [
+          {
+            word: "red",
+            accuracyScore: 20,
+            errorType: "Mispronunciation",
+            phonemes: [{ phoneme: "r", accuracyScore: 20 }],
+          },
+        ],
+      },
+    ];
+
+    expect(buildStudentSoundProfile(rows)).toEqual([]);
+  });
+
   it("returns [] for no rows", () => {
     expect(buildStudentSoundProfile([])).toEqual([]);
   });

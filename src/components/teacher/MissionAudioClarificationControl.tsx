@@ -11,6 +11,8 @@ type MissionAudioClarificationControlProps = {
   automaticTranscript: string | null;
   teacherConfirmedText: string | null;
   teacherConfirmedAt: string | null;
+  studentSaidNothing: boolean;
+  teacherMarkedNoSpeechAt: string | null;
   clarificationAvailable: boolean;
 };
 
@@ -20,17 +22,31 @@ export function MissionAudioClarificationControl({
   automaticTranscript,
   teacherConfirmedText,
   teacherConfirmedAt,
+  studentSaidNothing,
+  teacherMarkedNoSpeechAt,
   clarificationAvailable,
 }: MissionAudioClarificationControlProps) {
   const [confirmedText, setConfirmedText] = useState(
-    teacherConfirmedText ?? automaticTranscript ?? "",
+    studentSaidNothing ? "" : teacherConfirmedText ?? automaticTranscript ?? "",
   );
+  const [noSpeech, setNoSpeech] = useState(studentSaidNothing);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
   if (!clarificationAvailable) {
+    if (studentSaidNothing) {
+      return (
+        <div style={containerStyle}>
+          <p style={labelStyle}>Student said nothing</p>
+          <p style={textStyle}>
+            This clip is excluded from pronunciation evidence.
+          </p>
+          <ConfirmationMetadata confirmedAt={teacherMarkedNoSpeechAt} />
+        </div>
+      );
+    }
     if (!teacherConfirmedText) return null;
     return (
       <div style={containerStyle}>
@@ -44,7 +60,7 @@ export function MissionAudioClarificationControl({
   }
 
   function save() {
-    const wording = confirmedText.trim();
+    const wording = noSpeech ? "" : confirmedText.trim();
     setMessage(null);
     setError(null);
     startTransition(async () => {
@@ -52,10 +68,14 @@ export function MissionAudioClarificationControl({
         audioClipId,
         attemptId,
         teacherConfirmedText: wording,
+        studentSaidNothing: noSpeech,
       });
       if (result.ok) {
         setConfirmedText(wording);
-        setMessage("Teacher confirmation saved.");
+        setNoSpeech(noSpeech);
+        setMessage(
+          noSpeech ? "No-speech mark saved." : "Teacher confirmation saved.",
+        );
         router.refresh();
         return;
       }
@@ -65,6 +85,19 @@ export function MissionAudioClarificationControl({
 
   return (
     <div style={containerStyle}>
+      <label style={checkboxLabelStyle}>
+        <input
+          type="checkbox"
+          aria-label="Student said nothing"
+          checked={noSpeech}
+          onChange={(event) => {
+            const checked = event.currentTarget.checked;
+            setNoSpeech(checked);
+          }}
+          disabled={isPending}
+        />
+        <span>Student said nothing</span>
+      </label>
       <label>
         <span style={labelStyle}>What was the student trying to say?</span>
         <textarea
@@ -74,7 +107,7 @@ export function MissionAudioClarificationControl({
           maxLength={MAX_PRONUNCIATION_REFERENCE_CHARS}
           rows={2}
           style={textareaStyle}
-          disabled={isPending}
+          disabled={isPending || noSpeech}
         />
       </label>
       <button
@@ -140,6 +173,16 @@ const labelStyle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
   color: "#4B5563",
+};
+
+const checkboxLabelStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  minHeight: 44,
+  fontSize: 14,
+  fontWeight: 600,
+  color: "#111827",
 };
 
 const textStyle: React.CSSProperties = {

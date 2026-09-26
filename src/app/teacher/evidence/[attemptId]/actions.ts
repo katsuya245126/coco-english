@@ -6,6 +6,7 @@ import { changeAttemptReview } from "@/server/teacher/assignment-operations";
 import { createSignedAudioUrlForTeacher } from "@/server/teacher/audio-evidence";
 import {
   clarifyMissionAudio,
+  markMissionAudioNoSpeech,
   reprocessClipPronunciation,
 } from "@/server/audio/pronunciation-reprocess";
 
@@ -95,28 +96,38 @@ export type ClarifyMissionAudioActionResult =
 export async function clarifyMissionAudioAction(input: {
   audioClipId: string;
   attemptId: string;
-  teacherConfirmedText: string;
+  teacherConfirmedText?: string;
+  studentSaidNothing?: boolean;
 }): Promise<ClarifyMissionAudioActionResult> {
   if (
     typeof input?.audioClipId !== "string" ||
     !input.audioClipId.trim() ||
     typeof input?.attemptId !== "string" ||
     !input.attemptId.trim() ||
-    typeof input?.teacherConfirmedText !== "string" ||
-    !input.teacherConfirmedText.trim()
+    (input.studentSaidNothing !== undefined &&
+      typeof input.studentSaidNothing !== "boolean") ||
+    (input.studentSaidNothing !== true &&
+      (typeof input.teacherConfirmedText !== "string" ||
+        !input.teacherConfirmedText.trim()))
   ) {
     return { ok: false, error: "invalid_input", message: CLARIFICATION_FAILURE };
   }
+  const teacherConfirmedText = input.teacherConfirmedText?.trim() ?? "";
 
   const profile = await requireTeacherProfile();
 
   let result;
   try {
-    result = await clarifyMissionAudio({
-      teacherId: profile.id,
-      audioClipId: input.audioClipId,
-      teacherConfirmedText: input.teacherConfirmedText.trim(),
-    });
+    result = input.studentSaidNothing
+      ? await markMissionAudioNoSpeech({
+          teacherId: profile.id,
+          audioClipId: input.audioClipId,
+        })
+      : await clarifyMissionAudio({
+          teacherId: profile.id,
+          audioClipId: input.audioClipId,
+          teacherConfirmedText,
+        });
   } catch {
     return { ok: false, error: "retryable", message: CLARIFICATION_FAILURE };
   }

@@ -48,8 +48,37 @@ export type MissionAudioClarificationResult =
   | { ok: true; scored: true }
   | { ok: false; error: MissionAudioClarificationError };
 
+export type MissionAudioNoSpeechResult =
+  | { ok: true; marked: true }
+  | { ok: false; error: "unauthorized" | "unavailable" | "failed" };
+
 function getStudentAudioBucketId() {
   return process.env.STUDENT_AUDIO_BUCKET || DEFAULT_AUDIO_BUCKET;
+}
+
+/** Mark one owned, retained mission clip as containing no student speech. */
+export async function markMissionAudioNoSpeech(input: {
+  teacherId: string;
+  audioClipId: string;
+}): Promise<MissionAudioNoSpeechResult> {
+  const supabase = createSupabaseServiceClient();
+  try {
+    const result = await supabase.rpc("mark_teacher_mission_audio_no_speech", {
+      p_teacher_id: input.teacherId,
+      p_audio_clip_id: input.audioClipId,
+    });
+    if (result.error) return { ok: false, error: "failed" };
+    if (result.data === "ok") return { ok: true, marked: true };
+    if (result.data === "unauthorized") {
+      return { ok: false, error: "unauthorized" };
+    }
+    if (result.data === "unavailable") {
+      return { ok: false, error: "unavailable" };
+    }
+  } catch {
+    return { ok: false, error: "failed" };
+  }
+  return { ok: false, error: "failed" };
 }
 
 export async function reprocessClipPronunciation(

@@ -49,6 +49,8 @@ async function renderControl(
         automaticTranscript="I wake up at seven."
         teacherConfirmedText={null}
         teacherConfirmedAt={null}
+        studentSaidNothing={false}
+        teacherMarkedNoSpeechAt={null}
         clarificationAvailable
         {...overrides}
       />,
@@ -84,6 +86,7 @@ describe("MissionAudioClarificationControl", () => {
       audioClipId: "clip-1",
       attemptId: "attempt-1",
       teacherConfirmedText: "I wake up at eight.",
+      studentSaidNothing: false,
     });
     expect(container.textContent).toContain("Teacher confirmation saved.");
     expect(mockRefresh).toHaveBeenCalledTimes(1);
@@ -112,6 +115,106 @@ describe("MissionAudioClarificationControl", () => {
       "Please try again.",
     );
     expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it("disables wording and explicitly saves a no-speech mark", async () => {
+    mockClarifyMissionAudioAction.mockResolvedValue({ ok: true });
+    await renderControl();
+
+    const checkbox = container.querySelector<HTMLInputElement>(
+      'input[type="checkbox"]',
+    );
+    const textarea = container.querySelector<HTMLTextAreaElement>("textarea");
+    expect(checkbox?.checked).toBe(false);
+    expect(textarea?.disabled).toBe(false);
+
+    await act(async () => {
+      checkbox?.click();
+    });
+
+    expect(checkbox?.checked).toBe(true);
+    expect(textarea?.disabled).toBe(true);
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("button")?.click();
+      await Promise.resolve();
+    });
+
+    expect(mockClarifyMissionAudioAction).toHaveBeenCalledWith({
+      audioClipId: "clip-1",
+      attemptId: "attempt-1",
+      teacherConfirmedText: "",
+      studentSaidNothing: true,
+    });
+    expect(container.textContent).toContain("No-speech mark saved.");
+  });
+
+  it("restores an unsaved wording draft when no-speech is unchecked", async () => {
+    await renderControl();
+
+    const checkbox = container.querySelector<HTMLInputElement>(
+      'input[type="checkbox"]',
+    );
+    const textarea = container.querySelector<HTMLTextAreaElement>("textarea");
+    const setValue = Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      "value",
+    )?.set;
+
+    await act(async () => {
+      setValue?.call(textarea, "I wake up at eight.");
+      textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+      checkbox?.click();
+    });
+
+    expect(textarea?.disabled).toBe(true);
+    expect(textarea?.value).toBe("I wake up at eight.");
+
+    await act(async () => {
+      checkbox?.click();
+    });
+
+    expect(textarea?.disabled).toBe(false);
+    expect(textarea?.value).toBe("I wake up at eight.");
+  });
+
+  it("allows a marked clip to be unchecked and saved with confirmed wording", async () => {
+    mockClarifyMissionAudioAction.mockResolvedValue({ ok: true });
+    await renderControl({
+      studentSaidNothing: true,
+      teacherConfirmedText: null,
+      teacherMarkedNoSpeechAt: "2026-09-22T01:00:00.000Z",
+    });
+
+    const checkbox = container.querySelector<HTMLInputElement>(
+      'input[type="checkbox"]',
+    );
+    const textarea = container.querySelector<HTMLTextAreaElement>("textarea");
+    expect(checkbox?.checked).toBe(true);
+    expect(textarea?.disabled).toBe(true);
+
+    await act(async () => {
+      checkbox?.click();
+      const setValue = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value",
+      )?.set;
+      setValue?.call(textarea, "  I wake up at eight.  ");
+      textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    expect(textarea?.disabled).toBe(false);
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("button")?.click();
+      await Promise.resolve();
+    });
+
+    expect(mockClarifyMissionAudioAction).toHaveBeenCalledWith({
+      audioClipId: "clip-1",
+      attemptId: "attempt-1",
+      teacherConfirmedText: "I wake up at eight.",
+      studentSaidNothing: false,
+    });
   });
 
   it("does not render a clarification action for unavailable audio", async () => {

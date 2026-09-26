@@ -29,7 +29,10 @@ async function createAdminClient() {
   });
 }
 
-async function createFixture(kind: "original_answer" | "repeat_attempt" = "original_answer") {
+async function createFixture(
+  kind: "original_answer" | "repeat_attempt" = "original_answer",
+  assignmentKind: "mission" | "pronunciation" = "mission",
+) {
   const admin = await createAdminClient();
   const suffix = randomBytes(12).toString("hex");
   const password = "Test-Passw0rd!";
@@ -60,7 +63,12 @@ async function createFixture(kind: "original_answer" | "repeat_attempt" = "origi
     teacher_id: owner.data!.id, title: "Mission", target_pattern: "I like cats.", topic: "pets", level: "elementary", required_turns: 1, character_id: "default-buddy",
   }).select("id").single();
   const assignment = await admin.from("assignments").insert({
-    class_id: classroom.data!.id, mission_id: mission.data!.id, title: "Assignment", data_mode: "real", mission_snapshot: { turns: [] },
+    class_id: classroom.data!.id,
+    mission_id: assignmentKind === "mission" ? mission.data!.id : null,
+    assignment_kind: assignmentKind,
+    title: "Assignment",
+    data_mode: "real",
+    mission_snapshot: { turns: [] },
   }).select("id").single();
   const assignmentStudent = await admin.from("assignment_students").insert({
     assignment_id: assignment.data!.id, student_id: student.data!.id,
@@ -148,6 +156,11 @@ const clearClarificationArgs = (
   p_clarification_token: clarificationToken,
 });
 
+const markNoSpeechArgs = (fixture: Fixture, teacherId = fixture.ownerId) => ({
+  p_teacher_id: teacherId,
+  p_audio_clip_id: fixture.clipId,
+});
+
 describe("pronunciation reprocessing database seam", () => {
   it("serializes owned begins and hides clip values from unavailable calls", async (context) => {
     if (!canRunLocally) return context.skip();
@@ -175,6 +188,74 @@ describe("pronunciation reprocessing database seam", () => {
       const clip = await fixture.admin.from("audio_clips").select("pronunciation_reprocessing_started_at").eq("id", fixture.clipId).single();
       expect(clip.data?.pronunciation_reprocessing_started_at).not.toBeNull();
     } finally { await cleanupFixture(fixture); }
+  }, 30_000);
+
+  it("denies cross-owner no-speech marks and rejects an expired clip", async (context) => {
+    if (!canRunLocally) return context.skip();
+    const fixture = await createFixture();
+    try {
+      expect(
+        (
+          await fixture.admin.rpc(
+            "mark_teacher_mission_audio_no_speech",
+            markNoSpeechArgs(fixture, fixture.otherId),
+          )
+        ).data,
+      ).toBe("unauthorized");
+
+      expect(
+        (
+          await fixture.admin.rpc(
+            "mark_teacher_mission_audio_no_speech",
+            markNoSpeechArgs(fixture),
+          )
+        ).data,
+      ).toBe("ok");
+
+      expect(
+        (
+          await fixture.admin
+            .from("audio_clips")
+            .update({ audio_expires_at: "2000-01-01T00:00:00.000Z" })
+            .eq("id", fixture.clipId)
+        ).error,
+      ).toBeNull();
+      expect(
+        (
+          await fixture.admin.rpc(
+            "mark_teacher_mission_audio_no_speech",
+            markNoSpeechArgs(fixture),
+          )
+        ).data,
+      ).toBe("unavailable");
+    } finally {
+      await cleanupFixture(fixture);
+    }
+  }, 30_000);
+
+  it("rejects pronunciation-assignment clips from the mission clarification path", async (context) => {
+    if (!canRunLocally) return context.skip();
+    const fixture = await createFixture("original_answer", "pronunciation");
+    try {
+      expect(
+        (
+          await fixture.admin.rpc(
+            "mark_teacher_mission_audio_no_speech",
+            markNoSpeechArgs(fixture),
+          )
+        ).data,
+      ).toBe("unavailable");
+      expect(
+        (
+          await fixture.admin.rpc(
+            "begin_teacher_mission_audio_clarification",
+            beginClarificationArgs(fixture, "mission-only wording"),
+          )
+        ).data?.[0]?.outcome,
+      ).toBe("unavailable");
+    } finally {
+      await cleanupFixture(fixture);
+    }
   }, 30_000);
 
   it("clears an owned claim for retry and completes only one score", async (context) => {
@@ -317,6 +398,117 @@ describe("pronunciation reprocessing database seam", () => {
         .from("attempt_turns")
         .select("original_transcript, improved_sentence, repeat_transcript, evaluation")
         .eq("id", turnId)
+        .single();
+      expect(afterTurn.data).toEqual(beforeTurn.data);
+    } finally {
+      await cleanupFixture(fixture);
+    }
+  }, 30_000);
+
+  it("marks a stored failed clip as no speech and reverses it with confirmed wording", async (context) => {
+    if (!canRunLocally) return context.skip();
+    const fixture = await createFixture();
+    const staleToken = "00000000-0000-4000-8000-000000000099";
+    try {
+      expect(
+        (
+          await fixture.admin
+            .from("audio_clips")
+            .update({
+              processing_status: "failed",
+              clarification_started_at: "2000-01-01T00:00:00.000Z",
+              clarification_token: staleToken,
+            })
+            .eq("id", fixture.clipId)
+        ).error,
+      ).toBeNull();
+
+      const beforeTurn = await fixture.admin
+        .from("attempt_turns")
+        .select("original_transcript, improved_sentence, repeat_transcript, evaluation")
+        .eq("id", fixture.turnId)
+        .single();
+      expect(beforeTurn.error).toBeNull();
+
+      const marked = await fixture.admin.rpc(
+        "mark_teacher_mission_audio_no_speech",
+        markNoSpeechArgs(fixture),
+      );
+      expect(marked.error).toBeNull();
+      expect(marked.data).toBe("ok");
+
+      const noSpeechClip = await fixture.admin
+        .from("audio_clips")
+        .select(
+          "processing_status, object_key, teacher_marked_no_speech, teacher_marked_no_speech_by, teacher_marked_no_speech_at, teacher_confirmed_text, clarification_started_at, clarification_token",
+        )
+        .eq("id", fixture.clipId)
+        .single();
+      expect(noSpeechClip.data).toMatchObject({
+        processing_status: "failed",
+        object_key: expect.stringContaining("test/"),
+        teacher_marked_no_speech: true,
+        teacher_marked_no_speech_by: fixture.ownerId,
+        teacher_confirmed_text: null,
+        clarification_started_at: null,
+        clarification_token: null,
+      });
+      expect(noSpeechClip.data?.teacher_marked_no_speech_at).toEqual(
+        expect.any(String),
+      );
+      expect(
+        (
+          await fixture.admin.rpc(
+            "complete_teacher_mission_audio_clarification",
+            completeClarificationArgs(
+              fixture,
+              staleToken,
+              "stale worker wording",
+            ),
+          )
+        ).data,
+      ).toBe("not_found");
+
+      const begin = await fixture.admin.rpc(
+        "begin_teacher_mission_audio_clarification",
+        beginClarificationArgs(fixture, "confirmed failed-clip wording"),
+      );
+      expect(begin.error).toBeNull();
+      expect(begin.data?.[0]?.outcome).toBe("ok");
+      const token = begin.data?.[0]?.clarification_token;
+      expect(token).toEqual(expect.any(String));
+
+      expect(
+        (
+          await fixture.admin.rpc(
+            "complete_teacher_mission_audio_clarification",
+            completeClarificationArgs(
+              fixture,
+              token!,
+              "confirmed failed-clip wording",
+            ),
+          )
+        ).data,
+      ).toBe("ok");
+
+      const restoredClip = await fixture.admin
+        .from("audio_clips")
+        .select(
+          "teacher_marked_no_speech, teacher_marked_no_speech_by, teacher_marked_no_speech_at, teacher_confirmed_text",
+        )
+        .eq("id", fixture.clipId)
+        .single();
+      expect(restoredClip.data).toMatchObject({
+        teacher_marked_no_speech: false,
+        teacher_marked_no_speech_by: null,
+        teacher_marked_no_speech_at: null,
+        teacher_confirmed_text: "confirmed failed-clip wording",
+      });
+
+      const afterTurn = await fixture.admin
+        .from("attempt_turns")
+        .select("original_transcript, improved_sentence, repeat_transcript, evaluation")
+        .eq("id", fixture.turnId)
         .single();
       expect(afterTurn.data).toEqual(beforeTurn.data);
     } finally {
@@ -537,7 +729,7 @@ describe("pronunciation reprocessing database seam", () => {
           "begin_teacher_mission_audio_clarification",
           beginClarificationArgs(fixture, "failed wording"),
         )).data?.[0]?.outcome,
-      ).toBe("unavailable");
+      ).toBe("ok");
 
       expect(
         (await fixture.admin
@@ -576,6 +768,7 @@ describe("pronunciation reprocessing database seam", () => {
         expect((await client.rpc("begin_teacher_mission_audio_clarification", beginClarificationArgs(fixture, "tampered wording"))).error).not.toBeNull();
         expect((await client.rpc("complete_teacher_mission_audio_clarification", completeClarificationArgs(fixture, "00000000-0000-0000-0000-000000000000", "tampered wording"))).error).not.toBeNull();
         expect((await client.rpc("clear_teacher_mission_audio_clarification", clearClarificationArgs(fixture, "00000000-0000-0000-0000-000000000000"))).error).not.toBeNull();
+        expect((await client.rpc("mark_teacher_mission_audio_no_speech", markNoSpeechArgs(fixture))).error).not.toBeNull();
       }
       expect((await owner.from("audio_clips").select("id").eq("id", fixture.clipId)).data).toHaveLength(1);
       expect((await other.from("audio_clips").select("id").eq("id", fixture.clipId)).data).toHaveLength(0);
