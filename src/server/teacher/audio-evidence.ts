@@ -86,6 +86,9 @@ export type AttemptAudioClipEvidence = {
   teacherConfirmedText: string | null;
   teacherConfirmedBy: string | null;
   teacherConfirmedAt: string | null;
+  teacherMarkedNoSpeech: boolean;
+  teacherMarkedNoSpeechBy: string | null;
+  teacherMarkedNoSpeechAt: string | null;
   clarificationAvailable: boolean;
   pronunciationScore?: AttemptPronunciationScoreEvidence | null;
 };
@@ -370,9 +373,11 @@ function mapClip(
     !Number.isNaN(expiresAt.getTime()) &&
     expiresAt > now &&
     (row.processing_status === "uploaded" ||
-      row.processing_status === "transcribed") &&
+      row.processing_status === "transcribed" ||
+      row.processing_status === "failed") &&
     !clarificationClaimActive &&
     row.pronunciation_reprocessing_started_at === null;
+  const teacherMarkedNoSpeech = row.teacher_marked_no_speech === true;
 
   return {
     id: row.id,
@@ -382,8 +387,13 @@ function mapClip(
     teacherConfirmedText: row.teacher_confirmed_text,
     teacherConfirmedBy: row.teacher_confirmed_by,
     teacherConfirmedAt: row.teacher_confirmed_at,
+    teacherMarkedNoSpeech,
+    teacherMarkedNoSpeechBy: row.teacher_marked_no_speech_by ?? null,
+    teacherMarkedNoSpeechAt: row.teacher_marked_no_speech_at ?? null,
     clarificationAvailable,
-    pronunciationScore: scoresByAudioClipId.get(row.id) ?? null,
+    pronunciationScore: teacherMarkedNoSpeech
+      ? null
+      : scoresByAudioClipId.get(row.id) ?? null,
   };
 }
 
@@ -622,14 +632,22 @@ export async function createSignedAudioUrlForTeacher(input: {
   }
 
   const ownedClip = clip.data as AudioClipSignerRow;
+  const assignmentStudent = one(
+    one(one(ownedClip.attempt_turns)?.attempts)?.assignment_students,
+  );
+  const assignmentKind = one(assignmentStudent?.assignments)?.assignment_kind;
   const expiresAt = new Date(ownedClip.audio_expires_at);
   if (
     !ownedClip.object_key ||
     ownedClip.deleted_at ||
     Number.isNaN(expiresAt.getTime()) ||
     expiresAt <= new Date() ||
-    (ownedClip.processing_status !== "uploaded" &&
-      ownedClip.processing_status !== "transcribed")
+    ownedClip.processing_status !== "uploaded" &&
+    ownedClip.processing_status !== "transcribed" &&
+    !(
+      ownedClip.processing_status === "failed" &&
+      assignmentKind === "mission"
+    )
   ) {
     return null;
   }

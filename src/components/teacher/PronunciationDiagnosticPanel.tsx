@@ -8,6 +8,7 @@ type PronunciationDiagnosticPanelProps = {
   pronunciationScore?: AttemptPronunciationScoreEvidence | null;
   audioClipId: string;
   attemptId: string;
+  studentSaidNothing?: boolean;
 };
 
 const UNAVAILABLE_COPY =
@@ -17,10 +18,21 @@ export function PronunciationDiagnosticPanel({
   pronunciationScore,
   audioClipId,
   attemptId,
+  studentSaidNothing = false,
 }: PronunciationDiagnosticPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [rescoreError, setRescoreError] = useState<string | null>(null);
+
+  if (studentSaidNothing) {
+    return (
+      <div style={containerStyle}>
+        <p style={unavailableStyle}>
+          Marked as no speech. This clip is excluded from pronunciation evidence.
+        </p>
+      </div>
+    );
+  }
 
   if (!pronunciationScore) {
     const handleRescore = () => {

@@ -165,6 +165,7 @@ export async function getStudentSoundProfile(
       word_scores,
       audio_clips!inner(
         clip_kind,
+        teacher_marked_no_speech,
         attempt_turns!inner(
           attempts!inner(
             assignment_students!attempts_assignment_student_id_fkey!inner(
@@ -191,7 +192,8 @@ export async function getStudentSoundProfile(
     .eq(
       "audio_clips.attempt_turns.attempts.assignment_students.assignments.assignment_kind",
       "mission",
-    );
+    )
+    .eq("audio_clips.teacher_marked_no_speech", false);
 
   if (scores.error) {
     throw new Error(

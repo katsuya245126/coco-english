@@ -106,6 +106,8 @@ function createMockSupabase(options: {
   missionSnapshot?: unknown;
   clipObjectKey?: string | null;
   clipStatus?: string;
+  clipAssignmentKind?: "mission" | "pronunciation";
+  clipMarkedNoSpeech?: boolean;
   clipDeletedAt?: string | null;
   clipExpiresAt?: string;
   clipRows?: unknown[];
@@ -194,8 +196,19 @@ function createMockSupabase(options: {
                         : options.clipObjectKey,
                     processing_status: options.clipStatus ?? "transcribed",
                     deleted_at: options.clipDeletedAt ?? null,
+                    teacher_marked_no_speech: options.clipMarkedNoSpeech ?? false,
                     audio_expires_at:
                       options.clipExpiresAt ?? "2099-01-01T00:00:00.000Z",
+                    attempt_turns: {
+                      attempts: {
+                        assignment_students: {
+                          assignments: {
+                            assignment_kind:
+                              options.clipAssignmentKind ?? "mission",
+                          },
+                        },
+                      },
+                    },
                   },
             error: null,
           };
@@ -261,6 +274,9 @@ function createMockSupabase(options: {
                 teacher_confirmed_text: null,
                 teacher_confirmed_by: null,
                 teacher_confirmed_at: null,
+                teacher_marked_no_speech: false,
+                teacher_marked_no_speech_by: null,
+                teacher_marked_no_speech_at: null,
                 clarification_started_at: null,
                 clarification_token: null,
                 pronunciation_reprocessing_started_at: null,
@@ -277,6 +293,9 @@ function createMockSupabase(options: {
                 teacher_confirmed_text: null,
                 teacher_confirmed_by: null,
                 teacher_confirmed_at: null,
+                teacher_marked_no_speech: false,
+                teacher_marked_no_speech_by: null,
+                teacher_marked_no_speech_at: null,
                 clarification_started_at: null,
                 clarification_token: null,
                 pronunciation_reprocessing_started_at: null,
@@ -878,6 +897,104 @@ describe("teacher audio evidence service", () => {
     ]);
   });
 
+  it("keeps stored failed clips playable and available for teacher clarification", async () => {
+    mockSupabase = createMockSupabase({
+      clipStatus: "failed",
+      clipRows: [
+        {
+          id: "clip-1",
+          attempt_turn_id: "turn-1",
+          clip_kind: "original_answer",
+          processing_status: "failed",
+          object_key: "failed.webm",
+          duration_ms: 900,
+          audio_expires_at: "2099-01-01T00:00:00.000Z",
+          deleted_at: null,
+          teacher_confirmed_text: null,
+          teacher_confirmed_by: null,
+          teacher_confirmed_at: null,
+          teacher_marked_no_speech: false,
+          teacher_marked_no_speech_by: null,
+          teacher_marked_no_speech_at: null,
+          clarification_started_at: null,
+          clarification_token: null,
+          pronunciation_reprocessing_started_at: null,
+        },
+      ],
+      pronunciationScores: [],
+    });
+    const { getAttemptEvidenceForTeacher, createSignedAudioUrlForTeacher } =
+      await import("@/server/teacher/audio-evidence");
+
+    const evidence = await getAttemptEvidenceForTeacher({
+      teacherId: "teacher-1",
+      attemptId: "attempt-1",
+    });
+    expect(evidence?.turns[0]?.audioClips[0]).toMatchObject({
+      processingStatus: "failed",
+      clarificationAvailable: true,
+    });
+
+    await expect(
+      createSignedAudioUrlForTeacher({
+        teacherId: "teacher-1",
+        audioClipId: "clip-1",
+      }),
+    ).resolves.toEqual({ signedUrl: "https://storage.example/signed-audio" });
+  });
+
+  it("hides pronunciation evidence for a marked no-speech clip while preserving its transcript", async () => {
+    mockSupabase = createMockSupabase({
+      clipMarkedNoSpeech: true,
+      pronunciationScores: [
+        {
+          audio_clip_id: "clip-1",
+          star_band: 3,
+          word_scores: [{ word: "wake", errorType: "None" }],
+        },
+      ],
+      clipRows: [
+        {
+          id: "clip-1",
+          attempt_turn_id: "turn-1",
+          clip_kind: "original_answer",
+          processing_status: "failed",
+          object_key: "failed.webm",
+          duration_ms: 900,
+          audio_expires_at: "2099-01-01T00:00:00.000Z",
+          deleted_at: null,
+          teacher_confirmed_text: null,
+          teacher_confirmed_by: null,
+          teacher_confirmed_at: null,
+          teacher_marked_no_speech: true,
+          teacher_marked_no_speech_by: "teacher-1",
+          teacher_marked_no_speech_at: "2026-09-22T01:00:00.000Z",
+          clarification_started_at: null,
+          clarification_token: null,
+          pronunciation_reprocessing_started_at: null,
+        },
+      ],
+    });
+    const { getAttemptEvidenceForTeacher } = await import(
+      "@/server/teacher/audio-evidence"
+    );
+
+    const evidence = await getAttemptEvidenceForTeacher({
+      teacherId: "teacher-1",
+      attemptId: "attempt-1",
+    });
+    expect(evidence?.turns[0]).toMatchObject({
+      originalTranscript: "I wake up at seven.",
+      audioClips: [
+        {
+          teacherMarkedNoSpeech: true,
+          teacherMarkedNoSpeechAt: "2026-09-22T01:00:00.000Z",
+          pronunciationScore: null,
+        },
+      ],
+    });
+  });
+
   it("returns null when the teacher does not own the attempt", async () => {
     mockSupabase = createMockSupabase({ evidenceFound: false });
     const { getAttemptEvidenceForTeacher } = await import(
@@ -953,6 +1070,17 @@ describe("teacher audio evidence service", () => {
       createSignedAudioUrlForTeacher({
         teacherId: "teacher-1",
         audioClipId: "failed",
+      }),
+    ).resolves.toEqual({ signedUrl: "https://storage.example/signed-audio" });
+
+    mockSupabase = createMockSupabase({
+      clipStatus: "failed",
+      clipAssignmentKind: "pronunciation",
+    });
+    await expect(
+      createSignedAudioUrlForTeacher({
+        teacherId: "teacher-1",
+        audioClipId: "failed-pronunciation",
       }),
     ).resolves.toBeNull();
 

@@ -162,8 +162,11 @@ describe("buildStudentSoundProfile", () => {
 });
 
 describe("getStudentSoundProfile", () => {
+  let eqCalls: Array<{ table: string; column: string; value: unknown }>;
+
   beforeEach(() => {
     vi.resetModules();
+    eqCalls = [];
     const rowsByTable = {
       pronunciation_scores: [
         {
@@ -257,7 +260,10 @@ describe("getStudentSoundProfile", () => {
       from: vi.fn((table: keyof typeof rowsByTable) => {
         const chain: Record<string, unknown> = {};
         chain.select = () => chain;
-        chain.eq = () => chain;
+        chain.eq = (column: string, value: unknown) => {
+          eqCalls.push({ table, column, value });
+          return chain;
+        };
         chain.is = () => chain;
         chain.then = (resolve: (value: unknown) => void) =>
           Promise.resolve({ data: rowsByTable[table], error: null }).then(resolve);
@@ -273,5 +279,17 @@ describe("getStudentSoundProfile", () => {
 
     expect(result[0]).toMatchObject({ label: "r", weakCount: 5, totalCount: 5 });
     expect(profileClient.from).toHaveBeenCalledWith("pronunciation_word_tries");
+  });
+
+  it("excludes mission clips marked as no speech in the score query", async () => {
+    const { getStudentSoundProfile } = await import("@/server/teacher/student-profile");
+
+    await getStudentSoundProfile("student-1", "teacher-1");
+
+    expect(eqCalls).toContainEqual({
+      table: "pronunciation_scores",
+      column: "audio_clips.teacher_marked_no_speech",
+      value: false,
+    });
   });
 });

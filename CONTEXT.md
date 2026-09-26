@@ -81,3 +81,7 @@ _Avoid_: AI transcript, editable transcript
 **Teacher-confirmed wording**:
 A teacher's optional clarification of what a student was trying to say, used as the pronunciation reference without replacing the automatic transcript or changing mission evaluation.
 _Avoid_: Edited transcript, corrected transcript
+
+**No-speech clip**:
+An existing audio clip a teacher confirms contains no student speech. It is distinct from a missing recording or speech the teacher cannot understand.
+_Avoid_: Empty audio, unintelligible speech

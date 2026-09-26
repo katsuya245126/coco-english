@@ -172,9 +172,9 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
     coco_line: string | null;
   }>;
   const ids = turnRows.map((turn) => turn.id);
-  let clips: Array<{ id: string; attempt_turn_id: string; clip_kind: string; object_key: string | null; processing_status: string; audio_expires_at: string | null; deleted_at: string | null }> = [];
+  let clips: Array<{ id: string; attempt_turn_id: string; clip_kind: string; object_key: string | null; processing_status: string; audio_expires_at: string | null; deleted_at: string | null; teacher_marked_no_speech: boolean }> = [];
   if (ids.length) {
-    const result = await supabase.from("audio_clips").select("id, attempt_turn_id, clip_kind, object_key, processing_status, audio_expires_at, deleted_at").in("attempt_turn_id", ids).order("created_at", { ascending: true });
+    const result = await supabase.from("audio_clips").select("id, attempt_turn_id, clip_kind, object_key, processing_status, audio_expires_at, deleted_at, teacher_marked_no_speech").in("attempt_turn_id", ids).order("created_at", { ascending: true });
     if (result.error) throw new Error(`Unable to load recap audio: ${result.error.message}`);
     clips = result.data ?? [];
   }
@@ -188,7 +188,9 @@ export async function getCompletedMissionRecap(studentId: string, assignmentStud
 
   function attemptFor(turnId: string, clipKind: "original_answer" | "repeat_attempt", transcript: string | null): StudentRecapAttempt {
     const clip = clips.find((item) => item.attempt_turn_id === turnId && item.clip_kind === clipKind) ?? null;
-    const score = clip ? scores.find((item) => item.audio_clip_id === clip.id) : undefined;
+    const score = clip && !clip.teacher_marked_no_speech
+      ? scores.find((item) => item.audio_clip_id === clip.id)
+      : undefined;
     return {
       transcript,
       audio: clip ? { id: clip.id, playback: playbackFor(clip) } : null,

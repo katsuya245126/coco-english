@@ -159,6 +159,9 @@ export type TeacherOwnedAudioClipEvidenceRow = {
   teacher_confirmed_text: string | null;
   teacher_confirmed_by: string | null;
   teacher_confirmed_at: string | null;
+  teacher_marked_no_speech: boolean;
+  teacher_marked_no_speech_by: string | null;
+  teacher_marked_no_speech_at: string | null;
   clarification_started_at: string | null;
   clarification_token: string | null;
   pronunciation_reprocessing_started_at: string | null;
@@ -177,6 +180,15 @@ export type TeacherOwnedAudioClipSignerRow = {
   processing_status: AudioProcessingStatus;
   deleted_at: string | null;
   audio_expires_at: string;
+  attempt_turns: TeacherOwnedRelation<{
+    attempts: TeacherOwnedRelation<{
+      assignment_students: TeacherOwnedRelation<{
+        assignments: TeacherOwnedRelation<{
+          assignment_kind: Database["public"]["Enums"]["assignment_kind"];
+        }>;
+      }>;
+    }>;
+  }>;
 };
 
 const attemptTeacherPath = "assignment_students.assignments.classes.teacher_id";
@@ -393,6 +405,8 @@ export async function listOwnedAttemptClipsForTeacher(
         id, attempt_turn_id, clip_kind, processing_status, object_key,
         duration_ms, audio_expires_at, deleted_at,
         teacher_confirmed_text, teacher_confirmed_by, teacher_confirmed_at,
+        teacher_marked_no_speech, teacher_marked_no_speech_by,
+        teacher_marked_no_speech_at,
         clarification_started_at, clarification_token,
         pronunciation_reprocessing_started_at,
         attempt_turns!inner(
@@ -464,6 +478,7 @@ export async function getOwnedAudioClipForTeacher(
           attempts!inner(
             assignment_students!attempts_assignment_student_id_fkey!inner(
               assignments!inner(
+                assignment_kind,
                 classes!inner(teacher_id)
               )
             )

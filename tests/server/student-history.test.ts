@@ -65,7 +65,7 @@ const legacySnapshot = {
   }],
 };
 
-function createMockSupabase() {
+function createMockSupabase(noSpeechClipId?: string) {
   const rows = {
     assignment_students: {
       data: {
@@ -94,9 +94,9 @@ function createMockSupabase() {
     },
     audio_clips: {
       data: [
-        { id: "clip-original", attempt_turn_id: "turn-original", clip_kind: "original_answer", object_key: "original.webm", processing_status: "transcribed", audio_expires_at: null, deleted_at: null },
-        { id: "clip-repeat", attempt_turn_id: "turn-repeat", clip_kind: "repeat_attempt", object_key: "repeat.webm", processing_status: "transcribed", audio_expires_at: null, deleted_at: null },
-        { id: "clip-clear", attempt_turn_id: "turn-clear", clip_kind: "original_answer", object_key: "clear.webm", processing_status: "transcribed", audio_expires_at: null, deleted_at: null },
+        { id: "clip-original", attempt_turn_id: "turn-original", clip_kind: "original_answer", object_key: "original.webm", processing_status: "transcribed", audio_expires_at: null, deleted_at: null, teacher_marked_no_speech: noSpeechClipId === "clip-original" },
+        { id: "clip-repeat", attempt_turn_id: "turn-repeat", clip_kind: "repeat_attempt", object_key: "repeat.webm", processing_status: "transcribed", audio_expires_at: null, deleted_at: null, teacher_marked_no_speech: noSpeechClipId === "clip-repeat" },
+        { id: "clip-clear", attempt_turn_id: "turn-clear", clip_kind: "original_answer", object_key: "clear.webm", processing_status: "transcribed", audio_expires_at: null, deleted_at: null, teacher_marked_no_speech: noSpeechClipId === "clip-clear" },
       ],
       error: null,
     },
@@ -221,6 +221,20 @@ describe("student completed mission recap pronunciation", () => {
         pronunciation: { starBand: 3, words: [] },
       },
     ]);
+  });
+
+  it("keeps marked no-speech audio and transcript but omits its pronunciation score", async () => {
+    mockSupabase = createMockSupabase("clip-original");
+
+    const recap = await getCompletedMissionRecap("student-1", "assignment-student-1");
+
+    expect(recap?.turns[0]).toMatchObject({
+      transcript: "I play soccer with funny friends today",
+      original: {
+        audio: { id: "clip-original" },
+        pronunciation: null,
+      },
+    });
   });
 });
 

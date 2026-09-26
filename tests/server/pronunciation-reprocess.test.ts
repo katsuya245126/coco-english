@@ -141,6 +141,17 @@ function createClarificationMock(options: {
   };
 }
 
+function createNoSpeechMock(outcome: "ok" | "unauthorized" | "unavailable" = "ok") {
+  const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
+    if (name !== "mark_teacher_mission_audio_no_speech") {
+      throw new Error(`unexpected rpc ${name} ${JSON.stringify(args)}`);
+    }
+    return { data: outcome, error: null };
+  });
+
+  return { rpc };
+}
+
 function fakeScorer(result: PronunciationScoreResult, events?: string[]) {
   return vi.fn(async (_input: { file: Blob; referenceText: string; durationMs: number }) => {
     events?.push("azure");
@@ -359,6 +370,31 @@ describe("reprocessClipPronunciation", () => {
     expect(scorer).toHaveBeenCalledWith(expect.objectContaining({
       referenceText: "I am going to the park.", durationMs: 3000,
     }));
+  });
+
+  it("marks an owned clip without downloading audio or calling the provider", async () => {
+    mockSupabase = createNoSpeechMock() as ReturnType<typeof createMockSupabase>;
+    const { markMissionAudioNoSpeech } = await loadModule();
+
+    await expect(
+      markMissionAudioNoSpeech({ teacherId: "teacher-1", audioClipId: "clip-1" }),
+    ).resolves.toEqual({ ok: true, marked: true });
+    expect(mockSupabase.rpc).toHaveBeenCalledWith(
+      "mark_teacher_mission_audio_no_speech",
+      { p_teacher_id: "teacher-1", p_audio_clip_id: "clip-1" },
+    );
+  });
+
+  it.each([
+    ["unauthorized", "unauthorized"],
+    ["unavailable", "unavailable"],
+  ] as const)("maps a %s no-speech outcome", async (outcome, error) => {
+    mockSupabase = createNoSpeechMock(outcome) as ReturnType<typeof createMockSupabase>;
+    const { markMissionAudioNoSpeech } = await loadModule();
+
+    await expect(
+      markMissionAudioNoSpeech({ teacherId: "teacher-1", audioClipId: "clip-1" }),
+    ).resolves.toEqual({ ok: false, error });
   });
 
   it("clarifies wording with a tokenized claim and replaces the clip score", async () => {

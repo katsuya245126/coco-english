@@ -3,11 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockRequireTeacherProfile,
   mockClarifyMissionAudio,
+  mockMarkMissionAudioNoSpeech,
   mockReprocessClipPronunciation,
   mockRevalidatePath,
 } = vi.hoisted(() => ({
   mockRequireTeacherProfile: vi.fn(),
   mockClarifyMissionAudio: vi.fn(),
+  mockMarkMissionAudioNoSpeech: vi.fn(),
   mockReprocessClipPronunciation: vi.fn(),
   mockRevalidatePath: vi.fn(),
 }));
@@ -24,6 +26,7 @@ vi.mock("@/server/teacher/audio-evidence", () => ({
 
 vi.mock("@/server/audio/pronunciation-reprocess", () => ({
   clarifyMissionAudio: mockClarifyMissionAudio,
+  markMissionAudioNoSpeech: mockMarkMissionAudioNoSpeech,
   reprocessClipPronunciation: mockReprocessClipPronunciation,
 }));
 
@@ -46,6 +49,7 @@ async function clarify(input = {
   audioClipId: "clip-1",
   attemptId: "attempt-1",
   teacherConfirmedText: "  I wake up at eight.  ",
+  studentSaidNothing: false,
 }) {
   const { clarifyMissionAudioAction } = await import(
     "@/app/teacher/evidence/[attemptId]/actions"
@@ -58,11 +62,13 @@ describe("reprocessPronunciationAction", () => {
     vi.resetModules();
     mockRequireTeacherProfile.mockReset();
     mockClarifyMissionAudio.mockReset();
+    mockMarkMissionAudioNoSpeech.mockReset();
     mockReprocessClipPronunciation.mockReset();
     mockRevalidatePath.mockReset();
 
     mockRequireTeacherProfile.mockResolvedValue({ id: "teacher-1" });
     mockClarifyMissionAudio.mockResolvedValue({ ok: true, scored: true });
+    mockMarkMissionAudioNoSpeech.mockResolvedValue({ ok: true, marked: true });
     mockReprocessClipPronunciation.mockResolvedValue({ ok: true, scored: true });
   });
 
@@ -105,11 +111,13 @@ describe("clarifyMissionAudioAction", () => {
     vi.resetModules();
     mockRequireTeacherProfile.mockReset();
     mockClarifyMissionAudio.mockReset();
+    mockMarkMissionAudioNoSpeech.mockReset();
     mockReprocessClipPronunciation.mockReset();
     mockRevalidatePath.mockReset();
 
     mockRequireTeacherProfile.mockResolvedValue({ id: "teacher-1" });
     mockClarifyMissionAudio.mockResolvedValue({ ok: true, scored: true });
+    mockMarkMissionAudioNoSpeech.mockResolvedValue({ ok: true, marked: true });
     mockReprocessClipPronunciation.mockResolvedValue({ ok: true, scored: true });
   });
 
@@ -123,6 +131,42 @@ describe("clarifyMissionAudioAction", () => {
       teacherConfirmedText: "I wake up at eight.",
     });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/teacher/evidence/attempt-1");
+  });
+
+  it("marks no speech without invoking pronunciation scoring", async () => {
+    await expect(
+      clarify({
+        audioClipId: "clip-1",
+        attemptId: "attempt-1",
+        teacherConfirmedText: "",
+        studentSaidNothing: true,
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(mockMarkMissionAudioNoSpeech).toHaveBeenCalledWith({
+      teacherId: "teacher-1",
+      audioClipId: "clip-1",
+    });
+    expect(mockClarifyMissionAudio).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/teacher/evidence/attempt-1");
+  });
+
+  it("reverses no speech through the existing teacher-wording scorer", async () => {
+    await expect(
+      clarify({
+        audioClipId: "clip-1",
+        attemptId: "attempt-1",
+        teacherConfirmedText: " confirmed wording ",
+        studentSaidNothing: false,
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(mockMarkMissionAudioNoSpeech).not.toHaveBeenCalled();
+    expect(mockClarifyMissionAudio).toHaveBeenCalledWith({
+      teacherId: "teacher-1",
+      audioClipId: "clip-1",
+      teacherConfirmedText: "confirmed wording",
+    });
   });
 
   it.each([
@@ -151,6 +195,7 @@ describe("clarifyMissionAudioAction", () => {
         audioClipId: "clip-1",
         attemptId: "attempt-1",
         teacherConfirmedText: "  ",
+        studentSaidNothing: false,
       }),
     ).resolves.toMatchObject({ ok: false, error: "invalid_input" });
 
