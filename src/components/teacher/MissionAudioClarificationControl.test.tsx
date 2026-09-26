@@ -190,11 +190,18 @@ describe("MissionAudioClarificationControl", () => {
       'input[type="checkbox"]',
     );
     const textarea = container.querySelector<HTMLTextAreaElement>("textarea");
+    const button = container.querySelector<HTMLButtonElement>("button");
     expect(checkbox?.checked).toBe(true);
     expect(textarea?.disabled).toBe(true);
+    expect(container.textContent).toContain("Confirmed by teacher on");
 
     await act(async () => {
       checkbox?.click();
+    });
+
+    expect(button?.disabled).toBe(true);
+
+    await act(async () => {
       const setValue = Object.getOwnPropertyDescriptor(
         HTMLTextAreaElement.prototype,
         "value",

@@ -40,9 +40,6 @@ export function MissionAudioClarificationControl({
       return (
         <div style={containerStyle}>
           <p style={labelStyle}>Student said nothing</p>
-          <p style={textStyle}>
-            This clip is excluded from pronunciation evidence.
-          </p>
           <ConfirmationMetadata confirmedAt={teacherMarkedNoSpeechAt} />
         </div>
       );
@@ -72,7 +69,6 @@ export function MissionAudioClarificationControl({
       });
       if (result.ok) {
         setConfirmedText(wording);
-        setNoSpeech(noSpeech);
         setMessage(
           noSpeech ? "No-speech mark saved." : "Teacher confirmation saved.",
         );
@@ -113,14 +109,14 @@ export function MissionAudioClarificationControl({
       <button
         type="button"
         onClick={save}
-        disabled={isPending}
+        disabled={isPending || (!noSpeech && !confirmedText.trim())}
         style={buttonStyle}
       >
         {isPending ? "Saving clarification…" : "Save clarification"}
       </button>
-      {teacherConfirmedAt ? (
-        <ConfirmationMetadata confirmedAt={teacherConfirmedAt} />
-      ) : null}
+      <ConfirmationMetadata
+        confirmedAt={noSpeech ? teacherMarkedNoSpeechAt : teacherConfirmedAt}
+      />
       {message ? (
         <p role="status" style={successStyle}>
           {message}
