@@ -39,18 +39,12 @@ For documentation-only changes, check the diff, referenced paths, and instructio
 - Prefer E2E tests as the sole testing mechanism for complex features. End E2E tests with a verifiable, repeatable artifact.
 - If isolated testing is necessary, first enumerate the ways the system could fail, then write the test and code.
 
-For deterministic student feedback screenshots, start the app on `http://localhost:3000`, provide `FEEDBACK_STATE_CLASS_CODE`, `FEEDBACK_STATE_STUDENT_NAME`, and `FEEDBACK_STATE_PIN`, and run `npm run test:student-feedback-states`. See `docs/testing/student-feedback-states.md`.
-
 ## Usage efficiency
 
 - Give subagents compact, task-specific prompts and the minimum history they need. Inherit full conversation history only when the task cannot be summarized safely.
 - Reuse an existing subagent for follow-up work instead of spawning a replacement for the same scope.
 - Run the narrowest relevant checks during implementation. Prefer E2E verification on the final diff; run the full unit suite only when relevant to the change or explicitly required. Repeat or broaden verification only for relevant changes, failures, unresolved concerns, or explicit requirements. Creating a commit alone does not invalidate checks of identical file contents.
-- Identify verification evidence by the checked commit and working-tree state. Repeat checks on an unchanged verified commit only for new concerns or an explicit skill requirement.
-- Before formal review, check the final diff against the issue acceptance criteria and repository standards. Start formal parallel reviewers after that preflight so they normally review one final diff.
-- After formal Standards + Spec review, rerun affected tests and typecheck for accepted fixes; do not rerun review subagents for small localized changes unless behavior or scope materially changes or the prior review missed relevant files. Use a targeted manual check instead.
 - Use `npm run test:agent` for full unit verification unless diagnosing a failure. Prefer non-interactive compact reporters and bounded tool output.
-- Prefer targeted `rg`, file lists, and line ranges over dumping entire large files, diffs, or test logs.
 - Usage efficiency never reduces security, authorization, privacy, data-loss prevention, accessibility, or explicitly requested verification.
 
 ## Local planning artifacts
@@ -59,4 +53,4 @@ For deterministic student feedback screenshots, start the app on `http://localho
 
 ## Legacy planning records
 
-The former GSD workflow has been retired in favor of the lightweight `task-workflow` and `progress` skills (see "Workflow" above). Its `.planning/` history is not an active source of truth. Do not recreate GSD state, hooks, or `.planning/`; use the issue tracker or ignored local task notes for historical context.
+- The GSD workflow and `.planning/` are retired; do not recreate them or treat them as a source of truth.
