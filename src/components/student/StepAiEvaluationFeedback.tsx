@@ -545,18 +545,9 @@ const badgeStyle: CSSProperties = {
 };
 
 const recordAgainButtonStyle: CSSProperties = {
-  width: "100%",
-  minHeight: 44,
+  ...primaryButtonStyle,
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
   gap: 8,
-  padding: "12px 16px",
-  background: "#2563EB",
-  color: "#FFFFFF",
-  border: "none",
-  borderRadius: 6,
-  fontSize: 16,
-  fontWeight: 600,
-  cursor: "pointer",
 };

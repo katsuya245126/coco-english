@@ -326,7 +326,7 @@ export function MascotStage({
                 alt=""
                 fill
                 priority
-                sizes="226px"
+                sizes="330px"
                 style={{ objectFit: "contain", objectPosition: "center bottom" }}
               />
             </div>
