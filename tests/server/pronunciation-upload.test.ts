@@ -401,6 +401,37 @@ describe("uploadPronunciationTry", () => {
     );
   });
 
+  it("sends a demo student to the resting screen when Azure is out of quota", async () => {
+    const limited = vi.fn(async () => ({ ok: false as const, error: "provider_limited" as const }));
+    const { uploadPronunciationTry } = await import(
+      "@/server/student-access/pronunciation-upload"
+    );
+    const deps = {
+      consumeRequestBudget: allowBudget,
+      transcribeAudioFile: vi.fn(async () => transcribed()),
+      scorePronunciation: limited,
+    };
+
+    // Outside the demo a throttled Azure is an ordinary retryable scoring failure.
+    expect(await uploadPronunciationTry(input(), deps)).toMatchObject({
+      ok: false,
+      error: "scoring_failed",
+      retryable: true,
+    });
+
+    vi.stubEnv("DEMO_MODE", "true");
+    vi.stubEnv("DEMO_CLASS_ID", "7a1e4c2b-9d3f-4a8e-b1c2-3d4e5f6a7b8c");
+    try {
+      expect(await uploadPronunciationTry(input(), deps)).toMatchObject({
+        ok: false,
+        error: "demo_resting",
+        retryable: false,
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("uses a confident different word as one valid try without a score row", async () => {
     resetState("f", "face");
     const transcribe = vi.fn(async () => transcribed("ship"));

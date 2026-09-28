@@ -187,6 +187,40 @@ describe("scorePronunciation", () => {
     expect(result).toEqual({ ok: false, error: "provider_failed" });
   });
 
+  it("reports an Azure 429 or quota refusal as provider_limited", async () => {
+    const { scorePronunciation, PronunciationProviderLimitError, isAzureLimitCancellation } =
+      await import("@/server/audio/pronunciation-scorer");
+    const sdk = await import("microsoft-cognitiveservices-speech-sdk");
+
+    // What the SDK reports when the F0 resource throttles or runs out of free hours.
+    expect(
+      isAzureLimitCancellation(
+        sdk.CancellationErrorCode.ConnectionFailure,
+        "Unable to contact server. StatusCode: 429, undefined Reason: Too Many Requests",
+      ),
+    ).toBe(true);
+    expect(isAzureLimitCancellation(sdk.CancellationErrorCode.TooManyRequests, "")).toBe(true);
+    expect(isAzureLimitCancellation(sdk.CancellationErrorCode.Forbidden, "quota exceeded")).toBe(true);
+    expect(
+      isAzureLimitCancellation(
+        sdk.CancellationErrorCode.ConnectionFailure,
+        "Unable to contact server. StatusCode: 1006",
+      ),
+    ).toBe(false);
+
+    const client = vi.fn(async () => {
+      throw new PronunciationProviderLimitError("StatusCode: 429");
+    }) as unknown as PronunciationRecognizerFactory;
+    const result = await scorePronunciation(baseInput(), {
+      apiKey: "test-key",
+      region: "japaneast",
+      client,
+      transcodeToWav: createFakeTranscode({ ok: true, wav: FAKE_WAV }),
+    });
+
+    expect(result).toEqual({ ok: false, error: "provider_limited" });
+  });
+
   it("uses actual transcoded WAV length when deciding candidate eligibility", async () => {
     const { scorePronunciation } = await import("@/server/audio/pronunciation-scorer");
 

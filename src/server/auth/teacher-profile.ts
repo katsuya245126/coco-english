@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server-auth";
+import { demoClassId } from "@/server/demo/demo-config";
 
 export type TeacherProfile = {
   id: string;
@@ -10,7 +11,10 @@ export type TeacherProfile = {
 // getSession — server cookies can be spoofed per Supabase SSR guidance),
 // redirects unauthenticated requests to /auth/login, and redirects verified
 // users with no profile row to /auth/profile for first-login bootstrap.
+// On the public demo every teacher gate refuses: server actions are callable by
+// id from any path, so the /teacher middleware redirect alone is not enough.
 export async function requireTeacherProfile(): Promise<TeacherProfile> {
+  if (demoClassId()) redirect("/");
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.getClaims();
 
@@ -44,6 +48,7 @@ export async function requireTeacherProfile(): Promise<TeacherProfile> {
 export async function bootstrapTeacherProfile(
   displayName: string,
 ): Promise<TeacherProfile> {
+  if (demoClassId()) redirect("/");
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.getClaims();
 

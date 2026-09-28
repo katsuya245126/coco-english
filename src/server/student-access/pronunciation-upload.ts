@@ -28,6 +28,7 @@ import {
 } from "@/server/audio/pronunciation-scorer";
 import type { TranscriptConfidence } from "@/domain/audio/transcript-confidence";
 import { consumeRequestBudget } from "@/server/security/request-budget";
+import { demoClassId } from "@/server/demo/demo-config";
 
 export const MAX_PRONUNCIATION_DURATION_MS = 10_000;
 
@@ -55,6 +56,7 @@ export type PronunciationUploadFailure = {
     | "transcription_failed"
     | "unclear_transcript"
     | "scoring_failed"
+    | "demo_resting"
     | "db_error"
     | "rate_limited";
   retryable: boolean;
@@ -530,6 +532,11 @@ export async function uploadPronunciationTry(
       referenceText: word.text,
       durationMs: input.durationMs,
     });
+    // The demo's Azure F0 resource refuses calls once its free hours run out;
+    // show the same resting screen as the demo's own daily cap.
+    if (!scored.ok && scored.error === "provider_limited" && demoClassId()) {
+      return failure("demo_resting", false);
+    }
     if (!scored.ok) return failure("scoring_failed", true);
 
     const scoreWord = scoreWordForExpected(scored, word.text);

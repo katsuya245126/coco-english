@@ -85,6 +85,9 @@ export async function POST(request: Request, context: RouteContext) {
       { status: 429, headers: { "Retry-After": String(result.retryAfterSeconds ?? 600) } },
     );
   }
+  if (result.error === "demo_resting") {
+    return NextResponse.json({ ok: false, error: "demo_resting" }, { status: 429 });
+  }
   if (result.error === "db_error") {
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }

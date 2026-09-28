@@ -1,5 +1,11 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
+// Short-lived, server-only unlock state. This is NOT a persistent student auth
+// account (D-17): it is an HttpOnly session cookie that lets the immediate
+// navigation to /student/home render the class/name context after a successful
+// PIN unlock. It expires with the browser session and carries no PIN. The
+// student still re-enters their PIN on every fresh visit (D-13).
+export const STUDENT_UNLOCK_COOKIE = "coco_student_unlock";
 export const STUDENT_SESSION_TTL_MS = 8 * 60 * 60 * 1_000;
 
 export type StudentUnlockCookie = {

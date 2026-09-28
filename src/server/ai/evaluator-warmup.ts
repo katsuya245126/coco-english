@@ -15,11 +15,14 @@
  */
 
 import { evaluateOriginalTurn, evaluateRepeatTurn } from "@/server/ai/turn-evaluator";
+import { demoClassId } from "@/server/demo/demo-config";
 import { consumeRequestBudget } from "@/server/security/request-budget";
 import { log } from "@/server/logging/logger";
 import type { MissionLevel } from "@/domain/mission/schemas";
 
 export async function warmEvaluators(level: MissionLevel): Promise<void> {
+  // Latency-only; on the public demo it would spend outside the daily cap.
+  if (demoClassId()) return;
   // One global warm-up per window: many concurrent mission-page loads must not
   // each pay for a schema compile. Denial is a silent no-op — the real
   // evaluation path is unaffected.

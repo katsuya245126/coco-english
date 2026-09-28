@@ -2,6 +2,8 @@ import "./student-home.css";
 import { redirect } from "next/navigation";
 import { readStudentUnlock } from "@/app/join/actions";
 import { StudentHomeShell } from "@/components/student/StudentHomeShell";
+import { demoClassId } from "@/server/demo/demo-config";
+import { demoStudentExists } from "@/server/demo/demo-student";
 import { listStudentAssignmentPage, type StudentAssignmentTab } from "@/server/student-access/assignment-list";
 
 // Student home shell route (STUD-04, STUD-05, FLOW-01, D-14).
@@ -15,8 +17,14 @@ import { listStudentAssignmentPage, type StudentAssignmentTab } from "@/server/s
 export default async function StudentHomePage({ searchParams }: { searchParams: Promise<{ tab?: string; page?: string }> }) {
   const unlock = await readStudentUnlock();
 
+  const demoClass = demoClassId();
   if (!unlock) {
-    redirect("/join");
+    redirect(demoClass ? "/" : "/join");
+  }
+
+  // Demo students are deleted nightly while their cookie may still be valid.
+  if (demoClass && !(await demoStudentExists(demoClass, unlock.studentId))) {
+    redirect("/");
   }
 
   const query = await searchParams;

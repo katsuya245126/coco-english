@@ -740,6 +740,18 @@ export type Database = {
         Args: { p_content_hash: string; p_owner_token: string };
         Returns: boolean;
       };
+      create_demo_student: {
+        Args: { p_class_id: string };
+        Returns: {
+          student_id: string;
+          class_name: string;
+          display_name: string;
+        }[];
+      };
+      demo_audio_object_keys: {
+        Args: { p_class_id: string; p_bucket_id: string };
+        Returns: { object_key: string }[];
+      };
       consume_request_budget: {
         Args: {
           p_actor_digest: string;
