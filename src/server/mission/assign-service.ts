@@ -89,7 +89,7 @@ export function buildMissionSnapshot(input: {
   return missionSnapshotSchema.parse(snapshot);
 }
 
-function collectAssignmentWarmupLines(snapshot: MissionSnapshot): string[] {
+export function collectAssignmentWarmupLines(snapshot: MissionSnapshot): string[] {
   const profile = getCharacterProfile(snapshot.characterId);
 
   return [

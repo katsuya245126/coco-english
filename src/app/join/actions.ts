@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { studentUnlockSchema } from "@/domain/classroom/student-access-schemas";
 import {
   resolveClassById,
@@ -11,9 +11,11 @@ import {
   unlockStudent,
   type StudentUnlockResult,
 } from "@/server/student-access/unlock";
+import { studentNetworkSignal } from "@/server/student-access/network-signal";
 import {
   openStudentSession,
   sealStudentSession,
+  STUDENT_UNLOCK_COOKIE,
   type StudentUnlockCookie,
 } from "@/server/student-access/student-session";
 
@@ -36,23 +38,6 @@ const GENERIC_MISMATCH: UnlockActionResult = {
   error: "generic_mismatch",
 };
 
-// Short-lived, server-only unlock state. This is NOT a persistent student auth
-// account (D-17): it is an HttpOnly session cookie that lets the immediate
-// navigation to /student/home render the class/name context after a successful
-// PIN unlock. It expires with the browser session and carries no PIN. The
-// student still re-enters their PIN on every fresh visit (D-13).
-const UNLOCK_COOKIE = "coco_student_unlock";
-
-async function studentNetworkSignal(): Promise<string> {
-  const headerStore = await headers();
-  return (
-    headerStore.get("x-vercel-forwarded-for")?.trim() ||
-    headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    headerStore.get("x-real-ip") ||
-    "unknown"
-  );
-}
-
 export type { StudentUnlockCookie } from "@/server/student-access/student-session";
 
 // Unlock a student. Validates shape; on ANY validation failure returns the same
@@ -65,7 +50,7 @@ export async function unlockStudentAction(input: {
   pin: string;
 }): Promise<UnlockActionResult> {
   const cookieStore = await cookies();
-  cookieStore.delete(UNLOCK_COOKIE);
+  cookieStore.delete(STUDENT_UNLOCK_COOKIE);
 
   const parsed = studentUnlockSchema.safeParse(input);
   if (!parsed.success) {
@@ -92,7 +77,7 @@ export async function unlockStudentAction(input: {
       return GENERIC_MISMATCH;
     }
 
-    cookieStore.set(UNLOCK_COOKIE, token, {
+    cookieStore.set(STUDENT_UNLOCK_COOKIE, token, {
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
@@ -109,7 +94,7 @@ export async function unlockStudentAction(input: {
 // absent or malformed. Server-only.
 export async function readStudentUnlock(): Promise<StudentUnlockCookie | null> {
   const cookieStore = await cookies();
-  const raw = cookieStore.get(UNLOCK_COOKIE)?.value;
+  const raw = cookieStore.get(STUDENT_UNLOCK_COOKIE)?.value;
   if (!raw) return null;
   return openStudentSession(raw, process.env.STUDENT_ACCESS_SECRET ?? "");
 }
@@ -117,7 +102,7 @@ export async function readStudentUnlock(): Promise<StudentUnlockCookie | null> {
 // Clear the unlock cookie (switch class / sign out of the shell).
 export async function clearStudentUnlockAction(): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.delete(UNLOCK_COOKIE);
+  cookieStore.delete(STUDENT_UNLOCK_COOKIE);
 }
 
 // The public class-context result for the join routes. We expose only the

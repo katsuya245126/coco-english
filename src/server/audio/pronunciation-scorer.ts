@@ -29,7 +29,22 @@ export type PronunciationScoreError =
   | "missing_api_key"
   | "transcode_failed"
   | "provider_failed"
+  | "provider_limited"
   | "audio_too_long";
+
+/** Azure refused the call for rate or quota (F0 free hours used up, 429/403). */
+export class PronunciationProviderLimitError extends Error {}
+
+export function isAzureLimitCancellation(
+  errorCode: sdk.CancellationErrorCode,
+  errorDetails: string,
+) {
+  return (
+    errorCode === sdk.CancellationErrorCode.TooManyRequests ||
+    errorCode === sdk.CancellationErrorCode.Forbidden ||
+    /StatusCode: (429|403)\b/.test(errorDetails)
+  );
+}
 
 export type PronunciationScoreDetail = {
   accuracyScore: number;
@@ -219,6 +234,12 @@ function createRecognizerFactory(): PronunciationRecognizerFactory {
         recognizer.recognizeOnceAsync(
           (result) => {
             try {
+              if (result.reason === sdk.ResultReason.Canceled) {
+                const canceled = sdk.CancellationDetails.fromResult(result);
+                throw isAzureLimitCancellation(canceled.ErrorCode, canceled.errorDetails ?? "")
+                  ? new PronunciationProviderLimitError(canceled.errorDetails)
+                  : new Error(canceled.errorDetails);
+              }
               const pronunciationResult = sdk.PronunciationAssessmentResult.fromResult(result);
               const jsonResult = result.properties.getProperty(
                 sdk.PropertyId.SpeechServiceResponse_JsonResult,
@@ -240,7 +261,11 @@ function createRecognizerFactory(): PronunciationRecognizerFactory {
           },
           (error: string) => {
             recognizer.close();
-            reject(new Error(error));
+            reject(
+              isAzureLimitCancellation(sdk.CancellationErrorCode.NoError, error)
+                ? new PronunciationProviderLimitError(error)
+                : new Error(error),
+            );
           },
         );
       } catch (error) {
@@ -303,8 +328,9 @@ export async function scorePronunciation(
         wordScores: normalized.words,
       },
     };
-  } catch {
-    log("error", "audio.pronunciation_scoring_failed", { error: "provider_failed" });
-    return { ok: false, error: "provider_failed" };
+  } catch (error) {
+    const code = error instanceof PronunciationProviderLimitError ? "provider_limited" : "provider_failed";
+    log("error", "audio.pronunciation_scoring_failed", { error: code });
+    return { ok: false, error: code };
   }
 }

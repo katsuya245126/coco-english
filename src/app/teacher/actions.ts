@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/supabase/server-auth";
 import { bootstrapTeacherProfile } from "@/server/auth/teacher-profile";
+import { demoClassId } from "@/server/demo/demo-config";
 import {
   loginSchema,
   signupSchema,
@@ -33,6 +34,8 @@ export async function signupAction(
   _prev: AuthActionResult | undefined,
   formData: FormData,
 ): Promise<AuthActionResult> {
+  // No teacher accounts on the public demo (see requireTeacherProfile).
+  if (demoClassId()) redirect("/");
   const parsed = signupSchema.safeParse({
     displayName: formData.get("displayName"),
     email: formData.get("email"),

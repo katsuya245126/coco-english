@@ -231,6 +231,10 @@ export function PronunciationPracticeShell({ page }: PronunciationPracticeShellP
     const result = (await response.json().catch(() => null)) as UploadResponse | null;
     if (!response.ok || !result || result.ok !== true) {
       const error = result && "error" in result ? result.error : undefined;
+      if (error === "demo_resting") {
+        window.location.assign("/?demo=resting");
+        throw new Error("Coco is resting after a busy day. Come back tomorrow!");
+      }
       const recognitionOrScoringFailure =
         error === "transcription_failed" ||
         error === "unclear_transcript" ||

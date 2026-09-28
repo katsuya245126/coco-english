@@ -23,6 +23,7 @@
     "test:rls": "vitest run tests/schema/classroom-access-schema.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:local": "bash scripts/with-local-supabase.sh playwright test",
+    "test:e2e:demo": "bash scripts/with-local-supabase.sh bash scripts/e2e-demo.sh",
     "test:student-feedback-states": "node scripts/check-student-feedback-states.mjs",
     "test:auth:e2e": "playwright test tests/e2e/teacher-auth.spec.ts"
   },
