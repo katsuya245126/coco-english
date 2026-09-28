@@ -190,7 +190,7 @@ describe("PronunciationPracticeShell", () => {
     await renderShell(page());
 
     let targetLetters = container.querySelector<HTMLElement>('[data-testid="practice-word-area"] mark');
-    expect(targetLetters?.style.background).toBe("rgb(254, 249, 195)");
+    expect(targetLetters?.style.background).toBe("rgb(252, 211, 77)");
     expect(targetLetters?.style.color).toBe("rgb(17, 24, 39)");
 
     await act(async () => {
@@ -569,7 +569,7 @@ describe("PronunciationPracticeShell", () => {
     expect(container.querySelectorAll('[aria-label$="stars for the whole word"]')).toHaveLength(5);
     expect(
       container.querySelector<HTMLElement>('[aria-label="Pronunciation practice result"] article mark')?.style.background,
-    ).toBe("rgb(254, 249, 195)");
+    ).toBe("rgb(252, 211, 77)");
     expect(container.querySelector('[data-testid="completion-celebration"] img[src="/images/coco-celebrate-alpha.png"]')).not.toBeNull();
   });
 
@@ -690,7 +690,7 @@ describe("PronunciationPracticeShell", () => {
       "Let's try word-1 — listen again.",
     );
     const targetLetters = container.querySelector<HTMLElement>('[data-testid="practice-word-area"] mark');
-    expect(targetLetters?.style.background).toBe("rgb(254, 249, 195)");
+    expect(targetLetters?.style.background).toBe("rgb(252, 211, 77)");
     expect(targetLetters?.style.color).toBe("rgb(17, 24, 39)");
   });
 

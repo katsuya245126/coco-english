@@ -111,10 +111,13 @@
   min-width: 0;
   color: var(--st-ink);
   flex: 0 1 auto;
+  font-family: var(--font-reader), var(--font-baloo), sans-serif;
   font-size: clamp(44px, 14vw, 64px);
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.05;
   overflow-wrap: anywhere;
+  /* An "fi" ligature is one glyph, so the highlight would color both letters. */
+  font-variant-ligatures: none;
 }
 
 .wordAudioButton {
