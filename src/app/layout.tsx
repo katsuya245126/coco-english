@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import "./globals.css";
-import { Baloo_2, DM_Sans, Inter, Jua } from "next/font/google";
+import { Andika, Baloo_2, DM_Sans, Inter, Jua } from "next/font/google";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 // Student "sticker book" faces; Jua is the Hangul fallback for Baloo 2.
 const baloo = Baloo_2({subsets:['latin'],variable:'--font-baloo'});
 const jua = Jua({weight:'400',preload:false,variable:'--font-jua'});
+// Early-reader face for the pronunciation practice word (clear lowercase f).
+const andika = Andika({subsets:['latin'],weight:'700',preload:false,variable:'--font-reader'});
 // Teacher workspace face.
 const dmSans = DM_Sans({subsets:['latin'],preload:false,variable:'--font-teacher'});
 
@@ -24,7 +26,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${baloo.variable} ${jua.variable} ${dmSans.variable}`}
+      className={`${inter.variable} ${baloo.variable} ${jua.variable} ${andika.variable} ${dmSans.variable}`}
       suppressHydrationWarning
     >
       <head>

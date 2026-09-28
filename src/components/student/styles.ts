@@ -183,11 +183,8 @@ export const recorderPanelStyle: CSSProperties = {
   boxSizing: "border-box",
 };
 
-export const recorderProcessingStyle: CSSProperties = {
-  ...recorderPanelStyle,
-  background: "#FFFBEB",
-  border: "1px solid #FDE68A",
-};
+// Saving is not a warning, so it keeps the plain panel (no yellow outline).
+export const recorderProcessingStyle: CSSProperties = recorderPanelStyle;
 
 export const recorderSuccessStyle: CSSProperties = {
   ...recorderPanelStyle,

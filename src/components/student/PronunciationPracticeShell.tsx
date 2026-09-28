@@ -78,7 +78,7 @@ function highlightedWord(
   const end = Math.max(start, Math.min(word.text.length, start + word.highlightLength));
   const markStyle =
     targetSoundPassed === null
-      ? { background: "#FEF9C3", color: "#111827" }
+      ? { background: "#FCD34D", color: "#111827", borderRadius: 8, padding: "0 4px" }
       : targetSoundPassed
         ? { background: "transparent", color: "#15803D" }
         : { background: "transparent", color: "#B91C1C", textDecoration: "underline" };
