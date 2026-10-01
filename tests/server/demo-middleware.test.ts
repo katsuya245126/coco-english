@@ -9,6 +9,22 @@ const redirect = vi.hoisted(() =>
   }),
 );
 const createSupabaseServerClient = vi.hoisted(() => vi.fn());
+// Stands in for Supabase rotating an expired teacher session: reading the
+// claims writes the fresh tokens through the cookie adapter.
+vi.mock("@supabase/ssr", () => ({
+  createServerClient: (
+    _url: string,
+    _key: string,
+    options: { cookies: { setAll: (cookies: { name: string; value: string; options: object }[]) => void } },
+  ) => ({
+    auth: {
+      getClaims: async () => {
+        options.cookies.setAll([{ name: "sb-auth-token", value: "refreshed", options: { path: "/" } }]);
+        return { data: null, error: null };
+      },
+    },
+  }),
+}));
 vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/lib/supabase/server-auth", () => ({ createSupabaseServerClient }));
 const { requireTeacherProfile, bootstrapTeacherProfile } = await import("@/server/auth/teacher-profile");
@@ -26,10 +42,10 @@ const matches = (url: string) => unstable_doesMiddlewareMatch({ config, url });
 describe("teacher surfaces on the demo deployment", () => {
   it.each(["/auth/login", "/auth/signup", "/teacher", "/teacher/classes/x", "/api/teacher/queue-snapshot"])(
     "redirects %s to the demo landing",
-    (path) => {
+    async (path) => {
       enableDemo();
       expect(matches(path)).toBe(true);
-      const res = middleware(new NextRequest(`http://localhost${path}`));
+      const res = await middleware(new NextRequest(`http://localhost${path}`));
       expect(res.status).toBe(307);
       expect(res.headers.get("location")).toBe("http://localhost/");
     },
@@ -39,10 +55,22 @@ describe("teacher surfaces on the demo deployment", () => {
     expect(matches(path)).toBe(false);
   });
 
-  it("leaves teacher pages alone when the demo gate is off", () => {
+  it("lets teacher pages through and refreshes the session when the demo gate is off", async () => {
     vi.stubEnv("DEMO_MODE", "");
-    const res = middleware(new NextRequest("http://localhost/teacher"));
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://localhost:54321");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon");
+    const res = await middleware(new NextRequest("http://localhost/teacher"));
     expect(res.headers.get("x-middleware-next")).toBe("1");
+    expect(res.cookies.get("sb-auth-token")?.value).toBe("refreshed");
+  });
+
+  it("does not touch the session on the demo deployment", async () => {
+    enableDemo();
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://localhost:54321");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon");
+    const res = await middleware(new NextRequest("http://localhost/teacher"));
+    expect(res.status).toBe(307);
+    expect(res.cookies.get("sb-auth-token")).toBeUndefined();
   });
 });
 
