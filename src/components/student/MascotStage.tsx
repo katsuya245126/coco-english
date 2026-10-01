@@ -60,7 +60,7 @@ type MascotStageProps = ExpressionInput & {
 };
 
 const SPRITE_BY_EXPRESSION: Record<MascotExpression, string> = {
-  idle: "coco-neutral-alpha.png",
+  idle: "coco-happy-alpha.png",
   happy: "coco-happy-alpha.png",
   celebrate: "coco-celebrate-alpha.png",
   encouraging: "coco-encouraging-alpha.png",
