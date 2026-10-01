@@ -377,9 +377,11 @@ export const mascotPictureBackButtonStyle: CSSProperties = {
 
 export const mascotSpriteWrapStyle: CSSProperties = {
   position: "absolute",
-  // Coco stands in the scene, cropped at the waist by the card edge.
-  left: "calc(50% - 113px)",
-  width: 226,
+  // Coco stands in the scene, cropped at the waist by the card edge. Wide
+  // enough for the widest sprite (celebrate, arms out) to fit by height, so
+  // every expression renders at the same size and head height.
+  left: "calc(50% - 165px)",
+  width: 330,
   bottom: -70,
   height: 270,
   transformOrigin: "bottom center",
