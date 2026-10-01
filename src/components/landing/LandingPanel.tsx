@@ -44,6 +44,18 @@ export function LandingPanel() {
       >
         I&rsquo;m a teacher
       </Link>
+
+      <p style={{ ...bodyStyle, fontSize: 13, margin: "20px 0 0", textAlign: "center" }}>
+        Just visiting?{" "}
+        <a
+          href="https://coco-english-demo.vercel.app/"
+          target="_blank"
+          rel="noopener"
+          style={{ color: "inherit", textDecoration: "underline" }}
+        >
+          Try the demo
+        </a>
+      </p>
     </div>
   );
 }
