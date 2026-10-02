@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next";
 import { Andika, Baloo_2, DM_Sans, Inter, Jua } from "next/font/google";
+
+import { demoClassId } from "@/server/demo/demo-config";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 // Student "sticker book" faces; Jua is the Hangul fallback for Baloo 2.
@@ -46,6 +49,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body suppressHydrationWarning>
         {children}
+        {/* Demo deployment only: real classroom pages stay untracked. */}
+        {demoClassId() ? <Analytics /> : null}
       </body>
     </html>
   );
