@@ -5,8 +5,8 @@ separately from [pronunciation practice](pronunciation-practice.md) homework.
 
 ## Pipeline
 
-1. `src/server/student-access/audio-upload.ts` decides whether to score while it
-   evaluates the turn (`beginPronunciationScoring`):
+1. `src/server/student-access/turn-pronunciation.ts` holds the start rules and
+   settles the score; `audio-upload.ts` calls it while evaluating the turn:
    - `repeat_attempt` clips always score against the repeat target.
    - `original_answer` clips score against the transcript only when it has no
      Korean spans and `classifyPreGuardStage` returns `evaluate`. Incomplete
@@ -15,8 +15,9 @@ separately from [pronunciation practice](pronunciation-practice.md) homework.
      display transcript.
 2. `src/server/audio/pronunciation-scorer.ts` calls Azure. Clips over 60 s are
    rejected (`MAX_PRONUNCIATION_AUDIO_MS`).
-3. `persistPronunciation` in `src/server/student-access/speaking-try-persistence.ts`
-   writes `pronunciation_scores` (schema in `src/lib/db/types.ts`). Reprocessing
+3. `settleTurnPronunciation` saves the score through `persistPronunciation`
+   (`src/server/student-access/speaking-try-persistence.ts`), which writes
+   `pronunciation_scores` (schema in `src/lib/db/types.ts`). Reprocessing
    is in [pronunciation reprocessing](../operations/pronunciation-reprocessing.md).
 
 ## Where students see stars
