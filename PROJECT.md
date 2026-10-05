@@ -16,10 +16,11 @@ Coco English is a teacher-linked AI speaking-homework app for elementary-level E
 - Low-confidence or malformed AI results route to teacher review.
 - Coco is a tone layer, not an open-ended autonomous chat agent.
 - Teacher audio review uses short per-turn clips and signed playback URLs generated on demand; stored audio is not public.
-- Missions are either preset (authored turns, each with an optional private teacher-uploaded picture) or conversation (authored opening question, bounded generated follow-ups). The two paths evaluate differently; see `AGENTS.md` and `CONTEXT.md`.
-- Azure Speech scores pronunciation per audio clip. Students get pronunciation practice; teachers get a per-student pronunciation profile. See `docs/features/pronunciation-practice.md` and `docs/azure-speech-data-use.md`.
+- Missions are either preset (authored turns, each with an optional private teacher-uploaded picture) or conversation (authored opening question, bounded generated follow-ups). The two paths evaluate differently; see `AGENTS.md` and `GLOSSARY.md`.
+- Azure Speech scores pronunciation per audio clip. Students get pronunciation practice; teachers get a per-student pronunciation profile. See `docs/features/pronunciation-practice.md` for practice homework, `docs/features/mission-pronunciation-scoring.md` for per-turn mission scoring, and `docs/azure-speech-data-use.md`.
+- New components style with CSS Modules (`*.module.css`); existing inline `style` objects stay until their file is otherwise changed.
 - Paid provider calls are bounded by server-side request budgets (`docs/adr/0005-bound-paid-provider-work.md`).
-- Deployed on Vercel with daily crons in `vercel.json` (mark missed homework, purge audio, reset the demo). Merging to `main` applies Supabase migrations to production through a GitHub Action.
+- Deployed on Vercel with daily crons in `vercel.json` (mark missed homework, purge audio, reset the demo). Merging to `main` applies Supabase migrations to production through a GitHub Action. Logs and CLI notes: `docs/operations/vercel.md`.
 
 ## Public Demo
 
@@ -45,7 +46,9 @@ A separate Vercel deployment (`coco-english-demo.vercel.app`) lets visitors try 
 
 Run the app locally with `npm run local` (local Supabase, `http://localhost:3200`); bare `npm run dev` uses whatever database `.env.local` points at.
 
-For deterministic student feedback screenshots, start the app on `http://localhost:3000` (or set `FEEDBACK_STATE_BASE_URL`), provide the three `FEEDBACK_STATE_*` variables without committing reusable access values, and run `npm run test:student-feedback-states`. See `docs/testing/student-feedback-states.md`.
+Local Supabase runs in Docker, so start Docker before `npm run local` or any `*:local` test script. After a `supabase db reset`, seed classes and students with `scripts/local/README.md` (gitignored). `psql` is not installed; query the local database with `docker exec supabase_db_english-speaking-practice psql -U postgres`.
+
+For deterministic student feedback screenshots, run `npm run local` and set `FEEDBACK_STATE_BASE_URL=http://localhost:3200`, provide the three `FEEDBACK_STATE_*` variables without committing reusable access values, and run `npm run test:student-feedback-states`. See `docs/testing/student-feedback-states.md`.
 
 The demo has its own E2E suite: `npm run test:e2e:demo`.
 

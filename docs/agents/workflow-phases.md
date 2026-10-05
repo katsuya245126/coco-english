@@ -4,7 +4,7 @@ Read this table when routing development work. Repository ownership, permission,
 
 | Phase | Action |
 | --- | --- |
-| Idea or decisions unsettled | Interview until the decision is clear; record settled terms in `CONTEXT.md` and relevant `docs/adr/` files. |
+| Idea or decisions unsettled | Interview until the decision is clear; record settled terms in `GLOSSARY.md` and relevant `docs/adr/` files. |
 | Design needs runnable proof | Build the smallest throwaway prototype, keep the findings, and remove the prototype when done. |
 | Settled multi-session build | Record the spec and checks in `TASK.md`; create independent GitHub issues using `docs/agents/issue-tracker.md`, then work blockers-first. |
 | One behavior to build | Write the smallest failing test, implement the minimal change, run the narrowest check, and review the diff. |
