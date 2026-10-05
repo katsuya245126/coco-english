@@ -9,7 +9,7 @@ import {
  * Values below are the real measured distribution from 2026-07-24, scoring six
  * of the user's own recordings (3 deliberate mumbles, 3 genuine answers) three
  * times each with the production call shape. See
- * docs/tasks/2026-07-24-mumble-uat.md for how the recordings were made.
+ * docs/local/tasks/2026-07-24-mumble-uat.md (local-only) for how the recordings were made.
  *
  * The single most important fact these tests encode: AVERAGE logprob does not
  * separate the two classes. One real mumble averaged -0.041 — better than some
