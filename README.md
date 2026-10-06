@@ -18,9 +18,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/coco-mission.jpg" alt="A conversation mission: Coco asks &quot;What do you like to do on weekends?&quot; with Hear it, hint, and Record buttons" width="300">
-  &nbsp;&nbsp;
-  <img src="docs/images/coco-practice.png" alt="F sound pronunciation practice: the word &quot;fish&quot; with the f highlighted and a Record button" width="300">
+  <img src="docs/images/coco-phones.png" alt="Two Coco English phone screens: a speaking mission where Coco asks &quot;What do you like to do on weekends?&quot;, and an F sound practice drill for the word &quot;fish&quot;" width="440">
 </p>
 
 ---
