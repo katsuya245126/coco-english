@@ -82,3 +82,6 @@ supabase/.branches/
 # Codex-vendored Matt Pocock skills (used locally, not committed)
 .agents/
 skills-lock.json
+
+# Next.js generated types
+next-env.d.ts
