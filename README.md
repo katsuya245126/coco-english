@@ -70,42 +70,22 @@ flowchart LR
 | Testing | Vitest, Playwright |
 | Hosting | Vercel (with daily crons), GitHub Actions for migrations |
 
-## Getting started
+## Running it
 
-**Prerequisites:** Node.js 20.19+, Docker (for local Supabase), an OpenAI API key, and an Azure Speech key.
+The easiest way to try Coco English is the [live demo](https://coco-english-demo.vercel.app). No account needed.
+
+To run it locally, you need Node.js 20.19+, Docker, and OpenAI and Azure Speech keys in `.env.local` (see `.env.example`). Then:
 
 ```bash
 npm install
-cp .env.example .env.local
-```
-
-Add your provider keys to `.env.local`:
-
-- `OPENAI_API_KEY`
-- `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION`
-
-Then start a local Supabase stack and the app against it:
-
-```bash
 bash scripts/with-local-supabase.sh npx next dev -p 3200
 ```
 
-The wrapper starts Supabase in Docker, **resets the local database**, injects local keys, and refuses to run against a non-local database. Open http://localhost:3200. To create a teacher account, set `LOCAL_TEACHER_EMAIL`, `LOCAL_TEACHER_PASSWORD`, and `LOCAL_TEACHER_DISPLAY_NAME` in `.env.local`, then run:
-
-```bash
-npm run local:seed-teacher
-```
+This starts a local Supabase stack in Docker, resets the local database, and refuses to run against anything but localhost.
 
 ## Testing
 
-```bash
-npm run lint
-npm run typecheck
-npm run test:agent        # unit tests
-npm run test:all:local    # unit + integration + E2E against local Supabase
-npm run test:e2e:demo     # public demo flow
-npm run build
-```
+Vitest unit and integration tests, plus Playwright end-to-end suites for the classroom app and the public demo. Integration and E2E tests run against a local Supabase instance.
 
 ## Project docs
 
