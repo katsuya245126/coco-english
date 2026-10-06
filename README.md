@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="public/images/coco-happy-alpha.png" alt="Coco, the app's friendly classmate character" width="160">
-</p>
-
 <h1 align="center">Coco English</h1>
 
 <p align="center">
@@ -19,6 +15,12 @@
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=fff">
   <img alt="Supabase" src="https://img.shields.io/badge/Supabase-Postgres%20%2B%20RLS-3ecf8e?logo=supabase&logoColor=fff">
   <img alt="Vercel" src="https://img.shields.io/badge/Deployed%20on-Vercel-000?logo=vercel">
+</p>
+
+<p align="center">
+  <img src="docs/images/coco-mission.jpg" alt="A conversation mission: Coco asks &quot;What do you like to do on weekends?&quot; with Hear it, hint, and Record buttons" width="300">
+  &nbsp;&nbsp;
+  <img src="docs/images/coco-practice.png" alt="F sound pronunciation practice: the word &quot;fish&quot; with the f highlighted and a Record button" width="300">
 </p>
 
 ---
@@ -118,3 +120,7 @@ npm run build
 ## Acknowledgements
 
 Pronunciation word lists use the [CMU Pronouncing Dictionary](vendor/cmudict/LICENSE).
+
+## License
+
+Copyright © 2026 John. All rights reserved. The code is public so people can read it, but it is not licensed for reuse.
