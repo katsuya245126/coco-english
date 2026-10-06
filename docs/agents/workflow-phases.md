@@ -1,6 +1,6 @@
 # Workflow phases
 
-Read this table when routing development work. Repository ownership, permission, and verification rules still apply.
+Read this when routing development work, managing `TASK.md`, or dispatching subagents. Repository ownership, permission, and verification rules still apply.
 
 | Phase | Action |
 | --- | --- |
@@ -20,3 +20,14 @@ For status or the next action, use the available read-only `progress` skill. If 
 - Identify verification evidence by the checked commit and working-tree state. Repeat checks on an unchanged verified commit only for new concerns or an explicit skill requirement.
 - Before formal review, check the final diff against the issue acceptance criteria and repository standards. Start formal parallel reviewers after that preflight so they normally review one final diff.
 - After formal Standards + Spec review, rerun affected tests and typecheck for accepted fixes; do not rerun review subagents for small localized changes unless behavior or scope materially changes or the prior review missed relevant files. Use a targeted manual check instead.
+
+## Task state
+
+- Keep one active `TASK.md` per checkout.
+- On takeover, confirm it matches the branch and working tree; preserve unrelated work and pause only for overlapping ownership conflicts.
+- Keep completed or paused history local in ignored `docs/local/`, or in issues/PRs when authorized; stable documentation belongs in Git.
+
+## Subagents
+
+- Give subagents compact, task-specific prompts and the minimum history they need. Inherit full conversation history only when the task cannot be summarized safely.
+- Send follow-up work for the same scope to the existing subagent rather than spawning a replacement.

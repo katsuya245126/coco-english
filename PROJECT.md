@@ -16,7 +16,7 @@ Coco English is a teacher-linked AI speaking-homework app for elementary-level E
 - Low-confidence or malformed AI results route to teacher review.
 - Coco is a tone layer, not an open-ended autonomous chat agent.
 - Teacher audio review uses short per-turn clips and signed playback URLs generated on demand; stored audio is not public.
-- Missions are either preset (authored turns, each with an optional private teacher-uploaded picture) or conversation (authored opening question, bounded generated follow-ups). The two paths evaluate differently; see `AGENTS.md` and `GLOSSARY.md`.
+- Missions are either preset (authored turns, each with an optional private teacher-uploaded picture) or conversation (authored opening question, bounded generated follow-ups). The two paths evaluate differently; see `docs/agents/mission-modes.md` and `GLOSSARY.md`.
 - Azure Speech scores pronunciation per audio clip. Students get pronunciation practice; teachers get a per-student pronunciation profile. See `docs/features/pronunciation-practice.md` for practice homework, `docs/features/mission-pronunciation-scoring.md` for per-turn mission scoring, and `docs/azure-speech-data-use.md`.
 - New components style with CSS Modules (`*.module.css`); existing inline `style` objects stay until their file is otherwise changed.
 - Paid provider calls are bounded by server-side request budgets (`docs/adr/0005-bound-paid-provider-work.md`).
