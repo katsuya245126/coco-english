@@ -11,11 +11,8 @@ Coco English is a teacher-linked AI speaking-homework app for elementary-level E
 - Student class-code, name, and PIN access.
 - Short browser-recorded audio clips stored per turn.
 - OpenAI integrations behind server-owned adapters with Zod validation.
-- Server-owned, auditable assignment and attempt state transitions.
-- Mission snapshots prevent later edits changing assigned homework.
 - Low-confidence or malformed AI results route to teacher review.
-- Coco is a tone layer, not an open-ended autonomous chat agent.
-- Teacher audio review uses short per-turn clips and signed playback URLs generated on demand; stored audio is not public.
+- Code invariants (ownership, state transitions, mission snapshots, audio access, review shape, tests): `CODING_STANDARDS.md`.
 - Missions are either preset (authored turns, each with an optional private teacher-uploaded picture) or conversation (authored opening question, bounded generated follow-ups). The two paths evaluate differently; see `docs/agents/mission-modes.md` and `GLOSSARY.md`.
 - Azure Speech scores pronunciation per audio clip. Students get pronunciation practice; teachers get a per-student pronunciation profile. See `docs/features/pronunciation-practice.md` for practice homework, `docs/features/mission-pronunciation-scoring.md` for per-turn mission scoring, and `docs/azure-speech-data-use.md`.
 - New components style with CSS Modules (`*.module.css`); existing inline `style` objects stay until their file is otherwise changed.
@@ -35,9 +32,6 @@ A separate Vercel deployment (`coco-english-demo.vercel.app`) lets visitors try 
 
 ## Product Constraints
 
-- Protect student data and preserve ownership checks.
-- Keep audio access server-authorized and signed on demand for teacher review.
-- Keep teacher review transcript-first and audio-available.
 - Prefer vertical MVP changes over broad speculative layers.
 - Do not add school SSO, LMS sync, parent accounts, scoring, leaderboards, large character casts, or long-form free chat without an explicit product decision.
 - Recheck model names, prices, legal requirements, and browser audio support before paid classroom pilots.

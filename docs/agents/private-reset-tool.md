@@ -6,10 +6,10 @@ A private local class-reset maintenance tool may exist at `.superpowers/private-
 
 Read the tool's local `AGENTS.md` and `README.md`.
 
-## Guardrails
+## Approval gates
 
-- Keep its contents local: never stage, commit, push, publish, or copy them into tracked files.
-- Each of these needs its own user approval naming the exact environment and action:
-  - applying its database migration,
-  - running a real preview,
-  - executing a reset.
+Each of these needs its own user approval naming the exact environment and action:
+
+- applying its database migration,
+- running a real preview,
+- executing a reset.
