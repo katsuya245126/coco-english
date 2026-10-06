@@ -17,8 +17,6 @@ The server owns assignment and attempt state. Every transition runs server-side 
 
 A mission snapshot freezes a mission when it is assigned, so later edits leave assigned homework unchanged. Keep snapshots intact; interpretation rules are in `docs/adr/0002-interpret-mission-snapshots-by-use.md`.
 
-Changing mission evaluation, progression, hints, TTS, or Coco generation: read [mission modes](docs/agents/mission-modes.md) first (preset/conversation split).
-
 ## Audio evidence
 
 Keep student audio stored as short per-turn clips.
