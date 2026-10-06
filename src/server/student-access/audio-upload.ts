@@ -24,11 +24,15 @@ import { DEFAULT_COCO_TTS_VOICE } from "@/domain/audio/tts";
 import { warmTtsAudioCache } from "@/server/audio/tts-cache";
 import { scorePronunciation } from "@/server/audio/pronunciation-scorer";
 import { buildLearnerTranscript } from "@/domain/audio/transcript-interpretation";
-import {
-  wordsToPractice,
-  type PronunciationStarBand,
-  type WordHighlight,
+import type {
+  PronunciationStarBand,
+  WordHighlight,
 } from "@/domain/pronunciation/scoring";
+import {
+  initialPronunciationReference,
+  latePronunciationReference,
+  settleTurnPronunciation,
+} from "@/server/student-access/turn-pronunciation";
 import {
   evaluateOriginalTurn,
   evaluateRepeatTurn,
@@ -671,12 +675,17 @@ export async function recordSpeakingTry(
             ).evaluation,
           })
         : ({ stage: "evaluate" } as const);
+    const initialReference = initialPronunciationReference({
+      clipKind: input.clipKind,
+      repeatTarget: repeatTargetValue,
+      transcript,
+      koreanSpanCount: koreanSpans.length,
+      preGuardStage: preGuard.stage,
+    });
     let scoringPromise: ReturnType<typeof beginPronunciationScoring> | null =
-      input.clipKind === "repeat_attempt"
-        ? beginPronunciationScoring(repeatTargetValue)
-        : koreanSpans.length === 0 && preGuard.stage === "evaluate"
-          ? beginPronunciationScoring(transcript)
-          : null;
+      initialReference === null
+        ? null
+        : beginPronunciationScoring(initialReference);
 
     // Original answers run the deep pipeline before any write so a
     // deterministic guard can persist and return without conversation
@@ -944,17 +953,15 @@ export async function recordSpeakingTry(
       transcript,
       currentEvaluation?.hangulInterpretations ?? [],
     );
-
-    const hasAccentedEnglish = currentEvaluation?.hangulInterpretations.some(
-      (item) => item.kind === "accented_english",
-    );
-    if (
-      input.clipKind === "original_answer" &&
-      scoringPromise === null &&
-      displayTranscript &&
-      hasAccentedEnglish
-    ) {
-      scoringPromise = beginPronunciationScoring(displayTranscript);
+    if (scoringPromise === null) {
+      const lateReference = latePronunciationReference({
+        clipKind: input.clipKind,
+        displayTranscript,
+        hangulInterpretations: currentEvaluation?.hangulInterpretations ?? [],
+      });
+      if (lateReference !== null) {
+        scoringPromise = beginPronunciationScoring(lateReference);
+      }
     }
 
     // Conversation-mode dynamic-turn orchestration (CHAT-01/03/05/06). Runs
@@ -1068,74 +1075,32 @@ export async function recordSpeakingTry(
       }
     }
 
-    let starBand: PronunciationStarBand | null = null;
-    let wordHighlights: WordHighlight[] = [];
-
     // A null promise means scoring was deliberately never started: a Hangul
     // answer with nothing confirmed as accented English has no English
     // reference text to score against. That is not a failure and must not
-    // reach the failure log below.
-    if (scoringPromise !== null) {
-      const startedScoring = scoringPromise;
-      try {
-        const pronunciationAwaitStartedAt = Date.now();
-        const scoring = await startedScoring;
-        timings.pronunciationAwaitMs = elapsedMs(pronunciationAwaitStartedAt);
-        if (scoring.ok) {
-          const scoreWriteResult = await timeStage(
-            "pronunciationScoreGuard",
-            () =>
-              timeStage("pronunciationScoreWrite", () =>
-                persistence.persistPronunciation({
-                  referenceText: scoring.score.referenceText,
-                  accuracyScore: scoring.score.accuracyScore,
-                  fluencyScore: scoring.score.fluencyScore,
-                  completenessScore: scoring.score.completenessScore,
-                  pronunciationScore: scoring.score.pronunciationScore,
-                  starBand: scoring.score.starBand,
-                  wordScores: scoring.score.wordScores satisfies Json,
-                }),
+    // reach the failure log.
+    const { starBand, wordHighlights } =
+      scoringPromise === null
+        ? { starBand: null, wordHighlights: [] }
+        : await settleTurnPronunciation(scoringPromise, {
+            persist: (score) =>
+              timeStage("pronunciationScoreGuard", () =>
+                timeStage("pronunciationScoreWrite", () =>
+                  persistence.persistPronunciation(score),
+                ),
               ),
-          );
-
-          if (!scoreWriteResult.ok) {
-            log("warn", "audio.pronunciation_scoring_failed", {
-              assignmentStudentId: input.assignmentStudentId,
-              attemptId: input.attemptId,
-              turnOrder: input.turnOrder,
-              error: scoreWriteResult.error,
-            });
-          } else if (scoreWriteResult.value.error) {
-            log("warn", "audio.pronunciation_scoring_failed", {
-              assignmentStudentId: input.assignmentStudentId,
-              attemptId: input.attemptId,
-              turnOrder: input.turnOrder,
-              error: scoreWriteResult.value.error.message,
-            });
-          } else {
-            starBand = scoring.score.starBand;
-            wordHighlights = wordsToPractice(
-              scoring.score.wordScores,
-              displayTranscript ?? transcript,
-            );
-          }
-        } else {
-          log("warn", "audio.pronunciation_scoring_failed", {
-            assignmentStudentId: input.assignmentStudentId,
-            attemptId: input.attemptId,
-            turnOrder: input.turnOrder,
-            error: scoring.error,
+            onAwaitMs: (ms) => {
+              timings.pronunciationAwaitMs = ms;
+            },
+            logFailure: (error) =>
+              log("warn", "audio.pronunciation_scoring_failed", {
+                assignmentStudentId: input.assignmentStudentId,
+                attemptId: input.attemptId,
+                turnOrder: input.turnOrder,
+                error,
+              }),
+            highlightText: displayTranscript ?? transcript,
           });
-        }
-      } catch (error) {
-        log("warn", "audio.pronunciation_scoring_failed", {
-          assignmentStudentId: input.assignmentStudentId,
-          attemptId: input.attemptId,
-          turnOrder: input.turnOrder,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
 
     // ttsWarmup (tts_audio_cache table + tts-audio storage) and finalClipUpdate
     // (audio_clips row) touch disjoint resources, so they run concurrently.
