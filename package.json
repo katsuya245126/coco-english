@@ -34,7 +34,7 @@
     "@vercel/analytics": "^2.0.1",
     "ffmpeg-static": "^5.3.0",
     "microsoft-cognitiveservices-speech-sdk": "^1.51.0",
-    "next": "^15.5.24",
+    "next": "^15.5.28",
     "openai": "^6.45.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
