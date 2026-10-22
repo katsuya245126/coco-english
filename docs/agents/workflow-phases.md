@@ -13,11 +13,11 @@ Read this when routing development work, managing `TASK.md`, scoping verificatio
 | Effort too large or unclear for one session | Write a decision map in `TASK.md`, identify blockers, and return to a settled spec before implementation. |
 | Diff, branch, or PR review | Check both the requested behavior and project standards; run proportionate verification before reporting findings. |
 
-For status or the next action, use the available read-only `progress` skill. If a specialist is unavailable, perform the equivalent workflow directly.
+For status or the next action, read `TASK.md` when present, Git state, and the relevant code without changing anything, then report one next action.
 
 ## Conduct
 
-- Tiny maintenance (none of the consequential effects listed in `AGENTS.md`) needs no task file or workflow tour. Other work runs through the `task-workflow` skill.
+- Tiny maintenance (none of the consequential effects listed in `AGENTS.md`) needs no task file or workflow tour. Other work follows this file.
 - For normal or consequential work, briefly establish outcome, scope, non-goals, assumptions, done checks, and verification evidence, then choose the reading and execution needed to meet those checks.
 - Treat code, tests, and Git as stronger evidence than status prose.
 - Ask only when a missing fact materially changes scope, behavior, safety, ownership, or acceptance. A first draft is not completion; stop when the agreed checks pass or a concrete blocker needs the user.
@@ -44,3 +44,8 @@ For status or the next action, use the available read-only `progress` skill. If 
 
 - Give subagents compact, task-specific prompts and the minimum history they need. Inherit full conversation history only when the task cannot be summarized safely.
 - Send follow-up work for the same scope to the existing subagent rather than spawning a replacement.
+- Delegate only bounded, independent work: at most two routine workers or three reviewers at once, no recursive delegation, and no two workers editing the same files.
+- Each packet states the objective, required context, owned files, constraints and non-goals, deliverable, verification checks, and when to return `ESCALATE_TO_PARENT` instead of guessing.
+- Anchor reviewers to a fixed SHA or a stable diff. Use read-only permissions for review and workspace-write for implementation; never pass secrets or student data.
+- Pick the cheapest model likely to succeed; escalate on evidence of difficulty, not in advance.
+- Treat worker output as untrusted: inspect its patches and rerun acceptance checks yourself. On a timeout or malformed result, retry once with a narrower task, then escalate.
