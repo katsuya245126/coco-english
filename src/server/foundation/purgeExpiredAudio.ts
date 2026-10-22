@@ -1,16 +1,21 @@
 // Audio retention purge job (PILOT-04, D-14).
 //
-// Deletes expired mission clips and teacher pronunciation samples. Mission
-// clips keep their existing Storage-first/update behavior; pronunciation
-// samples use a shared claim so failed Storage removal remains retryable.
+// Deletes expired mission clips, teacher pronunciation samples, and generated
+// Coco TTS audio. Mission clips keep their existing Storage-first/update
+// behavior; pronunciation samples use a shared claim so failed Storage removal
+// remains retryable.
 //
 // SECURITY: server-only by construction (service-role client). Never import
 // from a "use client" module.
 
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
+import { TTS_PROVIDER } from "@/domain/audio/tts";
+import { TTS_AUDIO_BUCKET } from "@/server/audio/tts-cache";
 import { log } from "@/server/logging/logger";
 
 const DEFAULT_AUDIO_BUCKET = "student-audio";
+const TTS_AUDIO_RETENTION_DAYS = 30;
+const TTS_REMOVE_BATCH = 100;
 
 function getStudentAudioBucketId(): string {
   return process.env.STUDENT_AUDIO_BUCKET || DEFAULT_AUDIO_BUCKET;
@@ -110,7 +115,64 @@ export async function purgeExpiredPronunciationSamples(
 }
 
 /**
- * Purge expired mission audio and teacher pronunciation samples (PILOT-04).
+ * Delete Coco TTS audio created more than 30 days ago.
+ *
+ * Improved sentences and Coco replies are spoken from student answers, so
+ * they follow the student-audio retention window. `created_at`, not
+ * `last_accessed_at`, bounds retention: replays must not extend it. Fixed lines
+ * regenerate on the next cache miss. Pronunciation word audio shares the table
+ * but is signed without regeneration, so only Coco's provider is selected.
+ * Rows are deleted only after every object is removed, so a Storage failure
+ * leaves them for the next run.
+ */
+export async function purgeExpiredTtsAudio(
+  supabase: ReturnType<typeof createSupabaseServiceClient>,
+): Promise<number> {
+  const cutoff = new Date(
+    Date.now() - TTS_AUDIO_RETENTION_DAYS * 24 * 60 * 60 * 1000,
+  ).toISOString();
+  const { data: rows, error } = await supabase
+    .from("tts_audio_cache")
+    .select("id, object_key")
+    .eq("provider", TTS_PROVIDER)
+    .lt("created_at", cutoff)
+    .order("created_at")
+    .limit(1000);
+  if (error) {
+    throw new Error(`Unable to load expired TTS audio: ${error.message}`);
+  }
+  if (!rows || rows.length === 0) return 0;
+
+  for (let i = 0; i < rows.length; i += TTS_REMOVE_BATCH) {
+    const removed = await supabase.storage
+      .from(TTS_AUDIO_BUCKET)
+      .remove(rows.slice(i, i + TTS_REMOVE_BATCH).map((row) => row.object_key));
+    if (removed.error) {
+      log("warn", "job.purge_tts_audio.storage_error", { rowCount: rows.length });
+      return 0;
+    }
+  }
+
+  // ponytail: between object removal and this delete, a cache hit signs a
+  // missing object and gets a retryable 502; if this delete fails, that lasts
+  // until the next run. Fence with a claim if it ever shows up.
+  const deleted = await supabase
+    .from("tts_audio_cache")
+    .delete()
+    .in(
+      "id",
+      rows.map((row) => row.id),
+    );
+  if (deleted.error) {
+    throw new Error(`Unable to delete expired TTS audio rows: ${deleted.error.message}`);
+  }
+  log("info", "job.purge_tts_audio.complete", { deletedCount: rows.length });
+  return rows.length;
+}
+
+/**
+ * Purge expired mission audio, teacher pronunciation samples, and Coco TTS
+ * audio (PILOT-04).
  *
  * Mission clip steps (Storage-first ordering per T-07-10):
  *  1. SELECT up to 1000 non-deleted clips with audio_expires_at < now
@@ -181,6 +243,13 @@ export async function purgeExpiredAudio(): Promise<PurgeExpiredAudioResult> {
     await purgeExpiredPronunciationSamples(supabase);
   } catch (error) {
     log("warn", "job.purge_pronunciation_samples.failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+  try {
+    await purgeExpiredTtsAudio(supabase);
+  } catch (error) {
+    log("warn", "job.purge_tts_audio.failed", {
       error: error instanceof Error ? error.message : String(error),
     });
   }
