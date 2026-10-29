@@ -9,6 +9,9 @@
  */
 
 import { spawn as nodeSpawn } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import ffmpegPath from "ffmpeg-static";
 import { log } from "@/server/logging/logger";
 
@@ -108,33 +111,33 @@ export async function transcodeToWav(
   const spawnFn = deps?.spawn ?? nodeSpawn;
   const timeoutMs = deps?.timeoutMs ?? FFMPEG_TIMEOUT_MS;
 
-  return new Promise((resolve) => {
-    let inputBuffer: Buffer;
-    try {
-      // arrayBuffer() must complete before we can hand bytes to ffmpeg's stdin.
-      // Blob#arrayBuffer is async, so read it inside this executor and resolve
-      // the discriminated union on any failure rather than rejecting.
-      void input
-        .arrayBuffer()
-        .then((raw) => {
-          inputBuffer = Buffer.from(raw);
-          runFfmpeg(inputBuffer);
-        })
-        .catch(() => {
-          log("error", "audio.transcode_failed", { error: "transcode_failed" });
-          resolve({ ok: false, error: "transcode_failed" });
-        });
-    } catch {
-      log("error", "audio.transcode_failed", { error: "transcode_failed" });
-      resolve({ ok: false, error: "transcode_failed" });
-      return;
-    }
+  // ffmpeg needs a seekable input: MP4/M4A usually store their index (moov
+  // atom) at the end, and on pipe:0 longer clips decode to an empty WAV.
+  let dir: string | undefined;
+  try {
+    dir = await mkdtemp(join(tmpdir(), "coco-transcode-"));
+    const inputPath = join(dir, "input");
+    await writeFile(inputPath, Buffer.from(await input.arrayBuffer()));
+    return await runFfmpeg(inputPath);
+  } catch (error) {
+    // runFfmpeg never rejects, so this is reading the upload or writing /tmp.
+    log("error", "audio.transcode_failed", {
+      error: "transcode_failed",
+      stage: "temp_write",
+      code: (error as NodeJS.ErrnoException)?.code ?? null,
+    });
+    return { ok: false, error: "transcode_failed" };
+  } finally {
+    if (dir) await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
 
-    function runFfmpeg(buffer: Buffer) {
+  function runFfmpeg(inputPath: string): Promise<TranscodeResult> {
+    return new Promise((resolve) => {
       try {
         const ffmpeg = spawnFn(ffmpegPath ?? "ffmpeg", [
+          "-nostdin",
           "-i",
-          "pipe:0",
+          inputPath,
           "-ar",
           "16000",
           "-ac",
@@ -222,15 +225,8 @@ export async function transcodeToWav(
 
         ffmpeg.stdout?.on("error", () => fail("stdout_error"));
         ffmpeg.stderr?.on("error", () => fail("stderr_error"));
-        ffmpeg.stdin?.on("error", () => fail("stdin_error"));
         // Native flowing mode drains stderr without retaining its contents.
         ffmpeg.stderr?.resume();
-        try {
-          ffmpeg.stdin?.write(buffer);
-          ffmpeg.stdin?.end();
-        } catch {
-          fail("stdin_write_threw");
-        }
       } catch (error) {
         log("error", "audio.transcode_failed", {
           error: "transcode_failed",
@@ -239,6 +235,6 @@ export async function transcodeToWav(
         });
         resolve({ ok: false, error: "transcode_failed" });
       }
-    }
-  });
+    });
+  }
 }

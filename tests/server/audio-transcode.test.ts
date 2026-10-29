@@ -1,11 +1,10 @@
 import { EventEmitter } from "node:events";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PassThrough, Writable } from "node:stream";
+import { PassThrough } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 
 type FakeChildProcess = EventEmitter & {
-  stdin: Writable;
   stdout: PassThrough;
   stderr: PassThrough;
   kill: ReturnType<typeof vi.fn>;
@@ -26,12 +25,6 @@ function createFakeSpawn(behavior: {
     child.stdout = new PassThrough();
     child.stderr = new PassThrough();
     child.kill = vi.fn(() => true);
-    child.stdin = new Writable({
-      write(_chunk, _encoding, callback) {
-        callback();
-      },
-    });
-
     queueMicrotask(() => {
       if (behavior.emitError) {
         child.emit("error", behavior.emitError);
@@ -51,11 +44,6 @@ function createHangingSpawn() {
   const child = new EventEmitter() as FakeChildProcess;
   child.stdout = new PassThrough();
   child.stderr = new PassThrough();
-  child.stdin = new Writable({
-    write(_chunk, _encoding, callback) {
-      callback();
-    },
-  });
   child.kill = vi.fn(() => {
     queueMicrotask(() => child.emit("close", null));
     return true;
@@ -144,6 +132,28 @@ describe("transcodeToWav", () => {
       expect.arrayContaining(["-ar", "16000", "-ac", "1", "-f", "wav"]),
     );
   });
+
+  it.each([0, 1])(
+    "feeds ffmpeg a seekable temp file and removes it (exit %i)",
+    async (exitCode) => {
+      // MP4/M4A keep their index at the end, which ffmpeg cannot seek to on pipe:0.
+      const { transcodeToWav } = await import("@/server/audio/audio-transcode");
+      const seen: { path?: string; bytes?: string } = {};
+      const fakeSpawn = createFakeSpawn({ chunks: [], exitCode });
+      const spawnFn = vi.fn((_command: string, args: string[]) => {
+        seen.path = args[args.indexOf("-i") + 1];
+        seen.bytes = readFileSync(seen.path!, "utf8");
+        return fakeSpawn();
+      });
+
+      await transcodeToWav(new Blob(["voice"], { type: "audio/mp4" }), {
+        spawn: spawnFn as never,
+      });
+
+      expect(seen.bytes).toBe("voice");
+      expect(existsSync(seen.path!)).toBe(false);
+    },
+  );
 
   it("replaces ffmpeg pipe sentinel sizes with the completed WAV sizes", async () => {
     const { transcodeToWav } = await import("@/server/audio/audio-transcode");
@@ -297,6 +307,30 @@ describe("transcodeToWav", () => {
 
     expect(result).toEqual({ ok: false, error: "transcode_failed" });
     expect(child.kill).toHaveBeenCalledTimes(1);
+    const args = (spawn.mock.calls[0] as unknown as [string, string[]])[1];
+    expect(existsSync(args[args.indexOf("-i") + 1])).toBe(false);
+  });
+
+  it("logs a temp_write stage when the upload cannot be read", async () => {
+    const { transcodeToWav } = await import("@/server/audio/audio-transcode");
+    const spawnFn = createFakeSpawn({ chunks: [], exitCode: 0 });
+    const unreadable = {
+      arrayBuffer: () => Promise.reject(new Error("read failed")),
+    } as unknown as Blob;
+    const lines = captureTranscodeLogs();
+
+    let result;
+    try {
+      result = await transcodeToWav(unreadable, { spawn: spawnFn as never });
+    } finally {
+      lines.restore();
+    }
+
+    expect(result).toEqual({ ok: false, error: "transcode_failed" });
+    expect(spawnFn).not.toHaveBeenCalled();
+    expect(lines.entries()).toEqual([
+      expect.objectContaining({ stage: "temp_write" }),
+    ]);
   });
 
   it("drains large stderr without changing the success result", async () => {
@@ -305,11 +339,6 @@ describe("transcodeToWav", () => {
       const child = new EventEmitter() as FakeChildProcess;
       child.stdout = new PassThrough();
       child.stderr = new PassThrough();
-      child.stdin = new Writable({
-        write(_chunk, _encoding, callback) {
-          callback();
-        },
-      });
       child.kill = vi.fn(() => true);
       queueMicrotask(() => {
         child.stderr.emit("data", Buffer.alloc(1024 * 1024));
