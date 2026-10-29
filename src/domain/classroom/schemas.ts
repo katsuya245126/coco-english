@@ -42,3 +42,13 @@ export const teacherProfileSchema = z.object({
 });
 
 export type TeacherProfileInput = z.infer<typeof teacherProfileSchema>;
+
+// Class creation: join codes are generated on the server, never accepted from
+// the teacher's form.
+export const createClassSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Enter a class name.")
+    .max(80, "Class name is too long."),
+});

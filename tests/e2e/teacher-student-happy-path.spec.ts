@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { generateJoinCode } from "@/domain/classroom/join-code";
 import { logInTeacher } from "./teacher-auth";
 
 const LIVE_E2E_ENV_PRESENT = Boolean(
@@ -39,7 +38,6 @@ test("teacher assignment reaches the student's homework list through public UI",
   const className = `Playwright UI Class ${stamp}`;
   const studentName = `Playwright UI Student ${stamp}`;
   const missionTitle = `Playwright UI Mission ${stamp}`;
-  const joinCode = generateJoinCode();
   let classId: string | null = null;
   let missionId: string | null = null;
   let teacherProfileId: string | null = null;
@@ -74,31 +72,43 @@ test("teacher assignment reaches the student's homework list through public UI",
     }
     teacherProfileId = teacher.data.id;
 
-    // The shell links to /teacher/classes, but that route/create affordance is
-    // absent. Seed only this missing prerequisite; the remaining class,
-    // mission, assignment, and student actions stay on the public UI.
-    const klass = await admin
-      .from("classes")
-      .insert({
-        teacher_id: teacher.data.id,
-        name: className,
-        join_code: joinCode,
-        data_mode: "real",
-      })
-      .select("id")
-      .single();
-    expect(klass.error).toBeNull();
-    if (!klass.data) throw new Error("Unable to create isolated E2E class fixture.");
-    classId = klass.data.id;
-
     await logInTeacher(page, {
       email: teacherEmail,
       password: teacherPassword,
     });
 
+    // Create the class through the same link teachers use in the workspace.
+    await page.getByRole("link", { name: /Create class/ }).click();
+    await expect(page).toHaveURL(/\/teacher\/classes$/);
+    await page.getByLabel("Class name").fill(className);
+    await page.getByRole("button", { name: "Save class" }).click();
+    await expect(page).toHaveURL(/\/teacher\/classes\/[0-9a-f-]+\/manage$/);
+    classId = page.url().match(/\/teacher\/classes\/([0-9a-f-]+)\/manage$/)?.[1] ?? null;
+    if (!classId) throw new Error("Teacher UI did not navigate to the created class.");
+    await expect(
+      page.getByRole("heading", { name: `${className} — Class Settings` }),
+    ).toBeVisible();
+    const joinCodeText = page.getByText(/Join code [A-Z0-9]{6}/);
+    await expect(joinCodeText).toBeVisible();
+    const joinCode = (await joinCodeText.textContent())?.match(
+      /Join code ([A-Z0-9]{6})/,
+    )?.[1];
+    if (!joinCode) throw new Error("Teacher UI did not show the generated class join code.");
+
+    const createdClass = await admin
+      .from("classes")
+      .select("teacher_id, name, join_code")
+      .eq("id", classId)
+      .single();
+    expect(createdClass.error).toBeNull();
+    expect(createdClass.data).toMatchObject({
+      teacher_id: teacher.data.id,
+      name: className,
+      join_code: joinCode,
+    });
+
     // Add the student through the teacher UI so the one-time PIN path is
     // exercised instead of inserting a PIN fixture directly.
-    await page.goto(`/teacher/classes/${classId}/manage`);
     await page.waitForLoadState("networkidle");
     await expect(
       page.getByRole("heading", { name: `${className} — Class Settings` }),
