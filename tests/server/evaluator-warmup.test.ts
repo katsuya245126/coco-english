@@ -28,17 +28,19 @@ describe("evaluator warm-up budget", () => {
     mockEvaluateRepeatTurn.mockReset();
   });
 
-  it("never calls the provider on the public demo (outside its daily cap)", async () => {
+  it("warms up on the public demo too", async () => {
     vi.stubEnv("DEMO_MODE", "true");
     vi.stubEnv("DEMO_CLASS_ID", "7a1e4c2b-9d3f-4a8e-b1c2-3d4e5f6a7b8c");
     mockConsume.mockResolvedValue({ allowed: true });
+    mockEvaluateOriginalTurn.mockResolvedValue({ ok: false });
+    mockEvaluateRepeatTurn.mockResolvedValue({ ok: false });
 
     const { warmEvaluators } = await import("@/server/ai/evaluator-warmup");
     await warmEvaluators("elementary");
     vi.unstubAllEnvs();
 
-    expect(mockEvaluateOriginalTurn).not.toHaveBeenCalled();
-    expect(mockEvaluateRepeatTurn).not.toHaveBeenCalled();
+    expect(mockEvaluateOriginalTurn).toHaveBeenCalledTimes(1);
+    expect(mockEvaluateRepeatTurn).toHaveBeenCalledTimes(1);
   });
 
   it("skips both evaluators when the global warm-up budget is denied", async () => {
