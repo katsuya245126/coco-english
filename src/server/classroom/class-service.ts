@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server-auth";
+import { generateJoinCode } from "@/domain/classroom/join-code";
 
 // Class management service.
 //
@@ -16,6 +17,40 @@ export type TeacherClass = {
   joinCode: string | null;
   rosterCount: number;
 };
+
+const UNIQUE_VIOLATION = "23505";
+const JOIN_CODE_RETRY_LIMIT = 5;
+
+// The caller supplies the authenticated teacher profile id. The RLS-bound
+// client enforces that it belongs to the current auth user.
+export async function createClass(input: {
+  teacherId: string;
+  name: string;
+}): Promise<{ id: string }> {
+  const supabase = await createSupabaseServerClient();
+
+  for (let attempt = 0; attempt < JOIN_CODE_RETRY_LIMIT; attempt += 1) {
+    const joinCode = generateJoinCode();
+    const inserted = await supabase
+      .from("classes")
+      .insert({
+        teacher_id: input.teacherId,
+        name: input.name,
+        join_code: joinCode,
+        data_mode: "real",
+      })
+      .select("id")
+      .single();
+
+    if (!inserted.error) return inserted.data;
+
+    if (inserted.error.code !== UNIQUE_VIOLATION) {
+      throw new Error(`Unable to create class: ${inserted.error.message}`);
+    }
+  }
+
+  throw new Error("Unable to create class: could not allocate a unique join code.");
+}
 
 // List the current teacher's non-archived classes with an active-student roster
 // count. RLS limits the classes query to this teacher's rows; the roster count

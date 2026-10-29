@@ -1,0 +1,49 @@
+.form {
+  display: grid;
+  gap: 10px;
+  max-width: 520px;
+  padding: 24px;
+  border: 1px solid var(--t-line);
+  border-radius: 12px;
+  background: var(--t-surface);
+}
+
+.label {
+  color: var(--t-ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.input {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--t-line-strong);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--t-ink);
+  font: inherit;
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--t-ink);
+  outline-offset: 2px;
+}
+
+.error {
+  margin: 0;
+  color: #b42318;
+  font-size: 14px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.actions button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
