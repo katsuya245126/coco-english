@@ -183,7 +183,7 @@ function SamplesTab({
           id="pronunciation-sample-file"
           aria-label="Audio recording"
           type="file"
-          accept="audio/webm,audio/mp4,audio/m4a,audio/mpeg,audio/wav,audio/wave"
+          accept="audio/webm,audio/mp4,audio/m4a,audio/x-m4a,.m4a,audio/mpeg,audio/wav,audio/wave"
           onChange={(event) => setFile(event.currentTarget.files?.[0] ?? null)}
           disabled={isPending}
         />
